@@ -1,53 +1,106 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const filePath = path.join(process.cwd(), 'data', 'settings.json');
+const dataFilePath = path.join(process.cwd(), 'data', 'settings.json');
 
-function getSettings() {
-  if (!fs.existsSync(filePath)) {
-    return {
-      siteNames: ['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体'],
-      managers: ['大和 太郎', '佐藤 次郎', '鈴木 三郎'],
-      workersList: ['作業員A', '作業員B', '作業員C'],
-      leaseList: ['0.2ユンボ', '0.45ユンボ', '2tダンプ'],
-      disposalSites: [
-        { id: '1', name: '堺処分場', item: 'ガラ', unit: 't', price: 0 },
-      ],
-      rates: {},
+// データの読み込み
+function readSettings() {
+  if (!fs.existsSync(dataFilePath)) {
+    const defaultData = {
+      workers: ['田中 太郎', '鈴木 次郎', '佐藤 花子'],
+      locations: ['第1現場', '第2現場'],
+      vehicles: ['1号車', '2号車'],
+      heavyMachines: ['バックホウ 0.2㎥', 'ミニショベル'],
+      scrapLocations: [{ location: '〇〇解体処分場', item: '鉄スクラップ' }],
+      subcontractors: ['A工業', 'B建設']
     };
+    const dir = path.dirname(dataFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(dataFilePath, JSON.stringify(defaultData, null, 2));
+    return defaultData;
   }
+  const fileData = fs.readFileSync(dataFilePath, 'utf-8');
   try {
-    const fileData = fs.readFileSync(filePath, 'utf8');
-    const data = JSON.parse(fileData);
-    if (!data.rates) data.rates = {};
-    if (!data.disposalSites) data.disposalSites = [];
-    if (!data.leaseList) data.leaseList = [];
-    return data;
-  } catch (e) {
-    return { siteNames: [], managers: [], workersList: [], leaseList: [], disposalSites: [], rates: {} };
+    return JSON.parse(fileData);
+  } catch {
+    return { workers: [], locations: [], vehicles: [], heavyMachines: [], scrapLocations: [], subcontractors: [] };
   }
 }
 
-function saveSettings(settings: any) {
-  const dirPath = path.dirname(filePath);
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+// データの保存
+function writeSettings(data: any) {
+  const dir = path.dirname(dataFilePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8');
+  fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
 }
 
 export async function GET() {
-  const settings = getSettings();
-  return NextResponse.json({ success: true, settings });
+  const settings = readSettings();
+  return NextResponse.json(settings);
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    saveSettings(body);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: '保存失敗' }, { status: 500 });
+    const body = await request.json();
+    const { type, value } = body;
+    const settings = readSettings();
+
+    if (type === 'worker' && !settings.workers.includes(value)) {
+      settings.workers.push(value);
+    } else if (type === 'location' && !settings.locations.includes(value)) {
+      settings.locations.push(value);
+    } else if (type === 'vehicle' && !settings.vehicles.includes(value)) {
+      settings.vehicles.push(value);
+    } else if (type === 'heavyMachine' && !settings.heavyMachines.includes(value)) {
+      settings.heavyMachines.push(value);
+    } else if (type === 'subcontractor' && !settings.subcontractors.includes(value)) {
+      settings.subcontractors.push(value);
+    } else if (type === 'scrapLocation') {
+      // value は { location, item } のオブジェクト
+      if (!settings.scrapLocations) settings.scrapLocations = [];
+      const exists = settings.scrapLocations.some((s: any) => s.location === value.location && s.item === value.item);
+      if (!exists) {
+        settings.scrapLocations.push(value);
+      }
+    }
+
+    writeSettings(settings);
+    return NextResponse.json(settings);
+  } catch (err) {
+    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json();
+    const { type, value } = body;
+    const settings = readSettings();
+
+    if (type === 'worker') {
+      settings.workers = settings.workers.filter((w: string) => w !== value);
+    } else if (type === 'location') {
+      settings.locations = settings.locations.filter((l: string) => l !== value);
+    } else if (type === 'vehicle') {
+      settings.vehicles = settings.vehicles.filter((v: string) => v !== value);
+    } else if (type === 'heavyMachine') {
+      settings.heavyMachines = settings.heavyMachines.filter((hm: string) => hm !== value);
+    } else if (type === 'subcontractor') {
+      settings.subcontractors = settings.subcontractors.filter((sub: string) => sub !== value);
+    } else if (type === 'scrapLocation') {
+      // value は "location:item" という文字列で受け取る想定
+      const [loc, item] = value.split(':');
+      settings.scrapLocations = settings.scrapLocations.filter((s: any) => !(s.location === loc && s.item === item));
+    }
+
+    writeSettings(settings);
+    return NextResponse.json(settings);
+  } catch (err) {
+    return NextResponse.json({ error: 'Failed to delete setting' }, { status: 500 });
   }
 }
