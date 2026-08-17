@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 
+export const dynamic = 'force-dynamic';
+
 interface Report {
   id: string;
   createdAt: string;
@@ -265,7 +267,7 @@ export default function AdminPage() {
     }
   };
 
-  // 各金額計算処理 (リース費の正しい集計ロジックを追加)
+  // 各金額計算処理
   const getReportDetails = (r: Report) => {
     let labor = 0;
     if (r.manager && rates[r.manager]) labor += rates[r.manager];
