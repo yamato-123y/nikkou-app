@@ -6,7 +6,7 @@ export default function AdminPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
 
-  const [locations, setLocations] = useState<string[]>([]);
+  const [locations, setLocations] = useState<{name: string, price: number}[]>([]);
   const [leases, setLeases] = useState<{ name: string; price: number }[]>([]);
   const [companyMachines, setCompanyMachines] = useState<{ name: string; price: number }[]>([]);
   const [vehicles, setVehicles] = useState<{ name: string; price: number }[]>([]);
@@ -21,7 +21,8 @@ export default function AdminPage() {
   const [filterLocation, setFilterLocation] = useState('');
 
   // 新規追加用
-  const [newLocation, setNewLocation] = useState('');
+  const [newLocationName, setNewLocationName] = useState('');
+  const [newLocationPrice, setNewLocationPrice] = useState(0);
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
   const [newDispLoc, setNewDispLoc] = useState('');
@@ -39,7 +40,9 @@ export default function AdminPage() {
       if (resR.ok) setReports(await resR.json());
       if (resS.ok) {
         const s = await resS.json();
-        setLocations(s.locations || []);
+        // locationsが文字列の配列かオブジェクトの配列か両方に対応
+        const locs = (s.locations || []).map((l: any) => typeof l === 'string' ? { name: l, price: 0 } : l);
+        setLocations(locs);
         setLeases(s.leases || []);
         setCompanyMachines(s.companyMachines || []);
         setVehicles(s.vehicles || []);
@@ -51,15 +54,15 @@ export default function AdminPage() {
     } catch (e) { console.error(e); }
   };
 
-  // CSVダウンロード処理
-  const downloadCSV = () => {
+  // 全体CSVダウンロード
+  const downloadAllCSV = () => {
     const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "作業内容"];
     const rows = reports.map(r => [r.date, r.location, r.manager, (r.workers || []).join(','), r.machine, r.vehicle, r.fuel, r.etcPrice, r.workDescription]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `日報データ_${new Date().toLocaleDateString()}.csv`;
+    link.download = `全日報データ_${new Date().toLocaleDateString()}.csv`;
     link.click();
   };
 
@@ -95,7 +98,8 @@ export default function AdminPage() {
 
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName || r.locations?.includes(locName));
-    let laborCost = 0, leaseCost = 0, disposalCost = 0;
+    let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0;
+    
     locMapped.forEach(r => {
       const mgrs = Array.isArray(r.managers) ? r.managers : (r.manager ? [r.manager] : []);
       mgrs.forEach((m: any) => laborCost += (managers.find(x => x.name === m)?.price || 20000));
@@ -105,9 +109,21 @@ export default function AdminPage() {
       const mName = r.machine || r.lease;
       leaseCost += (leases.find(x => x.name === mName)?.price || 0);
       
-      (r.disposals || []).forEach((d: any) => disposalCost += (Number(d.quantity || 0) * (disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 3000)));
+      (r.disposals || []).forEach((d: any) => {
+        const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 3000;
+        disposalCost += (Number(d.quantity || 0) * unitPrice);
+      });
+
+      fuelCost += Number(r.fuelPrice || 0);
+      etcCost += Number(r.etcPrice || 0);
+      otherCost += Number(r.otherPrice || 0);
     });
-    return { days: locMapped.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reportsWithIndex: locMapped };
+
+    const totalCost = laborCost + leaseCost + disposalCost + fuelCost + etcCost + otherCost;
+    const contractPrice = locations.find(l => l.name === locName)?.price || 0;
+    const profit = contractPrice - totalCost;
+
+    return { days: locMapped.length, laborCost, leaseCost, disposalCost, fuelCost, etcCost, otherCost, total: totalCost, contractPrice, profit, reportsWithIndex: locMapped };
   };
 
   if (!isAuthed) {
@@ -142,27 +158,25 @@ export default function AdminPage() {
           <thead>
             <tr className="border-b text-slate-500 text-sm">
               <th className="pb-3 font-bold">現場名</th>
+              <th className="pb-3 font-bold">請負金額</th>
               <th className="pb-3 font-bold">稼働日数</th>
-              <th className="pb-3 font-bold">人件費</th>
-              <th className="pb-3 font-bold">リース費</th>
-              <th className="pb-3 font-bold">処分費</th>
               <th className="pb-3 font-bold">合計経費</th>
+              <th className="pb-3 font-bold">粗利</th>
               <th className="pb-3 text-center font-bold">詳細</th>
             </tr>
           </thead>
           <tbody className="divide-y font-bold text-base">
-            {locations.map(loc => {
-              const c = calculateCosts(loc);
+            {locations.map(locObj => {
+              const c = calculateCosts(locObj.name);
               return (
-                <tr key={loc} className="hover:bg-slate-50 transition">
-                  <td className="py-4 text-[#0066cc]">{loc}</td>
+                <tr key={locObj.name} className="hover:bg-slate-50 transition">
+                  <td className="py-4 text-[#0066cc]">{locObj.name}</td>
+                  <td className="text-slate-700">¥{locObj.price.toLocaleString()}</td>
                   <td>{c.days} 日</td>
-                  <td>¥{c.laborCost.toLocaleString()}</td>
-                  <td>¥{c.leaseCost.toLocaleString()}</td>
-                  <td>¥{c.disposalCost.toLocaleString()}</td>
-                  <td className="text-emerald-600 font-black">¥{c.total.toLocaleString()}</td>
+                  <td>¥{c.total.toLocaleString()}</td>
+                  <td className={c.profit >= 0 ? "text-emerald-600 font-black" : "text-red-600 font-black"}>¥{c.profit.toLocaleString()}</td>
                   <td className="text-center">
-                    <button onClick={() => setModalLocation(loc)} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm shadow">詳細 →</button>
+                    <button onClick={() => setModalLocation(locObj.name)} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm shadow">詳細 →</button>
                   </td>
                 </tr>
               );
@@ -176,18 +190,29 @@ export default function AdminPage() {
         <h2 className="text-lg font-black">⚙️ マスタ登録（現場・担当者・リース・処分場）</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* 現場名一覧 */}
+          {/* 現場名一覧 ＆ 請負金額 */}
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-            <h3 className="font-bold text-sm">🏢 現場名一覧</h3>
-            <div className="flex gap-2">
-              <input type="text" placeholder="新しい現場名" value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white outline-none" />
-              <button onClick={() => { if(!newLocation.trim())return; const up=[...locations, newLocation]; setLocations(up); updateMaster('locations', up); setNewLocation(''); }} className="bg-[#E56312] text-white px-3 py-2 rounded-lg text-sm font-bold shadow">追加</button>
+            <h3 className="font-bold text-sm">🏢 現場名 ＆ 請負金額</h3>
+            <input type="text" placeholder="新しい現場名" value={newLocationName} onChange={e => setNewLocationName(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white outline-none" />
+            <div className="flex gap-2 items-center">
+              <input type="number" placeholder="請負金額 (円)" value={newLocationPrice} onChange={e => setNewLocationPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white outline-none" />
+              <button onClick={() => { 
+                if(!newLocationName.trim())return; 
+                const up = [...locations, { name: newLocationName, price: newLocationPrice }]; 
+                setLocations(up); 
+                saveSettings({ locations: up, leases, companyMachines, vehicles, disposalLocations, scrapLocations, managers, workers }); 
+                setNewLocationName(''); setNewLocationPrice(0); 
+              }} className="bg-[#E56312] text-white px-3 py-2 rounded-lg text-sm font-bold shadow shrink-0">追加</button>
             </div>
-            <div className="max-h-40 overflow-y-auto divide-y border rounded-lg p-2 bg-white">
-              {locations.map(l => (
-                <div key={l} className="py-1.5 px-1 flex justify-between items-center text-sm font-bold">
-                  <span>{l}</span>
-                  <button onClick={() => { const up=locations.filter(x=>x!==l); setLocations(up); updateMaster('locations', up); }} className="text-red-500 text-xs">削除</button>
+            <div className="max-h-40 overflow-y-auto divide-y border rounded-lg p-2 bg-white space-y-1">
+              {locations.map((l, i) => (
+                <div key={i} className="py-1 px-1 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{l.name} (¥{l.price.toLocaleString()})</span>
+                  <button onClick={() => { 
+                    const up = locations.filter((_, idx) => idx !== i); 
+                    setLocations(up); 
+                    saveSettings({ locations: up, leases, companyMachines, vehicles, disposalLocations, scrapLocations, managers, workers }); 
+                  }} className="text-red-500 shrink-0">削除</button>
                 </div>
               ))}
             </div>
@@ -296,7 +321,7 @@ export default function AdminPage() {
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-lg font-black">📥 送信された日報一覧</h2>
           <div className="flex gap-2">
-            <button onClick={downloadCSV} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">CSVダウンロード</button>
+            <button onClick={downloadAllCSV} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">全日報CSVダウンロード</button>
             <input type="text" placeholder="現場名で絞り込み..." value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="p-2 border rounded-xl text-sm bg-slate-50 outline-none w-48" />
           </div>
         </div>
@@ -320,8 +345,7 @@ export default function AdminPage() {
                 const wrks = Array.isArray(r.workers) ? r.workers.join(', ') : (r.workers || 'なし');
                 const mPrice = managers.find(x => x.name === r.manager)?.price || 20000;
                 const wCount = Array.isArray(r.workers) ? r.workers.length : (r.workers ? r.workers.split(',').length : 0);
-                const wPriceSum = wCount * 15000;
-                const estLabor = mPrice + wPriceSum;
+                const estLabor = mPrice + (wCount * 15000);
 
                 return (
                   <tr key={i} className="hover:bg-slate-50 align-top">
@@ -361,23 +385,46 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 詳細モーダル */}
+      {/* 詳細モーダル (CSVダウンロード・詳細内訳付き) */}
       {modalLocation && modalData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h2 className="text-xl font-black">{modalLocation} (現場詳細分析)</h2>
-              <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
+              <div>
+                <h2 className="text-xl font-black">{modalLocation} (現場詳細分析)</h2>
+                <p className="text-xs text-slate-500">請負金額: ¥{modalData.contractPrice.toLocaleString()} / 粗利: <span className={modalData.profit >= 0 ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>¥{modalData.profit.toLocaleString()}</span></p>
+              </div>
+              <div className="flex gap-2 items-center">
+                <button onClick={() => {
+                  const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "作業内容"];
+                  const rows = modalData.reportsWithIndex.map((r:any) => [r.date, r.location, r.manager, (r.workers || []).join(','), r.machine, r.vehicle, r.fuel, r.etcPrice, r.workDescription]);
+                  const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+                  const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const link = document.createElement("a");
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `${modalLocation}_日報データ.csv`;
+                  link.click();
+                }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">📁 この現場のCSVをダウンロード</button>
+                <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-3 text-center">
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">稼働日数</div><div className="text-lg font-black">{modalData.days}日</div></div>
-              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">人件費</div><div className="text-lg font-black text-emerald-700">¥{modalData.laborCost.toLocaleString()}</div></div>
-              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">リース費</div><div className="text-lg font-black text-blue-700">¥{modalData.leaseCost.toLocaleString()}</div></div>
-              <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">処分費</div><div className="text-lg font-black text-amber-700">¥{modalData.disposalCost.toLocaleString()}</div></div>
+              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">人件費合計</div><div className="text-lg font-black text-emerald-700">¥{modalData.laborCost.toLocaleString()}</div></div>
+              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">リース費合計</div><div className="text-lg font-black text-blue-700">¥{modalData.leaseCost.toLocaleString()}</div></div>
+              <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">処分費合計</div><div className="text-lg font-black text-amber-700">¥{modalData.disposalCost.toLocaleString()}</div></div>
             </div>
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-purple-50 p-3 rounded-xl border"><div className="text-xs text-purple-600">軽油費</div><div className="text-md font-black text-purple-700">¥{modalData.fuelCost.toLocaleString()}</div></div>
+              <div className="bg-indigo-50 p-3 rounded-xl border"><div className="text-xs text-indigo-600">ETC代</div><div className="text-md font-black text-indigo-700">¥{modalData.etcCost.toLocaleString()}</div></div>
+              <div className="bg-rose-50 p-3 rounded-xl border"><div className="text-xs text-rose-600">その他雑費</div><div className="text-md font-black text-rose-700">¥{modalData.otherCost.toLocaleString()}</div></div>
+            </div>
+
             <div className="space-y-3">
-              <h3 className="font-bold text-sm">日報内訳一覧</h3>
-              {modalData.reportsWithIndex.map((r, globalIndex) => {
+              <h3 className="font-bold text-sm">日報別 詳細内訳</h3>
+              {modalData.reportsWithIndex.map((r:any, globalIndex:number) => {
                 const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || 'なし');
                 const wrks = Array.isArray(r.workers) ? r.workers.join(', ') : (r.workers || 'なし');
                 return (
@@ -386,11 +433,24 @@ export default function AdminPage() {
                       <span>📅 {r.date}</span>
                       <span className="text-slate-400 font-normal">{r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1 font-bold">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-bold">
                       <div>👤 責任者: <span className="font-normal text-slate-700">{mgrs}</span></div>
                       <div>👥 作業者: <span className="font-normal text-slate-700">{wrks}</span></div>
-                      <div>🚜 リース重機: <span className="font-normal text-slate-700">{r.machine || r.lease || 'なし'}</span></div>
+                      <div>🚜 重機・車両: <span className="font-normal text-slate-700">{r.machine || '-'}/{r.vehicle || '-'}</span></div>
+                      <div>⛽ 軽油: <span className="font-normal text-slate-700">{r.fuel || 0}L (¥{r.fuelPrice || 0})</span></div>
+                      <div>💳 ETC: <span className="font-normal text-slate-700">¥{r.etcPrice || 0}</span></div>
+                      <div>📦 その他: <span className="font-normal text-slate-700">{r.otherItem || '-'}: ¥{r.otherPrice || 0}</span></div>
                     </div>
+                    {r.disposals && r.disposals.length > 0 && (
+                      <div className="pt-1 border-t text-blue-700 font-bold">
+                        🗑️ 処分場搬出: {r.disposals.map((d:any, idx:number)=>`${d.location}(${d.item}): ${d.quantity}${d.unit || 't'}`).join(', ')}
+                      </div>
+                    )}
+                    {r.workDescription && (
+                      <div className="pt-1 text-slate-600 font-normal">
+                        📝 作業内容: {r.workDescription}
+                      </div>
+                    )}
                   </div>
                 );
               })}
