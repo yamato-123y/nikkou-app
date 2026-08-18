@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
@@ -15,15 +15,17 @@ export default function AdminPage() {
     subcontractors: [],
     leases: []
   });
-  const [tab, setTab] = useState<'reports' | 'analysis' | 'settings'>('reports');
   const [loading, setLoading] = useState(false);
 
+  // マスタ追加用の入力状態
   const [newLocation, setNewLocation] = useState('');
-  const [newSubcontractor, setNewSubcontractor] = useState('');
+  const [newLease, setNewLease] = useState('');
+  const [newScrapLoc, setNewScrapLoc] = useState('');
+  const [newScrapItem, setNewScrapItem] = useState('');
+  const [newWorker, setNewWorker] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // パスワード認証（デフォルト設定：yamato123）
     if (password === 'yamato123' || password === 'yamato') {
       setIsAuthed(true);
       setAuthError(false);
@@ -89,7 +91,9 @@ export default function AdminPage() {
           });
         }
         if (type === 'location') setNewLocation('');
-        if (type === 'subcontractor') setNewSubcontractor('');
+        if (type === 'lease') setNewLease('');
+        if (type === 'scrapLocation') { setNewScrapLoc(''); setNewScrapItem(''); }
+        if (type === 'worker') setNewWorker('');
       }
     } catch (err) {
       console.error(err);
@@ -162,118 +166,200 @@ export default function AdminPage() {
 
   const safeReports = Array.isArray(reports) ? reports : [];
   const safeLocations = Array.isArray(settings?.locations) ? settings.locations : [];
-  const safeSubcontractors = Array.isArray(settings?.subcontractors) ? settings.subcontractors : [];
+  const safeLeases = Array.isArray(settings?.leases) ? settings.leases : [];
+  const safeScrapLocs = Array.isArray(settings?.scrapLocations) ? settings.scrapLocations : [];
+  const safeWorkers = Array.isArray(settings?.workers) ? settings.workers : [];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">日報管理ダッシュボード</h1>
-          <div className="space-x-2">
-            <button onClick={() => setTab('reports')} className={`px-4 py-2 rounded ${tab === 'reports' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>日報一覧</button>
-            <button onClick={() => setTab('analysis')} className={`px-4 py-2 rounded ${tab === 'analysis' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>現場分析</button>
-            <button onClick={() => setTab('settings')} className={`px-4 py-2 rounded ${tab === 'settings' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>マスター設定</button>
+    <div className="min-h-screen bg-slate-100 p-6 font-sans text-slate-800">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* ヘッダー */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+              📊 日報管理・原価詳細ダッシュボード
+            </h1>
+            <p className="text-sm font-bold text-slate-500 mt-1">株式会社大和 音声日報システム</p>
+          </div>
+          <button
+            onClick={() => setIsAuthed(false)}
+            className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-2.5 rounded-xl shadow transition text-sm"
+          >
+            ログアウト
+          </button>
+        </div>
+
+        {loading && <p className="text-center py-4 font-bold text-slate-600">読み込み中...</p>}
+
+        {/* 現場別 経費集計サマリー */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            🏢 現場別 経費集計サマリー
+          </h2>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500 text-sm">
+                  <th className="pb-3 font-bold">現場名</th>
+                  <th className="pb-3 font-bold">稼働日数</th>
+                  <th className="pb-3 font-bold">人件費</th>
+                  <th className="pb-3 font-bold">リース費</th>
+                  <th className="pb-3 font-bold">処分費</th>
+                  <th className="pb-3 font-bold">合計経費</th>
+                  <th className="pb-3 font-bold text-center">詳細</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-base font-bold">
+                {safeLocations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td>
+                  </tr>
+                ) : (
+                  safeLocations.map((loc: string) => {
+                    const locReports = safeReports.filter(r => r?.location === loc);
+                    return (
+                      <tr key={loc} className="hover:bg-slate-50">
+                        <td className="py-4 text-[#1D70B8]">{loc}</td>
+                        <td className="py-4 text-slate-700">{locReports.length}日</td>
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-emerald-600">¥0</td>
+                        <td className="py-4 text-center">
+                          <button className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow">
+                            詳細 →
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {loading && <p className="text-center py-4 font-bold text-gray-600">読み込み中...</p>}
+        {/* マスタ登録（現場・リース・処分場） */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            ⚙️ マスタ登録（現場・リース・処分場）
+          </h2>
 
-        {!loading && tab === 'reports' && (
-          <div className="bg-white rounded shadow p-4">
-            <h2 className="text-lg font-bold mb-4">送信された日報一覧</h2>
-            {safeReports.length === 0 ? (
-              <p className="text-gray-500">まだ日報データはありません。</p>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-100">
-                    <th className="p-2">日時</th>
-                    <th className="p-2">現場</th>
-                    <th className="p-2">作業員</th>
-                    <th className="p-2">内容</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {safeReports.map((r, i) => (
-                    <tr key={i} className="border-b">
-                      <td className="p-2 text-sm">{r?.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</td>
-                      <td className="p-2 font-bold">{r?.location || ''}</td>
-                      <td className="p-2 text-sm">{Array.isArray(r?.workers) ? r.workers.join(', ') : ''}</td>
-                      <td className="p-2 text-sm">{r?.workDescription || ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {!loading && tab === 'analysis' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold">現場別分析</h2>
-            {safeLocations.length === 0 ? (
-              <p className="text-gray-500">現場が登録されていません。「マスター設定」から現場を追加してください。</p>
-            ) : (
-              safeLocations.map((loc: string) => (
-                <div key={loc} className="bg-white p-4 rounded shadow">
-                  <h3 className="text-xl font-bold text-orange-600 mb-2">📍 {loc}</h3>
-                  <p className="text-sm text-gray-600">提出数: {safeReports.filter(r => r?.location === loc).length}件</p>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {!loading && tab === 'settings' && (
-          <div className="bg-white rounded shadow p-6 space-y-6">
-            <h2 className="text-lg font-bold mb-4">マスター設定</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div className="border-b pb-4">
-              <h3 className="font-bold mb-2">現場一覧</h3>
-              <div className="flex gap-2 mb-2">
+            {/* 現場名一覧 */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+              <h3 className="font-bold text-slate-800 text-sm">🏢 現場名一覧</h3>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="現場名を入力"
+                  placeholder="新しい現場名"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  className="border p-2 rounded flex-1"
+                  className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
                 />
-                <button onClick={() => handleAddSetting('location', newLocation)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+                <button
+                  onClick={() => handleAddSetting('location', newLocation)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                >
+                  追加
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="divide-y divide-slate-200 max-h-48 overflow-y-auto">
                 {safeLocations.map((loc: string) => (
-                  <span key={loc} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
-                    {loc}
-                    <button onClick={() => handleDeleteSetting('location', loc)} className="text-red-500 font-bold">×</button>
-                  </span>
+                  <div key={loc} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{loc}</span>
+                    <button
+                      onClick={() => handleDeleteSetting('location', loc)}
+                      className="text-red-500 hover:text-red-700 text-xs font-bold"
+                    >
+                      削除
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
 
-            <div className="border-b pb-4">
-              <h3 className="font-bold mb-2">外注会社一覧</h3>
-              <div className="flex gap-2 mb-2">
+            {/* リース・重機マスタ */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+              <h3 className="font-bold text-slate-800 text-sm">🚜 リース・重機マスタ</h3>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="外注会社名を入力"
-                  value={newSubcontractor}
-                  onChange={(e) => setNewSubcontractor(e.target.value)}
-                  className="border p-2 rounded flex-1"
+                  placeholder="例: 0.2ユンボ"
+                  value={newLease}
+                  onChange={(e) => setNewLease(e.target.value)}
+                  className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
                 />
-                <button onClick={() => handleAddSetting('subcontractor', newSubcontractor)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+                <button
+                  onClick={() => handleAddSetting('lease', newLease)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                >
+                  追加
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {safeSubcontractors.map((sub: string) => (
-                  <span key={sub} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
-                    {sub}
-                    <button onClick={() => handleDeleteSetting('subcontractor', sub)} className="text-red-500 font-bold">×</button>
-                  </span>
+              <div className="divide-y divide-slate-200 max-h-48 overflow-y-auto">
+                {safeLeases.map((l: string) => (
+                  <div key={l} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{l}</span>
+                    <button
+                      onClick={() => handleDeleteSetting('lease', l)}
+                      className="text-red-500 hover:text-red-700 text-xs font-bold"
+                    >
+                      削除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 処分場マスタ */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+              <h3 className="font-bold text-slate-800 text-sm">🗑️ 処分場マスタ ＆ 単価設定</h3>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="処分場名 (例: 堺処分場)"
+                  value={newScrapLoc}
+                  onChange={(e) => setNewScrapLoc(e.target.value)}
+                  className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="品目 (例: ガラ)"
+                    value={newScrapItem}
+                    onChange={(e) => setNewScrapItem(e.target.value)}
+                    className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
+                  />
+                  <button
+                    onClick={() => handleAddSetting('scrapLocation', { location: newScrapLoc, item: newScrapItem })}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                  >
+                    追加
+                  </button>
+                </div>
+              </div>
+              <div className="divide-y divide-slate-200 max-h-36 overflow-y-auto">
+                {safeScrapLocs.map((sc: any, idx: number) => (
+                  <div key={idx} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{sc.location} - {sc.item}</span>
+                    <button
+                      onClick={() => handleDeleteSetting('scrapLocation', `${sc.location}:${sc.item}`)}
+                      className="text-red-500 hover:text-red-700 text-xs font-bold"
+                    >
+                      削除
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
 
           </div>
-        )}
+        </div>
+
       </div>
     </div>
   );
