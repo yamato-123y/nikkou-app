@@ -24,7 +24,13 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
 
   useEffect(() => {
-    fetch('/api/settings').then(res => res.json()).then(setSettings);
+    fetch('/api/settings').then(res => res.json()).then(data => {
+      // 現場データが文字列かオブジェクトかにかかわらず安全に処理する
+      if (data && data.locations) {
+        data.locations = data.locations.map((l: any) => typeof l === 'string' ? l : l.name);
+      }
+      setSettings(data || {});
+    }).catch(err => console.error(err));
   }, []);
 
   const handleCopyPrevious = (type: string) => {
