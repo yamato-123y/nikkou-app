@@ -43,29 +43,24 @@ export default function AdminPage() {
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border">
         <h2 className="text-lg font-black mb-4">📥 送信された日報 ({reports.length}件)</h2>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-slate-500 text-left">
-              <th className="p-2">日付</th><th className="p-2">現場</th><th className="p-2">責任者</th><th className="p-2">重機/車両</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.map((r, i) => (
-              <tr key={i} className="border-b">
-                <td className="p-2">{r.date}</td>
-                <td className="p-2">{r.location}</td>
-                <td className="p-2">{r.manager}</td>
-                <td className="p-2">{r.machine} / {r.vehicle}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-slate-500 text-left">
+                <th className="p-2">日付</th><th className="p-2">現場</th><th className="p-2">責任者</th><th className="p-2">重機/車両</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h2 className="text-lg font-black mb-4">⚙️ 現場マスタ ({locations.length}件)</h2>
-        <div className="flex flex-wrap gap-2">
-          {locations.map(l => <span key={l} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">{l}</span>)}
+            </thead>
+            <tbody>
+              {reports.map((r, i) => (
+                <tr key={i} className="border-b">
+                  <td className="p-2">{r.date}</td>
+                  <td className="p-2">{r.location}</td>
+                  <td className="p-2">{r.manager}</td>
+                  <td className="p-2">{r.machine} / {r.vehicle}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
