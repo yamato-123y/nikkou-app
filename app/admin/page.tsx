@@ -35,7 +35,7 @@ export default function AdminPage() {
         setReports(Array.isArray(dataReports) ? dataReports : []);
       }
     } catch (e) {
-      console.log('レポート取得スキップ');
+      setReports([]);
     }
 
     try {
@@ -55,7 +55,7 @@ export default function AdminPage() {
         }
       }
     } catch (e) {
-      console.log('設定取得スキップ');
+      // 失敗時はデフォルトを維持
     }
     setLoading(false);
   };
@@ -136,6 +136,11 @@ export default function AdminPage() {
     );
   }
 
+  // 安全に配列化するヘルパー
+  const safeReports = Array.isArray(reports) ? reports : [];
+  const safeLocations = Array.isArray(settings?.locations) ? settings.locations : [];
+  const safeSubcontractors = Array.isArray(settings?.subcontractors) ? settings.subcontractors : [];
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
@@ -153,7 +158,7 @@ export default function AdminPage() {
         {!loading && tab === 'reports' && (
           <div className="bg-white rounded shadow p-4">
             <h2 className="text-lg font-bold mb-4">送信された日報一覧</h2>
-            {reports.length === 0 ? (
+            {safeReports.length === 0 ? (
               <p className="text-gray-500">まだ日報データはありません。</p>
             ) : (
               <table className="w-full text-left border-collapse">
@@ -166,7 +171,7 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reports.map((r, i) => (
+                  {safeReports.map((r, i) => (
                     <tr key={i} className="border-b">
                       <td className="p-2 text-sm">{r?.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</td>
                       <td className="p-2 font-bold">{r?.location || ''}</td>
@@ -183,13 +188,13 @@ export default function AdminPage() {
         {!loading && tab === 'analysis' && (
           <div className="space-y-4">
             <h2 className="text-lg font-bold">現場別分析</h2>
-            {(!settings.locations || settings.locations.length === 0) ? (
+            {safeLocations.length === 0 ? (
               <p className="text-gray-500">現場が登録されていません。「マスター設定」から現場を追加してください。</p>
             ) : (
-              settings.locations.map((loc: string) => (
+              safeLocations.map((loc: string) => (
                 <div key={loc} className="bg-white p-4 rounded shadow">
                   <h3 className="text-xl font-bold text-blue-600 mb-2">📍 {loc}</h3>
-                  <p className="text-sm text-gray-600">提出数: {reports.filter(r => r?.location === loc).length}件</p>
+                  <p className="text-sm text-gray-600">提出数: {safeReports.filter(r => r?.location === loc).length}件</p>
                 </div>
               ))
             )}
@@ -213,7 +218,7 @@ export default function AdminPage() {
                 <button onClick={() => handleAddSetting('location', newLocation)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {settings.locations?.map((loc: string) => (
+                {safeLocations.map((loc: string) => (
                   <span key={loc} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
                     {loc}
                     <button onClick={() => handleDeleteSetting('location', loc)} className="text-red-500 font-bold">×</button>
@@ -235,7 +240,7 @@ export default function AdminPage() {
                 <button onClick={() => handleAddSetting('subcontractor', newSubcontractor)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {settings.subcontractors?.map((sub: string) => (
+                {safeSubcontractors.map((sub: string) => (
                   <span key={sub} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
                     {sub}
                     <button onClick={() => handleDeleteSetting('subcontractor', sub)} className="text-red-500 font-bold">×</button>
