@@ -11,7 +11,10 @@ export default function Home() {
   const [machine, setMachine] = useState('');
   const [vehicle, setVehicle] = useState('');
   const [fuel, setFuel] = useState('');
+  const [fuelPrice, setFuelPrice] = useState('');
   const [etc, setEtc] = useState('');
+  const [etcPrice, setEtcPrice] = useState('');
+  const [otherExpense, setOtherExpense] = useState('');
   
   const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
@@ -28,12 +31,17 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        date, location, manager, workers, machine, vehicle, fuel: fuel || '0', etc: etc || '0', disposals, scraps, workDescription: description, createdAt: new Date().toISOString()
+        date, location, manager, workers, machine, vehicle, 
+        fuel: fuel || '0', fuelPrice: fuelPrice || '0', 
+        etc: etc || '0', etcPrice: etcPrice || '0', 
+        otherExpense: otherExpense || '0',
+        disposals, scraps, workDescription: description, createdAt: new Date().toISOString()
       })
     });
     setStatus('success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setDisposals([]); setScraps([]); setDescription('');
+    setFuel(''); setFuelPrice(''); setEtc(''); setEtcPrice(''); setOtherExpense('');
     setTimeout(() => setStatus('idle'), 3000);
   };
 
@@ -69,19 +77,59 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 3. リース・重機 */}
-        <div className="bg-white p-4 rounded-2xl border shadow-sm">
-           <div className="font-bold border-b-2 pb-1 mb-3">🚜 3. リース・重機を選択</div>
-           <div className="grid grid-cols-2 gap-2">
-             {settings.leases?.map((m:any) => (
-               <button type="button" key={m.name} onClick={() => setMachine(m.name)} className={`p-3 rounded-xl font-bold border-2 ${machine === m.name ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{m.name}</button>
-             ))}
+        {/* 3. リース・重機 & 自社車両 */}
+        <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
+           <div>
+             <div className="font-bold border-b-2 pb-1 mb-3">🚜 3. リース・重機を選択</div>
+             <div className="grid grid-cols-2 gap-2">
+               {settings.leases?.map((m:any) => (
+                 <button type="button" key={m.name} onClick={() => setMachine(m.name)} className={`p-3 rounded-xl font-bold border-2 ${machine === m.name ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{m.name}</button>
+               ))}
+             </div>
+           </div>
+
+           <div>
+             <div className="font-bold border-b-2 pb-1 mb-3">🚚 4. 自社車両を選択</div>
+             <div className="grid grid-cols-2 gap-2">
+               {settings.vehicles?.map((v:any) => (
+                 <button type="button" key={v.name} onClick={() => setVehicle(v.name)} className={`p-3 rounded-xl font-bold border-2 ${vehicle === v.name ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{v.name}</button>
+               ))}
+             </div>
            </div>
         </div>
 
-        {/* 4. 処分場のガラ搬出 */}
+        {/* 4. 燃料・レギュラー購入・ETC・その他経費 */}
         <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-3">
-           <div className="font-bold border-b-2 pb-1">🗑️ 4. 処分場のガラ搬出</div>
+           <div className="font-bold border-b-2 pb-1">⛽ 5. 燃料・ETC・諸経費</div>
+           <div className="grid grid-cols-2 gap-2">
+             <div>
+               <label className="text-xs font-bold text-slate-500">燃料 (L)</label>
+               <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-2 border rounded-xl font-bold" />
+             </div>
+             <div>
+               <label className="text-xs font-bold text-slate-500">レギュラー購入額 (¥)</label>
+               <input type="number" placeholder="0" value={fuelPrice} onChange={e=>setFuelPrice(e.target.value)} className="w-full p-2 border rounded-xl font-bold" />
+             </div>
+           </div>
+           <div className="grid grid-cols-2 gap-2">
+             <div>
+               <label className="text-xs font-bold text-slate-500">ETC利用回数/場所</label>
+               <input type="text" placeholder="例: 堺IC" value={etc} onChange={e=>setEtc(e.target.value)} className="w-full p-2 border rounded-xl font-bold" />
+             </div>
+             <div>
+               <label className="text-xs font-bold text-slate-500">ETC料金 (¥)</label>
+               <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full p-2 border rounded-xl font-bold" />
+             </div>
+           </div>
+           <div>
+             <label className="text-xs font-bold text-slate-500">その他経費 (¥)</label>
+             <input type="number" placeholder="0" value={otherExpense} onChange={e=>setOtherExpense(e.target.value)} className="w-full p-2 border rounded-xl font-bold" />
+           </div>
+        </div>
+
+        {/* 5. 処分場のガラ搬出 */}
+        <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-3">
+           <div className="font-bold border-b-2 pb-1">🗑️ 6. 処分場のガラ搬出</div>
            {disposals.map((entry, index) => (
               <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
                 <select className="w-full p-2 rounded-xl border font-bold" value={`${entry.location}|${entry.item}`} onChange={(e) => {
@@ -107,7 +155,7 @@ export default function Home() {
 
         {/* 作業内容 */}
         <div className="bg-white p-4 rounded-2xl border shadow-sm">
-          <div className="font-bold border-b-2 pb-1 mb-3">📝 5. 作業内容</div>
+          <div className="font-bold border-b-2 pb-1 mb-3">📝 7. 作業内容</div>
           <textarea placeholder="作業内容を入力..." value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 rounded-xl border h-24" />
         </div>
 
