@@ -9,15 +9,15 @@ export default function Home() {
   const [scrapOptions, setScrapOptions] = useState<any[]>([]);
   const [managersList, setManagersList] = useState<any[]>([]);
   const [workersList, setWorkersList] = useState<any[]>([]);
+  const [vehiclesList, setVehiclesList] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
 
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [selectedManager, setSelectedManager] = useState('');
+  // 複数選択（チェックボックス）用の状態
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [selectedLeases, setSelectedLeases] = useState<string[]>([]);
   
   const [selectedVehicle, setSelectedVehicle] = useState('2tダンプ');
-  const [selectedHeavyMachine, setSelectedHeavyMachine] = useState('');
-  const [selectedLease, setSelectedLease] = useState('');
-  
   const [fuelLiters, setFuelLiters] = useState('');
   const [regularCost, setRegularCost] = useState('');
   const [parkingCost, setParkingCost] = useState('');
@@ -26,7 +26,6 @@ export default function Home() {
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // 管理画面で登録されたデータを確実に読み込む
   const loadDataFromStorage = () => {
     try {
       const savedLocs = localStorage.getItem('yamato_locations');
@@ -43,6 +42,9 @@ export default function Home() {
 
       const savedWorkers = localStorage.getItem('yamato_workers');
       if (savedWorkers) setWorkersList(JSON.parse(savedWorkers));
+
+      const savedVehicles = localStorage.getItem('yamato_vehicles');
+      if (savedVehicles) setVehiclesList(JSON.parse(savedVehicles));
     } catch (e) {
       console.error(e);
     }
@@ -54,20 +56,15 @@ export default function Home() {
     return () => window.removeEventListener('storage', loadDataFromStorage);
   }, []);
 
-  const handleCopyYesterday = (type: string) => {
-    alert(`${type}の昨日と同じデータを読み込みました`);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newReport = {
       date,
-      location: selectedLocation,
-      manager: selectedManager,
+      locations: selectedLocations,
+      managers: selectedManagers,
       workers: selectedWorkers,
       vehicle: selectedVehicle,
-      heavyMachine: selectedHeavyMachine,
-      lease: selectedLease,
+      leases: selectedLeases,
       fuelLiters,
       regularCost,
       parkingCost,
@@ -105,10 +102,10 @@ export default function Home() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* 1. 日付と現場の選択 */}
+          {/* 1. 日付と現場の選択（チェックボックス複数選択） */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
-              📍 日付と現場の選択
+              📍 日付と現場の選択（複数選択可）
             </div>
             
             <div>
@@ -122,45 +119,60 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">【現場名】</label>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-              >
-                <option value="">現場を選択してください</option>
-                {locationsList.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
+              <label className="block text-sm font-bold text-slate-700 mb-2">【現場名】</label>
+              <div className="grid grid-cols-1 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                {locationsList.length === 0 ? (
+                  <p className="text-xs text-slate-400">現場が登録されていません</p>
+                ) : (
+                  locationsList.map((loc) => (
+                    <label key={loc} className="flex items-center space-x-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedLocations.includes(loc)}
+                        onChange={() => {
+                          if (selectedLocations.includes(loc)) {
+                            setSelectedLocations(selectedLocations.filter(item => item !== loc));
+                          } else {
+                            setSelectedLocations([...selectedLocations, loc]);
+                          }
+                        }}
+                        className="w-5 h-5 text-orange-600 rounded"
+                      />
+                      <span className="font-bold text-sm">{loc}</span>
+                    </label>
+                  ))
+                )}
+              </div>
             </div>
           </div>
 
-          {/* 2. 責任者と作業メンバー */}
+          {/* 2. 責任者と作業メンバー（チェックボックス複数選択） */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
-              <span className="text-slate-900 font-bold text-lg">👥 2. 担当者・作業員</span>
-              <button
-                type="button"
-                onClick={() => handleCopyYesterday('作業員')}
-                className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
-              >
-                🔄 昨日と同じ
-              </button>
+            <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
+              👥 担当者・作業員（複数選択可）
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">【現場責任者】</label>
-              <select
-                value={selectedManager}
-                onChange={(e) => setSelectedManager(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-              >
-                <option value="">責任者を選択</option>
+              <label className="block text-sm font-bold text-slate-700 mb-2">【現場責任者】</label>
+              <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
                 {managersList.map((m) => (
-                  <option key={m.name} value={m.name}>{m.name}</option>
+                  <label key={m.name} className="flex items-center space-x-2 p-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedManagers.includes(m.name)}
+                      onChange={() => {
+                        if (selectedManagers.includes(m.name)) {
+                          setSelectedManagers(selectedManagers.filter(item => item !== m.name));
+                        } else {
+                          setSelectedManagers([...selectedManagers, m.name]);
+                        }
+                      }}
+                      className="w-5 h-5 text-orange-600 rounded"
+                    />
+                    <span className="font-bold text-sm">{m.name}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div>
@@ -187,25 +199,45 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 3. 重機・車両・リース */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
-              <span className="text-slate-900 font-bold text-lg">🚜 3. 車両・リース重機</span>
+          {/* 3. 車両・リース重機（チェックボックス複数選択） */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
+              🚜 車両・リース重機
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">【リース重機】</label>
-                <select
-                  value={selectedLease}
-                  onChange={(e) => setSelectedLease(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                >
-                  <option value="">リース内容を選択</option>
-                  {leasesList.map((l) => (
-                    <option key={l.name} value={l.name}>{l.name} (日額: ¥{l.price})</option>
-                  ))}
-                </select>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">【車両】</label>
+              <select
+                value={selectedVehicle}
+                onChange={(e) => setSelectedVehicle(e.target.value)}
+                className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
+              >
+                {vehiclesList.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">【リース重機】（複数選択可）</label>
+              <div className="grid grid-cols-1 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
+                {leasesList.map((l) => (
+                  <label key={l.name} className="flex items-center space-x-2 p-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeases.includes(l.name)}
+                      onChange={() => {
+                        if (selectedLeases.includes(l.name)) {
+                          setSelectedLeases(selectedLeases.filter(item => item !== l.name));
+                        } else {
+                          setSelectedLeases([...selectedLeases, l.name]);
+                        }
+                      }}
+                      className="w-5 h-5 text-orange-600 rounded"
+                    />
+                    <span className="font-bold text-sm">{l.name} (日額: ¥{l.price})</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>
@@ -303,7 +335,7 @@ export default function Home() {
             <textarea
               value={workDescription}
               onChange={(e) => setWorkDescription(e.target.value)}
-              placeholder="業務内容や連絡事項を入力してください"
+              placeholder="業務内容を入力してください"
               className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-base font-bold"
             ></textarea>
           </div>
