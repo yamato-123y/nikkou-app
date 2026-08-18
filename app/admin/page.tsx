@@ -24,6 +24,9 @@ export default function AdminPage() {
     { name: 'Bさん', price: 16000 }
   ]);
 
+  // ポップアップ詳細用の状態
+  const [modalLocation, setModalLocation] = useState<string | null>(null);
+
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
@@ -170,6 +173,64 @@ export default function AdminPage() {
     }
   };
 
+  // 現場ごとの原価計算ロジック
+  const calculateCosts = (locName: string) => {
+    const locReports = reports.filter(r => (r?.locations && r.locations.includes(locName)) || r?.location === locName);
+    let laborCost = 0;
+    let leaseCost = 0;
+    let disposalCost = 0;
+
+    locReports.forEach(r => {
+      // 人件費計算
+      if (r.manager) {
+        const mObj = managers.find(m => m.name === r.manager);
+        laborCost += mObj ? mObj.price : 0;
+      }
+      if (Array.isArray(r.managers)) {
+        r.managers.forEach((mName: string) => {
+          const mObj = managers.find(m => m.name === mName);
+          laborCost += mObj ? mObj.price : 0;
+        });
+      }
+      if (Array.isArray(r.workers)) {
+        r.workers.forEach((wName: string) => {
+          const wObj = workers.find(wo => wo.name === wName);
+          laborCost += wObj ? wObj.price : 0;
+        });
+      }
+
+      // リース費計算
+      if (r.lease) {
+        const lObj = leases.find(l => l.name === r.lease);
+        leaseCost += lObj ? lObj.price : 0;
+      }
+      if (Array.isArray(r.leases)) {
+        r.leases.forEach((lName: string) => {
+          const lObj = leases.find(l => l.name === lName);
+          leaseCost += lObj ? lObj.price : 0;
+        });
+      }
+
+      // 処分費計算
+      if (Array.isArray(r.disposals)) {
+        r.disposals.forEach((d: any) => {
+          const sObj = scrapLocations.find(s => s.location === d.location && s.item === d.item);
+          const unitPrice = sObj ? sObj.price : 0;
+          disposalCost += Number(d.quantity || 0) * unitPrice;
+        });
+      }
+    });
+
+    return {
+      days: locReports.length,
+      laborCost,
+      leaseCost,
+      disposalCost,
+      total: laborCost + leaseCost + disposalCost,
+      reports: locReports
+    };
+  };
+
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
@@ -203,8 +264,10 @@ export default function AdminPage() {
     ? reports.filter(r => (r?.locations && r.locations.some((l: string) => l.includes(filterLocation))) || r?.location?.includes(filterLocation))
     : reports;
 
+  const modalData = modalLocation ? calculateCosts(modalLocation) : null;
+
   return (
-    <div className="min-h-screen bg-slate-100 p-6 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-100 p-6 font-sans text-slate-800 relative">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* ヘッダー */}
@@ -232,23 +295,32 @@ export default function AdminPage() {
                 <tr className="border-b border-slate-200 text-slate-500 text-sm">
                   <th className="pb-3 font-bold">現場名</th>
                   <th className="pb-3 font-bold">稼働日数</th>
+                  <th className="pb-3 font-bold">人件費</th>
+                  <th className="pb-3 font-bold">リース費</th>
+                  <th className="pb-3 font-bold">処分費</th>
                   <th className="pb-3 font-bold">合計経費</th>
                   <th className="pb-3 font-bold text-center">詳細</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-base font-bold">
                 {locations.length === 0 ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td></tr>
+                  <tr><td colSpan={7} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td></tr>
                 ) : (
                   locations.map((loc) => {
-                    const locReports = reports.filter(r => (r?.locations && r.locations.includes(loc)) || r?.location === loc);
+                    const costs = calculateCosts(loc);
                     return (
                       <tr key={loc} className="hover:bg-slate-50">
                         <td className="py-4 text-[#1D70B8]">{loc}</td>
-                        <td className="py-4 text-slate-700">{locReports.length} 日</td>
-                        <td className="py-4 text-emerald-600">¥0</td>
+                        <td className="py-4 text-slate-700">{costs.days} 日</td>
+                        <td className="py-4 text-slate-700">¥{costs.laborCost.toLocaleString()}</td>
+                        <td className="py-4 text-slate-700">¥{costs.leaseCost.toLocaleString()}</td>
+                        <td className="py-4 text-slate-700">¥{costs.disposalCost.toLocaleString()}</td>
+                        <td className="py-4 text-emerald-600 font-black">¥{costs.total.toLocaleString()}</td>
                         <td className="py-4 text-center">
-                          <button className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow">
+                          <button
+                            onClick={() => setModalLocation(loc)}
+                            className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
+                          >
                             詳細 →
                           </button>
                         </td>
@@ -263,7 +335,7 @@ export default function AdminPage() {
 
         {/* マスタ登録エリア */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-          <h2 className="text-lg font-black text-slate-900">⚙️ マスタ登録・編集削除</h2>
+          <h2 className="text-lg font-black text-slate-900">⚙️ マスタ登録（現場・担当者・リース・処分場）</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
@@ -546,6 +618,139 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      {/* ── 詳細ポップアップモーダル ── */}
+      {modalLocation && modalData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+            
+            {/* モーダルヘッダー */}
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                🏢 {modalLocation} <span className="text-sm font-normal text-slate-500">（現場詳細分析）</span>
+              </h2>
+              <button
+                onClick={() => setModalLocation(null)}
+                className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold"
+              >
+                閉じる
+              </button>
+            </div>
+
+            {/* サマリーカード */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-slate-50 p-3 rounded-xl border text-center">
+                <div className="text-xs text-slate-500 font-bold">稼働日数</div>
+                <div className="text-lg font-black text-slate-800 mt-1">{modalData.days} 日</div>
+              </div>
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-center">
+                <div className="text-xs text-emerald-600 font-bold">人件費</div>
+                <div className="text-lg font-black text-emerald-700 mt-1">¥{modalData.laborCost.toLocaleString()}</div>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center">
+                <div className="text-xs text-blue-600 font-bold">リース費</div>
+                <div className="text-lg font-black text-blue-700 mt-1">¥{modalData.leaseCost.toLocaleString()}</div>
+              </div>
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-center">
+                <div className="text-xs text-amber-600 font-bold">処分費</div>
+                <div className="text-lg font-black text-amber-700 mt-1">¥{modalData.disposalCost.toLocaleString()}</div>
+              </div>
+              <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-center col-span-2 sm:col-span-1">
+                <div className="text-xs text-orange-600 font-bold">合計経費</div>
+                <div className="text-lg font-black text-orange-700 mt-1">¥{modalData.total.toLocaleString()}</div>
+              </div>
+            </div>
+
+            {/* 日報ごとの内訳テーブル */}
+            <div className="space-y-3">
+              <h3 className="font-bold text-slate-800 text-sm">📅 提出された日報一覧（内訳）</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 text-slate-500 text-xs">
+                      <th className="p-2.5 font-bold">日付</th>
+                      <th className="p-2.5 font-bold">人員 / リース</th>
+                      <th className="p-2.5 font-bold">人件費+リース</th>
+                      <th className="p-2.5 font-bold">処分明細 / 処分費</th>
+                      <th className="p-2.5 font-bold text-right">1日合計</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-bold">
+                    {modalData.reports.length === 0 ? (
+                      <tr><td colSpan={5} className="py-6 text-center text-slate-400">この現場の日報データはありません</td></tr>
+                    ) : (
+                      modalData.reports.map((r: any, idx: number) => {
+                        let dayLabor = 0;
+                        if (r.manager) {
+                          const mObj = managers.find(m => m.name === r.manager);
+                          dayLabor += mObj ? mObj.price : 0;
+                        }
+                        if (Array.isArray(r.managers)) {
+                          r.managers.forEach((mName: string) => {
+                            const mObj = managers.find(m => m.name === mName);
+                            dayLabor += mObj ? mObj.price : 0;
+                          });
+                        }
+                        if (Array.isArray(r.workers)) {
+                          r.workers.forEach((wName: string) => {
+                            const wObj = workers.find(wo => wo.name === wName);
+                            dayLabor += wObj ? wObj.price : 0;
+                          });
+                        }
+
+                        let dayLease = 0;
+                        if (r.lease) {
+                          const lObj = leases.find(l => l.name === r.lease);
+                          dayLease += lObj ? lObj.price : 0;
+                        }
+                        if (Array.isArray(r.leases)) {
+                          r.leases.forEach((lName: string) => {
+                            const lObj = leases.find(l => l.name === lName);
+                            dayLease += lObj ? lObj.price : 0;
+                          });
+                        }
+
+                        let dayDisposal = 0;
+                        let disposalTexts: string[] = [];
+                        if (Array.isArray(r.disposals)) {
+                          r.disposals.forEach((d: any) => {
+                            const sObj = scrapLocations.find(s => s.location === d.location && s.item === d.item);
+                            const unitPrice = sObj ? sObj.price : 0;
+                            const subTotal = Number(d.quantity || 0) * unitPrice;
+                            dayDisposal += subTotal;
+                            disposalTexts.push(`${d.location} (${d.item}): ${d.quantity}${d.unit} (¥${subTotal.toLocaleString()})`);
+                          });
+                        }
+
+                        const dayTotal = dayLabor + dayLease + dayDisposal;
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-2.5">{r.date}</td>
+                            <td className="p-2.5 text-slate-600">
+                              <div>責任者: {r.managers ? r.managers.join(', ') : r.manager || 'なし'}</div>
+                              <div>作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : 'なし'}</div>
+                              <div className="text-blue-600">リース: {r.leases ? r.leases.join(', ') : r.lease || 'なし'}</div>
+                            </td>
+                            <td className="p-2.5 text-emerald-600">¥{(dayLabor + dayLease).toLocaleString()}</td>
+                            <td className="p-2.5 text-slate-600">
+                              {disposalTexts.length > 0 ? disposalTexts.map((txt, i) => <div key={i}>{txt}</div>) : 'なし'}
+                              <div className="text-amber-600 mt-0.5">小計: ¥{dayDisposal.toLocaleString()}</div>
+                            </td>
+                            <td className="p-2.5 text-right font-black text-orange-600 text-sm">¥{dayTotal.toLocaleString()}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
