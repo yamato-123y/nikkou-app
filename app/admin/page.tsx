@@ -4,110 +4,518 @@ import { useState, useEffect } from 'react';
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
 
-  // マスタデータ
-  const [locations, setLocations] = useState<string[]>([]);
-  const [leases, setLeases] = useState<{ name: string; price: number }[]>([]);
-  const [companyMachines, setCompanyMachines] = useState<{ name: string; price: number }[]>([]);
-  const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([]);
-  const [managers, setManagers] = useState<{ name: string; price: number }[]>([]);
-  const [workers, setWorkers] = useState<{ name: string; price: number }[]>([]);
-  const [vehicles, setVehicles] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
+  const [leases, setLeases] = useState<{ name: string; price: number }[]>([{ name: '0.2ユンボ', price: 15000 }]);
+  const [vehicles, setVehicles] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
+  const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([{ location: 'テスト場', item: 'ガラ/t', unit: 't', price: 3000 }]);
+  const [managers, setManagers] = useState<{ name: string; price: number }[]>([
+    { name: '大和 太郎', price: 20000 },
+    { name: '佐藤 次郎', price: 15000 },
+    { name: '鈴木 三郎', price: 10000 },
+    { name: '大和', price: 15000 }
+  ]);
+  const [workers, setWorkers] = useState<{ name: string; price: number }[]>([
+    { name: 'Aさん', price: 15000 },
+    { name: 'Bさん', price: 16000 },
+    { name: 'Cさん', price: 10000 }
+  ]);
 
-  // 編集用の一時状態
-  const [editTarget, setEditTarget] = useState<any>(null);
+  const [modalLocation, setModalLocation] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editDesc, setEditDesc] = useState('');
+  const [filterLocation, setFilterLocation] = useState('');
+
+  // 新規追加用
+  const [newLocation, setNewLocation] = useState('');
+  const [newLeaseName, setNewLeaseName] = useState('');
+  const [newLeasePrice, setNewLeasePrice] = useState(15000);
+  const [newScrapLoc, setNewScrapLoc] = useState('');
+  const [newScrapItem, setNewScrapItem] = useState('ガラ/t');
+  const [newScrapPrice, setNewScrapPrice] = useState(3000);
+  const [newManagerName, setNewManagerName] = useState('');
+  const [newManagerPrice, setNewManagerPrice] = useState(20000);
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerPrice, setNewWorkerPrice] = useState(15000);
 
   const fetchData = async () => {
     try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setLocations(data.locations || []);
-        setLeases(data.leases || []);
-        setCompanyMachines(data.companyMachines || []);
-        setScrapLocations(data.scrapLocations || []);
-        setManagers(data.managers || []);
-        setWorkers(data.workers || []);
-        setVehicles(data.vehicles || []);
-      }
       const resReports = await fetch('/api/reports');
-      if (resReports.ok) setReports(await resReports.json());
+      if (resReports.ok) {
+        const data = await resReports.json();
+        setReports(Array.isArray(data) ? data : []);
+      }
+      const resSettings = await fetch('/api/settings');
+      if (resSettings.ok) {
+        const data = await resSettings.json();
+        if (data && typeof data === 'object') {
+          if (Array.isArray(data.locations)) setLocations(data.locations);
+          if (Array.isArray(data.leases)) setLeases(data.leases);
+          if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
+          if (Array.isArray(data.scrapLocations)) setScrapLocations(data.scrapLocations);
+          if (Array.isArray(data.managers)) setManagers(data.managers);
+          if (Array.isArray(data.workers)) setWorkers(data.workers);
+        }
+      }
     } catch (e) { console.error(e); }
   };
 
-  const saveSettings = async (newData: any) => {
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
-    });
+  useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const saveSettingsToServer = async (updatedSettings: any) => {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      });
+    } catch (e) { console.error(e); }
   };
 
-  useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
+  const handleAdd = (type: string) => {
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
+    if (type === 'location' && newLocation.trim()) {
+      updatedLocations.push(newLocation.trim());
+      setLocations(updatedLocations);
+      setNewLocation('');
+    } else if (type === 'lease' && newLeaseName.trim()) {
+      updatedLeases.push({ name: newLeaseName.trim(), price: Number(newLeasePrice) });
+      setLeases(updatedLeases);
+      setNewLeaseName('');
+    } else if (type === 'scrap' && newScrapLoc.trim()) {
+      updatedScraps.push({ location: newScrapLoc.trim(), item: newScrapItem, unit: 't', price: Number(newScrapPrice) });
+      setScrapLocations(updatedScraps);
+      setNewScrapLoc('');
+    } else if (type === 'manager' && newManagerName.trim()) {
+      updatedManagers.push({ name: newManagerName.trim(), price: Number(newManagerPrice) });
+      setManagers(updatedManagers);
+      setNewManagerName('');
+    } else if (type === 'worker' && newWorkerName.trim()) {
+      updatedWorkers.push({ name: newWorkerName.trim(), price: Number(newWorkerPrice) });
+      setWorkers(updatedWorkers);
+      setNewWorkerName('');
+    }
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
+  };
+
+  const handleDelete = async (type: string, target: any) => {
+    if (type === 'report') {
+      const updated = reports.filter((_, i) => i !== target);
+      setReports(updated);
+      await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+      return;
+    }
+
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
+    if (type === 'location') updatedLocations = locations.filter(l => l !== target);
+    else if (type === 'lease') updatedLeases = leases.filter(l => l.name !== target);
+    else if (type === 'scrap') updatedScraps = scrapLocations.filter((_, i) => i !== target);
+    else if (type === 'manager') updatedManagers = managers.filter(m => m.name !== target);
+    else if (type === 'worker') updatedWorkers = workers.filter(w => w.name !== target);
+
+    setLocations(updatedLocations);
+    setLeases(updatedLeases);
+    setScrapLocations(updatedScraps);
+    setManagers(updatedManagers);
+    setWorkers(updatedWorkers);
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
+  };
+
+  const handleSaveEdit = async (index: number) => {
+    const updated = [...reports];
+    updated[index].workDescription = editDesc;
+    setReports(updated);
+    setEditingIndex(null);
+    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+  };
+
+  const calculateCosts = (locName: string) => {
+    const locReports = reports.filter(r => {
+      const locs = Array.isArray(r.locations) ? r.locations : (r.siteName ? [r.siteName] : (r.location ? [r.location] : []));
+      return locs.includes(locName) || r.location === locName;
+    });
+
+    let laborCost = 0, leaseCost = 0, disposalCost = 0;
+
+    locReports.forEach(r => {
+      const mgrs = Array.isArray(r.managers) ? r.managers : (r.manager ? [r.manager] : []);
+      mgrs.forEach(mName => laborCost += (managers.find(m => m.name === mName)?.price || 20000));
+
+      const wrks = Array.isArray(r.workers) ? r.workers : (typeof r.workers === 'string' ? r.workers.split(',').map((s: string) => s.trim()) : []);
+      wrks.forEach(wName => laborCost += (workers.find(w => w.name === wName)?.price || 15000));
+
+      const lses = Array.isArray(r.leases) ? r.leases : (r.lease ? [r.lease] : []);
+      lses.forEach(lName => leaseCost += (leases.find(l => l.name === lName)?.price || 0));
+
+      const dsps = Array.isArray(r.disposals) ? r.disposals : [];
+      dsps.forEach((d: any) => {
+        const unitPrice = scrapLocations.find(s => s.location === d.location && s.item === d.item)?.price || 3000;
+        disposalCost += Number(d.quantity || 0) * unitPrice;
+      });
+    });
+
+    return { days: locReports.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reports: locReports };
+  };
 
   if (!isAuthed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <form onSubmit={(e) => { e.preventDefault(); if (password === 'yamato') setIsAuthed(true); }} className="bg-white p-8 rounded-xl shadow-md">
-          <h2 className="mb-4 font-bold">管理画面ログイン</h2>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border mb-4" />
-          <button type="submit" className="w-full bg-orange-600 text-white p-2 rounded">ログイン</button>
-        </form>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <span className="text-2xl">🔒</span>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">日報管理・原価詳細ダッシュボード</h1>
+          </div>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (password === 'yamato123' || password === 'yamato') {
+              setIsAuthed(true);
+              setAuthError(false);
+              fetchData();
+            } else {
+              setAuthError(true);
+            }
+          }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-2">パスワード</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setAuthError(false); }}
+                className="w-full p-3 rounded-lg border border-slate-300 text-lg outline-none focus:border-orange-500"
+              />
+            </div>
+            {authError && <p className="text-red-500 text-sm font-bold">パスワードが正しくありません</p>}
+            <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold text-lg py-3.5 rounded-xl shadow transition mt-2">
+              ログイン
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
+  const modalData = modalLocation ? calculateCosts(modalLocation) : null;
+  const filteredReports = reports.filter(r => {
+    if (!filterLocation) return true;
+    const locs = Array.isArray(r.locations) ? r.locations.join(',') : (r.location || r.siteName || '');
+    return locs.includes(filterLocation);
+  });
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen space-y-8">
-      <h1 className="text-2xl font-black">⚙️ マスタ管理・原価ダッシュボード</h1>
-      
-      {/* 登録セクション（グリッドレイアウトで整理） */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* リース重機 */}
-        <div className="bg-white p-4 rounded-xl border shadow-sm">
-          <h3 className="font-bold border-b mb-2">🚜 リース重機</h3>
-          {leases.map((item, i) => (
-            <div key={i} className="flex justify-between text-sm py-1">
-              <span>{item.name} (¥{item.price})</span>
-              <button onClick={() => saveSettings({ leases: leases.filter((_, idx) => idx !== i) })} className="text-red-500 font-bold">削除</button>
-            </div>
-          ))}
-        </div>
-
-        {/* 自社重機 */}
-        <div className="bg-white p-4 rounded-xl border shadow-sm">
-          <h3 className="font-bold border-b mb-2">🏗️ 自社重機</h3>
-          {companyMachines.map((item, i) => (
-            <div key={i} className="flex justify-between text-sm py-1">
-              <span>{item.name} (¥{item.price})</span>
-              <button onClick={() => saveSettings({ companyMachines: companyMachines.filter((_, idx) => idx !== i) })} className="text-red-500 font-bold">削除</button>
-            </div>
-          ))}
-        </div>
+    <div className="min-h-screen bg-slate-100 p-6 font-sans text-slate-800">
+      <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* 他にも現場名、車両、責任者等を同様の構造で記述 */}
+        {/* ヘッダー */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-black text-slate-800">📊 日報管理・原価詳細ダッシュボード</h1>
+            <p className="text-sm text-slate-500 mt-0.5">株式会社大和 音声日報システム</p>
+          </div>
+          <button onClick={() => setIsAuthed(false)} className="bg-[#1e293b] text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow hover:bg-slate-800 transition">ログアウト</button>
+        </div>
+
+        {/* 現場別 経費集計サマリー */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border overflow-x-auto">
+          <h2 className="text-lg font-black mb-4 text-slate-800">🏢 現場別 経費集計サマリー</h2>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b text-slate-500 text-sm">
+                <th className="pb-3 font-bold">現場名</th>
+                <th className="pb-3 font-bold">稼働日数</th>
+                <th className="pb-3 font-bold">人件費</th>
+                <th className="pb-3 font-bold">リース費</th>
+                <th className="pb-3 font-bold">処分費</th>
+                <th className="pb-3 font-bold">合計経費</th>
+                <th className="pb-3 text-center font-bold">詳細</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y font-bold text-base">
+              {locations.map(loc => {
+                const c = calculateCosts(loc);
+                return (
+                  <tr key={loc} className="hover:bg-slate-50 transition">
+                    <td className="py-4 text-[#0066cc]">{loc}</td>
+                    <td>{c.days} 日</td>
+                    <td>¥{c.laborCost.toLocaleString()}</td>
+                    <td>¥{c.leaseCost.toLocaleString()}</td>
+                    <td>¥{c.disposalCost.toLocaleString()}</td>
+                    <td className="text-emerald-600 font-black">¥{c.total.toLocaleString()}</td>
+                    <td className="text-center">
+                      <button onClick={() => setModalLocation(loc)} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm shadow">詳細 →</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* マスタ登録グリッド */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+          <h2 className="text-lg font-black text-slate-800">⚙️ マスタ登録 (現場・担当者・リース・処分場)</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* 現場名一覧 */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">🏢 現場名一覧</h3>
+              <div className="flex gap-2">
+                <input type="text" placeholder="新しい現場名" value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none focus:border-orange-500" />
+                <button onClick={() => handleAdd('location')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {locations.map(loc => (
+                  <div key={loc} className="py-2 px-1 flex justify-between items-center text-sm font-bold">
+                    <span>{loc}</span>
+                    <button onClick={() => handleDelete('location', loc)} className="text-red-500 text-xs font-bold hover:underline">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* リース・重機マスタ */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">🚜 リース・重機マスタ ＆ 日額単価</h3>
+              <input type="text" placeholder="例: 0.2ユンボ" value={newLeaseName} onChange={e => setNewLeaseName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold text-slate-500">日額¥</span>
+                <input type="number" value={newLeasePrice} onChange={e => setNewLeasePrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+                <button onClick={() => handleAdd('lease')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {leases.map(l => (
+                  <div key={l.name} className="py-2 px-1 flex justify-between items-center text-sm font-bold">
+                    <span>{l.name} <span className="text-xs text-slate-400 font-normal">日額¥{l.price}</span></span>
+                    <button onClick={() => handleDelete('lease', l.name)} className="text-red-500 text-xs font-bold hover:underline">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 処分場マスタ */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">🗑️ 処分場マスタ ＆ 単価設定</h3>
+              <input type="text" placeholder="処分場名 (例: 堺処分場)" value={newScrapLoc} onChange={e => setNewScrapLoc(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <div className="flex gap-2">
+                <input type="text" value={newScrapItem} onChange={e => setNewScrapItem(e.target.value)} className="w-1/2 p-2.5 border rounded-lg text-sm bg-white font-bold" />
+                <span className="text-sm font-bold flex items-center">t</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold text-slate-500">単価¥</span>
+                <input type="number" value={newScrapPrice} onChange={e => setNewScrapPrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+                <button onClick={() => handleAdd('scrap')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {scrapLocations.map((sc, idx) => (
+                  <div key={idx} className="py-2 px-1 flex justify-between items-center text-xs font-bold">
+                    <span>{sc.location} ({sc.item}) ¥{sc.price}</span>
+                    <button onClick={() => handleDelete('scrap', idx)} className="text-red-500 font-bold hover:underline">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* 現場責任者 */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">👤 現場責任者 ＆ 日額単価</h3>
+              <input type="text" placeholder="責任者名" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold text-slate-500">日額¥</span>
+                <input type="number" value={newManagerPrice} onChange={e => setNewManagerPrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+                <button onClick={() => handleAdd('manager')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {managers.map(m => (
+                  <div key={m.name} className="py-2 px-1 flex justify-between items-center text-sm font-bold">
+                    <span>{m.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-500">日額¥{m.price}</span>
+                      <button onClick={() => handleDelete('manager', m.name)} className="text-red-500 text-xs font-bold hover:underline">削除</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 作業メンバー */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">👥 作業メンバー ＆ 日額単価</h3>
+              <input type="text" placeholder="メンバー名 (例: 山田)" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold text-slate-500">日額¥</span>
+                <input type="number" value={newWorkerPrice} onChange={e => setNewWorkerPrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+                <button onClick={() => handleAdd('worker')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {workers.map(w => (
+                  <div key={w.name} className="py-2 px-1 flex justify-between items-center text-sm font-bold">
+                    <span>{w.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-500">日額¥{w.price}</span>
+                      <button onClick={() => handleDelete('worker', w.name)} className="text-red-500 text-xs font-bold hover:underline">削除</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* 送信された日報一覧 */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
+          <div className="flex justify-between items-center flex-wrap gap-3">
+            <h2 className="text-lg font-black text-slate-800">📥 送信された日報一覧</h2>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="現場名で絞り込み..."
+                value={filterLocation}
+                onChange={e => setFilterLocation(e.target.value)}
+                className="p-2 border rounded-xl text-sm bg-slate-50 outline-none w-48"
+              />
+              <button onClick={fetchData} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow flex items-center gap-1">🔄 最新情報に更新</button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b text-slate-500 text-sm">
+                  <th className="pb-3 font-bold">日付 / 送信日時</th>
+                  <th className="pb-3 font-bold">現場名</th>
+                  <th className="pb-3 font-bold">責任者 / 作業者</th>
+                  <th className="pb-3 font-bold">概算人件費</th>
+                  <th className="pb-3 font-bold">リース重機</th>
+                  <th className="pb-3 font-bold">作業内容</th>
+                  <th className="pb-3 font-bold">現場写真</th>
+                  <th className="pb-3 font-bold">処分内容 / 搬出量</th>
+                  <th className="pb-3 text-center font-bold">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y text-sm">
+                {filteredReports.map((r, i) => {
+                  const locs = Array.isArray(r.locations) ? r.locations.join(', ') : (r.location || r.siteName || '');
+                  const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
+                  const wrks = Array.isArray(r.workers) ? r.workers : (r.workers || 'なし');
+                  
+                  // 人件費簡易計算
+                  let rLabor = 0;
+                  if (r.manager) rLabor += (managers.find(m => m.name === r.manager)?.price || 20000);
+                  if (Array.isArray(r.workers)) {
+                    r.workers.forEach((w: string) => rLabor += (workers.find(wk => wk.name === w)?.price || 15000));
+                  }
+
+                  return (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="py-4 font-bold">
+                        <div>{r.date}</div>
+                        <div className="text-xs text-slate-400 font-normal">{r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</div>
+                      </td>
+                      <td className="font-bold text-[#0066cc]">{locs}</td>
+                      <td>
+                        <div className="font-bold">責任者: {mgrs}</div>
+                        <div className="text-xs text-slate-500">作業者: {Array.isArray(wrks) ? wrks.join(', ') : wrks}</div>
+                      </td>
+                      <td className="text-emerald-600 font-bold">¥{rLabor.toLocaleString()}</td>
+                      <td className="text-slate-600">{r.lease || 'なし'}</td>
+                      <td>
+                        {editingIndex === i ? (
+                          <div className="flex gap-1">
+                            <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border p-1 rounded w-full text-sm" />
+                            <button onClick={() => handleSaveEdit(i)} className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">保存</button>
+                          </div>
+                        ) : (
+                          r.workDescription || r.content || ''
+                        )}
+                      </td>
+                      <td>
+                        {r.photo && <img src={r.photo} className="w-14 h-14 object-cover rounded shadow border" />}
+                      </td>
+                      <td>
+                        {Array.isArray(r.disposals) && r.disposals.map((d: any, idx: number) => (
+                          <div key={idx} className="text-xs">{d.location} ({d.item}): {d.quantity}t</div>
+                        ))}
+                      </td>
+                      <td className="text-center space-x-1">
+                        {editingIndex !== i && (
+                          <button onClick={() => { setEditingIndex(i); setEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-3 py-1 rounded text-xs font-bold">編集</button>
+                        )}
+                        <button onClick={() => handleDelete('report', i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
-      {/* 日報一覧 */}
-      <div className="bg-white p-6 rounded-xl shadow-sm">
-        <h2 className="font-bold mb-4">📥 受信日報</h2>
-        <table className="w-full text-sm">
-          <thead><tr className="border-b"><th>日付</th><th>現場</th><th>作業者</th><th>重機</th><th>内容</th></tr></thead>
-          <tbody>
-            {reports.map((r, i) => (
-              <tr key={i} className="border-b">
-                <td className="py-2">{r.date}</td>
-                <td>{r.location}</td>
-                <td>{r.workers}</td>
-                <td>{r.machine}</td>
-                <td>{r.workDescription}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* 詳細モーダル */}
+      {modalLocation && modalData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h2 className="text-xl font-black">{modalLocation} 詳細分析</h2>
+              <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
+            </div>
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">稼働日数</div><div className="text-lg font-black">{modalData.days}日</div></div>
+              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">人件費</div><div className="text-lg font-black text-emerald-700">¥{modalData.laborCost.toLocaleString()}</div></div>
+              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">リース費</div><div className="text-lg font-black text-blue-700">¥{modalData.leaseCost.toLocaleString()}</div></div>
+              <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">処分費</div><div className="text-lg font-black text-amber-700">¥{modalData.disposalCost.toLocaleString()}</div></div>
+            </div>
+            <div className="space-y-3">
+              <h3 className="font-bold text-sm">日報内訳</h3>
+              {modalData.reports.map((r: any, idx: number) => (
+                <div key={idx} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-1">
+                  <div className="font-bold">{r.date} - 責任者: {r.manager} / 作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : r.workers}</div>
+                  <div>内容: {r.workDescription}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
