@@ -26,8 +26,9 @@ export default function Home() {
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    const loadSettings = () => {
+  // 管理画面で登録されたデータを確実に読み込む
+  const loadDataFromStorage = () => {
+    try {
       const savedLocs = localStorage.getItem('yamato_locations');
       if (savedLocs) setLocationsList(JSON.parse(savedLocs));
 
@@ -42,11 +43,15 @@ export default function Home() {
 
       const savedWorkers = localStorage.getItem('yamato_workers');
       if (savedWorkers) setWorkersList(JSON.parse(savedWorkers));
-    };
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-    loadSettings();
-    window.addEventListener('storage', loadSettings);
-    return () => window.removeEventListener('storage', loadSettings);
+  useEffect(() => {
+    loadDataFromStorage();
+    window.addEventListener('storage', loadDataFromStorage);
+    return () => window.removeEventListener('storage', loadDataFromStorage);
   }, []);
 
   const handleCopyYesterday = (type: string) => {
@@ -81,7 +86,7 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-slate-200 p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full">
           <h1 className="text-2xl font-bold text-orange-600 mb-4">日報を送信しました！</h1>
-          <button onClick={() => setSubmitted(false)} className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold w-full">
+          <button onClick={() => { setSubmitted(false); loadDataFromStorage(); }} className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold w-full">
             続けて入力する
           </button>
         </div>
