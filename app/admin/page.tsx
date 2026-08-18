@@ -8,14 +8,13 @@ export default function AdminPage() {
   const [reports, setReports] = useState<any[]>([]);
 
   // マスタ設定の状態
-  const [locations, setLocations] = useState<string[]>(['本社ビル解体工事', '大阪駅前ビル改修', '堺市道路拡張工事']);
-  const [leases, setLeases] = useState<string[]>(['0.2ユンボ', '0.4ユンボ', '発電機 25kVA']);
+  const [locations, setLocations] = useState<string[]>(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
+  const [leases, setLeases] = useState<string[]>(['0.2ユンボ', '0.4ユンボ']);
   const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string }[]>([
-    { location: '堺処分場', item: 'ガラ' },
-    { location: '南大阪金属', item: '鉄スクラップ' }
+    { location: '堺処分場', item: 'ガラ' }
   ]);
   const [workers, setWorkers] = useState<string[]>([
-    '山田 太郎', '鈴木 次郎', '佐藤 花子', '田中 一郎', '高橋 健一', '渡辺 敏夫'
+    '山田 太郎', '鈴木 次郎', '佐藤 花子', '田中 一郎'
   ]);
 
   // 入力用
@@ -26,7 +25,6 @@ export default function AdminPage() {
   const [newWorker, setNewWorker] = useState('');
 
   useEffect(() => {
-    // ローカルストレージから保存済みマスタを読み込む
     const savedLocs = localStorage.getItem('yamato_locations');
     if (savedLocs) setLocations(JSON.parse(savedLocs));
 
@@ -43,9 +41,9 @@ export default function AdminPage() {
     if (savedReports) setReports(JSON.parse(savedReports));
   }, []);
 
-  // データを保存する関数
   const saveToStorage = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
+    window.dispatchEvent(new Event('storage'));
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -58,7 +56,6 @@ export default function AdminPage() {
     }
   };
 
-  // 追加処理
   const handleAdd = (type: string) => {
     if (type === 'location' && newLocation.trim()) {
       const updated = [...locations, newLocation.trim()];
@@ -84,7 +81,6 @@ export default function AdminPage() {
     }
   };
 
-  // 削除処理
   const handleDelete = (type: string, target: any) => {
     if (!confirm('本当に削除しますか？')) return;
 
@@ -167,7 +163,7 @@ export default function AdminPage() {
         {/* 現場別 経費集計サマリー */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            🏢 現場別 経費集計サマリー（送信された日報：{reports.length}件）
+            🏢 現場別 経費集計サマリー
           </h2>
 
           <div className="overflow-x-auto">
@@ -176,13 +172,17 @@ export default function AdminPage() {
                 <tr className="border-b border-slate-200 text-slate-500 text-sm">
                   <th className="pb-3 font-bold">現場名</th>
                   <th className="pb-3 font-bold">稼働日数</th>
-                  <th className="pb-3 font-bold">詳細・内容</th>
+                  <th className="pb-3 font-bold">人件費</th>
+                  <th className="pb-3 font-bold">リース費</th>
+                  <th className="pb-3 font-bold">処分費</th>
+                  <th className="pb-3 font-bold">合計経費</th>
+                  <th className="pb-3 font-bold text-center">詳細</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-base font-bold">
                 {locations.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td>
+                    <td colSpan={7} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td>
                   </tr>
                 ) : (
                   locations.map((loc: string) => {
@@ -191,8 +191,14 @@ export default function AdminPage() {
                       <tr key={loc} className="hover:bg-slate-50">
                         <td className="py-4 text-[#1D70B8]">{loc}</td>
                         <td className="py-4 text-slate-700">{locReports.length}日</td>
-                        <td className="py-4 text-sm text-slate-600">
-                          {locReports.length > 0 ? `${locReports.length}件の日報が登録されています` : 'まだ日報はありません'}
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-slate-700">¥0</td>
+                        <td className="py-4 text-emerald-600">¥0</td>
+                        <td className="py-4 text-center">
+                          <button className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow">
+                            詳細 →
+                          </button>
                         </td>
                       </tr>
                     );
@@ -206,10 +212,10 @@ export default function AdminPage() {
         {/* マスタ登録（現場・リース・処分場・作業員） */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
           <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            ⚙️ マスタ登録・一覧管理（追加・削除可能）
+            ⚙️ マスタ登録（現場・リース・処分場・作業員）
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* 現場名一覧 */}
             <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
@@ -224,14 +230,14 @@ export default function AdminPage() {
                 />
                 <button
                   onClick={() => handleAdd('location')}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
                 >
                   追加
                 </button>
               </div>
               <div className="divide-y divide-slate-200 max-h-48 overflow-y-auto">
                 {locations.map((loc: string) => (
-                  <div key={loc} className="py-2 flex justify-between items-center text-sm font-bold">
+                  <div key={loc} className="py-2.5 flex justify-between items-center text-sm font-bold">
                     <span>{loc}</span>
                     <button
                       onClick={() => handleDelete('location', loc)}
@@ -257,14 +263,14 @@ export default function AdminPage() {
                 />
                 <button
                   onClick={() => handleAdd('lease')}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
                 >
                   追加
                 </button>
               </div>
               <div className="divide-y divide-slate-200 max-h-48 overflow-y-auto">
                 {leases.map((l: string) => (
-                  <div key={l} className="py-2 flex justify-between items-center text-sm font-bold">
+                  <div key={l} className="py-2.5 flex justify-between items-center text-sm font-bold">
                     <span>{l}</span>
                     <button
                       onClick={() => handleDelete('lease', l)}
@@ -279,7 +285,7 @@ export default function AdminPage() {
 
             {/* 処分場マスタ */}
             <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
-              <h3 className="font-bold text-slate-800 text-sm">🗑️ 処分場 ＆ 品目マスタ</h3>
+              <h3 className="font-bold text-slate-800 text-sm">🗑️ 処分場マスタ ＆ 単価設定</h3>
               <div className="space-y-2">
                 <input
                   type="text"
@@ -298,7 +304,7 @@ export default function AdminPage() {
                   />
                   <button
                     onClick={() => handleAdd('scrap')}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
                   >
                     追加
                   </button>
@@ -306,7 +312,7 @@ export default function AdminPage() {
               </div>
               <div className="divide-y divide-slate-200 max-h-36 overflow-y-auto">
                 {scrapLocations.map((sc: any, idx: number) => (
-                  <div key={idx} className="py-2 flex justify-between items-center text-sm font-bold">
+                  <div key={idx} className="py-2.5 flex justify-between items-center text-sm font-bold">
                     <span>{sc.location} - {sc.item}</span>
                     <button
                       onClick={() => handleDelete('scrap', sc)}
@@ -332,14 +338,14 @@ export default function AdminPage() {
                 />
                 <button
                   onClick={() => handleAdd('worker')}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow"
                 >
                   追加
                 </button>
               </div>
               <div className="divide-y divide-slate-200 max-h-48 overflow-y-auto">
                 {workers.map((w: string) => (
-                  <div key={w} className="py-2 flex justify-between items-center text-sm font-bold">
+                  <div key={w} className="py-2.5 flex justify-between items-center text-sm font-bold">
                     <span>{w}</span>
                     <button
                       onClick={() => handleDelete('worker', w)}
