@@ -112,11 +112,45 @@ export default function AdminPage() {
     });
   };
 
-  const handleDelete = async (index: number) => {
+  const handleDelete = async (type: string, target: any) => {
     if (!confirm('本当に削除しますか？')) return;
-    const updated = reports.filter((_, i) => i !== index);
-    setReports(updated);
-    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+
+    if (type === 'report') {
+      const updated = reports.filter((_, i) => i !== target);
+      setReports(updated);
+      await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+      return;
+    }
+
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedVehicles = [...vehicles];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
+    if (type === 'location') updatedLocations = locations.filter(l => l !== target);
+    else if (type === 'lease') updatedLeases = leases.filter(l => l.name !== target);
+    else if (type === 'vehicle') updatedVehicles = vehicles.filter(v => v !== target);
+    else if (type === 'scrap') updatedScraps = scrapLocations.filter((_, i) => i !== target);
+    else if (type === 'manager') updatedManagers = managers.filter(m => m.name !== target);
+    else if (type === 'worker') updatedWorkers = workers.filter(w => w.name !== target);
+
+    setLocations(updatedLocations);
+    setLeases(updatedLeases);
+    setVehicles(updatedVehicles);
+    setScrapLocations(updatedScraps);
+    setManagers(updatedManagers);
+    setWorkers(updatedWorkers);
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles: updatedVehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
   };
 
   const handleSaveEdit = async (index: number) => {
@@ -155,7 +189,6 @@ export default function AdminPage() {
     return { days: locReports.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reports: locReports };
   };
 
-  // ログイン画面（元のデザインに復旧）
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
@@ -228,12 +261,51 @@ export default function AdminPage() {
           </table>
         </div>
 
-        {/* マスタ登録エリア */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
-          <h2 className="text-lg font-black">⚙️ スクラップ・処分場マスタ登録</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* マスタ登録エリア（全項目復活版） */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+          <h2 className="text-lg font-black">⚙️ マスタ登録一覧</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* 現場名 */}
             <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
-              <h3 className="font-bold text-sm">🗑️ 処分場 ＆ 品目追加</h3>
+              <h3 className="font-bold text-sm">🏢 現場名</h3>
+              <div className="flex gap-2">
+                <input type="text" placeholder="新しい現場名" value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
+                <button onClick={() => handleAdd('location')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y">
+                {locations.map(loc => (
+                  <div key={loc} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{loc}</span>
+                    <button onClick={() => handleDelete('location', loc)} className="text-red-500 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* リース重機 */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm">🚜 リース・重機 ＆ 単価</h3>
+              <input type="text" placeholder="リース名" value={newLeaseName} onChange={e => setNewLeaseName(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold">日額¥</span>
+                <input type="number" value={newLeasePrice} onChange={e => setNewLeasePrice(Number(e.target.value))} className="w-full p-2 border rounded text-sm bg-white" />
+                <button onClick={() => handleAdd('lease')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y">
+                {leases.map(l => (
+                  <div key={l.name} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{l.name} (¥{l.price})</span>
+                    <button onClick={() => handleDelete('lease', l.name)} className="text-red-500 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 処分場・スクラップ */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm">🗑️ 処分場・スクラップ ＆ 単価</h3>
               <input type="text" placeholder="処分場名" value={newScrapLoc} onChange={e => setNewScrapLoc(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
               <select value={newScrapItem} onChange={e => setNewScrapItem(e.target.value)} className="w-full p-2 border rounded text-sm bg-white font-bold">
                 <option value="鉄">鉄</option>
@@ -246,23 +318,75 @@ export default function AdminPage() {
                 <input type="number" value={newScrapPrice} onChange={e => setNewScrapPrice(Number(e.target.value))} className="w-full p-2 border rounded text-sm bg-white" />
                 <button onClick={() => handleAdd('scrap')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
-            </div>
-
-            <div className="border p-4 rounded-xl bg-slate-50 col-span-2 space-y-2">
-              <h3 className="font-bold text-sm">登録済みスクラップ・処分場一覧</h3>
               <div className="max-h-36 overflow-y-auto divide-y">
                 {scrapLocations.map((sc, idx) => (
-                  <div key={idx} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{sc.location} （品目: {sc.item}） 単価: ¥{sc.price}</span>
-                    <button onClick={() => {
-                      const updated = scrapLocations.filter((_, i) => i !== idx);
-                      setScrapLocations(updated);
-                      saveSettingsToServer({ locations, leases, vehicles, scrapLocations: updated, managers, workers });
-                    }} className="text-red-500 text-xs font-bold">削除</button>
+                  <div key={idx} className="py-2 flex justify-between items-center text-xs font-bold">
+                    <span>{sc.location} ({sc.item}) ¥{sc.price}</span>
+                    <button onClick={() => handleDelete('scrap', idx)} className="text-red-500 text-xs font-bold">削除</button>
                   </div>
                 ))}
               </div>
             </div>
+
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* 車両 */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm">🚚 車両マスタ</h3>
+              <div className="flex gap-2">
+                <input type="text" placeholder="車両名" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
+                <button onClick={() => handleAdd('vehicle')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y">
+                {vehicles.map(v => (
+                  <div key={v} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{v}</span>
+                    <button onClick={() => handleDelete('vehicle', v)} className="text-red-500 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 現場責任者 */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm">👤 現場責任者 ＆ 単価</h3>
+              <input type="text" placeholder="責任者名" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold">日額¥</span>
+                <input type="number" value={newManagerPrice} onChange={e => setNewManagerPrice(Number(e.target.value))} className="w-full p-2 border rounded text-sm bg-white" />
+                <button onClick={() => handleAdd('manager')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y">
+                {managers.map(m => (
+                  <div key={m.name} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{m.name} (¥{m.price})</span>
+                    <button onClick={() => handleDelete('manager', m.name)} className="text-red-500 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 作業メンバー */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm">👥 作業メンバー ＆ 単価</h3>
+              <input type="text" placeholder="メンバー名" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} className="w-full p-2 border rounded text-sm bg-white" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold">日額¥</span>
+                <input type="number" value={newWorkerPrice} onChange={e => setNewWorkerPrice(Number(e.target.value))} className="w-full p-2 border rounded text-sm bg-white" />
+                <button onClick={() => handleAdd('worker')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y">
+                {workers.map(w => (
+                  <div key={w.name} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{w.name} (¥{w.price})</span>
+                    <button onClick={() => handleDelete('worker', w.name)} className="text-red-500 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -295,7 +419,7 @@ export default function AdminPage() {
                       <td className="text-center space-x-2">
                         {editingIndex === i ? <button onClick={() => handleSaveEdit(i)} className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold">保存</button> 
                         : <button onClick={() => {setEditingIndex(i); setEditDesc(r.workDescription || r.content || '');}} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">編集</button>}
-                        <button onClick={() => handleDelete(i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                        <button onClick={() => handleDelete('report', i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
                       </td>
                     </tr>
                   );
