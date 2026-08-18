@@ -102,9 +102,9 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
-          <h1 className="text-xl font-black text-center text-slate-800">管理画面ログイン</h1>
+          <h1 className="text-xl font-normal text-center text-slate-800">🔒管理画面ログイン</h1>
           <input type="password" placeholder="パスワードを入力" className="w-full p-3 border rounded-xl outline-none font-bold" onChange={e => setPassword(e.target.value)} />
-          <button onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} className="w-full bg-[#1e293b] text-white font-bold py-3 rounded-xl shadow">ログイン</button>
+          <button onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} className="w-full bg-[#E56312] text-white font-bold py-3 rounded-xl shadow">ログイン</button>
         </div>
       </div>
     );
