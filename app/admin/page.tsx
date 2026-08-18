@@ -7,30 +7,27 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
 
-  // マスタ設定の状態
   const [locations, setLocations] = useState<string[]>(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
   const [leases, setLeases] = useState<{ name: string; price: number }[]>([
     { name: '0.2ユンボ', price: 15000 }
   ]);
+  const [vehicles, setVehicles] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
   const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([
     { location: 'テスト場', item: 'ガラ', unit: 't', price: 3000 }
   ]);
   const [managers, setManagers] = useState<{ name: string; price: number }[]>([
     { name: '大和 太郎', price: 20000 },
-    { name: '佐藤 次郎', price: 15000 },
-    { name: '鈴木 三郎', price: 10000 },
-    { name: '大和', price: 15000 }
+    { name: '佐藤 次郎', price: 15000 }
   ]);
   const [workers, setWorkers] = useState<{ name: string; price: number }[]>([
     { name: 'Aさん', price: 15000 },
-    { name: 'Bさん', price: 16000 },
-    { name: 'Cさん', price: 10000 }
+    { name: 'Bさん', price: 16000 }
   ]);
 
-  // 入力用
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
+  const [newVehicle, setNewVehicle] = useState('');
   
   const [newScrapLoc, setNewScrapLoc] = useState('');
   const [newScrapItem, setNewScrapItem] = useState('');
@@ -52,6 +49,9 @@ export default function AdminPage() {
 
       const savedLeases = localStorage.getItem('yamato_leases');
       if (savedLeases) setLeases(JSON.parse(savedLeases));
+
+      const savedVehicles = localStorage.getItem('yamato_vehicles');
+      if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
 
       const savedScraps = localStorage.getItem('yamato_scrapLocations');
       if (savedScraps) setScrapLocations(JSON.parse(savedScraps));
@@ -86,7 +86,6 @@ export default function AdminPage() {
     }
   };
 
-  // 追加処理
   const handleAdd = (type: string) => {
     if (type === 'location' && newLocation.trim()) {
       const updated = [...locations, newLocation.trim()];
@@ -98,6 +97,11 @@ export default function AdminPage() {
       setLeases(updated);
       saveToStorage('yamato_leases', updated);
       setNewLeaseName('');
+    } else if (type === 'vehicle' && newVehicle.trim()) {
+      const updated = [...vehicles, newVehicle.trim()];
+      setVehicles(updated);
+      saveToStorage('yamato_vehicles', updated);
+      setNewVehicle('');
     } else if (type === 'scrap' && newScrapLoc.trim() && newScrapItem.trim()) {
       const updated = [...scrapLocations, { location: newScrapLoc.trim(), item: newScrapItem.trim(), unit: newScrapUnit, price: Number(newScrapPrice) }];
       setScrapLocations(updated);
@@ -117,7 +121,6 @@ export default function AdminPage() {
     }
   };
 
-  // 削除処理
   const handleDelete = (type: string, target: any) => {
     if (!confirm('本当に削除しますか？')) return;
     if (type === 'location') {
@@ -128,6 +131,10 @@ export default function AdminPage() {
       const updated = leases.filter(l => l.name !== target);
       setLeases(updated);
       saveToStorage('yamato_leases', updated);
+    } else if (type === 'vehicle') {
+      const updated = vehicles.filter(v => v !== target);
+      setVehicles(updated);
+      saveToStorage('yamato_vehicles', updated);
     } else if (type === 'scrap') {
       const updated = scrapLocations.filter(s => !(s.location === target.location && s.item === target.item));
       setScrapLocations(updated);
@@ -147,7 +154,6 @@ export default function AdminPage() {
     }
   };
 
-  // 単価変更処理
   const handlePriceChange = (type: string, targetName: string, newPrice: number) => {
     if (type === 'lease') {
       const updated = leases.map(l => l.name === targetName ? { ...l, price: newPrice } : l);
@@ -194,7 +200,7 @@ export default function AdminPage() {
   }
 
   const filteredReports = filterLocation.trim() 
-    ? reports.filter(r => r?.location?.includes(filterLocation))
+    ? reports.filter(r => (r?.locations && r.locations.some((l: string) => l.includes(filterLocation))) || r?.location?.includes(filterLocation))
     : reports;
 
   return (
@@ -226,41 +232,21 @@ export default function AdminPage() {
                 <tr className="border-b border-slate-200 text-slate-500 text-sm">
                   <th className="pb-3 font-bold">現場名</th>
                   <th className="pb-3 font-bold">稼働日数</th>
-                  <th className="pb-3 font-bold">人件費</th>
-                  <th className="pb-3 font-bold">リース費</th>
-                  <th className="pb-3 font-bold">処分費</th>
                   <th className="pb-3 font-bold">合計経費</th>
                   <th className="pb-3 font-bold text-center">詳細</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-base font-bold">
                 {locations.length === 0 ? (
-                  <tr><td colSpan={7} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td></tr>
+                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 text-sm">現場が登録されていません</td></tr>
                 ) : (
                   locations.map((loc) => {
-                    const locReports = reports.filter(r => r?.location === loc);
-                    let totalLabor = 0;
-                    locReports.forEach(r => {
-                      if (r.manager) {
-                        const mObj = managers.find(m => m.name === r.manager);
-                        totalLabor += mObj ? mObj.price : 0;
-                      }
-                      if (Array.isArray(r.workers)) {
-                        r.workers.forEach((wName: string) => {
-                          const wObj = workers.find(wo => wo.name === wName);
-                          totalLabor += wObj ? wObj.price : 0;
-                        });
-                      }
-                    });
-
+                    const locReports = reports.filter(r => (r?.locations && r.locations.includes(loc)) || r?.location === loc);
                     return (
                       <tr key={loc} className="hover:bg-slate-50">
                         <td className="py-4 text-[#1D70B8]">{loc}</td>
                         <td className="py-4 text-slate-700">{locReports.length} 日</td>
-                        <td className="py-4 text-slate-700">¥{totalLabor.toLocaleString()}</td>
-                        <td className="py-4 text-slate-700">¥0</td>
-                        <td className="py-4 text-slate-700">¥0</td>
-                        <td className="py-4 text-emerald-600">¥{totalLabor.toLocaleString()}</td>
+                        <td className="py-4 text-emerald-600">¥0</td>
                         <td className="py-4 text-center">
                           <button className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow">
                             詳細 →
@@ -275,9 +261,9 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* マスタ登録（現場・担当者・リース・処分場） */}
+        {/* マスタ登録エリア */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-          <h2 className="text-lg font-black text-slate-900">⚙️ マスタ登録（現場・担当者・リース・処分場）</h2>
+          <h2 className="text-lg font-black text-slate-900">⚙️ マスタ登録・編集削除</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
@@ -351,7 +337,7 @@ export default function AdminPage() {
               <div className="space-y-2">
                 <input
                   type="text"
-                  placeholder="処分場名 (例: 堺処分場)"
+                  placeholder="処分場名"
                   value={newScrapLoc}
                   onChange={(e) => setNewScrapLoc(e.target.value)}
                   className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
@@ -359,7 +345,7 @@ export default function AdminPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="品目 (例: ガラ)"
+                    placeholder="品目"
                     value={newScrapItem}
                     onChange={(e) => setNewScrapItem(e.target.value)}
                     className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
@@ -397,8 +383,31 @@ export default function AdminPage() {
 
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
+            {/* 車両 */}
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+              <h3 className="font-bold text-slate-800 text-sm">🚚 車両マスタ</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="車両名"
+                  value={newVehicle}
+                  onChange={(e) => setNewVehicle(e.target.value)}
+                  className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
+                />
+                <button onClick={() => handleAdd('vehicle')} className="bg-orange-600 text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0">追加</button>
+              </div>
+              <div className="divide-y divide-slate-200 max-h-40 overflow-y-auto">
+                {vehicles.map((v) => (
+                  <div key={v} className="py-2 flex justify-between items-center text-sm font-bold">
+                    <span>{v}</span>
+                    <button onClick={() => handleDelete('vehicle', v)} className="text-red-500 hover:text-red-700 text-xs font-bold">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* 現場責任者 */}
             <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
               <h3 className="font-bold text-slate-800 text-sm">👤 現場責任者 ＆ 日額単価</h3>
@@ -431,7 +440,7 @@ export default function AdminPage() {
                         type="number"
                         value={m.price}
                         onChange={(e) => handlePriceChange('manager', m.name, Number(e.target.value))}
-                        className="w-24 p-1 rounded border text-xs text-right"
+                        className="w-20 p-1 rounded border text-xs text-right"
                       />
                       <button onClick={() => handleDelete('manager', m.name)} className="text-red-500 hover:text-red-700 text-xs font-bold ml-1">削除</button>
                     </div>
@@ -446,7 +455,7 @@ export default function AdminPage() {
               <div className="space-y-2">
                 <input
                   type="text"
-                  placeholder="メンバー名 (例: 山田)"
+                  placeholder="メンバー名"
                   value={newWorkerName}
                   onChange={(e) => setNewWorkerName(e.target.value)}
                   className="w-full p-2 rounded-lg border border-slate-300 text-sm bg-white"
@@ -472,7 +481,7 @@ export default function AdminPage() {
                         type="number"
                         value={w.price}
                         onChange={(e) => handlePriceChange('worker', w.name, Number(e.target.value))}
-                        className="w-24 p-1 rounded border text-xs text-right"
+                        className="w-20 p-1 rounded border text-xs text-right"
                       />
                       <button onClick={() => handleDelete('worker', w.name)} className="text-red-500 hover:text-red-700 text-xs font-bold ml-1">削除</button>
                     </div>
@@ -486,82 +495,50 @@ export default function AdminPage() {
 
         {/* 送信された日報一覧 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex justify-between items-center">
             <h2 className="text-lg font-black text-slate-900">📥 送信された日報一覧</h2>
-            <button onClick={() => window.location.reload()} className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">
-              🔄 最新情報に更新
+            <button onClick={() => window.location.reload()} className="bg-[#1D70B8] text-white px-4 py-2 rounded-xl text-sm font-bold shadow">
+              🔄 更新
             </button>
           </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="現場名で絞り込み..."
-              value={filterLocation}
-              onChange={(e) => setFilterLocation(e.target.value)}
-              className="p-2 rounded-lg border border-slate-300 text-sm max-w-sm w-full bg-slate-50"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="現場名で絞り込み..."
+            value={filterLocation}
+            onChange={(e) => setFilterLocation(e.target.value)}
+            className="p-2 rounded-lg border border-slate-300 text-sm max-w-sm w-full bg-slate-50"
+          />
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500 text-sm">
-                  <th className="pb-3 font-bold">日付 / 送信日時</th>
+                  <th className="pb-3 font-bold">日付</th>
                   <th className="pb-3 font-bold">現場名</th>
                   <th className="pb-3 font-bold">責任者 / 作業者</th>
-                  <th className="pb-3 font-bold">概算人件費</th>
-                  <th className="pb-3 font-bold">リース重機</th>
                   <th className="pb-3 font-bold">作業内容</th>
-                  <th className="pb-3 font-bold">処分内容 / 搬出量</th>
                   <th className="pb-3 font-bold text-center">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredReports.length === 0 ? (
-                  <tr><td colSpan={8} className="py-6 text-center text-slate-400">日報データはありません</td></tr>
+                  <tr><td colSpan={5} className="py-6 text-center text-slate-400">日報データはありません</td></tr>
                 ) : (
-                  filteredReports.map((r, i) => {
-                    let calcLabor = 0;
-                    if (r.manager) {
-                      const mObj = managers.find(m => m.name === r.manager);
-                      calcLabor += mObj ? mObj.price : 0;
-                    }
-                    if (Array.isArray(r.workers)) {
-                      r.workers.forEach((wName: string) => {
-                        const wObj = workers.find(wo => wo.name === wName);
-                        calcLabor += wObj ? wObj.price : 0;
-                      });
-                    }
-
-                    return (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-4">
-                          <div className="font-bold">{r.date}</div>
-                          <div className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
-                        </td>
-                        <td className="py-4 font-bold text-[#1D70B8]">{r.location}</td>
-                        <td className="py-4">
-                          <div className="font-bold">責任者: {r.manager || 'なし'}</div>
-                          <div className="text-xs text-slate-500">作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : 'なし'}</div>
-                        </td>
-                        <td className="py-4 font-bold text-emerald-600">¥{calcLabor.toLocaleString()}</td>
-                        <td className="py-4 text-slate-600">{r.lease || 'なし'}</td>
-                        <td className="py-4 text-slate-600">{r.workDescription}</td>
-                        <td className="py-4 text-slate-600">
-                          {r.disposals && r.disposals.length > 0 ? (
-                            r.disposals.map((d: any, idx: number) => (
-                              <div key={idx}>{d.location} ({d.item}): {d.quantity}{d.unit}</div>
-                            ))
-                          ) : 'なし'}
-                        </td>
-                        <td className="py-4 text-center space-x-1">
-                          <button onClick={() => alert('編集機能は準備中です')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold">編集</button>
-                          <button onClick={() => handleDelete('report', i)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  filteredReports.map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="py-4 font-bold">{r.date}</td>
+                      <td className="py-4 font-bold text-[#1D70B8]">{r.locations ? r.locations.join(', ') : r.location}</td>
+                      <td className="py-4">
+                        <div>責任者: {r.managers ? r.managers.join(', ') : r.manager}</div>
+                        <div className="text-xs text-slate-500">作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : ''}</div>
+                      </td>
+                      <td className="py-4 text-slate-600">{r.workDescription}</td>
+                      <td className="py-4 text-center">
+                        <button onClick={() => handleDelete('report', i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
