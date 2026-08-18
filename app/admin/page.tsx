@@ -26,6 +26,11 @@ export default function AdminPage() {
 
   const [modalLocation, setModalLocation] = useState<string | null>(null);
 
+  // 日報編集用の状態
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
@@ -44,7 +49,6 @@ export default function AdminPage() {
 
   const [filterLocation, setFilterLocation] = useState('');
 
-  // サーバー（API）からデータを一括取得
   const fetchData = async () => {
     try {
       const resReports = await fetch('/api/reports');
@@ -76,7 +80,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); // 5秒ごとに自動更新
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -97,6 +101,19 @@ export default function AdminPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSettings)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveReportsToServer = async (updatedReports: any[]) => {
+    try {
+      // 全件上書き保存用のPOST（reports APIで対応）
+      await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedReports)
       });
     } catch (e) {
       console.error(e);
@@ -151,6 +168,20 @@ export default function AdminPage() {
   const handleDelete = async (type: string, target: any) => {
     if (!confirm('本当に削除しますか？')) return;
 
+    if (type === 'report') {
+      const updatedReports = reports.filter((_, idx) => idx !== target);
+      setReports(updatedReports);
+      // サーバ側のレポートリストを更新するためにサーバーへ全件保存
+      try {
+        await fetch('/api/reports', {
+          method: 'PUT', // または全件置き換え用の処理
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedReports)
+        });
+      } catch (e) {}
+      return;
+    }
+
     let updatedLocations = [...locations];
     let updatedLeases = [...leases];
     let updatedVehicles = [...vehicles];
@@ -158,25 +189,12 @@ export default function AdminPage() {
     let updatedManagers = [...managers];
     let updatedWorkers = [...workers];
 
-    if (type === 'location') {
-      updatedLocations = locations.filter(l => l !== target);
-      setLocations(updatedLocations);
-    } else if (type === 'lease') {
-      updatedLeases = leases.filter(l => l.name !== target);
-      setLeases(updatedLeases);
-    } else if (type === 'vehicle') {
-      updatedVehicles = vehicles.filter(v => v !== target);
-      setVehicles(updatedVehicles);
-    } else if (type === 'scrap') {
-      updatedScraps = scrapLocations.filter(s => !(s.location === target.location && s.item === target.item));
-      setScrapLocations(updatedScraps);
-    } else if (type === 'manager') {
-      updatedManagers = managers.filter(m => m.name !== target);
-      setManagers(updatedManagers);
-    } else if (type === 'worker') {
-      updatedWorkers = workers.filter(w => w.name !== target);
-      setWorkers(updatedWorkers);
-    }
+    if (type === 'location') updatedLocations = locations.filter(l => l !== target);
+    else if (type === 'lease') updatedLeases = leases.filter(l => l.name !== target);
+    else if (type === 'vehicle') updatedVehicles = vehicles.filter(v => v !== target);
+    else if (type === 'scrap') updatedScraps = scrapLocations.filter(s => !(s.location === target.location && s.item === target.item));
+    else if (type === 'manager') updatedManagers = managers.filter(m => m.name !== target);
+    else if (type === 'worker') updatedWorkers = workers.filter(w => w.name !== target);
 
     saveSettingsToServer({
       locations: updatedLocations,
@@ -188,21 +206,37 @@ export default function AdminPage() {
     });
   };
 
+  // 日報編集の保存
+  const handleSaveEdit = async (index: number) => {
+    const updated = [...reports];
+    updated[index] = {
+      ...updated[index],
+      date: editDate,
+      workDescription: editDesc
+    };
+    setReports(updated);
+    setEditingIndex(null);
+    
+    // サーバーに反映
+    try {
+      await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handlePriceChange = (type: string, targetName: string, newPrice: number) => {
     let updatedLeases = [...leases];
     let updatedManagers = [...managers];
     let updatedWorkers = [...workers];
 
-    if (type === 'lease') {
-      updatedLeases = leases.map(l => l.name === targetName ? { ...l, price: newPrice } : l);
-      setLeases(updatedLeases);
-    } else if (type === 'manager') {
-      updatedManagers = managers.map(m => m.name === targetName ? { ...m, price: newPrice } : m);
-      setManagers(updatedManagers);
-    } else if (type === 'worker') {
-      updatedWorkers = workers.map(w => w.name === targetName ? { ...w, price: newPrice } : w);
-      setWorkers(updatedWorkers);
-    }
+    if (type === 'lease') updatedLeases = leases.map(l => l.name === targetName ? { ...l, price: newPrice } : l);
+    else if (type === 'manager') updatedManagers = managers.map(m => m.name === targetName ? { ...m, price: newPrice } : m);
+    else if (type === 'worker') updatedWorkers = workers.map(w => w.name === targetName ? { ...w, price: newPrice } : w);
 
     saveSettingsToServer({
       locations,
@@ -602,7 +636,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 送信された日報一覧 */}
+        {/* 送信された日報一覧（編集・削除機能付き） */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-black text-slate-900">📥 送信された日報一覧</h2>
@@ -636,15 +670,67 @@ export default function AdminPage() {
                 ) : (
                   filteredReports.map((r, i) => (
                     <tr key={i} className="hover:bg-slate-50">
-                      <td className="py-4 font-bold">{r.date}</td>
+                      <td className="py-4 font-bold">
+                        {editingIndex === i ? (
+                          <input
+                            type="text"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="p-1 border rounded w-28 text-sm"
+                          />
+                        ) : r.date}
+                      </td>
                       <td className="py-4 font-bold text-[#1D70B8]">{r.locations ? r.locations.join(', ') : r.location}</td>
                       <td className="py-4">
                         <div>責任者: {r.managers ? r.managers.join(', ') : r.manager}</div>
                         <div className="text-xs text-slate-500">作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : ''}</div>
                       </td>
-                      <td className="py-4 text-slate-600">{r.workDescription}</td>
-                      <td className="py-4 text-center">
-                        <button onClick={() => handleDelete('report', i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                      <td className="py-4 text-slate-600">
+                        {editingIndex === i ? (
+                          <input
+                            type="text"
+                            value={editDesc}
+                            onChange={(e) => setEditDesc(e.target.value)}
+                            className="p-1 border rounded w-full text-sm"
+                          />
+                        ) : r.workDescription}
+                      </td>
+                      <td className="py-4 text-center space-x-2">
+                        {editingIndex === i ? (
+                          <>
+                            <button
+                              onClick={() => handleSaveEdit(i)}
+                              className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold"
+                            >
+                              保存
+                            </button>
+                            <button
+                              onClick={() => setEditingIndex(null)}
+                              className="bg-slate-500 text-white px-3 py-1 rounded text-xs font-bold"
+                            >
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingIndex(i);
+                                setEditDate(r.date || '');
+                                setEditDesc(r.workDescription || '');
+                              }}
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700"
+                            >
+                              編集
+                            </button>
+                            <button
+                              onClick={() => handleDelete('report', i)}
+                              className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-red-600"
+                            >
+                              削除
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -741,8 +827,8 @@ export default function AdminPage() {
                           r.leases.forEach((lName: string) => {
                             const lObj = leases.find(l => l.name === lName);
                             dayLease += lObj ? lObj.price : 0;
-                          });
-                        }
+                        });
+                      }
 
                         let dayDisposal = 0;
                         let disposalTexts: string[] = [];
