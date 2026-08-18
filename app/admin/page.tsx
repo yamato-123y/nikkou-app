@@ -29,7 +29,6 @@ export default function AdminPage() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [filterLocation, setFilterLocation] = useState('');
 
-  // 編集中の一時データ保持用
   const [editForm, setEditForm] = useState({
     location: '',
     manager: '',
@@ -38,7 +37,6 @@ export default function AdminPage() {
     workDescription: ''
   });
 
-  // 新規追加用
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
@@ -543,7 +541,7 @@ export default function AdminPage() {
                   <th className="pb-3 font-bold">概算人件費</th>
                   <th className="pb-3 font-bold">重機 / 車両</th>
                   <th className="pb-3 font-bold">作業内容</th>
-                  <th className="pb-3 font-bold">処分 / スクラップ</th>
+                  <th className="pb-3 font-bold">処分内容 / スクラップ搬出量</th>
                   <th className="pb-3 text-center font-bold">操作</th>
                 </tr>
               </thead>
@@ -651,12 +649,20 @@ export default function AdminPage() {
                         )}
                       </td>
 
-                      <td className="py-4">
+                      {/* 処分内容 / スクラップ搬出量 */}
+                      <td className="py-4 space-y-1">
                         {Array.isArray(r.disposals) && r.disposals.length > 0 && (
-                          <div className="text-xs text-blue-700 font-bold">【処分】{r.disposals.map((d: any, idx: number) => `${d.location}(${d.item}):${d.quantity}t`).join(', ')}</div>
+                          <div className="text-xs text-blue-700 font-bold">
+                            【処分】{r.disposals.map((d: any, idx: number) => `${d.location}(${d.item}): ${d.quantity}t`).join(' / ')}
+                          </div>
                         )}
                         {Array.isArray(r.scraps) && r.scraps.length > 0 && (
-                          <div className="text-xs text-orange-700 font-bold">【スクラップ】{r.scraps.map((s: any, idx: number) => `${s.location}(${s.item}):${s.quantity}t`).join(', ')}</div>
+                          <div className="text-xs text-orange-700 font-bold">
+                            【スクラップ】{r.scraps.map((s: any, idx: number) => `${s.location}(${s.item}): ${s.quantity}t`).join(' / ')}
+                          </div>
+                        )}
+                        {(!r.disposals || r.disposals.length === 0) && (!r.scraps || r.scraps.length === 0) && (
+                          <span className="text-xs text-slate-400">なし</span>
                         )}
                       </td>
 
