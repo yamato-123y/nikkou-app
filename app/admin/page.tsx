@@ -29,6 +29,10 @@ export default function AdminPage() {
   const [editDesc, setEditDesc] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
 
+  // モーダル内の個別編集用
+  const [modalEditingId, setModalEditingId] = useState<number | null>(null);
+  const [modalEditDesc, setModalEditDesc] = useState('');
+
   // 新規追加用
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
@@ -175,15 +179,25 @@ export default function AdminPage() {
     await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
   };
 
+  const handleModalSaveEdit = async (globalIndex: number) => {
+    const updated = [...reports];
+    updated[globalIndex].workDescription = modalEditDesc;
+    setReports(updated);
+    setModalEditingId(null);
+    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+  };
+
   const calculateCosts = (locName: string) => {
-    const locReports = reports.filter(r => {
+    // レポート全体の中で、該当の現場が含まれるものとその元のインデックスを特定
+    const allMapped = reports.map((r, globalIndex) => ({ r, globalIndex }));
+    const locMapped = allMapped.filter(({ r }) => {
       const locs = Array.isArray(r.locations) ? r.locations : (r.siteName ? [r.siteName] : (r.location ? [r.location] : []));
       return locs.includes(locName) || r.location === locName;
     });
 
     let laborCost = 0, leaseCost = 0, disposalCost = 0;
 
-    locReports.forEach(r => {
+    locMapped.forEach(({ r }) => {
       const mgrs = Array.isArray(r.managers) ? r.managers : (r.manager ? [r.manager] : []);
       mgrs.forEach(mName => laborCost += (managers.find(m => m.name === mName)?.price || 20000));
 
@@ -203,10 +217,9 @@ export default function AdminPage() {
       });
     });
 
-    return { days: locReports.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reports: locReports };
+    return { days: locMapped.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reportsWithIndex: locMapped };
   };
 
-  // ご要望のデザインを完全維持したログイン画面
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
@@ -246,7 +259,7 @@ export default function AdminPage() {
   }
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
-  const filteredReports = reports.filter(r => {
+  const filteredReports = reports.map((r, globalIndex) => ({ r, globalIndex })).filter(({ r }) => {
     if (!filterLocation) return true;
     const locs = Array.isArray(r.locations) ? r.locations.join(',') : (r.location || r.siteName || '');
     return locs.includes(filterLocation);
@@ -468,7 +481,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y text-sm">
-                {filteredReports.map((r, i) => {
+                {filteredReports.map(({ r, globalIndex }) => {
                   const locs = Array.isArray(r.locations) ? r.locations.join(', ') : (r.location || r.siteName || '');
                   const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
                   const wrks = Array.isArray(r.workers) ? r.workers : (r.workers || 'なし');
@@ -480,7 +493,7 @@ export default function AdminPage() {
                   }
 
                   return (
-                    <tr key={i} className="hover:bg-slate-50">
+                    <tr key={globalIndex} className="hover:bg-slate-50">
                       <td className="py-4 font-bold">
                         <div>{r.date}</div>
                         <div className="text-xs text-slate-400 font-normal">{r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</div>
@@ -493,10 +506,10 @@ export default function AdminPage() {
                       <td className="text-emerald-600 font-bold">¥{rLabor.toLocaleString()}</td>
                       <td className="text-slate-600">{r.machine || r.lease || 'なし'}</td>
                       <td>
-                        {editingIndex === i ? (
+                        {editingIndex === globalIndex ? (
                           <div className="flex gap-1">
                             <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border p-1 rounded w-full text-sm" />
-                            <button onClick={() => handleSaveEdit(i)} className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">保存</button>
+                            <button onClick={() => handleSaveEdit(globalIndex)} className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">保存</button>
                           </div>
                         ) : (
                           r.workDescription || r.content || ''
@@ -511,10 +524,10 @@ export default function AdminPage() {
                         ))}
                       </td>
                       <td className="text-center space-x-1">
-                        {editingIndex !== i && (
-                          <button onClick={() => { setEditingIndex(i); setEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-3 py-1 rounded text-xs font-bold">編集</button>
+                        {editingIndex !== globalIndex && (
+                          <button onClick={() => { setEditingIndex(globalIndex); setEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-3 py-1 rounded text-xs font-bold">編集</button>
                         )}
-                        <button onClick={() => handleDelete('report', i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                        <button onClick={() => handleDelete('report', globalIndex)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
                       </td>
                     </tr>
                   );
@@ -542,12 +555,31 @@ export default function AdminPage() {
             </div>
             <div className="space-y-3">
               <h3 className="font-bold text-sm">日報内訳</h3>
-              {modalData.reports.map((r: any, idx: number) => (
-                <div key={idx} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-1">
-                  <div className="font-bold">{r.date} - 責任者: {r.manager} / 作業者: {Array.isArray(r.workers) ? r.workers.join(', ') : r.workers}</div>
-                  <div>内容: {r.workDescription}</div>
-                </div>
-              ))}
+              {modalData.reportsWithIndex.map(({ r, globalIndex }) => {
+                const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
+                const wrks = Array.isArray(r.workers) ? r.workers.join(', ') : (r.workers || 'なし');
+                return (
+                  <div key={globalIndex} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-2">
+                    <div className="font-bold flex justify-between items-center">
+                      <span>{r.date} - 責任者: {mgrs} / 作業者: {wrks}</span>
+                      <div className="space-x-1">
+                        {modalEditingId !== globalIndex && (
+                          <button onClick={() => { setModalEditingId(globalIndex); setModalEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-2.5 py-1 rounded text-xs font-bold">編集</button>
+                        )}
+                        <button onClick={() => handleDelete('report', globalIndex)} className="bg-red-500 text-white px-2.5 py-1 rounded text-xs font-bold">削除</button>
+                      </div>
+                    </div>
+                    {modalEditingId === globalIndex ? (
+                      <div className="flex gap-2 mt-1">
+                        <input value={modalEditDesc} onChange={e => setModalEditDesc(e.target.value)} className="border p-1.5 rounded w-full text-xs bg-white font-bold" />
+                        <button onClick={() => handleModalSaveEdit(globalIndex)} className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold">保存</button>
+                      </div>
+                    ) : (
+                      <div className="font-bold text-slate-700">内容: {r.workDescription || r.content || 'なし'}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
