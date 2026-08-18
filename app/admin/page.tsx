@@ -52,10 +52,12 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (isAuthed) {
+      fetchData();
+      const interval = setInterval(fetchData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthed]);
 
   const saveSettings = async (newData: any) => {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
@@ -99,9 +101,9 @@ export default function AdminPage() {
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
-          <h1 className="text-xl font-black mb-6 text-center text-slate-800">管理画面ログイン</h1>
-          <input type="password" placeholder="パスワード" className="w-full p-3 border rounded-xl mb-4 outline-none font-bold" onChange={e => setPassword(e.target.value)} />
+        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
+          <h1 className="text-xl font-black text-center text-slate-800">管理画面ログイン</h1>
+          <input type="password" placeholder="パスワードを入力" className="w-full p-3 border rounded-xl outline-none font-bold" onChange={e => setPassword(e.target.value)} />
           <button onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} className="w-full bg-[#1e293b] text-white font-bold py-3 rounded-xl shadow">ログイン</button>
         </div>
       </div>
@@ -373,7 +375,6 @@ export default function AdminPage() {
                       <div>👤 責任者: <span className="font-normal text-slate-700">{mgrs}</span></div>
                       <div>👥 作業者: <span className="font-normal text-slate-700">{wrks}</span></div>
                       <div>🚜 リース重機: <span className="font-normal text-slate-700">{r.machine || r.lease || 'なし'}</span></div>
-                      <div>💰 日付合計: <span className="font-normal text-emerald-600">人件費等計</span></div>
                     </div>
                   </div>
                 );
