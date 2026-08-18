@@ -2,15 +2,16 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const [workersList, setWorkersList] = useState<string[]>([]);
+  const [workersList, setWorkersList] = useState<string[]>([
+    '山田 太郎', '鈴木 次郎', '佐藤 花子', '田中 一郎', '高橋 健一', '渡辺 敏夫'
+  ]);
   const [locationsList, setLocationsList] = useState<string[]>([]);
-  const [vehiclesList, setVehiclesList] = useState<string[]>([]);
-  const [heavyMachinesList, setHeavyMachinesList] = useState<string[]>([]);
+  const [vehiclesList, setVehiclesList] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ', 'ユニック車']);
+  const [heavyMachinesList, setHeavyMachinesList] = useState<string[]>(['0.2ユンボ', '0.4ユンボ', 'ミニショベル']);
   const [scrapOptions, setScrapOptions] = useState<any[]>([]);
-  const [subcontractorsList, setSubcontractorsList] = useState<string[]>([]);
+  const [subcontractorsList, setSubcontractorsList] = useState<string[]>(['大和興業', '佐藤工業', '田中組']);
   const [leasesList, setLeasesList] = useState<string[]>([]);
 
-  // 日付を「2026/08/18」形式のテキストで安全に管理（枠はみ出し防止）
   const [date, setDate] = useState('2026/08/18');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState('');
@@ -28,25 +29,27 @@ export default function Home() {
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  // 管理画面で登録されたマスターデータを自動で読み込む
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    const loadSettings = () => {
+      const savedLocs = localStorage.getItem('yamato_locations');
+      if (savedLocs) setLocationsList(JSON.parse(savedLocs));
 
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-      if (data.workers) setWorkersList(data.workers);
-      if (data.locations) setLocationsList(data.locations);
-      if (data.vehicles) setVehiclesList(data.vehicles);
-      if (data.heavyMachines) setHeavyMachinesList(data.heavyMachines);
-      if (data.scrapLocations) setScrapOptions(data.scrapLocations);
-      if (data.subcontractors) setSubcontractorsList(data.subcontractors);
-      if (data.leases) setLeasesList(data.leases);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+      const savedLeases = localStorage.getItem('yamato_leases');
+      if (savedLeases) setLeasesList(JSON.parse(savedLeases));
+
+      const savedScraps = localStorage.getItem('yamato_scrapLocations');
+      if (savedScraps) setScrapOptions(JSON.parse(savedScraps));
+
+      const savedWorkers = localStorage.getItem('yamato_workers');
+      if (savedWorkers) setWorkersList(JSON.parse(savedWorkers));
+    };
+
+    loadSettings();
+    // 画面を開いている時にデータが更新されたら再読み込み
+    window.addEventListener('storage', loadSettings);
+    return () => window.removeEventListener('storage', loadSettings);
+  }, []);
 
   const handleCopyYesterday = (type: string) => {
     alert(`${type}の昨日と同じデータを読み込みました`);
@@ -54,34 +57,29 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date,
-          location: selectedLocation,
-          vehicle: selectedVehicle,
-          workers: selectedWorkers,
-          subcontractor: selectedSubcontractor,
-          subCount,
-          heavyMachine: selectedHeavyMachine,
-          fuelLiters,
-          regularCost,
-          parkingCost,
-          lease: selectedLease,
-          disposals: disposalEntries,
-          scraps: scrapEntries,
-          workDescription
-        })
-      });
-      if (res.ok) {
-        setSubmitted(true);
-      }
-    } catch (err) {
-      console.error(err);
-      setSubmitted(true); // 送信完了画面へ
-    }
+    const newReport = {
+      date,
+      location: selectedLocation,
+      vehicle: selectedVehicle,
+      workers: selectedWorkers,
+      subcontractor: selectedSubcontractor,
+      subCount,
+      heavyMachine: selectedHeavyMachine,
+      fuelLiters,
+      regularCost,
+      parkingCost,
+      lease: selectedLease,
+      disposals: disposalEntries,
+      scraps: scrapEntries,
+      workDescription,
+      createdAt: new Date().toISOString()
+    };
+
+    // 送信された日報を保存
+    const existingReports = JSON.parse(localStorage.getItem('yamato_reports') || '[]');
+    localStorage.setItem('yamato_reports', JSON.stringify([newReport, ...existingReports]));
+    
+    setSubmitted(true);
   };
 
   if (submitted) {
@@ -101,7 +99,6 @@ export default function Home() {
     <div className="min-h-screen bg-slate-200 py-6 px-4 font-sans text-slate-800">
       <div className="max-w-xl mx-auto space-y-4">
         
-        {/* ヘッダーカード */}
         <div className="bg-[#111827] text-white p-4 rounded-2xl shadow-md text-center">
           <div className="text-sm text-gray-300">📱 現場日報入力</div>
           <div className="text-lg font-bold">株式会社大和</div>
@@ -334,7 +331,7 @@ export default function Home() {
                   >
                     <option value="">処分場を選択</option>
                     {scrapOptions.map((sc, idx) => (
-                      <option key={idx} value={`${sc.location}:${sc.item}`}>{sc.location} - {sc.item}</option>
+                      <option key={idx} value={`${sc.location} (${sc.item})`}>{sc.location} - {sc.item}</option>
                     ))}
                   </select>
                   <div className="flex items-center gap-2">
@@ -388,60 +385,4 @@ export default function Home() {
                   <select
                     value={entry.location}
                     onChange={(e) => {
-                      const updated = [...scrapEntries];
-                      updated[index].location = e.target.value;
-                      setScrapEntries(updated);
-                    }}
-                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                  >
-                    <option value="">スクラップを選択</option>
-                    {scrapOptions.map((sc, idx) => (
-                      <option key={idx} value={`${sc.location}:${sc.item}`}>{sc.location} - {sc.item}</option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-700">数量:</span>
-                    <div className="relative flex-1">
-                      <input
-                        type="number"
-                        value={entry.quantity}
-                        onChange={(e) => {
-                          const updated = [...scrapEntries];
-                          updated[index].quantity = e.target.value;
-                          setScrapEntries(updated);
-                        }}
-                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold"
-                      />
-                      <span className="absolute right-3 top-3 font-bold text-slate-600">kg</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* 5. 本日の作業内容 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
-              <span className="text-slate-900 font-bold text-lg">📝 5. 本日の作業内容・備考</span>
-            </div>
-            <textarea
-              value={workDescription}
-              onChange={(e) => setWorkDescription(e.target.value)}
-              placeholder="業務内容や連絡事項などを入力してください"
-              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-base font-bold"
-            ></textarea>
-          </div>
-
-          {/* 送信ボタン */}
-          <button
-            type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-xl py-4 rounded-2xl shadow-lg transition"
-          >
-            📩 日報を送信する
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
+                      const updated
