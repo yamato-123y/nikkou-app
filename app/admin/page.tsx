@@ -27,11 +27,16 @@ export default function AdminPage() {
 
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editDesc, setEditDesc] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
 
-  const [modalEditingId, setModalEditingId] = useState<number | null>(null);
-  const [modalEditDesc, setModalEditDesc] = useState('');
+  // 編集中の一時データ保持用
+  const [editForm, setEditForm] = useState({
+    location: '',
+    manager: '',
+    machine: '',
+    vehicle: '',
+    workDescription: ''
+  });
 
   // 新規追加用
   const [newLocation, setNewLocation] = useState('');
@@ -196,17 +201,13 @@ export default function AdminPage() {
 
   const handleSaveEdit = async (index: number) => {
     const updated = [...reports];
-    updated[index].workDescription = editDesc;
+    updated[index].location = editForm.location;
+    updated[index].manager = editForm.manager;
+    updated[index].machine = editForm.machine;
+    updated[index].vehicle = editForm.vehicle;
+    updated[index].workDescription = editForm.workDescription;
     setReports(updated);
     setEditingIndex(null);
-    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-  };
-
-  const handleModalSaveEdit = async (globalIndex: number) => {
-    const updated = [...reports];
-    updated[globalIndex].workDescription = modalEditDesc;
-    setReports(updated);
-    setModalEditingId(null);
     await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
   };
 
@@ -548,40 +549,109 @@ export default function AdminPage() {
               </thead>
               <tbody className="divide-y text-sm">
                 {filteredReports.map(({ r, globalIndex }) => {
-                  const locs = Array.isArray(r.locations) ? r.locations.join(', ') : (r.location || r.siteName || '');
                   const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
                   const wrks = Array.isArray(r.workers) ? r.workers : (r.workers || 'なし');
                   
                   let rLabor = 0;
-                  if (r.manager) rLabor += (managers.find(m => m.name === r.manager)?.price || 20000);
+                  const currentMgr = editingIndex === globalIndex ? editForm.manager : (r.manager || '');
+                  if (currentMgr) rLabor += (managers.find(m => m.name === currentMgr)?.price || 20000);
                   if (Array.isArray(r.workers)) {
                     r.workers.forEach((w: string) => rLabor += (workers.find(wk => wk.name === w)?.price || 15000));
                   }
 
                   return (
-                    <tr key={globalIndex} className="hover:bg-slate-50">
+                    <tr key={globalIndex} className="hover:bg-slate-50 align-top">
                       <td className="py-4 font-bold">
                         <div>{r.date}</div>
                         <div className="text-xs text-slate-400 font-normal">{r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</div>
                       </td>
-                      <td className="font-bold text-[#0066cc]">{locs}</td>
-                      <td>
-                        <div className="font-bold">責任者: {mgrs}</div>
-                        <div className="text-xs text-slate-500">作業者: {Array.isArray(wrks) ? wrks.join(', ') : wrks}</div>
-                      </td>
-                      <td className="text-emerald-600 font-bold">¥{rLabor.toLocaleString()}</td>
-                      <td className="text-slate-600">重機: {r.machine || r.lease || 'なし'}<br/>車両: {r.vehicle || 'なし'}</td>
-                      <td>
+
+                      {/* 現場名 */}
+                      <td className="py-4 font-bold text-[#0066cc]">
                         {editingIndex === globalIndex ? (
-                          <div className="flex gap-1">
-                            <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border p-1 rounded w-full text-sm" />
-                            <button onClick={() => handleSaveEdit(globalIndex)} className="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold">保存</button>
+                          <select
+                            value={editForm.location}
+                            onChange={e => setEditForm({ ...editForm, location: e.target.value })}
+                            className="border p-1.5 rounded text-xs font-bold bg-white w-full"
+                          >
+                            <option value="">現場を選択</option>
+                            {locations.map(l => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        ) : (
+                          r.location
+                        )}
+                      </td>
+
+                      {/* 責任者 / 作業者 */}
+                      <td className="py-4">
+                        <div className="font-bold">
+                          責任者: {editingIndex === globalIndex ? (
+                            <select
+                              value={editForm.manager}
+                              onChange={e => setEditForm({ ...editForm, manager: e.target.value })}
+                              className="border p-1 rounded text-xs font-bold bg-white mt-1 w-full"
+                            >
+                              <option value="">責任者を選択</option>
+                              {managers.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                            </select>
+                          ) : (
+                            mgrs
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">作業者: {Array.isArray(wrks) ? wrks.join(', ') : wrks}</div>
+                      </td>
+
+                      <td className="py-4 text-emerald-600 font-bold">¥{rLabor.toLocaleString()}</td>
+
+                      {/* 重機 / 車両 */}
+                      <td className="py-4 text-slate-600">
+                        {editingIndex === globalIndex ? (
+                          <div className="space-y-1">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">重機</span>
+                              <select
+                                value={editForm.machine}
+                                onChange={e => setEditForm({ ...editForm, machine: e.target.value })}
+                                className="border p-1 rounded text-xs bg-white w-full"
+                              >
+                                <option value="">重機なし</option>
+                                {(leases || []).concat(companyMachines || []).map((m: any) => (
+                                  <option key={m.name} value={m.name}>{m.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">車両</span>
+                              <select
+                                value={editForm.vehicle}
+                                onChange={e => setEditForm({ ...editForm, vehicle: e.target.value })}
+                                className="border p-1 rounded text-xs bg-white w-full"
+                              >
+                                <option value="">車両なし</option>
+                                {vehicles.map(v => <option key={v} value={v}>{v}</option>)}
+                              </select>
+                            </div>
                           </div>
+                        ) : (
+                          <>重機: {r.machine || r.lease || 'なし'}<br/>車両: {r.vehicle || 'なし'}</>
+                        )}
+                      </td>
+
+                      {/* 作業内容 */}
+                      <td className="py-4">
+                        {editingIndex === globalIndex ? (
+                          <textarea
+                            value={editForm.workDescription}
+                            onChange={e => setEditForm({ ...editForm, workDescription: e.target.value })}
+                            className="border p-1.5 rounded w-full text-xs bg-white"
+                            rows={2}
+                          />
                         ) : (
                           r.workDescription || r.content || ''
                         )}
                       </td>
-                      <td>
+
+                      <td className="py-4">
                         {Array.isArray(r.disposals) && r.disposals.length > 0 && (
                           <div className="text-xs text-blue-700 font-bold">【処分】{r.disposals.map((d: any, idx: number) => `${d.location}(${d.item}):${d.quantity}t`).join(', ')}</div>
                         )}
@@ -589,11 +659,23 @@ export default function AdminPage() {
                           <div className="text-xs text-orange-700 font-bold">【スクラップ】{r.scraps.map((s: any, idx: number) => `${s.location}(${s.item}):${s.quantity}t`).join(', ')}</div>
                         )}
                       </td>
-                      <td className="text-center space-x-1">
-                        {editingIndex !== globalIndex && (
-                          <button onClick={() => { setEditingIndex(globalIndex); setEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-3 py-1 rounded text-xs font-bold">編集</button>
+
+                      <td className="py-4 text-center space-x-1 whitespace-nowrap">
+                        {editingIndex === globalIndex ? (
+                          <button onClick={() => handleSaveEdit(globalIndex)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-xs font-bold shadow">保存</button>
+                        ) : (
+                          <button onClick={() => {
+                            setEditingIndex(globalIndex);
+                            setEditForm({
+                              location: r.location || '',
+                              manager: r.manager || '',
+                              machine: r.machine || r.lease || '',
+                              vehicle: r.vehicle || '',
+                              workDescription: r.workDescription || r.content || ''
+                            });
+                          }} className="bg-[#0066cc] hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold shadow">編集</button>
                         )}
-                        <button onClick={() => handleDelete('report', globalIndex)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                        <button onClick={() => handleDelete('report', globalIndex)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold shadow">削除</button>
                       </td>
                     </tr>
                   );
@@ -604,52 +686,6 @@ export default function AdminPage() {
         </div>
 
       </div>
-
-      {/* 詳細モーダル */}
-      {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h2 className="text-xl font-black">{modalLocation} 詳細分析</h2>
-              <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
-            </div>
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">稼働日数</div><div className="text-lg font-black">{modalData.days}日</div></div>
-              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">人件費</div><div className="text-lg font-black text-emerald-700">¥{modalData.laborCost.toLocaleString()}</div></div>
-              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">リース費</div><div className="text-lg font-black text-blue-700">¥{modalData.leaseCost.toLocaleString()}</div></div>
-              <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">処分費</div><div className="text-lg font-black text-amber-700">¥{modalData.disposalCost.toLocaleString()}</div></div>
-            </div>
-            <div className="space-y-3">
-              <h3 className="font-bold text-sm">日報内訳</h3>
-              {modalData.reportsWithIndex.map(({ r, globalIndex }) => {
-                const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
-                const wrks = Array.isArray(r.workers) ? r.workers.join(', ') : (r.workers || 'なし');
-                return (
-                  <div key={globalIndex} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-2">
-                    <div className="font-bold flex justify-between items-center">
-                      <span>{r.date} - 責任者: {mgrs} / 作業者: {wrks}</span>
-                      <div className="space-x-1">
-                        {modalEditingId !== globalIndex && (
-                          <button onClick={() => { setModalEditingId(globalIndex); setModalEditDesc(r.workDescription || r.content || ''); }} className="bg-[#0066cc] text-white px-2.5 py-1 rounded text-xs font-bold">編集</button>
-                        )}
-                        <button onClick={() => handleDelete('report', globalIndex)} className="bg-red-500 text-white px-2.5 py-1 rounded text-xs font-bold">削除</button>
-                      </div>
-                    </div>
-                    {modalEditingId === globalIndex ? (
-                      <div className="flex gap-2 mt-1">
-                        <input value={modalEditDesc} onChange={e => setModalEditDesc(e.target.value)} className="border p-1.5 rounded w-full text-xs bg-white font-bold" />
-                        <button onClick={() => handleModalSaveEdit(globalIndex)} className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold">保存</button>
-                      </div>
-                    ) : (
-                      <div className="font-bold text-slate-700">内容: {r.workDescription || r.content || 'なし'}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
