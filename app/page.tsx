@@ -2,18 +2,24 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const [settings, setSettings] = useState<any>({});
+  const [locations, setLocations] = useState<string[]>([]);
+  const [managers, setManagers] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [leases, setLeases] = useState<any[]>([]);
+  const [companyMachines, setCompanyMachines] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [disposalLocations, setDisposalLocations] = useState<any[]>([]);
+  const [scrapLocations, setScrapLocations] = useState<any[]>([]);
   
   const [date, setDate] = useState('2026/08/18');
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
-  const [workers, setWorkers] = useState<string[]>([]);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [machine, setMachine] = useState('');
   const [vehicle, setVehicle] = useState('');
   const [fuel, setFuel] = useState('0');
   const [etcPrice, setEtcPrice] = useState('0');
   
-  // その他 雑費・消耗品等
   const [otherItem, setOtherItem] = useState('');
   const [otherPrice, setOtherPrice] = useState('');
   
@@ -24,17 +30,27 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
 
   useEffect(() => {
-    fetch('/api/settings').then(res => res.json()).then(data => {
-      // 現場データが文字列かオブジェクトかにかかわらず安全に処理する
-      if (data && data.locations) {
-        data.locations = data.locations.map((l: any) => typeof l === 'string' ? l : l.name);
-      }
-      setSettings(data || {});
-    }).catch(err => console.error(err));
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        // どんな形式で保存されていても安全に配列に変換する
+        if (Array.isArray(data.locations)) {
+          setLocations(data.locations.map((l: any) => typeof l === 'string' ? l : (l.name || '')));
+        }
+        if (Array.isArray(data.managers)) setManagers(data.managers);
+        if (Array.isArray(data.workers)) setWorkers(data.workers);
+        if (Array.isArray(data.leases)) setLeases(data.leases);
+        if (Array.isArray(data.companyMachines)) setCompanyMachines(data.companyMachines);
+        if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
+        if (Array.isArray(data.disposalLocations)) setDisposalLocations(data.disposalLocations);
+        if (Array.isArray(data.scrapLocations)) setScrapLocations(data.scrapLocations);
+      })
+      .catch(err => console.error(err));
   }, []);
 
   const handleCopyPrevious = (type: string) => {
-    if (type === 'workers') setWorkers(['Aさん', 'Bさん']);
+    if (type === 'workers') setSelectedWorkers(['Aさん', 'Bさん']);
     if (type === 'machine') { setMachine('0.2ユンボ'); setVehicle('2tダンプ'); }
     if (type === 'fuel') setFuel('50');
     if (type === 'etc') setEtcPrice('1500');
@@ -71,7 +87,7 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        date, location, manager, workers, machine, vehicle, 
+        date, location, manager, workers: selectedWorkers, machine, vehicle, 
         fuel: fuel || '0', etcPrice: etcPrice || '0', 
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description, photo, 
@@ -88,7 +104,6 @@ export default function Home() {
   return (
     <div className="p-4 max-w-xl mx-auto space-y-4 font-sans pb-20 bg-slate-100 min-h-screen text-slate-800">
       
-      {/* ヘッダー */}
       <div className="bg-[#10172a] text-white p-4 rounded-2xl text-center shadow-md">
         <h1 className="text-lg font-black">📱 現場日報入力</h1>
         <p className="text-xs text-slate-400">株式会社大和</p>
@@ -111,7 +126,7 @@ export default function Home() {
              <label className="text-xs font-bold text-slate-600">【現場名】</label>
              <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-3 border rounded-xl font-bold bg-white mt-1">
                <option value="">現場を選択してください</option>
-               {settings.locations?.map((l:string)=><option key={l} value={l}>{l}</option>)}
+               {locations.map((l)=><option key={l} value={l}>{l}</option>)}
              </select>
            </div>
 
@@ -119,7 +134,7 @@ export default function Home() {
              <label className="text-xs font-bold text-slate-600">【現場責任者】</label>
              <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-3 border rounded-xl font-bold bg-white mt-1">
                <option value="">責任者を選択してください</option>
-               {settings.managers?.map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
+               {managers.map((m:any)=><option key={m.name || m} value={m.name || m}>{m.name || m}</option>)}
              </select>
            </div>
         </div>
@@ -131,10 +146,13 @@ export default function Home() {
              <button type="button" onClick={() => handleCopyPrevious('workers')} className="bg-[#0066cc] text-white text-xs px-3 py-1 rounded-lg font-bold shadow">🔄 昨日と同じ</button>
            </div>
            <div className="grid grid-cols-2 gap-2 pt-1">
-             {settings.workers?.map((w:any) => (
-               <button type="button" key={w.name} onClick={() => setWorkers(prev => prev.includes(w.name) ? prev.filter(i=>i!==w.name) : [...prev, w.name])}
-               className={`p-3 rounded-xl font-bold border-2 text-sm transition ${workers.includes(w.name) ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-700'}`}>{w.name}</button>
-             ))}
+             {workers.map((w:any) => {
+               const wName = w.name || w;
+               return (
+                 <button type="button" key={wName} onClick={() => setSelectedWorkers(prev => prev.includes(wName) ? prev.filter(i=>i!==wName) : [...prev, wName])}
+                 className={`p-3 rounded-xl font-bold border-2 text-sm transition ${selectedWorkers.includes(wName) ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-700'}`}>{wName}</button>
+               );
+             })}
            </div>
         </div>
 
@@ -147,15 +165,21 @@ export default function Home() {
            <div className="space-y-2 pt-1">
              <label className="text-xs font-bold text-slate-500">重機（リース/自社）</label>
              <div className="grid grid-cols-2 gap-2">
-               {(settings.leases || []).concat(settings.companyMachines || []).map((m:any) => (
-                 <button type="button" key={m.name} onClick={() => setMachine(m.name)} className={`p-2.5 rounded-xl font-bold border-2 text-xs ${machine === m.name ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{m.name}</button>
-               ))}
+               {leases.concat(companyMachines).map((m:any) => {
+                 const mName = m.name || m;
+                 return (
+                   <button type="button" key={mName} onClick={() => setMachine(mName)} className={`p-2.5 rounded-xl font-bold border-2 text-xs ${machine === mName ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{mName}</button>
+                 );
+               })}
              </div>
              <label className="text-xs font-bold text-slate-500 pt-2 block">自社車両</label>
              <div className="grid grid-cols-2 gap-2">
-               {settings.vehicles?.map((v:any) => (
-                 <button type="button" key={v.name} onClick={() => setVehicle(v.name)} className={`p-2.5 rounded-xl font-bold border-2 text-xs ${vehicle === v.name ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{v.name}</button>
-               ))}
+               {vehicles.map((v:any) => {
+                 const vName = v.name || v;
+                 return (
+                   <button type="button" key={vName} onClick={() => setVehicle(vName)} className={`p-2.5 rounded-xl font-bold border-2 text-xs ${vehicle === vName ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>{vName}</button>
+                 );
+               })}
              </div>
            </div>
         </div>
@@ -191,13 +215,13 @@ export default function Home() {
                <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
                  <select className="w-full p-2.5 rounded-lg border font-bold text-sm bg-white" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
-                   const target = settings.disposalLocations?.find((d:any) => d.location === loc && d.item === item);
+                   const target = disposalLocations.find((d:any) => d.location === loc && d.item === item);
                    const updated = [...disposals];
                    updated[index] = { location: loc, item: item, quantity: entry.quantity, unit: target?.unit || 't' };
                    setDisposals(updated);
                  }}>
                    <option value="|">処分場・品目を選択...</option>
-                   {settings.disposalLocations?.map((d:any, idx:number)=><option key={idx} value={`${d.location}|${d.item}`}>{d.location} ({d.item})</option>)}
+                   {disposalLocations.map((d:any, idx:number)=><option key={idx} value={`${d.location}|${d.item}`}>{d.location} ({d.item})</option>)}
                  </select>
                  <div className="flex items-center gap-2">
                    <input type="number" placeholder="数量" className="w-full p-2.5 rounded-lg border font-bold bg-white" value={entry.quantity} onChange={(e)=>{
@@ -224,13 +248,13 @@ export default function Home() {
                <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
                  <select className="w-full p-2.5 rounded-lg border font-bold text-sm bg-white" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
-                   const target = settings.scrapLocations?.find((s:any) => s.location === loc && s.item === item);
+                   const target = scrapLocations.find((s:any) => s.location === loc && s.item === item);
                    const updated = [...scraps];
                    updated[index] = { location: loc, item: item, quantity: entry.quantity, unit: target?.unit || 't' };
                    setScraps(updated);
                  }}>
                    <option value="|">スクラップ場・品目を選択...</option>
-                   {settings.scrapLocations?.map((s:any, idx:number)=><option key={idx} value={`${s.location}|${s.item}`}>{s.location} ({s.item})</option>)}
+                   {scrapLocations.map((s:any, idx:number)=><option key={idx} value={`${s.location}|${s.item}`}>{s.location} ({s.item})</option>)}
                  </select>
                  <div className="flex items-center gap-2">
                    <input type="number" placeholder="数量" className="w-full p-2.5 rounded-lg border font-bold bg-white" value={entry.quantity} onChange={(e)=>{
