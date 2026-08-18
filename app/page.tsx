@@ -11,7 +11,6 @@ export default function Home() {
   const [workersList, setWorkersList] = useState<any[]>([]);
   const [vehiclesList, setVehiclesList] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
 
-  // 複数選択（チェックボックス）用の状態
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
@@ -26,28 +25,36 @@ export default function Home() {
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // 管理画面で登録されたデータを確実かつ網羅的に読み込む関数
+  // 管理画面のデータ保存キーと完全に一致させて確実に読み込む
   const loadDataFromStorage = () => {
     try {
-      // 現場名リストの読み込み（複数のキー名に対応）
       const savedLocs = localStorage.getItem('yamato_locations');
-      if (savedLocs) {
-        setLocationsList(JSON.parse(savedLocs));
-      } else {
-        setLocationsList(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
-      }
+      if (savedLocs) setLocationsList(JSON.parse(savedLocs));
 
       const savedLeases = localStorage.getItem('yamato_leases');
-      if (savedLeases) setLeasesList(JSON.parse(savedLeases));
+      if (savedLeases) {
+        const parsedLeases = JSON.parse(savedLeases);
+        // 文字列の配列、またはオブジェクトの配列のどちらでも対応できるように変換
+        const formattedLeases = parsedLeases.map((l: any) => typeof l === 'string' ? { name: l, price: 0 } : l);
+        setLeasesList(formattedLeases);
+      }
 
       const savedScraps = localStorage.getItem('yamato_scrapLocations');
       if (savedScraps) setScrapOptions(JSON.parse(savedScraps));
 
       const savedManagers = localStorage.getItem('yamato_managers');
-      if (savedManagers) setManagersList(JSON.parse(savedManagers));
+      if (savedManagers) {
+        const parsedMgrs = JSON.parse(savedManagers);
+        const formattedMgrs = parsedMgrs.map((m: any) => typeof m === 'string' ? { name: m, price: 0 } : m);
+        setManagersList(formattedMgrs);
+      }
 
       const savedWorkers = localStorage.getItem('yamato_workers');
-      if (savedWorkers) setWorkersList(JSON.parse(savedWorkers));
+      if (savedWorkers) {
+        const parsedWkrs = JSON.parse(savedWorkers);
+        const formattedWkrs = parsedWkrs.map((w: any) => typeof w === 'string' ? { name: w, price: 0 } : w);
+        setWorkersList(formattedWkrs);
+      }
 
       const savedVehicles = localStorage.getItem('yamato_vehicles');
       if (savedVehicles) setVehiclesList(JSON.parse(savedVehicles));
@@ -58,7 +65,6 @@ export default function Home() {
 
   useEffect(() => {
     loadDataFromStorage();
-    // 別タブや管理画面での変更をリアルタイムで検知
     window.addEventListener('storage', loadDataFromStorage);
     return () => window.removeEventListener('storage', loadDataFromStorage);
   }, []);
@@ -109,7 +115,7 @@ export default function Home() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* 1. 日付と現場の選択（チェックボックス複数選択） */}
+          {/* 1. 日付と現場の選択 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
               📍 日付と現場の選択（複数選択可）
@@ -153,7 +159,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 2. 責任者と作業メンバー */}
+          {/* 2. 担当者・作業員 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
               👥 担当者・作業員（複数選択可）
@@ -162,46 +168,54 @@ export default function Home() {
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">【現場責任者】</label>
               <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
-                {managersList.map((m) => (
-                  <label key={m.name} className="flex items-center space-x-2 p-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedManagers.includes(m.name)}
-                      onChange={() => {
-                        if (selectedManagers.includes(m.name)) {
-                          setSelectedManagers(selectedManagers.filter(item => item !== m.name));
-                        } else {
-                          setSelectedManagers([...selectedManagers, m.name]);
-                        }
-                      }}
-                      className="w-5 h-5 text-orange-600 rounded"
-                    />
-                    <span className="font-bold text-sm">{m.name}</span>
-                  </label>
-                ))}
+                {managersList.length === 0 ? (
+                  <p className="text-xs text-slate-400">責任者が登録されていません</p>
+                ) : (
+                  managersList.map((m) => (
+                    <label key={m.name} className="flex items-center space-x-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedManagers.includes(m.name)}
+                        onChange={() => {
+                          if (selectedManagers.includes(m.name)) {
+                            setSelectedManagers(selectedManagers.filter(item => item !== m.name));
+                          } else {
+                            setSelectedManagers([...selectedManagers, m.name]);
+                          }
+                        }}
+                        className="w-5 h-5 text-orange-600 rounded"
+                      />
+                      <span className="font-bold text-sm">{m.name}</span>
+                    </label>
+                  ))
+                )}
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">【作業メンバー】</label>
               <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
-                {workersList.map((w) => (
-                  <label key={w.name} className="flex items-center space-x-2 p-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkers.includes(w.name)}
-                      onChange={() => {
-                        if (selectedWorkers.includes(w.name)) {
-                          setSelectedWorkers(selectedWorkers.filter(item => item !== w.name));
-                        } else {
-                          setSelectedWorkers([...selectedWorkers, w.name]);
-                        }
-                      }}
-                      className="w-5 h-5 text-orange-600 rounded"
-                    />
-                    <span className="font-bold text-sm">{w.name}</span>
-                  </label>
-                ))}
+                {workersList.length === 0 ? (
+                  <p className="text-xs text-slate-400">メンバーが登録されていません</p>
+                ) : (
+                  workersList.map((w) => (
+                    <label key={w.name} className="flex items-center space-x-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedWorkers.includes(w.name)}
+                        onChange={() => {
+                          if (selectedWorkers.includes(w.name)) {
+                            setSelectedWorkers(selectedWorkers.filter(item => item !== w.name));
+                          } else {
+                            setSelectedWorkers([...selectedWorkers, w.name]);
+                          }
+                        }}
+                        className="w-5 h-5 text-orange-600 rounded"
+                      />
+                      <span className="font-bold text-sm">{w.name}</span>
+                    </label>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -228,23 +242,27 @@ export default function Home() {
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">【リース重機】（複数選択可）</label>
               <div className="grid grid-cols-1 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto">
-                {leasesList.map((l) => (
-                  <label key={l.name} className="flex items-center space-x-2 p-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedLeases.includes(l.name)}
-                      onChange={() => {
-                        if (selectedLeases.includes(l.name)) {
-                          setSelectedLeases(selectedLeases.filter(item => item !== l.name));
-                        } else {
-                          setSelectedLeases([...selectedLeases, l.name]);
-                        }
-                      }}
-                      className="w-5 h-5 text-orange-600 rounded"
-                    />
-                    <span className="font-bold text-sm">{l.name} (日額: ¥{l.price})</span>
-                  </label>
-                ))}
+                {leasesList.length === 0 ? (
+                  <p className="text-xs text-slate-400">リース重機が登録されていません</p>
+                ) : (
+                  leasesList.map((l) => (
+                    <label key={l.name} className="flex items-center space-x-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeases.includes(l.name)}
+                        onChange={() => {
+                          if (selectedLeases.includes(l.name)) {
+                            setSelectedLeases(selectedLeases.filter(item => item !== l.name));
+                          } else {
+                            setSelectedLeases([...selectedLeases, l.name]);
+                          }
+                        }}
+                        className="w-5 h-5 text-orange-600 rounded"
+                      />
+                      <span className="font-bold text-sm">{l.name} {l.price ? `(日額: ¥{l.price})` : ''}</span>
+                    </label>
+                  ))
+                )}
               </div>
             </div>
           </div>
