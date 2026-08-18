@@ -185,7 +185,6 @@ export default function AdminPage() {
         <div className="flex gap-2 mb-4">
           <button onClick={downloadAllCSV} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">全日報CSVダウンロード</button>
         </div>
-        {/* ... (テーブル表示部分は以前のコードを流用してください) ... */}
       </div>
     </div>
   );
