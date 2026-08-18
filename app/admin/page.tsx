@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
@@ -18,14 +18,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
 
   // 入力フォームの状態
-  const [newWorker, setNewWorker] = useState('');
   const [newLocation, setNewLocation] = useState('');
-  const [newVehicle, setNewVehicle] = useState('');
-  const [newHeavyMachine, setNewHeavyMachine] = useState('');
-  const [newScrapLocation, setNewScrapLocation] = useState('');
-  const [newScrapItem, setNewScrapItem] = useState('');
   const [newSubcontractor, setNewSubcontractor] = useState('');
-  const [newLease, setNewLease] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,32 +30,37 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 1. レポートデータの取得
       const resReports = await fetch('/api/reports');
       if (resReports.ok) {
         const dataReports = await resReports.json();
         setReports(Array.isArray(dataReports) ? dataReports : []);
       }
+    } catch (e) {
+      console.log('レポート取得スキップ');
+    }
 
+    try {
+      // 2. 設定データの取得
       const resSettings = await fetch('/api/settings');
       if (resSettings.ok) {
         const dataSettings = await resSettings.json();
         if (dataSettings && typeof dataSettings === 'object') {
           setSettings({
-            workers: dataSettings.workers || [],
-            locations: dataSettings.locations || [],
-            vehicles: dataSettings.vehicles || [],
-            heavyMachines: dataSettings.heavyMachines || [],
-            scrapLocations: dataSettings.scrapLocations || [],
-            subcontractors: dataSettings.subcontractors || [],
-            leases: dataSettings.leases || []
+            workers: Array.isArray(dataSettings.workers) ? dataSettings.workers : [],
+            locations: Array.isArray(dataSettings.locations) ? dataSettings.locations : [],
+            vehicles: Array.isArray(dataSettings.vehicles) ? dataSettings.vehicles : [],
+            heavyMachines: Array.isArray(dataSettings.heavyMachines) ? dataSettings.heavyMachines : [],
+            scrapLocations: Array.isArray(dataSettings.scrapLocations) ? dataSettings.scrapLocations : [],
+            subcontractors: Array.isArray(dataSettings.subcontractors) ? dataSettings.subcontractors : [],
+            leases: Array.isArray(dataSettings.leases) ? dataSettings.leases : []
           });
         }
       }
-    } catch (err) {
-      console.error('通信エラー:', err);
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.log('設定取得スキップ');
     }
+    setLoading(false);
   };
 
   const handleAddSetting = async (type: string, value: any) => {
@@ -74,18 +73,19 @@ export default function AdminPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSettings({
-          workers: data.workers || [],
-          locations: data.locations || [],
-          vehicles: data.vehicles || [],
-          heavyMachines: data.heavyMachines || [],
-          scrapLocations: data.scrapLocations || [],
-          subcontractors: data.subcontractors || [],
-          leases: data.leases || []
-        });
-        if (type === 'subcontractor') setNewSubcontractor('');
-        if (type === 'heavyMachine') setNewHeavyMachine('');
+        if (data && typeof data === 'object') {
+          setSettings({
+            workers: Array.isArray(data.workers) ? data.workers : [],
+            locations: Array.isArray(data.locations) ? data.locations : [],
+            vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
+            heavyMachines: Array.isArray(data.heavyMachines) ? data.heavyMachines : [],
+            scrapLocations: Array.isArray(data.scrapLocations) ? data.scrapLocations : [],
+            subcontractors: Array.isArray(data.subcontractors) ? data.subcontractors : [],
+            leases: Array.isArray(data.leases) ? data.leases : []
+          });
+        }
         if (type === 'location') setNewLocation('');
+        if (type === 'subcontractor') setNewSubcontractor('');
       }
     } catch (err) {
       console.error(err);
@@ -102,15 +102,17 @@ export default function AdminPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSettings({
-          workers: data.workers || [],
-          locations: data.locations || [],
-          vehicles: data.vehicles || [],
-          heavyMachines: data.heavyMachines || [],
-          scrapLocations: data.scrapLocations || [],
-          subcontractors: data.subcontractors || [],
-          leases: data.leases || []
-        });
+        if (data && typeof data === 'object') {
+          setSettings({
+            workers: Array.isArray(data.workers) ? data.workers : [],
+            locations: Array.isArray(data.locations) ? data.locations : [],
+            vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
+            heavyMachines: Array.isArray(data.heavyMachines) ? data.heavyMachines : [],
+            scrapLocations: Array.isArray(data.scrapLocations) ? data.scrapLocations : [],
+            subcontractors: Array.isArray(data.subcontractors) ? data.subcontractors : [],
+            leases: Array.isArray(data.leases) ? data.leases : []
+          });
+        }
       }
     } catch (err) {
       console.error(err);
@@ -149,7 +151,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {loading && <p className="text-center py-4 font-bold text-gray-600">データを読み込み中...</p>}
+        {loading && <p className="text-center py-4 font-bold text-gray-600">読み込み中...</p>}
 
         {!loading && tab === 'reports' && (
           <div className="bg-white rounded shadow p-4">
@@ -163,16 +165,16 @@ export default function AdminPage() {
                     <th className="p-2">日時</th>
                     <th className="p-2">現場</th>
                     <th className="p-2">作業員</th>
-                    <th className="p-2">内容・備考</th>
+                    <th className="p-2">内容</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reports.map((r, i) => (
                     <tr key={i} className="border-b">
-                      <td className="p-2 text-sm">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</td>
-                      <td className="p-2 font-bold">{r.location}</td>
-                      <td className="p-2 text-sm">{Array.isArray(r.workers) ? r.workers.join(', ') : r.workers}</td>
-                      <td className="p-2 text-sm">{r.workDescription}</td>
+                      <td className="p-2 text-sm">{r?.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</td>
+                      <td className="p-2 font-bold">{r?.location || ''}</td>
+                      <td className="p-2 text-sm">{Array.isArray(r?.workers) ? r.workers.join(', ') : ''}</td>
+                      <td className="p-2 text-sm">{r?.workDescription || ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,12 +187,12 @@ export default function AdminPage() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold">現場別分析</h2>
             {(!settings.locations || settings.locations.length === 0) ? (
-              <p className="text-gray-500">現場が登録されていません。</p>
+              <p className="text-gray-500">現場が登録されていません。「マスター設定」から現場を追加してください。</p>
             ) : (
               settings.locations.map((loc: string) => (
                 <div key={loc} className="bg-white p-4 rounded shadow">
                   <h3 className="text-xl font-bold text-blue-600 mb-2">📍 {loc}</h3>
-                  <p className="text-sm text-gray-600">提出数: {reports.filter(r => r.location === loc).length}件</p>
+                  <p className="text-sm text-gray-600">提出数: {reports.filter(r => r?.location === loc).length}件</p>
                 </div>
               ))
             )}
@@ -201,7 +203,7 @@ export default function AdminPage() {
           <div className="bg-white rounded shadow p-6 space-y-6">
             <h2 className="text-lg font-bold mb-4">マスター設定</h2>
             
-            {/* 現場設定 */}
+            {/* 現場名設定 */}
             <div className="border-b pb-4">
               <h3 className="font-bold mb-2">現場一覧</h3>
               <div className="flex gap-2 mb-2">
@@ -212,7 +214,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewLocation(e.target.value)}
                   className="border p-2 rounded flex-1"
                 />
-                <button onClick={() => { handleAddSetting('location', newLocation); setNewLocation(''); }} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+                <button onClick={() => handleAddSetting('location', newLocation)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {settings.locations?.map((loc: string) => (
@@ -235,7 +237,7 @@ export default function AdminPage() {
                   onChange={(e) => setNewSubcontractor(e.target.value)}
                   className="border p-2 rounded flex-1"
                 />
-                <button onClick={() => { handleAddSetting('subcontractor', newSubcontractor); setNewSubcontractor(''); }} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+                <button onClick={() => handleAddSetting('subcontractor', newSubcontractor)} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {settings.subcontractors?.map((sub: string) => (
