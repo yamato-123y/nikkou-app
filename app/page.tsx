@@ -10,7 +10,6 @@ export default function Home() {
   const [subcontractorsList, setSubcontractorsList] = useState<string[]>([]);
   const [leasesList, setLeasesList] = useState<string[]>([]);
 
-  // 入力状態
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState('');
@@ -23,10 +22,8 @@ export default function Home() {
   const [parkingCost, setParkingCost] = useState('');
   const [selectedLease, setSelectedLease] = useState('');
   
-  // 処分・スクラップのエントリ管理
   const [disposalEntries, setDisposalEntries] = useState<{ location: string; quantity: string }[]>([]);
   const [scrapEntries, setScrapEntries] = useState<{ location: string; quantity: string }[]>([]);
-
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -76,7 +73,6 @@ export default function Home() {
     <div className="min-h-screen bg-slate-200 py-6 px-4 font-sans text-slate-800">
       <div className="max-w-xl mx-auto space-y-4">
         
-        {/* ヘッダーカード */}
         <div className="bg-[#111827] text-white p-4 rounded-2xl shadow-md text-center">
           <div className="text-sm text-gray-300">📱 現場日報入力</div>
           <div className="text-lg font-bold">株式会社大和</div>
@@ -85,27 +81,29 @@ export default function Home() {
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* 1. 日付と現場の選択 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
               📍 日付と現場の選択
             </div>
             
-            <div>
+            <div className="w-full">
               <label className="block text-sm font-bold text-slate-700 mb-1">【日付】</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full max-w-full box-border p-3 rounded-xl bg-slate-100 border border-slate-300 text-lg font-bold text-center block"
+                className="w-full p-3 rounded-xl bg-slate-100 border border-slate-300 text-lg font-bold text-center block"
+                style={{ boxSizing: 'border-box', maxWidth: '100%' }}
               />
             </div>
 
-            <div>
+            <div className="w-full">
               <label className="block text-sm font-bold text-slate-700 mb-1">【現場名】</label>
               <select
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                style={{ boxSizing: 'border-box', maxWidth: '100%' }}
               >
                 <option value="">現場を選択してください</option>
                 {locationsList.map((loc) => (
@@ -116,7 +114,7 @@ export default function Home() {
           </div>
 
           {/* 2. 作業員 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
               <span className="text-slate-900 font-bold text-lg">👥 2. 作業員</span>
               <button
@@ -158,7 +156,8 @@ export default function Home() {
                   <select
                     value={selectedSubcontractor}
                     onChange={(e) => setSelectedSubcontractor(e.target.value)}
-                    className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                   >
                     <option value="">外注会社を選択</option>
                     {subcontractorsList.map((sub) => (
@@ -170,7 +169,8 @@ export default function Home() {
                     placeholder="人数を入力"
                     value={subCount}
                     onChange={(e) => setSubCount(e.target.value)}
-                    className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                   />
                 </div>
               </div>
@@ -178,7 +178,7 @@ export default function Home() {
           </div>
 
           {/* 3. 重機・車両・リース */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
               <span className="text-slate-900 font-bold text-lg">🚜 3. 重機・車両・リース</span>
               <button
@@ -196,7 +196,8 @@ export default function Home() {
                 <select
                   value={selectedVehicle}
                   onChange={(e) => setSelectedVehicle(e.target.value)}
-                  className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                 >
                   <option value="">車両を選択</option>
                   {vehiclesList.map((v) => (
@@ -210,7 +211,8 @@ export default function Home() {
                 <select
                   value={selectedHeavyMachine}
                   onChange={(e) => setSelectedHeavyMachine(e.target.value)}
-                  className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                 >
                   <option value="">重機を選択</option>
                   {heavyMachinesList.map((hm) => (
@@ -224,7 +226,8 @@ export default function Home() {
                 <select
                   value={selectedLease}
                   onChange={(e) => setSelectedLease(e.target.value)}
-                  className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                  style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                 >
                   <option value="">リース内容を選択</option>
                   {leasesList.map((l) => (
@@ -236,43 +239,46 @@ export default function Home() {
           </div>
 
           {/* 軽油 (L) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <label className="block font-bold text-slate-800 mb-2">⛽ 軽油 (L)</label>
             <input
               type="number"
               value={fuelLiters}
               onChange={(e) => setFuelLiters(e.target.value)}
               placeholder="0"
-              className="w-full max-w-full box-border p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              style={{ boxSizing: 'border-box', maxWidth: '100%' }}
             />
           </div>
 
           {/* レギュラー購入金額 (円) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <label className="block font-bold text-slate-800 mb-2">⛽ レギュラー購入金額 (円)</label>
             <input
               type="number"
               value={regularCost}
               onChange={(e) => setRegularCost(e.target.value)}
               placeholder="0"
-              className="w-full max-w-full box-border p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              style={{ boxSizing: 'border-box', maxWidth: '100%' }}
             />
           </div>
 
           {/* 駐車場代 (円) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <label className="block font-bold text-slate-800 mb-2">🅿️ 駐車場代 (円)</label>
             <input
               type="number"
               value={parkingCost}
               onChange={(e) => setParkingCost(e.target.value)}
               placeholder="0"
-              className="w-full max-w-full box-border p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold block"
+              style={{ boxSizing: 'border-box', maxWidth: '100%' }}
             />
           </div>
 
           {/* 4. 処分場のガラ搬出 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
               <span className="text-slate-900 font-bold text-lg">🗑️ 4. 処分場のガラ搬出</span>
               <button
@@ -287,7 +293,7 @@ export default function Home() {
               <p className="text-xs text-slate-500 text-center py-2">処分場搬出がある場合は「+ 追加する」を押してください</p>
             ) : (
               disposalEntries.map((entry, index) => (
-                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3 relative">
+                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700">処分場・品目</span>
                     <button
@@ -305,7 +311,8 @@ export default function Home() {
                       updated[index].location = e.target.value;
                       setDisposalEntries(updated);
                     }}
-                    className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                   >
                     <option value="">処分場を選択</option>
                     {scrapOptions.map((sc, idx) => (
@@ -323,7 +330,8 @@ export default function Home() {
                           updated[index].quantity = e.target.value;
                           setDisposalEntries(updated);
                         }}
-                        className="w-full max-w-full box-border p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold block"
+                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold block"
+                        style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                       />
                       <span className="absolute right-3 top-3 font-bold text-slate-600">t</span>
                     </div>
@@ -334,7 +342,7 @@ export default function Home() {
           </div>
 
           {/* スクラップ */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
               <span className="text-slate-900 font-bold text-lg">♻️ スクラップ</span>
               <button
@@ -349,7 +357,7 @@ export default function Home() {
               <p className="text-xs text-slate-500 text-center py-2">スクラップがある場合は「+ 追加する」を押してください</p>
             ) : (
               scrapEntries.map((entry, index) => (
-                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3 relative">
+                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-700">スクラップ品目</span>
                     <button
@@ -367,7 +375,8 @@ export default function Home() {
                       updated[index].location = e.target.value;
                       setScrapEntries(updated);
                     }}
-                    className="w-full max-w-full box-border p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold block"
+                    style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                   >
                     <option value="">スクラップを選択</option>
                     {scrapOptions.map((sc, idx) => (
@@ -385,7 +394,8 @@ export default function Home() {
                           updated[index].quantity = e.target.value;
                           setScrapEntries(updated);
                         }}
-                        className="w-full max-w-full box-border p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold block"
+                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold block"
+                        style={{ boxSizing: 'border-box', maxWidth: '100%' }}
                       />
                       <span className="absolute right-3 top-3 font-bold text-slate-600">kg</span>
                     </div>
@@ -396,7 +406,7 @@ export default function Home() {
           </div>
 
           {/* 5. 本日の作業内容 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3 overflow-hidden">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
               <span className="text-slate-900 font-bold text-lg">📝 5. 本日の作業内容・備考</span>
             </div>
@@ -404,7 +414,8 @@ export default function Home() {
               value={workDescription}
               onChange={(e) => setWorkDescription(e.target.value)}
               placeholder="業務内容や連絡事項などを入力してください"
-              className="w-full max-w-full box-border p-3 rounded-xl bg-slate-50 border border-slate-300 text-base font-bold block"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-base font-bold block"
+              style={{ boxSizing: 'border-box', maxWidth: '100%' }}
             ></textarea>
           </div>
 
