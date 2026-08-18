@@ -9,6 +9,7 @@ export default function AdminPage() {
 
   const [locations, setLocations] = useState<string[]>(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
   const [leases, setLeases] = useState<{ name: string; price: number }[]>([{ name: '0.2ユンボ', price: 15000 }]);
+  const [companyMachines, setCompanyMachines] = useState<{ name: string; price: number }[]>([{ name: '自社バックホウ', price: 10000 }]);
   const [vehicles, setVehicles] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
   const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([{ location: 'テスト場', item: 'ガラ/t', unit: 't', price: 3000 }]);
   const [managers, setManagers] = useState<{ name: string; price: number }[]>([
@@ -32,6 +33,8 @@ export default function AdminPage() {
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
+  const [newCompName, setNewCompName] = useState('');
+  const [newCompPrice, setNewCompPrice] = useState(10000);
   const [newScrapLoc, setNewScrapLoc] = useState('');
   const [newScrapItem, setNewScrapItem] = useState('ガラ/t');
   const [newScrapPrice, setNewScrapPrice] = useState(3000);
@@ -53,6 +56,7 @@ export default function AdminPage() {
         if (data && typeof data === 'object') {
           if (Array.isArray(data.locations)) setLocations(data.locations);
           if (Array.isArray(data.leases)) setLeases(data.leases);
+          if (Array.isArray(data.companyMachines)) setCompanyMachines(data.companyMachines);
           if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
           if (Array.isArray(data.scrapLocations)) setScrapLocations(data.scrapLocations);
           if (Array.isArray(data.managers)) setManagers(data.managers);
@@ -81,6 +85,7 @@ export default function AdminPage() {
   const handleAdd = (type: string) => {
     let updatedLocations = [...locations];
     let updatedLeases = [...leases];
+    let updatedComp = [...companyMachines];
     let updatedScraps = [...scrapLocations];
     let updatedManagers = [...managers];
     let updatedWorkers = [...workers];
@@ -93,6 +98,10 @@ export default function AdminPage() {
       updatedLeases.push({ name: newLeaseName.trim(), price: Number(newLeasePrice) });
       setLeases(updatedLeases);
       setNewLeaseName('');
+    } else if (type === 'company' && newCompName.trim()) {
+      updatedComp.push({ name: newCompName.trim(), price: Number(newCompPrice) });
+      setCompanyMachines(updatedComp);
+      setNewCompName('');
     } else if (type === 'scrap' && newScrapLoc.trim()) {
       updatedScraps.push({ location: newScrapLoc.trim(), item: newScrapItem, unit: 't', price: Number(newScrapPrice) });
       setScrapLocations(updatedScraps);
@@ -110,6 +119,7 @@ export default function AdminPage() {
     saveSettingsToServer({
       locations: updatedLocations,
       leases: updatedLeases,
+      companyMachines: updatedComp,
       vehicles,
       scrapLocations: updatedScraps,
       managers: updatedManagers,
@@ -127,18 +137,21 @@ export default function AdminPage() {
 
     let updatedLocations = [...locations];
     let updatedLeases = [...leases];
+    let updatedComp = [...companyMachines];
     let updatedScraps = [...scrapLocations];
     let updatedManagers = [...managers];
     let updatedWorkers = [...workers];
 
     if (type === 'location') updatedLocations = locations.filter(l => l !== target);
     else if (type === 'lease') updatedLeases = leases.filter(l => l.name !== target);
+    else if (type === 'company') updatedComp = companyMachines.filter(m => m.name !== target);
     else if (type === 'scrap') updatedScraps = scrapLocations.filter((_, i) => i !== target);
     else if (type === 'manager') updatedManagers = managers.filter(m => m.name !== target);
     else if (type === 'worker') updatedWorkers = workers.filter(w => w.name !== target);
 
     setLocations(updatedLocations);
     setLeases(updatedLeases);
+    setCompanyMachines(updatedComp);
     setScrapLocations(updatedScraps);
     setManagers(updatedManagers);
     setWorkers(updatedWorkers);
@@ -146,6 +159,7 @@ export default function AdminPage() {
     saveSettingsToServer({
       locations: updatedLocations,
       leases: updatedLeases,
+      companyMachines: updatedComp,
       vehicles,
       scrapLocations: updatedScraps,
       managers: updatedManagers,
@@ -176,8 +190,11 @@ export default function AdminPage() {
       const wrks = Array.isArray(r.workers) ? r.workers : (typeof r.workers === 'string' ? r.workers.split(',').map((s: string) => s.trim()) : []);
       wrks.forEach(wName => laborCost += (workers.find(w => w.name === wName)?.price || 15000));
 
-      const lses = Array.isArray(r.leases) ? r.leases : (r.lease ? [r.lease] : []);
-      lses.forEach(lName => leaseCost += (leases.find(l => l.name === lName)?.price || 0));
+      const machineName = r.machine || r.lease || '';
+      const leaseObj = leases.find(l => l.name === machineName);
+      const compObj = companyMachines.find(m => m.name === machineName);
+      if (leaseObj) leaseCost += leaseObj.price;
+      if (compObj) leaseCost += compObj.price;
 
       const dsps = Array.isArray(r.disposals) ? r.disposals : [];
       dsps.forEach((d: any) => {
@@ -189,13 +206,14 @@ export default function AdminPage() {
     return { days: locReports.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reports: locReports };
   };
 
+  // ご要望のデザインを完全維持したログイン画面
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
         <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
           <div className="flex items-center justify-center gap-2 mb-8">
-            <span className="text-2xl">🔒</span>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight">日報管理・原価詳細ダッシュボード</h1>
+            <span className="text-2xl">🔐</span>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">事務員用 管理画面ログイン</h1>
           </div>
           <form onSubmit={(e) => {
             e.preventDefault();
@@ -218,7 +236,7 @@ export default function AdminPage() {
               />
             </div>
             {authError && <p className="text-red-500 text-sm font-bold">パスワードが正しくありません</p>}
-            <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold text-lg py-3.5 rounded-xl shadow transition mt-2">
+            <button type="submit" className="w-full bg-[#E56312] hover:bg-orange-700 text-white font-bold text-lg py-3.5 rounded-xl shadow transition mt-2">
               ログイン
             </button>
           </form>
@@ -244,7 +262,7 @@ export default function AdminPage() {
             <h1 className="text-2xl font-black text-slate-800">📊 日報管理・原価詳細ダッシュボード</h1>
             <p className="text-sm text-slate-500 mt-0.5">株式会社大和 音声日報システム</p>
           </div>
-          <button onClick={() => setIsAuthed(false)} className="bg-[#1e293b] text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow hover:bg-slate-800 transition">ログアウト</button>
+          <button onClick={() => setIsAuthed(false)} className="bg-[#1e293b] hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow transition">ログアウト</button>
         </div>
 
         {/* 現場別 経費集計サマリー */}
@@ -285,7 +303,7 @@ export default function AdminPage() {
 
         {/* マスタ登録グリッド */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
-          <h2 className="text-lg font-black text-slate-800">⚙️ マスタ登録 (現場・担当者・リース・処分場)</h2>
+          <h2 className="text-lg font-black text-slate-800">⚙️ マスタ登録 (現場・担当者・重機・処分場)</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
@@ -325,10 +343,33 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* 自社重機マスタ */}
+            <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">🏗️ 自社重機マスタ ＆ 日額単価</h3>
+              <input type="text" placeholder="例: 自社バックホウ" value={newCompName} onChange={e => setNewCompName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <div className="flex gap-2 items-center">
+                <span className="text-xs font-bold text-slate-500">日額¥</span>
+                <input type="number" value={newCompPrice} onChange={e => setNewCompPrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+                <button onClick={() => handleAdd('company')} className="bg-[#e56312] hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold shrink-0 shadow">追加</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y bg-white rounded-lg border p-2">
+                {companyMachines.map(m => (
+                  <div key={m.name} className="py-2 px-1 flex justify-between items-center text-sm font-bold">
+                    <span>{m.name} <span className="text-xs text-slate-400 font-normal">日額¥{m.price}</span></span>
+                    <button onClick={() => handleDelete('company', m.name)} className="text-red-500 text-xs font-bold hover:underline">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
             {/* 処分場マスタ */}
             <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
               <h3 className="font-bold text-sm text-slate-700">🗑️ 処分場マスタ ＆ 単価設定</h3>
-              <input type="text" placeholder="処分場名 (例: 堺処分場)" value={newScrapLoc} onChange={e => setNewScrapLoc(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <input type="text" placeholder="処分場名" value={newScrapLoc} onChange={e => setNewScrapLoc(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
               <div className="flex gap-2">
                 <input type="text" value={newScrapItem} onChange={e => setNewScrapItem(e.target.value)} className="w-1/2 p-2.5 border rounded-lg text-sm bg-white font-bold" />
                 <span className="text-sm font-bold flex items-center">t</span>
@@ -348,10 +389,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
             {/* 現場責任者 */}
             <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
               <h3 className="font-bold text-sm text-slate-700">👤 現場責任者 ＆ 日額単価</h3>
@@ -377,7 +414,7 @@ export default function AdminPage() {
             {/* 作業メンバー */}
             <div className="border p-4 rounded-xl bg-slate-50 space-y-3">
               <h3 className="font-bold text-sm text-slate-700">👥 作業メンバー ＆ 日額単価</h3>
-              <input type="text" placeholder="メンバー名 (例: 山田)" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
+              <input type="text" placeholder="メンバー名" value={newWorkerName} onChange={e => setNewWorkerName(e.target.value)} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
               <div className="flex gap-2 items-center">
                 <span className="text-xs font-bold text-slate-500">日額¥</span>
                 <input type="number" value={newWorkerPrice} onChange={e => setNewWorkerPrice(Number(e.target.value))} className="w-full p-2.5 border rounded-lg text-sm bg-white outline-none" />
@@ -423,7 +460,7 @@ export default function AdminPage() {
                   <th className="pb-3 font-bold">現場名</th>
                   <th className="pb-3 font-bold">責任者 / 作業者</th>
                   <th className="pb-3 font-bold">概算人件費</th>
-                  <th className="pb-3 font-bold">リース重機</th>
+                  <th className="pb-3 font-bold">重機 (リース/自社)</th>
                   <th className="pb-3 font-bold">作業内容</th>
                   <th className="pb-3 font-bold">現場写真</th>
                   <th className="pb-3 font-bold">処分内容 / 搬出量</th>
@@ -436,7 +473,6 @@ export default function AdminPage() {
                   const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
                   const wrks = Array.isArray(r.workers) ? r.workers : (r.workers || 'なし');
                   
-                  // 人件費簡易計算
                   let rLabor = 0;
                   if (r.manager) rLabor += (managers.find(m => m.name === r.manager)?.price || 20000);
                   if (Array.isArray(r.workers)) {
@@ -455,7 +491,7 @@ export default function AdminPage() {
                         <div className="text-xs text-slate-500">作業者: {Array.isArray(wrks) ? wrks.join(', ') : wrks}</div>
                       </td>
                       <td className="text-emerald-600 font-bold">¥{rLabor.toLocaleString()}</td>
-                      <td className="text-slate-600">{r.lease || 'なし'}</td>
+                      <td className="text-slate-600">{r.machine || r.lease || 'なし'}</td>
                       <td>
                         {editingIndex === i ? (
                           <div className="flex gap-1">
