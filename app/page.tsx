@@ -20,19 +20,18 @@ export default function Home() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // マスタを読み込む
   const loadSettingsFromServer = async () => {
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
         if (data) {
-          setLocationsList(data.locations || []);
-          setLeasesList(data.leases || []);
-          setScrapOptions(data.scrapLocations || []);
-          setManagersList(data.managers || []);
-          setWorkersList(data.workers || []);
-          setVehiclesList(data.vehicles || []);
+          setLocationsList(Array.isArray(data.locations) ? data.locations : []);
+          setLeasesList(Array.isArray(data.leases) ? data.leases : []);
+          setScrapOptions(Array.isArray(data.scrapLocations) ? data.scrapLocations : []);
+          setManagersList(Array.isArray(data.managers) ? data.managers : []);
+          setWorkersList(Array.isArray(data.workers) ? data.workers : []);
+          setVehiclesList(Array.isArray(data.vehicles) ? data.vehicles : []);
         }
       }
     } catch (e) { console.error("設定取得エラー:", e); }
@@ -80,51 +79,85 @@ export default function Home() {
           <div className="text-xl font-extrabold">株式会社大和 - 日報入力</div>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* 現場選択 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-            <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">📍 現場の選択</div>
-            {locationsList.map(loc => (
-              <button type="button" key={loc} onClick={() => setSelectedLocations(prev => prev.includes(loc) ? prev.filter(i=>i!==loc) : [...prev, loc])} 
-              className={`w-full p-4 rounded-xl font-bold border-2 ${selectedLocations.includes(loc) ? 'bg-orange-50 border-orange-600 text-orange-900' : 'bg-slate-50 border-slate-200'}`}>
-                {loc} {selectedLocations.includes(loc) && '✓'}
-              </button>
-            ))}
+            <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">📍 現場の選択（複数選択可）</div>
+            {locationsList.map(loc => {
+              const isSelected = selectedLocations.includes(loc);
+              return (
+                <button type="button" key={loc} onClick={() => setSelectedLocations(prev => prev.includes(loc) ? prev.filter(i=>i!==loc) : [...prev, loc])} 
+                className={`w-full p-4 rounded-xl font-bold text-left border-2 ${isSelected ? 'bg-orange-50 border-orange-600 text-orange-900' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+                  {loc} {isSelected && '✓ 選択中'}
+                </button>
+              );
+            })}
           </div>
 
+          {/* 現場責任者 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-             <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">👤 責任者 / 👥 作業メンバー</div>
+             <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">👤 現場責任者</div>
              <div className="grid grid-cols-2 gap-2">
-                {managersList.map(m => (
-                  <button type="button" key={m.name} onClick={() => setSelectedManagers(prev => prev.includes(m.name) ? prev.filter(i=>i!==m.name) : [...prev, m.name])}
-                  className={`p-3 rounded-xl font-bold border-2 ${selectedManagers.includes(m.name) ? 'bg-orange-50 border-orange-600' : 'bg-slate-50'}`}>{m.name}</button>
-                ))}
+                {managersList.map(m => {
+                  const isSelected = selectedManagers.includes(m.name);
+                  return (
+                    <button type="button" key={m.name} onClick={() => setSelectedManagers(prev => prev.includes(m.name) ? prev.filter(i=>i!==m.name) : [...prev, m.name])}
+                    className={`p-3 rounded-xl font-bold border-2 ${isSelected ? 'bg-orange-50 border-orange-600 text-orange-900' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>{m.name}</button>
+                  );
+                })}
              </div>
           </div>
 
+          {/* 作業メンバー */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+             <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">👥 作業メンバー</div>
+             <div className="grid grid-cols-2 gap-2">
+                {workersList.map(w => {
+                  const isSelected = selectedWorkers.includes(w.name);
+                  return (
+                    <button type="button" key={w.name} onClick={() => setSelectedWorkers(prev => prev.includes(w.name) ? prev.filter(i=>i!==w.name) : [...prev, w.name])}
+                    className={`p-3 rounded-xl font-bold border-2 ${isSelected ? 'bg-orange-50 border-orange-600 text-orange-900' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>{w.name}</button>
+                  );
+                })}
+             </div>
+          </div>
+
+          {/* スクラップ・処分場搬出 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
              <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">🗑️ スクラップ・処分場搬出</div>
              {disposalEntries.map((entry, index) => (
-                <div key={index} className="p-3 border rounded-xl bg-slate-50">
-                  <select className="w-full p-3 rounded-xl mb-2" value={`${entry.location}|${entry.item}`} 
+                <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
+                  <select className="w-full p-3 rounded-xl border bg-white font-bold" value={`${entry.location}|${entry.item}`} 
                   onChange={(e) => {
                     const [loc, item] = e.target.value.split('|');
                     const updated = [...disposalEntries];
-                    updated[index] = { location: loc, item: item, unit: 't', quantity: entry.quantity };
+                    updated[index] = { location: loc || '', item: item || '', unit: 't', quantity: entry.quantity };
                     setDisposalEntries(updated);
                   }}>
-                    <option value="|">場所と品目を選択...</option>
+                    <option value="|">処分場と品目を選択...</option>
                     {scrapOptions.map((sc, idx) => <option key={idx} value={`${sc.location}|${sc.item}`}>{sc.location} - {sc.item}</option>)}
                   </select>
-                  <input type="number" placeholder="数量(t)" className="w-full p-3 rounded-xl border" value={entry.quantity} onChange={(e) => {
-                    const updated = [...disposalEntries];
-                    updated[index].quantity = e.target.value;
-                    setDisposalEntries(updated);
-                  }}/>
+                  <div className="flex gap-2 items-center">
+                    <input type="number" placeholder="数量" className="w-full p-3 rounded-xl border bg-white text-lg font-bold text-right" value={entry.quantity} onChange={(e) => {
+                      const updated = [...disposalEntries];
+                      updated[index].quantity = e.target.value;
+                      setDisposalEntries(updated);
+                    }}/>
+                    <span className="font-bold">t</span>
+                  </div>
                 </div>
              ))}
-             <button type="button" onClick={() => setDisposalEntries([...disposalEntries, { location: '', item: '', unit: 't', quantity: '' }])} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">＋ 追加</button>
+             <button type="button" onClick={() => setDisposalEntries([...disposalEntries, { location: '', item: '', unit: 't', quantity: '' }])} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">＋ スクラップ・処分場を追加</button>
           </div>
 
-          <button type="submit" className="w-full bg-orange-600 text-white font-black text-2xl py-4 rounded-2xl">📩 送信する</button>
+          {/* 写真 */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+             <label className="block font-bold text-lg border-b-2 border-orange-600 pb-2">📷 現場写真</label>
+             <input type="file" accept="image/*" onChange={handlePhotoUpload} className="w-full p-2" />
+             {photo && <img src={photo} className="mt-2 w-full h-40 object-cover rounded-xl shadow" />}
+          </div>
+
+          <button type="submit" className="w-full bg-orange-600 text-white font-black text-2xl py-4 rounded-2xl shadow-lg">📩 送信する</button>
         </form>
       </div>
     </div>
