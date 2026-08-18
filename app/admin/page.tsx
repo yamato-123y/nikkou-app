@@ -18,6 +18,9 @@ export default function AdminPage() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDesc, setEditDesc] = useState('');
 
+  // 編集中のマスタ状態
+  const [editingMaster, setEditingMaster] = useState<{ type: string; index: number; name: string; price: number; item?: string } | null>(null);
+
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
@@ -112,16 +115,7 @@ export default function AdminPage() {
     });
   };
 
-  const handleDelete = async (type: string, target: any) => {
-    if (!confirm('本当に削除しますか？')) return;
-
-    if (type === 'report') {
-      const updated = reports.filter((_, i) => i !== target);
-      setReports(updated);
-      await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-      return;
-    }
-
+  const handleDelete = (type: string, target: any) => {
     let updatedLocations = [...locations];
     let updatedLeases = [...leases];
     let updatedVehicles = [...vehicles];
@@ -142,6 +136,42 @@ export default function AdminPage() {
     setScrapLocations(updatedScraps);
     setManagers(updatedManagers);
     setWorkers(updatedWorkers);
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles: updatedVehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
+  };
+
+  const handleSaveMasterEdit = () => {
+    if (!editingMaster) return;
+    const { type, index, name, price, item } = editingMaster;
+
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedVehicles = [...vehicles];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
+    if (type === 'location') updatedLocations[index] = name;
+    else if (type === 'lease') updatedLeases[index] = { name, price };
+    else if (type === 'vehicle') updatedVehicles[index] = name;
+    else if (type === 'scrap') updatedScraps[index] = { ...updatedScraps[index], location: name, item: item || '鉄', price };
+    else if (type === 'manager') updatedManagers[index] = { name, price };
+    else if (type === 'worker') updatedWorkers[index] = { name, price };
+
+    setLocations(updatedLocations);
+    setLeases(updatedLeases);
+    setVehicles(updatedVehicles);
+    setScrapLocations(updatedScraps);
+    setManagers(updatedManagers);
+    setWorkers(updatedWorkers);
+    setEditingMaster(null);
 
     saveSettingsToServer({
       locations: updatedLocations,
@@ -261,7 +291,7 @@ export default function AdminPage() {
           </table>
         </div>
 
-        {/* マスタ登録エリア（全項目復活版） */}
+        {/* マスタ登録一覧（編集・削除機能付き・確認なし） */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
           <h2 className="text-lg font-black">⚙️ マスタ登録一覧</h2>
 
@@ -275,10 +305,22 @@ export default function AdminPage() {
                 <button onClick={() => handleAdd('location')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
               <div className="max-h-36 overflow-y-auto divide-y">
-                {locations.map(loc => (
+                {locations.map((loc, idx) => (
                   <div key={loc} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{loc}</span>
-                    <button onClick={() => handleDelete('location', loc)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'location' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{loc}</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'location', index: idx, name: loc, price: 0 })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('location', loc)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -294,10 +336,23 @@ export default function AdminPage() {
                 <button onClick={() => handleAdd('lease')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
               <div className="max-h-36 overflow-y-auto divide-y">
-                {leases.map(l => (
+                {leases.map((l, idx) => (
                   <div key={l.name} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{l.name} (¥{l.price})</span>
-                    <button onClick={() => handleDelete('lease', l.name)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'lease' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2 items-center">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <input type="number" value={editingMaster.price} onChange={e => setEditingMaster({ ...editingMaster, price: Number(e.target.value) })} className="border p-1 text-xs w-20 rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs shrink-0">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{l.name} (¥{l.price})</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'lease', index: idx, name: l.name, price: l.price })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('lease', l.name)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -321,8 +376,21 @@ export default function AdminPage() {
               <div className="max-h-36 overflow-y-auto divide-y">
                 {scrapLocations.map((sc, idx) => (
                   <div key={idx} className="py-2 flex justify-between items-center text-xs font-bold">
-                    <span>{sc.location} ({sc.item}) ¥{sc.price}</span>
-                    <button onClick={() => handleDelete('scrap', idx)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'scrap' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2 items-center">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <input type="number" value={editingMaster.price} onChange={e => setEditingMaster({ ...editingMaster, price: Number(e.target.value) })} className="border p-1 text-xs w-16 rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs shrink-0">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{sc.location} ({sc.item}) ¥{sc.price}</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'scrap', index: idx, name: sc.location, price: sc.price, item: sc.item })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('scrap', idx)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -340,10 +408,22 @@ export default function AdminPage() {
                 <button onClick={() => handleAdd('vehicle')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
               <div className="max-h-36 overflow-y-auto divide-y">
-                {vehicles.map(v => (
+                {vehicles.map((v, idx) => (
                   <div key={v} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{v}</span>
-                    <button onClick={() => handleDelete('vehicle', v)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'vehicle' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{v}</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'vehicle', index: idx, name: v, price: 0 })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('vehicle', v)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -359,10 +439,23 @@ export default function AdminPage() {
                 <button onClick={() => handleAdd('manager')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
               <div className="max-h-36 overflow-y-auto divide-y">
-                {managers.map(m => (
+                {managers.map((m, idx) => (
                   <div key={m.name} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{m.name} (¥{m.price})</span>
-                    <button onClick={() => handleDelete('manager', m.name)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'manager' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2 items-center">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <input type="number" value={editingMaster.price} onChange={e => setEditingMaster({ ...editingMaster, price: Number(e.target.value) })} className="border p-1 text-xs w-20 rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs shrink-0">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{m.name} (¥{m.price})</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'manager', index: idx, name: m.name, price: m.price })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('manager', m.name)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -378,10 +471,23 @@ export default function AdminPage() {
                 <button onClick={() => handleAdd('worker')} className="bg-orange-600 text-white px-3 py-2 rounded text-sm font-bold shrink-0">追加</button>
               </div>
               <div className="max-h-36 overflow-y-auto divide-y">
-                {workers.map(w => (
+                {workers.map((w, idx) => (
                   <div key={w.name} className="py-2 flex justify-between items-center text-sm font-bold">
-                    <span>{w.name} (¥{w.price})</span>
-                    <button onClick={() => handleDelete('worker', w.name)} className="text-red-500 text-xs font-bold">削除</button>
+                    {editingMaster?.type === 'worker' && editingMaster.index === idx ? (
+                      <div className="flex gap-1 w-full mr-2 items-center">
+                        <input value={editingMaster.name} onChange={e => setEditingMaster({ ...editingMaster, name: e.target.value })} className="border p-1 text-xs w-full rounded bg-white" />
+                        <input type="number" value={editingMaster.price} onChange={e => setEditingMaster({ ...editingMaster, price: Number(e.target.value) })} className="border p-1 text-xs w-20 rounded bg-white" />
+                        <button onClick={handleSaveMasterEdit} className="bg-emerald-600 text-white px-2 py-0.5 rounded text-xs shrink-0">保存</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{w.name} (¥{w.price})</span>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => setEditingMaster({ type: 'worker', index: idx, name: w.name, price: w.price })} className="text-blue-600 text-xs font-bold">編集</button>
+                          <button onClick={() => handleDelete('worker', w.name)} className="text-red-500 text-xs font-bold">削除</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -429,34 +535,6 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
-
-      {/* 詳細モーダル */}
-      {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4">
-            <div className="flex justify-between items-center border-b pb-3"><h2 className="text-xl font-black">{modalLocation} 詳細分析</h2><button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button></div>
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">稼働日数</div><div className="text-lg font-black">{modalData.days}日</div></div>
-              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">人件費</div><div className="text-lg font-black text-emerald-700">¥{modalData.laborCost.toLocaleString()}</div></div>
-              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">リース費</div><div className="text-lg font-black text-blue-700">¥{modalData.leaseCost.toLocaleString()}</div></div>
-              <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">処分費</div><div className="text-lg font-black text-amber-700">¥{modalData.disposalCost.toLocaleString()}</div></div>
-            </div>
-            <div className="space-y-3">
-              <h3 className="font-bold text-sm">日報内訳</h3>
-              {modalData.reports.map((r: any, idx: number) => {
-                const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
-                return (
-                  <div key={idx} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-1">
-                    <div className="font-bold">{r.date} - 担当: {mgrs}</div>
-                    <div>スクラップ・処分内訳: {(Array.isArray(r.disposals) ? r.disposals : []).map((d: any) => `${d.location} (${d.item}): ${d.quantity}${d.unit || 't'}`).join(', ') || 'なし'}</div>
-                    {r.photo && <img src={r.photo} className="w-20 h-20 mt-2 rounded shadow object-cover" />}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
