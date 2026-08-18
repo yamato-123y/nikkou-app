@@ -4,6 +4,7 @@ import { useState } from 'react';
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({
     workers: [],
@@ -22,8 +23,14 @@ export default function AdminPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsAuthed(true);
-    fetchData();
+    // パスワード認証（デフォルト設定：yamato123）
+    if (password === 'yamato123' || password === 'yamato') {
+      setIsAuthed(true);
+      setAuthError(false);
+      fetchData();
+    } else {
+      setAuthError(true);
+    }
   };
 
   const fetchData = async () => {
@@ -118,25 +125,41 @@ export default function AdminPage() {
 
   if (!isAuthed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <form onSubmit={handleLogin} className="bg-white p-6 rounded shadow-md w-full max-w-sm">
-          <h1 className="text-xl font-bold mb-4 text-center">管理画面ログイン</h1>
-          <input
-            type="password"
-            placeholder="パスワードを入力"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border p-2 mb-4 rounded"
-          />
-          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded font-bold">
-            ログイン
-          </button>
-        </form>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <span className="text-2xl">🔒</span>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">事務員用 管理画面ログイン</h1>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-2">パスワード</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setAuthError(false); }}
+                className="w-full p-3 rounded-lg border border-slate-300 text-lg outline-none focus:border-orange-500"
+              />
+            </div>
+
+            {authError && (
+              <p className="text-red-500 text-sm font-bold">パスワードが正しくありません</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-[#E56312] hover:bg-[#d0570f] text-white font-bold text-lg py-3.5 rounded-xl shadow transition mt-2"
+            >
+              ログイン
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
-  // 安全に配列化するヘルパー
   const safeReports = Array.isArray(reports) ? reports : [];
   const safeLocations = Array.isArray(settings?.locations) ? settings.locations : [];
   const safeSubcontractors = Array.isArray(settings?.subcontractors) ? settings.subcontractors : [];
@@ -147,9 +170,9 @@ export default function AdminPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">日報管理ダッシュボード</h1>
           <div className="space-x-2">
-            <button onClick={() => setTab('reports')} className={`px-4 py-2 rounded ${tab === 'reports' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>日報一覧</button>
-            <button onClick={() => setTab('analysis')} className={`px-4 py-2 rounded ${tab === 'analysis' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>現場分析</button>
-            <button onClick={() => setTab('settings')} className={`px-4 py-2 rounded ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>マスター設定</button>
+            <button onClick={() => setTab('reports')} className={`px-4 py-2 rounded ${tab === 'reports' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>日報一覧</button>
+            <button onClick={() => setTab('analysis')} className={`px-4 py-2 rounded ${tab === 'analysis' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>現場分析</button>
+            <button onClick={() => setTab('settings')} className={`px-4 py-2 rounded ${tab === 'settings' ? 'bg-orange-600 text-white' : 'bg-white border'}`}>マスター設定</button>
           </div>
         </div>
 
@@ -193,7 +216,7 @@ export default function AdminPage() {
             ) : (
               safeLocations.map((loc: string) => (
                 <div key={loc} className="bg-white p-4 rounded shadow">
-                  <h3 className="text-xl font-bold text-blue-600 mb-2">📍 {loc}</h3>
+                  <h3 className="text-xl font-bold text-orange-600 mb-2">📍 {loc}</h3>
                   <p className="text-sm text-gray-600">提出数: {safeReports.filter(r => r?.location === loc).length}件</p>
                 </div>
               ))
