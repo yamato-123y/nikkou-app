@@ -7,7 +7,6 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
 
-  // マスタデータ
   const [locations, setLocations] = useState<string[]>(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
   const [leases, setLeases] = useState<{ name: string; price: number }[]>([{ name: '0.2ユンボ', price: 15000 }]);
   const [vehicles, setVehicles] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ']);
@@ -20,7 +19,6 @@ export default function AdminPage() {
   const [editDesc, setEditDesc] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
 
-  // 新規マスタ追加用の状態
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
   const [newLeasePrice, setNewLeasePrice] = useState(15000);
@@ -131,14 +129,18 @@ export default function AdminPage() {
   };
 
   const calculateCosts = (locName: string) => {
-    const locReports = reports.filter(r => (Array.isArray(r.locations) && r.locations.includes(locName)) || r.location === locName);
+    const locReports = reports.filter(r => {
+      const locs = Array.isArray(r.locations) ? r.locations : (r.siteName ? [r.siteName] : (r.location ? [r.location] : []));
+      return locs.includes(locName);
+    });
+
     let laborCost = 0, leaseCost = 0, disposalCost = 0;
 
     locReports.forEach(r => {
       const mgrs = Array.isArray(r.managers) ? r.managers : (r.manager ? [r.manager] : []);
       mgrs.forEach(mName => laborCost += (managers.find(m => m.name === mName)?.price || 0));
 
-      const wrks = Array.isArray(r.workers) ? r.workers : [];
+      const wrks = Array.isArray(r.workers) ? r.workers : (typeof r.workers === 'string' ? r.workers.split(',').map((s: string) => s.trim()) : []);
       wrks.forEach(wName => laborCost += (workers.find(w => w.name === wName)?.price || 0));
 
       const lses = Array.isArray(r.leases) ? r.leases : (r.lease ? [r.lease] : []);
@@ -201,7 +203,7 @@ export default function AdminPage() {
           </table>
         </div>
 
-        {/* スクラップ・処分場マスタ登録エリア */}
+        {/* マスタ登録エリア */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
           <h2 className="text-lg font-black">⚙️ スクラップ・処分場マスタ登録</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -249,25 +251,30 @@ export default function AdminPage() {
             <table className="w-full text-left">
               <thead><tr className="border-b text-slate-500 text-sm"><th className="pb-3">日付</th><th className="pb-3">現場名</th><th className="pb-3">作業者</th><th className="pb-3">作業内容</th><th className="pb-3">写真</th><th className="pb-3 text-center">操作</th></tr></thead>
               <tbody className="divide-y text-sm">
-                {reports.map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-50">
-                    <td className="py-4 font-bold">{r.date}</td>
-                    <td className="font-bold text-[#1D70B8]">{Array.isArray(r.locations) ? r.locations.join(', ') : r.location}</td>
-                    <td>
-                      <div>責: {Array.isArray(r.managers) ? r.managers.join(', ') : r.manager}</div>
-                      <div className="text-xs text-slate-500">作: {Array.isArray(r.workers) ? r.workers.join(', ') : ''}</div>
-                    </td>
-                    <td>
-                      {editingIndex === i ? <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border p-1.5 rounded w-full text-sm" /> : r.workDescription}
-                    </td>
-                    <td>{r.photo && <img src={r.photo} className="w-14 h-14 object-cover rounded shadow" />}</td>
-                    <td className="text-center space-x-2">
-                      {editingIndex === i ? <button onClick={() => handleSaveEdit(i)} className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold">保存</button> 
-                      : <button onClick={() => {setEditingIndex(i); setEditDesc(r.workDescription || '');}} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">編集</button>}
-                      <button onClick={() => handleDelete(i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
-                    </td>
-                  </tr>
-                ))}
+                {reports.map((r, i) => {
+                  const locs = Array.isArray(r.locations) ? r.locations.join(', ') : (r.siteName || r.location || '');
+                  const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
+                  const wrks = Array.isArray(r.workers) ? r.workers.join(', ') : (r.workers || '');
+                  return (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="py-4 font-bold">{r.date}</td>
+                      <td className="font-bold text-[#1D70B8]">{locs}</td>
+                      <td>
+                        <div>責: {mgrs}</div>
+                        <div className="text-xs text-slate-500">作: {wrks}</div>
+                      </td>
+                      <td>
+                        {editingIndex === i ? <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border p-1.5 rounded w-full text-sm" /> : (r.workDescription || r.content || '')}
+                      </td>
+                      <td>{r.photo && <img src={r.photo} className="w-14 h-14 object-cover rounded shadow" />}</td>
+                      <td className="text-center space-x-2">
+                        {editingIndex === i ? <button onClick={() => handleSaveEdit(i)} className="bg-emerald-600 text-white px-3 py-1 rounded text-xs font-bold">保存</button> 
+                        : <button onClick={() => {setEditingIndex(i); setEditDesc(r.workDescription || r.content || '');}} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">編集</button>}
+                        <button onClick={() => handleDelete(i)} className="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold">削除</button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -287,13 +294,16 @@ export default function AdminPage() {
             </div>
             <div className="space-y-3">
               <h3 className="font-bold text-sm">日報内訳</h3>
-              {modalData.reports.map((r: any, idx: number) => (
-                <div key={idx} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-1">
-                  <div className="font-bold">{r.date} - 担当: {Array.isArray(r.managers) ? r.managers.join(', ') : r.manager}</div>
-                  <div>スクラップ・処分内訳: {(Array.isArray(r.disposals) ? r.disposals : []).map((d: any) => `${d.location} (${d.item}): ${d.quantity}${d.unit || 't'}`).join(', ') || 'なし'}</div>
-                  {r.photo && <img src={r.photo} className="w-20 h-20 mt-2 rounded shadow object-cover" />}
-                </div>
-              ))}
+              {modalData.reports.map((r: any, idx: number) => {
+                const mgrs = Array.isArray(r.managers) ? r.managers.join(', ') : (r.manager || '');
+                return (
+                  <div key={idx} className="border p-3 rounded-xl bg-slate-50 text-xs space-y-1">
+                    <div className="font-bold">{r.date} - 担当: {mgrs}</div>
+                    <div>スクラップ・処分内訳: {(Array.isArray(r.disposals) ? r.disposals : []).map((d: any) => `${d.location} (${d.item}): ${d.quantity}${d.unit || 't'}`).join(', ') || 'なし'}</div>
+                    {r.photo && <img src={r.photo} className="w-20 h-20 mt-2 rounded shadow object-cover" />}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
