@@ -1,116 +1,111 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+
+// 再利用可能な「昨日と同じ」ボタンコンポーネント
+const CopyButton = ({ onClick }: { onClick: () => void }) => (
+  <button type="button" onClick={onClick} className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded font-bold">
+    昨日と同じ
+  </button>
+);
 
 export default function Home() {
-  // 状態管理
   const [report, setReport] = useState({
-    location: '',
-    workers: [] as string[],
-    vehicle: '',
-    heavyMachine: '',
-    subcontractors: [] as { name: string; count: string; type: '土工' | '解体工' }[],
-    fuelLiters: '',
-    regularCost: '',
-    parkingCost: '',
-    leaseItems: [] as string[],
-    scraps: [] as { location: string; item: string; unit: string; quantity: string }[],
-    description: ''
+    location: '', workers: [] as string[], vehicle: '', heavyMachine: '',
+    subcontractors: [] as any[], fuelLiters: '', regularCost: '',
+    parkingCost: '', lease: '', scrap: '', disposal: '', description: ''
   });
 
-  // 「昨日と同じ」ボタン機能（Local Storageに前回保存したデータを読み込む例）
-  const loadYesterday = () => {
-    const yesterdayData = localStorage.getItem('lastReport');
-    if (yesterdayData) {
-      setReport(JSON.parse(yesterdayData));
-    } else {
-      alert('前日のデータが見つかりませんでした。');
-    }
-  };
-
-  const saveReport = () => {
-    localStorage.setItem('lastReport', JSON.stringify(report));
-    alert('日報を送信しました（保存完了）');
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 font-sans text-gray-900">
-      <div className="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
-        <h1 className="text-3xl font-black text-center mb-6 text-gray-800">現場日報入力</h1>
-        <button onClick={loadYesterday} className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl text-xl mb-6 shadow-md hover:bg-orange-600 transition">
-          🔄 昨日と同じ内容を入力
-        </button>
+    <div className="min-h-screen bg-gray-100 py-10 px-4">
+      <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+        <header className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white text-center">
+          <h1 className="text-3xl font-black tracking-tight">現場日報入力</h1>
+          <p className="text-blue-100 font-bold mt-1">株式会社大和</p>
+        </header>
 
-        <form onSubmit={(e) => { e.preventDefault(); saveReport(); }} className="space-y-6">
-          
-          {/* ① 現場名 (Blue) */}
-          <section className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-            <label className="block font-bold text-lg text-blue-900 mb-2">① 現場名</label>
-            <select className="w-full p-4 rounded-lg border-2 border-blue-300 text-xl font-bold">
-              <option>現場を選択してください</option>
-            </select>
-          </section>
+        <form className="p-6 space-y-8">
+          {/* ① 現場 */}
+          <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
+            <label className="block font-black text-blue-900 mb-2 text-lg">① 現場名</label>
+            <select className="w-full p-4 rounded-xl border-2 border-blue-200 text-xl font-bold"></select>
+          </div>
 
-          {/* ② 車両 (Indigo) */}
-          <section className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
-            <label className="block font-bold text-lg text-indigo-900 mb-2">② 車両</label>
-            <select className="w-full p-4 rounded-lg border-2 border-indigo-300 text-xl font-bold"></select>
-          </section>
-
-          {/* ③ 自社作業員 (Emerald) */}
-          <section className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-            <label className="block font-bold text-lg text-emerald-900 mb-2">③ 自社作業員</label>
-            <div className="grid grid-cols-2 gap-2">
-              {/* チェックボックスリスト */}
+          {/* ② 車両 */}
+          <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+            <div className="flex justify-between items-center mb-2">
+              <label className="font-black text-indigo-900 text-lg">② 車両</label>
+              <CopyButton onClick={() => {}} />
             </div>
-          </section>
+            <select className="w-full p-4 rounded-xl border-2 border-indigo-200 text-xl"></select>
+          </div>
 
-          {/* ④ 外注・派遣 (Purple) */}
-          <section className="bg-purple-50 p-4 rounded-xl border border-purple-200">
-            <label className="block font-bold text-lg text-purple-900 mb-2">④ 外注・派遣作業員</label>
-            <div className="space-y-2">
-              <input type="text" placeholder="人数を入力" className="w-full p-4 rounded-lg border-2 border-purple-300" />
-              <select className="w-full p-4 rounded-lg border-2 border-purple-300">
-                <option>作業内容を選択 (土工/解体工)</option>
-              </select>
+          {/* ③ 自社作業員 */}
+          <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
+            <div className="flex justify-between items-center mb-2">
+              <label className="font-black text-emerald-900 text-lg">③ 自社作業員</label>
+              <CopyButton onClick={() => {}} />
             </div>
-          </section>
-
-          {/* ⑤ 自社重機 (Amber) */}
-          <section className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-            <label className="block font-bold text-lg text-amber-900 mb-2">⑤ 自社重機</label>
-            <select className="w-full p-4 rounded-lg border-2 border-amber-300 text-xl"></select>
-          </section>
-
-          {/* ⑥～⑧ 経費項目 (Gray) */}
-          <section className="grid grid-cols-3 gap-2">
-            <div><label className="block font-bold text-sm">⑥ 軽油(L)</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
-            <div><label className="block font-bold text-sm">⑦ レギュラー</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
-            <div><label className="block font-bold text-sm">⑧ 駐車場</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
-          </section>
-
-          {/* ⑨ リース (Rose) */}
-          <section className="bg-rose-50 p-4 rounded-xl border border-rose-200">
-            <label className="block font-bold text-lg text-rose-900 mb-2">⑨ リース重機</label>
-            <select className="w-full p-4 rounded-lg border-2 border-rose-300 text-xl"></select>
-          </section>
-
-          {/* ⑩ 処分内容 (Teal) */}
-          <section className="bg-teal-50 p-4 rounded-xl border border-teal-200">
-            <label className="block font-bold text-lg text-teal-900 mb-2">⑩ 処分内容</label>
-            <select className="w-full p-4 rounded-lg border-2 border-teal-300 mb-2"></select>
-            <div className="flex gap-2">
-              <input type="number" placeholder="数量" className="w-1/2 p-4 border-2 rounded-lg" />
-              <select className="w-1/2 p-4 border-2 rounded-lg"><option>t</option><option>㎥</option><option>kg</option></select>
+            <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-emerald-200">
+              {/* チェックボックス */}
             </div>
-          </section>
+          </div>
 
-          {/* ⑪ 備考 (Gray) */}
-          <section>
-            <label className="block font-bold text-lg mb-2">⑪ 業務内容・備考</label>
-            <textarea className="w-full h-32 p-4 border-2 rounded-xl text-xl"></textarea>
-          </section>
+          {/* ④ 外注・派遣 */}
+          <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
+            <label className="font-black text-purple-900 mb-2 block text-lg">④ 外注・派遣作業員</label>
+            <select className="w-full p-4 rounded-xl border-2 border-purple-200 mb-2"></select>
+            <input type="number" placeholder="人数" className="w-full p-4 rounded-xl border-2 border-purple-200" />
+          </div>
 
-          <button type="submit" className="w-full bg-blue-600 text-white font-black text-2xl py-6 rounded-2xl shadow-xl hover:bg-blue-700">
+          {/* ⑤ 自社重機 & ⑨ リース */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100">
+              <div className="flex justify-between items-center mb-2">
+                <label className="font-black text-amber-900 text-lg">⑤ 自社重機</label>
+                <CopyButton onClick={() => {}} />
+              </div>
+              <select className="w-full p-4 rounded-xl border-2 border-amber-200"></select>
+            </div>
+            <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100">
+              <div className="flex justify-between items-center mb-2">
+                <label className="font-black text-orange-900 text-lg">⑨ リース</label>
+                <CopyButton onClick={() => {}} />
+              </div>
+              <select className="w-full p-4 rounded-xl border-2 border-orange-200"></select>
+            </div>
+          </div>
+
+          {/* ⑥～⑧ 経費項目 */}
+          <div className="grid grid-cols-3 gap-3">
+            {[ {label: '⑥ 軽油(L)', key: 'fuel'}, {label: '⑦ レギュラー(円)', key: 'reg'}, {label: '⑧ 駐車場(円)', key: 'park'} ].map(item => (
+              <div key={item.key} className="bg-gray-50 p-4 rounded-xl">
+                <label className="block font-bold text-gray-700 mb-1 text-sm">{item.label}</label>
+                <input type="number" className="w-full p-3 rounded-lg border-2 border-gray-200 text-xl font-bold" />
+              </div>
+            ))}
+          </div>
+
+          {/* ⑩ 処分・スクラップ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-teal-50 p-5 rounded-2xl border border-teal-100">
+              <label className="font-black text-teal-900 mb-2 block">⑩-1 処分内容</label>
+              <select className="w-full p-4 rounded-xl border-2 border-teal-200 mb-2"></select>
+              <input type="number" placeholder="数量" className="w-full p-4 rounded-xl border-2 border-teal-200" />
+            </div>
+            <div className="bg-cyan-50 p-5 rounded-2xl border border-cyan-100">
+              <label className="font-black text-cyan-900 mb-2 block">⑩-2 スクラップ</label>
+              <select className="w-full p-4 rounded-xl border-2 border-cyan-200 mb-2"></select>
+              <input type="number" placeholder="数量" className="w-full p-4 rounded-xl border-2 border-cyan-200" />
+            </div>
+          </div>
+
+          {/* ⑪ 備考 */}
+          <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200">
+            <label className="font-black text-gray-800 mb-2 block text-lg">⑪ 備考</label>
+            <textarea className="w-full h-24 p-4 rounded-xl border-2 border-gray-300"></textarea>
+          </div>
+
+          <button className="w-full bg-blue-600 text-white font-black text-2xl py-6 rounded-2xl shadow-xl hover:scale-105 transition-transform">
             日報を送信する
           </button>
         </form>
