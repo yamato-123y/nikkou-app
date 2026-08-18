@@ -44,7 +44,7 @@ export default function AdminPage() {
 
   const [filterLocation, setFilterLocation] = useState('');
 
-  // サーバー（API）およびローカルからデータを一括取得
+  // サーバー（API）からデータを一括取得
   const fetchData = async () => {
     try {
       const resReports = await fetch('/api/reports');
@@ -61,12 +61,12 @@ export default function AdminPage() {
       if (resSettings.ok) {
         const data = await resSettings.json();
         if (data && typeof data === 'object') {
-          if (data.locations) setLocations(data.locations);
-          if (data.leases) setLeases(data.leases);
-          if (data.vehicles) setVehicles(data.vehicles);
-          if (data.scrapLocations) setScrapLocations(data.scrapLocations);
-          if (data.managers) setManagers(data.managers);
-          if (data.workers) setWorkers(data.workers);
+          if (Array.isArray(data.locations)) setLocations(data.locations);
+          if (Array.isArray(data.leases)) setLeases(data.leases);
+          if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
+          if (Array.isArray(data.scrapLocations)) setScrapLocations(data.scrapLocations);
+          if (Array.isArray(data.managers)) setManagers(data.managers);
+          if (Array.isArray(data.workers)) setWorkers(data.workers);
         }
       }
     } catch (e) {
@@ -76,8 +76,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
-    // 5秒ごとに自動で最新データをサーバーから取得（リアルタイム同期）
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(fetchData, 5000); // 5秒ごとに自動更新
     return () => clearInterval(interval);
   }, []);
 
@@ -92,7 +91,6 @@ export default function AdminPage() {
     }
   };
 
-  // サーバーへ設定を保存する関数
   const saveSettingsToServer = async (updatedSettings: any) => {
     try {
       await fetch('/api/settings', {
@@ -178,11 +176,6 @@ export default function AdminPage() {
     } else if (type === 'worker') {
       updatedWorkers = workers.filter(w => w.name !== target);
       setWorkers(updatedWorkers);
-    } else if (type === 'report') {
-      const updatedReports = reports.filter((_, idx) => idx !== target);
-      setReports(updatedReports);
-      // レポート削除のAPI連携が必要な場合はここに追加
-      return;
     }
 
     saveSettingsToServer({
@@ -720,7 +713,7 @@ export default function AdminPage() {
                     {modalData.reports.length === 0 ? (
                       <tr><td colSpan={5} className="py-6 text-center text-slate-400">この現場の日報データはありません</td></tr>
                     ) : (
-                      modalData.reports.reports?.map?.length ? modalData.reports : modalData.reports.map((r: any, idx: number) => {
+                      modalData.reports.map((r: any, idx: number) => {
                         let dayLabor = 0;
                         if (r.manager) {
                           const mObj = managers.find(m => m.name === r.manager);
