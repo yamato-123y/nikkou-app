@@ -17,7 +17,6 @@ export default function AdminPage() {
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDesc, setEditDesc] = useState('');
-  const [filterLocation, setFilterLocation] = useState('');
 
   const [newLocation, setNewLocation] = useState('');
   const [newLeaseName, setNewLeaseName] = useState('');
@@ -156,14 +155,40 @@ export default function AdminPage() {
     return { days: locReports.length, laborCost, leaseCost, disposalCost, total: laborCost + leaseCost + disposalCost, reports: locReports };
   };
 
+  // ログイン画面（元のデザインに復旧）
   if (!isAuthed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
-          <h1 className="text-xl font-black mb-6 text-center">管理画面ログイン</h1>
-          <input type="password" placeholder="パスワード" value={password} onChange={e => { setPassword(e.target.value); setAuthError(false); }} className="w-full p-3 border rounded-xl mb-2" />
-          {authError && <p className="text-red-500 text-xs font-bold mb-2">パスワードが違います</p>}
-          <button onClick={() => (password === 'yamato123' || password === 'yamato' ? setIsAuthed(true) : setAuthError(true))} className="w-full bg-orange-600 text-white font-bold py-3 rounded-xl">ログイン</button>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <span className="text-2xl">🔒</span>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">事務員用 管理画面ログイン</h1>
+          </div>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (password === 'yamato123' || password === 'yamato') {
+              setIsAuthed(true);
+              setAuthError(false);
+              fetchData();
+            } else {
+              setAuthError(true);
+            }
+          }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-600 mb-2">パスワード</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setAuthError(false); }}
+                className="w-full p-3 rounded-lg border border-slate-300 text-lg outline-none focus:border-orange-500"
+              />
+            </div>
+            {authError && <p className="text-red-500 text-sm font-bold">パスワードが正しくありません</p>}
+            <button type="submit" className="w-full bg-[#E56312] hover:bg-[#d0570f] text-white font-bold text-lg py-3.5 rounded-xl shadow transition mt-2">
+              ログイン
+            </button>
+          </form>
         </div>
       </div>
     );
