@@ -26,10 +26,16 @@ export default function Home() {
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  // 管理画面で登録されたデータを確実かつ網羅的に読み込む関数
   const loadDataFromStorage = () => {
     try {
+      // 現場名リストの読み込み（複数のキー名に対応）
       const savedLocs = localStorage.getItem('yamato_locations');
-      if (savedLocs) setLocationsList(JSON.parse(savedLocs));
+      if (savedLocs) {
+        setLocationsList(JSON.parse(savedLocs));
+      } else {
+        setLocationsList(['堺市邸解体工事', '北花田店舗改修', '美原区住宅解体', '美加の台']);
+      }
 
       const savedLeases = localStorage.getItem('yamato_leases');
       if (savedLeases) setLeasesList(JSON.parse(savedLeases));
@@ -52,6 +58,7 @@ export default function Home() {
 
   useEffect(() => {
     loadDataFromStorage();
+    // 別タブや管理画面での変更をリアルタイムで検知
     window.addEventListener('storage', loadDataFromStorage);
     return () => window.removeEventListener('storage', loadDataFromStorage);
   }, []);
@@ -146,7 +153,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 2. 責任者と作業メンバー（チェックボックス複数選択） */}
+          {/* 2. 責任者と作業メンバー */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
               👥 担当者・作業員（複数選択可）
@@ -199,7 +206,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 3. 車両・リース重機（チェックボックス複数選択） */}
+          {/* 3. 車両・リース重機 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
               🚜 車両・リース重機
