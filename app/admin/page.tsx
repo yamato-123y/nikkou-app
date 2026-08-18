@@ -24,7 +24,6 @@ export default function AdminPage() {
     { name: 'Bさん', price: 16000 }
   ]);
 
-  // ポップアップ詳細用の状態
   const [modalLocation, setModalLocation] = useState<string | null>(null);
 
   const [newLocation, setNewLocation] = useState('');
@@ -45,135 +44,183 @@ export default function AdminPage() {
 
   const [filterLocation, setFilterLocation] = useState('');
 
-  useEffect(() => {
-    const loadAll = () => {
-      const savedLocs = localStorage.getItem('yamato_locations');
-      if (savedLocs) setLocations(JSON.parse(savedLocs));
+  // サーバー（API）およびローカルからデータを一括取得
+  const fetchData = async () => {
+    try {
+      const resReports = await fetch('/api/reports');
+      if (resReports.ok) {
+        const data = await resReports.json();
+        setReports(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.log('レポート取得失敗');
+    }
 
-      const savedLeases = localStorage.getItem('yamato_leases');
-      if (savedLeases) setLeases(JSON.parse(savedLeases));
-
-      const savedVehicles = localStorage.getItem('yamato_vehicles');
-      if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
-
-      const savedScraps = localStorage.getItem('yamato_scrapLocations');
-      if (savedScraps) setScrapLocations(JSON.parse(savedScraps));
-
-      const savedManagers = localStorage.getItem('yamato_managers');
-      if (savedManagers) setManagers(JSON.parse(savedManagers));
-
-      const savedWorkers = localStorage.getItem('yamato_workers');
-      if (savedWorkers) setWorkers(JSON.parse(savedWorkers));
-
-      const savedReports = localStorage.getItem('yamato_reports');
-      if (savedReports) setReports(JSON.parse(savedReports));
-    };
-
-    loadAll();
-    window.addEventListener('storage', loadAll);
-    return () => window.removeEventListener('storage', loadAll);
-  }, []);
-
-  const saveToStorage = (key: string, data: any) => {
-    localStorage.setItem(key, JSON.stringify(data));
-    window.dispatchEvent(new Event('storage'));
+    try {
+      const resSettings = await fetch('/api/settings');
+      if (resSettings.ok) {
+        const data = await resSettings.json();
+        if (data && typeof data === 'object') {
+          if (data.locations) setLocations(data.locations);
+          if (data.leases) setLeases(data.leases);
+          if (data.vehicles) setVehicles(data.vehicles);
+          if (data.scrapLocations) setScrapLocations(data.scrapLocations);
+          if (data.managers) setManagers(data.managers);
+          if (data.workers) setWorkers(data.workers);
+        }
+      }
+    } catch (e) {
+      console.log('設定取得失敗');
+    }
   };
+
+  useEffect(() => {
+    fetchData();
+    // 5秒ごとに自動で最新データをサーバーから取得（リアルタイム同期）
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'yamato123' || password === 'yamato') {
       setIsAuthed(true);
       setAuthError(false);
+      fetchData();
     } else {
       setAuthError(true);
     }
   };
 
+  // サーバーへ設定を保存する関数
+  const saveSettingsToServer = async (updatedSettings: any) => {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleAdd = (type: string) => {
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedVehicles = [...vehicles];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
     if (type === 'location' && newLocation.trim()) {
-      const updated = [...locations, newLocation.trim()];
-      setLocations(updated);
-      saveToStorage('yamato_locations', updated);
+      updatedLocations.push(newLocation.trim());
+      setLocations(updatedLocations);
       setNewLocation('');
     } else if (type === 'lease' && newLeaseName.trim()) {
-      const updated = [...leases, { name: newLeaseName.trim(), price: Number(newLeasePrice) }];
-      setLeases(updated);
-      saveToStorage('yamato_leases', updated);
+      updatedLeases.push({ name: newLeaseName.trim(), price: Number(newLeasePrice) });
+      setLeases(updatedLeases);
       setNewLeaseName('');
     } else if (type === 'vehicle' && newVehicle.trim()) {
-      const updated = [...vehicles, newVehicle.trim()];
-      setVehicles(updated);
-      saveToStorage('yamato_vehicles', updated);
+      updatedVehicles.push(newVehicle.trim());
+      setVehicles(updatedVehicles);
       setNewVehicle('');
     } else if (type === 'scrap' && newScrapLoc.trim() && newScrapItem.trim()) {
-      const updated = [...scrapLocations, { location: newScrapLoc.trim(), item: newScrapItem.trim(), unit: newScrapUnit, price: Number(newScrapPrice) }];
-      setScrapLocations(updated);
-      saveToStorage('yamato_scrapLocations', updated);
+      updatedScraps.push({ location: newScrapLoc.trim(), item: newScrapItem.trim(), unit: newScrapUnit, price: Number(newScrapPrice) });
+      setScrapLocations(updatedScraps);
       setNewScrapLoc('');
       setNewScrapItem('');
     } else if (type === 'manager' && newManagerName.trim()) {
-      const updated = [...managers, { name: newManagerName.trim(), price: Number(newManagerPrice) }];
-      setManagers(updated);
-      saveToStorage('yamato_managers', updated);
+      updatedManagers.push({ name: newManagerName.trim(), price: Number(newManagerPrice) });
+      setManagers(updatedManagers);
       setNewManagerName('');
     } else if (type === 'worker' && newWorkerName.trim()) {
-      const updated = [...workers, { name: newWorkerName.trim(), price: Number(newWorkerPrice) }];
-      setWorkers(updated);
-      saveToStorage('yamato_workers', updated);
+      updatedWorkers.push({ name: newWorkerName.trim(), price: Number(newWorkerPrice) });
+      setWorkers(updatedWorkers);
       setNewWorkerName('');
     }
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles: updatedVehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
   };
 
-  const handleDelete = (type: string, target: any) => {
+  const handleDelete = async (type: string, target: any) => {
     if (!confirm('本当に削除しますか？')) return;
+
+    let updatedLocations = [...locations];
+    let updatedLeases = [...leases];
+    let updatedVehicles = [...vehicles];
+    let updatedScraps = [...scrapLocations];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
     if (type === 'location') {
-      const updated = locations.filter(l => l !== target);
-      setLocations(updated);
-      saveToStorage('yamato_locations', updated);
+      updatedLocations = locations.filter(l => l !== target);
+      setLocations(updatedLocations);
     } else if (type === 'lease') {
-      const updated = leases.filter(l => l.name !== target);
-      setLeases(updated);
-      saveToStorage('yamato_leases', updated);
+      updatedLeases = leases.filter(l => l.name !== target);
+      setLeases(updatedLeases);
     } else if (type === 'vehicle') {
-      const updated = vehicles.filter(v => v !== target);
-      setVehicles(updated);
-      saveToStorage('yamato_vehicles', updated);
+      updatedVehicles = vehicles.filter(v => v !== target);
+      setVehicles(updatedVehicles);
     } else if (type === 'scrap') {
-      const updated = scrapLocations.filter(s => !(s.location === target.location && s.item === target.item));
-      setScrapLocations(updated);
-      saveToStorage('yamato_scrapLocations', updated);
+      updatedScraps = scrapLocations.filter(s => !(s.location === target.location && s.item === target.item));
+      setScrapLocations(updatedScraps);
     } else if (type === 'manager') {
-      const updated = managers.filter(m => m.name !== target);
-      setManagers(updated);
-      saveToStorage('yamato_managers', updated);
+      updatedManagers = managers.filter(m => m.name !== target);
+      setManagers(updatedManagers);
     } else if (type === 'worker') {
-      const updated = workers.filter(w => w.name !== target);
-      setWorkers(updated);
-      saveToStorage('yamato_workers', updated);
+      updatedWorkers = workers.filter(w => w.name !== target);
+      setWorkers(updatedWorkers);
     } else if (type === 'report') {
-      const updated = reports.filter((_, idx) => idx !== target);
-      setReports(updated);
-      saveToStorage('yamato_reports', updated);
+      const updatedReports = reports.filter((_, idx) => idx !== target);
+      setReports(updatedReports);
+      // レポート削除のAPI連携が必要な場合はここに追加
+      return;
     }
+
+    saveSettingsToServer({
+      locations: updatedLocations,
+      leases: updatedLeases,
+      vehicles: updatedVehicles,
+      scrapLocations: updatedScraps,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
   };
 
   const handlePriceChange = (type: string, targetName: string, newPrice: number) => {
+    let updatedLeases = [...leases];
+    let updatedManagers = [...managers];
+    let updatedWorkers = [...workers];
+
     if (type === 'lease') {
-      const updated = leases.map(l => l.name === targetName ? { ...l, price: newPrice } : l);
-      setLeases(updated);
-      saveToStorage('yamato_leases', updated);
+      updatedLeases = leases.map(l => l.name === targetName ? { ...l, price: newPrice } : l);
+      setLeases(updatedLeases);
     } else if (type === 'manager') {
-      const updated = managers.map(m => m.name === targetName ? { ...m, price: newPrice } : m);
-      setManagers(updated);
-      saveToStorage('yamato_managers', updated);
+      updatedManagers = managers.map(m => m.name === targetName ? { ...m, price: newPrice } : m);
+      setManagers(updatedManagers);
     } else if (type === 'worker') {
-      const updated = workers.map(w => w.name === targetName ? { ...w, price: newPrice } : w);
-      setWorkers(updated);
-      saveToStorage('yamato_workers', updated);
+      updatedWorkers = workers.map(w => w.name === targetName ? { ...w, price: newPrice } : w);
+      setWorkers(updatedWorkers);
     }
+
+    saveSettingsToServer({
+      locations,
+      leases: updatedLeases,
+      vehicles,
+      scrapLocations,
+      managers: updatedManagers,
+      workers: updatedWorkers
+    });
   };
 
-  // 現場ごとの原価計算ロジック
   const calculateCosts = (locName: string) => {
     const locReports = reports.filter(r => (r?.locations && r.locations.includes(locName)) || r?.location === locName);
     let laborCost = 0;
@@ -181,7 +228,6 @@ export default function AdminPage() {
     let disposalCost = 0;
 
     locReports.forEach(r => {
-      // 人件費計算
       if (r.manager) {
         const mObj = managers.find(m => m.name === r.manager);
         laborCost += mObj ? mObj.price : 0;
@@ -199,7 +245,6 @@ export default function AdminPage() {
         });
       }
 
-      // リース費計算
       if (r.lease) {
         const lObj = leases.find(l => l.name === r.lease);
         leaseCost += lObj ? lObj.price : 0;
@@ -211,7 +256,6 @@ export default function AdminPage() {
         });
       }
 
-      // 処分費計算
       if (Array.isArray(r.disposals)) {
         r.disposals.forEach((d: any) => {
           const sObj = scrapLocations.find(s => s.location === d.location && s.item === d.item);
@@ -569,7 +613,7 @@ export default function AdminPage() {
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-black text-slate-900">📥 送信された日報一覧</h2>
-            <button onClick={() => window.location.reload()} className="bg-[#1D70B8] text-white px-4 py-2 rounded-xl text-sm font-bold shadow">
+            <button onClick={fetchData} className="bg-[#1D70B8] text-white px-4 py-2 rounded-xl text-sm font-bold shadow">
               🔄 更新
             </button>
           </div>
@@ -624,7 +668,6 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
             
-            {/* モーダルヘッダー */}
             <div className="flex justify-between items-center border-b pb-4">
               <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
                 🏢 {modalLocation} <span className="text-sm font-normal text-slate-500">（現場詳細分析）</span>
@@ -637,7 +680,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* サマリーカード */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-slate-50 p-3 rounded-xl border text-center">
                 <div className="text-xs text-slate-500 font-bold">稼働日数</div>
@@ -661,7 +703,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 日報ごとの内訳テーブル */}
             <div className="space-y-3">
               <h3 className="font-bold text-slate-800 text-sm">📅 提出された日報一覧（内訳）</h3>
               <div className="overflow-x-auto">
@@ -679,7 +720,7 @@ export default function AdminPage() {
                     {modalData.reports.length === 0 ? (
                       <tr><td colSpan={5} className="py-6 text-center text-slate-400">この現場の日報データはありません</td></tr>
                     ) : (
-                      modalData.reports.map((r: any, idx: number) => {
+                      modalData.reports.reports?.map?.length ? modalData.reports : modalData.reports.map((r: any, idx: number) => {
                         let dayLabor = 0;
                         if (r.manager) {
                           const mObj = managers.find(m => m.name === r.manager);
