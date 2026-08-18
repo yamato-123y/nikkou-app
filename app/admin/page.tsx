@@ -17,7 +17,6 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'reports' | 'analysis' | 'settings'>('reports');
   const [loading, setLoading] = useState(false);
 
-  // 入力フォームの状態
   const [newLocation, setNewLocation] = useState('');
   const [newSubcontractor, setNewSubcontractor] = useState('');
 
@@ -30,7 +29,6 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. レポートデータの取得
       const resReports = await fetch('/api/reports');
       if (resReports.ok) {
         const dataReports = await resReports.json();
@@ -41,7 +39,6 @@ export default function AdminPage() {
     }
 
     try {
-      // 2. 設定データの取得
       const resSettings = await fetch('/api/settings');
       if (resSettings.ok) {
         const dataSettings = await resSettings.json();
@@ -203,7 +200,6 @@ export default function AdminPage() {
           <div className="bg-white rounded shadow p-6 space-y-6">
             <h2 className="text-lg font-bold mb-4">マスター設定</h2>
             
-            {/* 現場名設定 */}
             <div className="border-b pb-4">
               <h3 className="font-bold mb-2">現場一覧</h3>
               <div className="flex gap-2 mb-2">
@@ -226,7 +222,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 外注会社設定 */}
             <div className="border-b pb-4">
               <h3 className="font-bold mb-2">外注会社一覧</h3>
               <div className="flex gap-2 mb-2">
