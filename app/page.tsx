@@ -3,8 +3,6 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [date, setDate] = useState('2026/08/18');
-  
-  // マスタデータ
   const [locationsList, setLocationsList] = useState<string[]>([]);
   const [leasesList, setLeasesList] = useState<any[]>([]);
   const [scrapOptions, setScrapOptions] = useState<any[]>([]);
@@ -12,7 +10,6 @@ export default function Home() {
   const [workersList, setWorkersList] = useState<any[]>([]);
   const [vehiclesList, setVehiclesList] = useState<string[]>([]);
 
-  // 選択中の状態
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
@@ -23,18 +20,19 @@ export default function Home() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // マスタを読み込む
   const loadSettingsFromServer = async () => {
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
-        if (data && typeof data === 'object') {
-          if (Array.isArray(data.locations)) setLocationsList(data.locations);
-          if (Array.isArray(data.leases)) setLeasesList(data.leases);
-          if (Array.isArray(data.scrapLocations)) setScrapOptions(data.scrapLocations);
-          if (Array.isArray(data.managers)) setManagersList(data.managers);
-          if (Array.isArray(data.workers)) setWorkersList(data.workers);
-          if (Array.isArray(data.vehicles)) setVehiclesList(data.vehicles);
+        if (data) {
+          setLocationsList(data.locations || []);
+          setLeasesList(data.leases || []);
+          setScrapOptions(data.scrapLocations || []);
+          setManagersList(data.managers || []);
+          setWorkersList(data.workers || []);
+          setVehiclesList(data.vehicles || []);
         }
       }
     } catch (e) { console.error("設定取得エラー:", e); }
@@ -82,8 +80,6 @@ export default function Home() {
           <div className="text-xl font-extrabold">株式会社大和 - 日報入力</div>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* 現場・担当者・メンバー（ボタン式） */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
             <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">📍 現場の選択</div>
             {locationsList.map(loc => (
@@ -104,7 +100,6 @@ export default function Home() {
              </div>
           </div>
 
-          {/* スクラップ・処分場搬出 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
              <div className="text-slate-900 font-bold text-lg border-b-2 border-orange-600 pb-2">🗑️ スクラップ・処分場搬出</div>
              {disposalEntries.map((entry, index) => (
@@ -127,13 +122,6 @@ export default function Home() {
                 </div>
              ))}
              <button type="button" onClick={() => setDisposalEntries([...disposalEntries, { location: '', item: '', unit: 't', quantity: '' }])} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">＋ 追加</button>
-          </div>
-
-          {/* 写真アップロード */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-             <label className="block font-bold mb-2">📷 現場写真</label>
-             <input type="file" accept="image/*" onChange={handlePhotoUpload} className="w-full" />
-             {photo && <img src={photo} className="mt-2 w-full rounded-xl" />}
           </div>
 
           <button type="submit" className="w-full bg-orange-600 text-white font-black text-2xl py-4 rounded-2xl">📩 送信する</button>
