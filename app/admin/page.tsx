@@ -5,7 +5,6 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
-  // 初期値を安全に定義
   const [settings, setSettings] = useState<any>({
     workers: [],
     locations: [],
@@ -16,7 +15,9 @@ export default function AdminPage() {
     leases: []
   });
   const [tab, setTab] = useState<'reports' | 'analysis' | 'settings'>('reports');
+  const [loading, setLoading] = useState(false);
 
+  // 入力フォームの状態
   const [newWorker, setNewWorker] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
@@ -33,37 +34,59 @@ export default function AdminPage() {
   };
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const resReports = await fetch('/api/reports');
-      const dataReports = await resReports.json();
-      setReports(Array.isArray(dataReports) ? dataReports : []);
+      if (resReports.ok) {
+        const dataReports = await resReports.json();
+        setReports(Array.isArray(dataReports) ? dataReports : []);
+      }
 
       const resSettings = await fetch('/api/settings');
-      const dataSettings = await resSettings.json();
-      // データ構造を補完
-      setSettings({
-        workers: dataSettings.workers || [],
-        locations: dataSettings.locations || [],
-        vehicles: dataSettings.vehicles || [],
-        heavyMachines: dataSettings.heavyMachines || [],
-        scrapLocations: dataSettings.scrapLocations || [],
-        subcontractors: dataSettings.subcontractors || [],
-        leases: dataSettings.leases || []
-      });
+      if (resSettings.ok) {
+        const dataSettings = await resSettings.json();
+        if (dataSettings && typeof dataSettings === 'object') {
+          setSettings({
+            workers: dataSettings.workers || [],
+            locations: dataSettings.locations || [],
+            vehicles: dataSettings.vehicles || [],
+            heavyMachines: dataSettings.heavyMachines || [],
+            scrapLocations: dataSettings.scrapLocations || [],
+            subcontractors: dataSettings.subcontractors || [],
+            leases: dataSettings.leases || []
+          });
+        }
+      }
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('通信エラー:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAddSetting = async (type: string, value: any) => {
+    if (!value) return;
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, value })
       });
-      const data = await res.json();
-      setSettings(data);
+      if (res.ok) {
+        const data = await res.json();
+        setSettings({
+          workers: data.workers || [],
+          locations: data.locations || [],
+          vehicles: data.vehicles || [],
+          heavyMachines: data.heavyMachines || [],
+          scrapLocations: data.scrapLocations || [],
+          subcontractors: data.subcontractors || [],
+          leases: data.leases || []
+        });
+        if (type === 'subcontractor') setNewSubcontractor('');
+        if (type === 'heavyMachine') setNewHeavyMachine('');
+        if (type === 'location') setNewLocation('');
+      }
     } catch (err) {
       console.error(err);
     }
@@ -77,8 +100,18 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, value })
       });
-      const data = await res.json();
-      setSettings(data);
+      if (res.ok) {
+        const data = await res.json();
+        setSettings({
+          workers: data.workers || [],
+          locations: data.locations || [],
+          vehicles: data.vehicles || [],
+          heavyMachines: data.heavyMachines || [],
+          scrapLocations: data.scrapLocations || [],
+          subcontractors: data.subcontractors || [],
+          leases: data.leases || []
+        });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -91,12 +124,14 @@ export default function AdminPage() {
           <h1 className="text-xl font-bold mb-4 text-center">管理画面ログイン</h1>
           <input
             type="password"
-            placeholder="パスワード"
+            placeholder="パスワードを入力"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border p-2 mb-4 rounded"
           />
-          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded font-bold">ログイン</button>
+          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded font-bold">
+            ログイン
+          </button>
         </form>
       </div>
     );
@@ -105,22 +140,115 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">管理ダッシュボード</h1>
-        {/* タブ切り替えなどはそのまま利用 */}
-        <div className="space-x-2 mb-6">
-          <button onClick={() => setTab('reports')} className="px-4 py-2 bg-white border rounded">一覧</button>
-          <button onClick={() => setTab('analysis')} className="px-4 py-2 bg-white border rounded">分析</button>
-          <button onClick={() => setTab('settings')} className="px-4 py-2 bg-white border rounded">設定</button>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">日報管理ダッシュボード</h1>
+          <div className="space-x-2">
+            <button onClick={() => setTab('reports')} className={`px-4 py-2 rounded ${tab === 'reports' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>日報一覧</button>
+            <button onClick={() => setTab('analysis')} className={`px-4 py-2 rounded ${tab === 'analysis' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>現場分析</button>
+            <button onClick={() => setTab('settings')} className={`px-4 py-2 rounded ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>マスター設定</button>
+          </div>
         </div>
 
-        {tab === 'analysis' && settings.locations?.map((loc: string) => (
-            <div key={loc} className="bg-white p-4 mb-4 rounded shadow">
-              <h3 className="text-xl font-bold text-blue-600">📍 {loc}</h3>
-              {/* レポートのフィルタリング時に安全に処理 */}
-              <p>総日報提出数: {reports.filter(r => r.location === loc).length}件</p>
+        {loading && <p className="text-center py-4 font-bold text-gray-600">データを読み込み中...</p>}
+
+        {!loading && tab === 'reports' && (
+          <div className="bg-white rounded shadow p-4">
+            <h2 className="text-lg font-bold mb-4">送信された日報一覧</h2>
+            {reports.length === 0 ? (
+              <p className="text-gray-500">まだ日報データはありません。</p>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b bg-gray-100">
+                    <th className="p-2">日時</th>
+                    <th className="p-2">現場</th>
+                    <th className="p-2">作業員</th>
+                    <th className="p-2">内容・備考</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((r, i) => (
+                    <tr key={i} className="border-b">
+                      <td className="p-2 text-sm">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</td>
+                      <td className="p-2 font-bold">{r.location}</td>
+                      <td className="p-2 text-sm">{Array.isArray(r.workers) ? r.workers.join(', ') : r.workers}</td>
+                      <td className="p-2 text-sm">{r.workDescription}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {!loading && tab === 'analysis' && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">現場別分析</h2>
+            {(!settings.locations || settings.locations.length === 0) ? (
+              <p className="text-gray-500">現場が登録されていません。</p>
+            ) : (
+              settings.locations.map((loc: string) => (
+                <div key={loc} className="bg-white p-4 rounded shadow">
+                  <h3 className="text-xl font-bold text-blue-600 mb-2">📍 {loc}</h3>
+                  <p className="text-sm text-gray-600">提出数: {reports.filter(r => r.location === loc).length}件</p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {!loading && tab === 'settings' && (
+          <div className="bg-white rounded shadow p-6 space-y-6">
+            <h2 className="text-lg font-bold mb-4">マスター設定</h2>
+            
+            {/* 現場設定 */}
+            <div className="border-b pb-4">
+              <h3 className="font-bold mb-2">現場一覧</h3>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="現場名を入力"
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                  className="border p-2 rounded flex-1"
+                />
+                <button onClick={() => { handleAddSetting('location', newLocation); setNewLocation(''); }} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.locations?.map((loc: string) => (
+                  <span key={loc} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
+                    {loc}
+                    <button onClick={() => handleDeleteSetting('location', loc)} className="text-red-500 font-bold">×</button>
+                  </span>
+                ))}
+              </div>
             </div>
-        ))}
-        {/* 他のタブも同様に、settings?. や reports?. と書くことでエラーを防げます */}
+
+            {/* 外注会社設定 */}
+            <div className="border-b pb-4">
+              <h3 className="font-bold mb-2">外注会社一覧</h3>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="外注会社名を入力"
+                  value={newSubcontractor}
+                  onChange={(e) => setNewSubcontractor(e.target.value)}
+                  className="border p-2 rounded flex-1"
+                />
+                <button onClick={() => { handleAddSetting('subcontractor', newSubcontractor); setNewSubcontractor(''); }} className="bg-green-600 text-white px-4 py-2 rounded font-bold">追加</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.subcontractors?.map((sub: string) => (
+                  <span key={sub} className="bg-gray-100 px-3 py-1 rounded border flex items-center gap-2 font-bold">
+                    {sub}
+                    <button onClick={() => handleDeleteSetting('subcontractor', sub)} className="text-red-500 font-bold">×</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        )}
       </div>
     </div>
   );
