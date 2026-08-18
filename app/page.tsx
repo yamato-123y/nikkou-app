@@ -2,14 +2,12 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const [workersList, setWorkersList] = useState<string[]>([
-    '山田 太郎', '鈴木 次郎', '佐藤 花子', '田中 一郎', '高橋 健一', '渡辺 敏夫'
-  ]);
+  const [workersList, setWorkersList] = useState<string[]>([]);
   const [locationsList, setLocationsList] = useState<string[]>([]);
-  const [vehiclesList, setVehiclesList] = useState<string[]>(['2tダンプ', '4tダンプ', '軽トラ', 'ユニック車']);
-  const [heavyMachinesList, setHeavyMachinesList] = useState<string[]>(['0.2ユンボ', '0.4ユンボ', 'ミニショベル']);
+  const [vehiclesList, setVehiclesList] = useState<string[]>([]);
+  const [heavyMachinesList, setHeavyMachinesList] = useState<string[]>([]);
   const [scrapOptions, setScrapOptions] = useState<any[]>([]);
-  const [subcontractorsList, setSubcontractorsList] = useState<string[]>(['大和興業', '佐藤工業', '田中組']);
+  const [subcontractorsList, setSubcontractorsList] = useState<string[]>(['大和興業', '佐藤工業']);
   const [leasesList, setLeasesList] = useState<string[]>([]);
 
   const [date, setDate] = useState('2026/08/18');
@@ -24,12 +22,13 @@ export default function Home() {
   const [parkingCost, setParkingCost] = useState('');
   const [selectedLease, setSelectedLease] = useState('');
   
-  const [disposalEntries, setDisposalEntries] = useState<{ location: string; quantity: string }[]>([]);
-  const [scrapEntries, setScrapEntries] = useState<{ location: string; quantity: string }[]>([]);
+  // 処分場エントリー（選択すると品目と単位が自動表示され、数量のみ入力）
+  const [disposalEntries, setDisposalEntries] = useState<{ location: string; item: string; unit: string; quantity: string }[]>([]);
+  const [scrapEntries, setScrapEntries] = useState<{ location: string; item: string; unit: string; quantity: string }[]>([]);
+  
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // 管理画面で登録されたマスターデータを自動で読み込む
   useEffect(() => {
     const loadSettings = () => {
       const savedLocs = localStorage.getItem('yamato_locations');
@@ -37,6 +36,9 @@ export default function Home() {
 
       const savedLeases = localStorage.getItem('yamato_leases');
       if (savedLeases) setLeasesList(JSON.parse(savedLeases));
+
+      const savedVehicles = localStorage.getItem('yamato_vehicles');
+      if (savedVehicles) setVehiclesList(JSON.parse(savedVehicles));
 
       const savedScraps = localStorage.getItem('yamato_scrapLocations');
       if (savedScraps) setScrapOptions(JSON.parse(savedScraps));
@@ -46,7 +48,6 @@ export default function Home() {
     };
 
     loadSettings();
-    // 画面を開いている時にデータが更新されたら再読み込み
     window.addEventListener('storage', loadSettings);
     return () => window.removeEventListener('storage', loadSettings);
   }, []);
@@ -75,10 +76,8 @@ export default function Home() {
       createdAt: new Date().toISOString()
     };
 
-    // 送信された日報を保存
     const existingReports = JSON.parse(localStorage.getItem('yamato_reports') || '[]');
     localStorage.setItem('yamato_reports', JSON.stringify([newReport, ...existingReports]));
-    
     setSubmitted(true);
   };
 
@@ -106,33 +105,18 @@ export default function Home() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* 1. 日付と現場の選択 */}
+          {/* 1. 日付と現場 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-            <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">
-              📍 日付と現場の選択
-            </div>
-            
+            <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600">📍 日付と現場の選択</div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">【日付】</label>
-              <input
-                type="text"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full p-3 rounded-xl bg-slate-100 border border-slate-300 text-lg font-bold text-center"
-              />
+              <input type="text" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 rounded-xl bg-slate-100 border border-slate-300 text-lg font-bold text-center" />
             </div>
-
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">【現場名】</label>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-              >
+              <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold">
                 <option value="">現場を選択してください</option>
-                {locationsList.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
+                {locationsList.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
               </select>
             </div>
           </div>
@@ -141,15 +125,8 @@ export default function Home() {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
               <span className="text-slate-900 font-bold text-lg">👥 2. 作業員</span>
-              <button
-                type="button"
-                onClick={() => handleCopyYesterday('自社作業員')}
-                className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
-              >
-                🔄 昨日と同じ
-              </button>
+              <button type="button" onClick={() => handleCopyYesterday('自社作業員')} className="bg-[#1D70B8] text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow">🔄 昨日と同じ</button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">【自社作業員】</label>
@@ -173,29 +150,6 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">【外注・派遣作業員】</label>
-                <div className="space-y-2">
-                  <select
-                    value={selectedSubcontractor}
-                    onChange={(e) => setSelectedSubcontractor(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                  >
-                    <option value="">外注会社を選択</option>
-                    {subcontractorsList.map((sub) => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="人数を入力"
-                    value={subCount}
-                    onChange={(e) => setSubCount(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -203,186 +157,120 @@ export default function Home() {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
               <span className="text-slate-900 font-bold text-lg">🚜 3. 重機・車両・リース</span>
-              <button
-                type="button"
-                onClick={() => handleCopyYesterday('重機・車両')}
-                className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
-              >
-                🔄 昨日と同じ
-              </button>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">【車両】</label>
-                <select
-                  value={selectedVehicle}
-                  onChange={(e) => setSelectedVehicle(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                >
+                <select value={selectedVehicle} onChange={(e) => setSelectedVehicle(e.target.value)} className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold">
                   <option value="">車両を選択</option>
-                  {vehiclesList.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
+                  {vehiclesList.map((v) => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">【自社重機】</label>
-                <select
-                  value={selectedHeavyMachine}
-                  onChange={(e) => setSelectedHeavyMachine(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                >
+                <select value={selectedHeavyMachine} onChange={(e) => setSelectedHeavyMachine(e.target.value)} className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold">
                   <option value="">重機を選択</option>
-                  {heavyMachinesList.map((hm) => (
-                    <option key={hm} value={hm}>{hm}</option>
-                  ))}
+                  {heavyMachinesList.map((hm) => <option key={hm} value={hm}>{hm}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">【リース重機】</label>
-                <select
-                  value={selectedLease}
-                  onChange={(e) => setSelectedLease(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                >
+                <select value={selectedLease} onChange={(e) => setSelectedLease(e.target.value)} className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold">
                   <option value="">リース内容を選択</option>
-                  {leasesList.map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
+                  {leasesList.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             </div>
           </div>
 
-          {/* 軽油 (L) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <label className="block font-bold text-slate-800 mb-2">⛽ 軽油 (L)</label>
-            <input
-              type="number"
-              value={fuelLiters}
-              onChange={(e) => setFuelLiters(e.target.value)}
-              placeholder="0"
-              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold"
-            />
-          </div>
-
-          {/* レギュラー購入金額 (円) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <label className="block font-bold text-slate-800 mb-2">⛽ レギュラー購入金額 (円)</label>
-            <input
-              type="number"
-              value={regularCost}
-              onChange={(e) => setRegularCost(e.target.value)}
-              placeholder="0"
-              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold"
-            />
-          </div>
-
-          {/* 駐車場代 (円) */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <label className="block font-bold text-slate-800 mb-2">🅿️ 駐車場代 (円)</label>
-            <input
-              type="number"
-              value={parkingCost}
-              onChange={(e) => setParkingCost(e.target.value)}
-              placeholder="0"
-              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-xl font-bold"
-            />
-          </div>
-
-          {/* 4. 処分場のガラ搬出 */}
+          {/* 4. 処分場のガラ搬出（処分場選択 → 品目・単位自動表示 → 数量入力） */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
               <span className="text-slate-900 font-bold text-lg">🗑️ 4. 処分場のガラ搬出</span>
               <button
                 type="button"
-                onClick={() => setDisposalEntries([...disposalEntries, { location: '', quantity: '0' }])}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow"
+                onClick={() => setDisposalEntries([...disposalEntries, { location: '', item: '', unit: 't', quantity: '' }])}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow"
               >
                 + 追加する
               </button>
             </div>
-            {disposalEntries.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-2">処分場搬出がある場合は「+ 追加する」を押してください</p>
-            ) : (
-              disposalEntries.map((entry, index) => (
-                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">処分場・品目</span>
-                    <button
-                      type="button"
-                      onClick={() => setDisposalEntries(disposalEntries.filter((_, i) => i !== index))}
-                      className="text-red-600 text-sm font-bold hover:underline"
-                    >
-                      ✕ 削除
-                    </button>
-                  </div>
-                  <select
-                    value={entry.location}
-                    onChange={(e) => {
-                      const updated = [...disposalEntries];
-                      updated[index].location = e.target.value;
-                      setDisposalEntries(updated);
-                    }}
-                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
-                  >
-                    <option value="">処分場を選択</option>
-                    {scrapOptions.map((sc, idx) => (
-                      <option key={idx} value={`${sc.location} (${sc.item})`}>{sc.location} - {sc.item}</option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-700">数量:</span>
-                    <div className="relative flex-1">
+            {disposalEntries.map((entry, index) => (
+              <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-700">処分場選択</span>
+                  <button type="button" onClick={() => setDisposalEntries(disposalEntries.filter((_, i) => i !== index))} className="text-red-600 text-sm font-bold">✕ 削除</button>
+                </div>
+                <select
+                  value={entry.location}
+                  onChange={(e) => {
+                    const selected = scrapOptions.find(sc => `${sc.location} - ${sc.item}` === e.target.value);
+                    const updated = [...disposalEntries];
+                    if (selected) {
+                      updated[index].location = selected.location;
+                      updated[index].item = selected.item;
+                      updated[index].unit = selected.unit || 't';
+                    } else {
+                      updated[index].location = '';
+                      updated[index].item = '';
+                    }
+                    setDisposalEntries(updated);
+                  }}
+                  className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
+                >
+                  <option value="">処分場を選択してください</option>
+                  {scrapOptions.map((sc, idx) => (
+                    <option key={idx} value={`${sc.location} - ${sc.item}`}>
+                      {sc.location} （品目: {sc.item}）
+                    </option>
+                  ))}
+                </select>
+
+                {/* 品目と単位の自動表示 ＆ 数量入力 */}
+                {entry.location && (
+                  <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="text-sm font-bold text-slate-600">
+                      品目: <span className="text-blue-600">{entry.item}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 justify-end">
+                      <span className="text-sm font-bold text-slate-700">数量:</span>
                       <input
                         type="number"
+                        placeholder="0"
                         value={entry.quantity}
                         onChange={(e) => {
                           const updated = [...disposalEntries];
                           updated[index].quantity = e.target.value;
                           setDisposalEntries(updated);
                         }}
-                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold"
+                        className="w-24 p-2 rounded-lg bg-slate-50 border border-slate-300 text-lg font-bold text-right"
                       />
-                      <span className="absolute right-3 top-3 font-bold text-slate-600">t</span>
+                      <span className="font-bold text-slate-700">{entry.unit}</span>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* スクラップ */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          {/* 5. 本日の作業内容 */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
-              <span className="text-slate-900 font-bold text-lg">♻️ スクラップ</span>
-              <button
-                type="button"
-                onClick={() => setScrapEntries([...scrapEntries, { location: '', quantity: '0' }])}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow"
-              >
-                + 追加する
-              </button>
+              <span className="text-slate-900 font-bold text-lg">📝 5. 本日の作業内容・備考</span>
             </div>
-            {scrapEntries.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-2">スクラップがある場合は「+ 追加する」を押してください</p>
-            ) : (
-              scrapEntries.map((entry, index) => (
-                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">スクラップ品目</span>
-                    <button
-                      type="button"
-                      onClick={() => setScrapEntries(scrapEntries.filter((_, i) => i !== index))}
-                      className="text-red-600 text-sm font-bold hover:underline"
-                    >
-                      ✕ 削除
-                    </button>
-                  </div>
-                  <select
-                    value={entry.location}
-                    onChange={(e) => {
-                      const updated
+            <textarea
+              value={workDescription}
+              onChange={(e) => setWorkDescription(e.target.value)}
+              placeholder="業務内容を入力してください"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-300 text-base font-bold"
+            ></textarea>
+          </div>
+
+          <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-xl py-4 rounded-2xl shadow-lg transition">
+            📩 日報を送信する
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
