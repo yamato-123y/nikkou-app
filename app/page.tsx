@@ -22,8 +22,11 @@ export default function Home() {
   const [regularCost, setRegularCost] = useState('');
   const [parkingCost, setParkingCost] = useState('');
   const [selectedLease, setSelectedLease] = useState('');
-  const [disposalEntries, setDisposalEntries] = useState<{ location: string; item: string; quantity: string }[]>([]);
-  const [scrapEntries, setScrapEntries] = useState<{ location: string; item: string; quantity: string }[]>([]);
+  
+  // 処分・スクラップのエントリ管理
+  const [disposalEntries, setDisposalEntries] = useState<{ location: string; quantity: string; unit: string }[]>([]);
+  const [scrapEntries, setScrapEntries] = useState<{ location: string; quantity: string; unit: string }[]>([]);
+
   const [workDescription, setWorkDescription] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -83,8 +86,8 @@ export default function Home() {
           
           {/* 1. 日付と現場の選択 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-            <div className="text-orange-600 font-bold text-lg pb-2 border-b-2 border-orange-600">
-              📍 1. 日付と現場の選択
+            <div className="text-slate-900 font-bold text-lg pb-2 border-b-2 border-orange-600 flex items-center justify-between">
+              <span>📍 日付と現場の選択</span>
             </div>
             
             <div>
@@ -115,11 +118,11 @@ export default function Home() {
           {/* 2. 作業員 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
-              <span className="text-orange-600 font-bold text-lg">👥 2. 作業員</span>
+              <span className="text-slate-900 font-bold text-lg">👥 2. 作業員</span>
               <button
                 type="button"
                 onClick={() => handleCopyYesterday('自社作業員')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
+                className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
               >
                 🔄 昨日と同じ
               </button>
@@ -177,11 +180,11 @@ export default function Home() {
           {/* 3. 重機・車両・リース */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-4">
-              <span className="text-orange-600 font-bold text-lg">🚜 3. 重機・車両・リース</span>
+              <span className="text-slate-900 font-bold text-lg">🚜 3. 重機・車両・リース</span>
               <button
                 type="button"
                 onClick={() => handleCopyYesterday('重機・車両')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
+                className="bg-[#1D70B8] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow"
               >
                 🔄 昨日と同じ
               </button>
@@ -268,40 +271,134 @@ export default function Home() {
             />
           </div>
 
-          {/* 4. 処分内容 */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-3">
-              <span className="text-orange-600 font-bold text-lg">🗑️ 4. 処分内容</span>
+          {/* 4. 処分場のガラ搬出 */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
+              <span className="text-slate-900 font-bold text-lg">🗑️ 4. 処分場のガラ搬出</span>
               <button
                 type="button"
-                onClick={() => setDisposalEntries([...disposalEntries, { location: '', item: '', quantity: '' }])}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl text-sm font-bold shadow"
+                onClick={() => setDisposalEntries([...disposalEntries, { location: '', quantity: '0', unit: 't' }])}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow"
               >
                 + 追加する
               </button>
             </div>
-            <p className="text-xs text-slate-500">処分がある場合は「+ 追加する」を押してください</p>
+            {disposalEntries.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-2">処分場搬出がある場合は「+ 追加する」を押してください</p>
+            ) : (
+              disposalEntries.map((entry, index) => (
+                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3 relative">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">処分場・品目</span>
+                    <button
+                      type="button"
+                      onClick={() => setDisposalEntries(disposalEntries.filter((_, i) => i !== index))}
+                      className="text-red-600 text-sm font-bold hover:underline"
+                    >
+                      ✕ 削除
+                    </button>
+                  </div>
+                  <select
+                    value={entry.location}
+                    onChange={(e) => {
+                      const updated = [...disposalEntries];
+                      updated[index].location = e.target.value;
+                      setDisposalEntries(updated);
+                    }}
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
+                  >
+                    <option value="">処分場を選択</option>
+                    {scrapOptions.map((sc, idx) => (
+                      <option key={idx} value={`${sc.location}:${sc.item}`}>{sc.location} - {sc.item}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-700">数量:</span>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        value={entry.quantity}
+                        onChange={(e) => {
+                          const updated = [...disposalEntries];
+                          updated[index].quantity = e.target.value;
+                          setDisposalEntries(updated);
+                        }}
+                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold"
+                      />
+                      <span className="absolute right-3 top-3 font-bold text-slate-600">t</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* スクラップ */}
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600 mb-3">
-              <span className="text-orange-600 font-bold text-lg">♻️ スクラップ</span>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
+              <span className="text-slate-900 font-bold text-lg">♻️ スクラップ</span>
               <button
                 type="button"
-                onClick={() => setScrapEntries([...scrapEntries, { location: '', item: '', quantity: '' }])}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-xl text-sm font-bold shadow"
+                onClick={() => setScrapEntries([...scrapEntries, { location: '', quantity: '0', unit: 'kg' }])}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow"
               >
                 + 追加する
               </button>
             </div>
-            <p className="text-xs text-slate-500">スクラップがある場合は「+ 追加する」を押してください</p>
+            {scrapEntries.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-2">スクラップがある場合は「+ 追加する」を押してください</p>
+            ) : (
+              scrapEntries.map((entry, index) => (
+                <div key={index} className="p-4 rounded-xl border border-slate-300 bg-slate-50 space-y-3 relative">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">スクラップ品目</span>
+                    <button
+                      type="button"
+                      onClick={() => setScrapEntries(scrapEntries.filter((_, i) => i !== index))}
+                      className="text-red-600 text-sm font-bold hover:underline"
+                    >
+                      ✕ 削除
+                    </button>
+                  </div>
+                  <select
+                    value={entry.location}
+                    onChange={(e) => {
+                      const updated = [...scrapEntries];
+                      updated[index].location = e.target.value;
+                      setScrapEntries(updated);
+                    }}
+                    className="w-full p-3 rounded-xl bg-white border border-slate-300 text-base font-bold"
+                  >
+                    <option value="">スクラップを選択</option>
+                    {scrapOptions.map((sc, idx) => (
+                      <option key={idx} value={`${sc.location}:${sc.item}`}>{sc.location} - {sc.item}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-700">数量:</span>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        value={entry.quantity}
+                        onChange={(e) => {
+                          const updated = [...scrapEntries];
+                          updated[index].quantity = e.target.value;
+                          setScrapEntries(updated);
+                        }}
+                        className="w-full p-3 pr-8 rounded-xl bg-white border border-slate-300 text-lg font-bold"
+                      />
+                      <span className="absolute right-3 top-3 font-bold text-slate-600">kg</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* 5. 本日の作業内容 */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
             <div className="flex justify-between items-center pb-2 border-b-2 border-orange-600">
-              <span className="text-orange-600 font-bold text-lg">📝 5. 本日の作業内容・備考</span>
+              <span className="text-slate-900 font-bold text-lg">📝 5. 本日の作業内容・備考</span>
             </div>
             <textarea
               value={workDescription}
