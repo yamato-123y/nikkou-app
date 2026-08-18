@@ -2,396 +2,118 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const [workersList, setWorkersList] = useState<string[]>([]);
-  const [locationsList, setLocationsList] = useState<string[]>([]);
-  const [vehiclesList, setVehiclesList] = useState<string[]>([]);
-  const [heavyMachinesList, setHeavyMachinesList] = useState<string[]>([]);
-  const [scrapOptions, setScrapOptions] = useState<any[]>([]);
-  const [subcontractorsList, setSubcontractorsList] = useState<string[]>([]);
+  // 状態管理
+  const [report, setReport] = useState({
+    location: '',
+    workers: [] as string[],
+    vehicle: '',
+    heavyMachine: '',
+    subcontractors: [] as { name: string; count: string; type: '土工' | '解体工' }[],
+    fuelLiters: '',
+    regularCost: '',
+    parkingCost: '',
+    leaseItems: [] as string[],
+    scraps: [] as { location: string; item: string; unit: string; quantity: string }[],
+    description: ''
+  });
 
-  // 入力フォームの状態
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
-  const [selectedVehicle, setSelectedVehicle] = useState('');
-  const [distance, setDistance] = useState('');
-  const [fuelLiters, setFuelLiters] = useState('');
-  const [fuelCost, setFuelCost] = useState('');
-  const [regularGasCost, setRegularGasCost] = useState(''); // レギュラーガソリン金額
-  const [selectedHeavyMachine, setSelectedHeavyMachine] = useState(''); // 自社重機
-  const [workDescription, setWorkDescription] = useState('');
-
-  // 外注（会社ごと：土工人数、解体工人数）
-  const [subcontractorEntries, setSubcontractorEntries] = useState<{ name: string; doko: string; kaitai: string }[]>([]);
-
-  // スクラップ・処分項目
-  const [scrapEntries, setScrapEntries] = useState<{ location: string; item: string; value: string }[]>([]);
-
-  const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-      if (data.workers) setWorkersList(data.workers);
-      if (data.locations) setLocationsList(data.locations);
-      if (data.vehicles) setVehiclesList(data.vehicles);
-      if (data.heavyMachines) setHeavyMachinesList(data.heavyMachines);
-      if (data.scrapLocations) setScrapOptions(data.scrapLocations);
-      if (data.subcontractors) setSubcontractorsList(data.subcontractors);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleWorkerToggle = (worker: string) => {
-    if (selectedWorkers.includes(worker)) {
-      setSelectedWorkers(selectedWorkers.filter(w => w !== worker));
+  // 「昨日と同じ」ボタン機能（Local Storageに前回保存したデータを読み込む例）
+  const loadYesterday = () => {
+    const yesterdayData = localStorage.getItem('lastReport');
+    if (yesterdayData) {
+      setReport(JSON.parse(yesterdayData));
     } else {
-      setSelectedWorkers([...selectedWorkers, worker]);
+      alert('前日のデータが見つかりませんでした。');
     }
   };
 
-  const addSubcontractorEntry = (name: string) => {
-    if (!subcontractorEntries.some(s => s.name === name)) {
-      setSubcontractorEntries([...subcontractorEntries, { name, doko: '', kaitai: '' }]);
-    }
+  const saveReport = () => {
+    localStorage.setItem('lastReport', JSON.stringify(report));
+    alert('日報を送信しました（保存完了）');
   };
-
-  const updateSubcontractorCount = (name: string, field: 'doko' | 'kaitai', val: string) => {
-    setSubcontractorEntries(subcontractorEntries.map(s => s.name === name ? { ...s, [field]: val } : s));
-  };
-
-  const removeSubcontractorEntry = (name: string) => {
-    setSubcontractorEntries(subcontractorEntries.filter(s => s.name !== name));
-  };
-
-  const addScrapEntry = (locItemStr: string) => {
-    if (!locItemStr) return;
-    const [loc, item] = locItemStr.split(':');
-    if (!scrapEntries.some(sc => sc.location === loc && sc.item === item)) {
-      setScrapEntries([...scrapEntries, { location: loc, item, value: '' }]);
-    }
-  };
-
-  const updateScrapValue = (index: number, val: string) => {
-    const updated = [...scrapEntries];
-    updated[index].value = val;
-    setScrapEntries(updated);
-  };
-
-  const removeScrapEntry = (index: number) => {
-    setScrapEntries(scrapEntries.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLocation) {
-      alert('現場を選択してください');
-      return;
-    }
-
-    const reportData = {
-      location: selectedLocation,
-      workers: selectedWorkers,
-      vehicle: selectedVehicle,
-      distance: Number(distance) || 0,
-      fuelLiters: Number(fuelLiters) || 0,
-      fuelCost: Number(fuelCost) || 0,
-      regularGasCost: Number(regularGasCost) || 0,
-      heavyMachine: selectedHeavyMachine,
-      subcontractors: subcontractorEntries,
-      scraps: scrapEntries,
-      workDescription,
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportData)
-      });
-      if (res.ok) {
-        setSubmitted(true);
-      } else {
-        alert('送信に失敗しました');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('通信エラーが発生しました');
-    }
-  };
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-green-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-lg w-full border-2 border-green-300">
-          <h1 className="text-3xl font-extrabold text-green-700 mb-6">日報を送信しました！</h1>
-          <p className="text-xl text-gray-700 mb-8 font-medium">お疲れ様でした。</p>
-          <button
-            onClick={() => {
-              setSubmitted(false);
-              setSelectedWorkers([]);
-              setWorkDescription('');
-              setSubcontractorEntries([]);
-              setScrapEntries([]);
-              setRegularGasCost('');
-              setSelectedHeavyMachine('');
-            }}
-            className="bg-blue-600 text-white px-8 py-4 rounded-xl text-xl font-bold w-full shadow-md hover:bg-blue-700"
-          >
-            続けて入力する
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
-        
-        {/* ヘッダー部分（白背景） */}
-        <div className="bg-white p-6 rounded-2xl shadow-xl border-2 border-gray-200 text-center">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <span className="text-3xl">📱</span>
-            <h1 className="text-3xl font-extrabold text-gray-900">現場日報入力</h1>
-          </div>
-          <p className="text-lg font-bold text-gray-600">株式会社大和</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4 font-sans text-gray-900">
+      <div className="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+        <h1 className="text-3xl font-black text-center mb-6 text-gray-800">現場日報入力</h1>
+        <button onClick={loadYesterday} className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl text-xl mb-6 shadow-md hover:bg-orange-600 transition">
+          🔄 昨日と同じ内容を入力
+        </button>
 
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            
-            {/* 現場名選択（青系） */}
-            <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-blue-900">現場名 <span className="text-red-600">*</span></label>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full border-2 border-blue-400 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold focus:border-blue-600 focus:outline-none"
-                required
-              >
-                <option value="">現場を選択してください</option>
-                {locationsList.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
+        <form onSubmit={(e) => { e.preventDefault(); saveReport(); }} className="space-y-6">
+          
+          {/* ① 現場名 (Blue) */}
+          <section className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+            <label className="block font-bold text-lg text-blue-900 mb-2">① 現場名</label>
+            <select className="w-full p-4 rounded-lg border-2 border-blue-300 text-xl font-bold">
+              <option>現場を選択してください</option>
+            </select>
+          </section>
+
+          {/* ② 車両 (Indigo) */}
+          <section className="bg-indigo-50 p-4 rounded-xl border border-indigo-200">
+            <label className="block font-bold text-lg text-indigo-900 mb-2">② 車両</label>
+            <select className="w-full p-4 rounded-lg border-2 border-indigo-300 text-xl font-bold"></select>
+          </section>
+
+          {/* ③ 自社作業員 (Emerald) */}
+          <section className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+            <label className="block font-bold text-lg text-emerald-900 mb-2">③ 自社作業員</label>
+            <div className="grid grid-cols-2 gap-2">
+              {/* チェックボックスリスト */}
+            </div>
+          </section>
+
+          {/* ④ 外注・派遣 (Purple) */}
+          <section className="bg-purple-50 p-4 rounded-xl border border-purple-200">
+            <label className="block font-bold text-lg text-purple-900 mb-2">④ 外注・派遣作業員</label>
+            <div className="space-y-2">
+              <input type="text" placeholder="人数を入力" className="w-full p-4 rounded-lg border-2 border-purple-300" />
+              <select className="w-full p-4 rounded-lg border-2 border-purple-300">
+                <option>作業内容を選択 (土工/解体工)</option>
               </select>
             </div>
+          </section>
 
-            {/* 自社作業員選択（緑系） */}
-            <div className="bg-emerald-50 p-6 rounded-xl border-2 border-emerald-200 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-emerald-900">自社作業員</label>
-              <div className="grid grid-cols-2 gap-3 border-2 border-emerald-300 p-4 rounded-xl max-h-60 overflow-y-auto bg-white">
-                {workersList.map((w) => (
-                  <label key={w} className="flex items-center space-x-3 p-2 hover:bg-emerald-50 rounded-lg cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkers.includes(w)}
-                      onChange={() => handleWorkerToggle(w)}
-                      className="w-6 h-6 text-emerald-600 rounded"
-                    />
-                    <span className="text-xl font-bold text-gray-800">{w}</span>
-                  </label>
-                ))}
-              </div>
+          {/* ⑤ 自社重機 (Amber) */}
+          <section className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+            <label className="block font-bold text-lg text-amber-900 mb-2">⑤ 自社重機</label>
+            <select className="w-full p-4 rounded-lg border-2 border-amber-300 text-xl"></select>
+          </section>
+
+          {/* ⑥～⑧ 経費項目 (Gray) */}
+          <section className="grid grid-cols-3 gap-2">
+            <div><label className="block font-bold text-sm">⑥ 軽油(L)</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
+            <div><label className="block font-bold text-sm">⑦ レギュラー</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
+            <div><label className="block font-bold text-sm">⑧ 駐車場</label><input type="number" className="w-full p-3 border-2 rounded-lg" /></div>
+          </section>
+
+          {/* ⑨ リース (Rose) */}
+          <section className="bg-rose-50 p-4 rounded-xl border border-rose-200">
+            <label className="block font-bold text-lg text-rose-900 mb-2">⑨ リース重機</label>
+            <select className="w-full p-4 rounded-lg border-2 border-rose-300 text-xl"></select>
+          </section>
+
+          {/* ⑩ 処分内容 (Teal) */}
+          <section className="bg-teal-50 p-4 rounded-xl border border-teal-200">
+            <label className="block font-bold text-lg text-teal-900 mb-2">⑩ 処分内容</label>
+            <select className="w-full p-4 rounded-lg border-2 border-teal-300 mb-2"></select>
+            <div className="flex gap-2">
+              <input type="number" placeholder="数量" className="w-1/2 p-4 border-2 rounded-lg" />
+              <select className="w-1/2 p-4 border-2 rounded-lg"><option>t</option><option>㎥</option><option>kg</option></select>
             </div>
+          </section>
 
-            {/* 外注・派遣作業員（紫系） */}
-            <div className="bg-purple-50 p-6 rounded-xl border-2 border-purple-200 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-purple-900">外注・派遣作業員</label>
-              <div className="flex gap-3 mb-4">
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      addSubcontractorEntry(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  className="w-full border-2 border-purple-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                >
-                  <option value="">外注会社を選択して追加</option>
-                  {subcontractorsList.map((sub) => (
-                    <option key={sub} value={sub}>{sub}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-3">
-                {subcontractorEntries.map((sub) => (
-                  <div key={sub.name} className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-purple-300 shadow-sm">
-                    <span className="font-bold text-xl w-40 truncate text-gray-900">{sub.name}</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        placeholder="土工人数"
-                        value={sub.doko}
-                        onChange={(e) => updateSubcontractorCount(sub.name, 'doko', e.target.value)}
-                        className="border-2 border-gray-400 p-3 w-28 rounded-xl text-xl text-center font-bold"
-                      />
-                      <span className="text-lg font-bold text-gray-800">名</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        placeholder="解体工人数"
-                        value={sub.kaitai}
-                        onChange={(e) => updateSubcontractorCount(sub.name, 'kaitai', e.target.value)}
-                        className="border-2 border-gray-400 p-3 w-28 rounded-xl text-xl text-center font-bold"
-                      />
-                      <span className="text-lg font-bold text-gray-800">名</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeSubcontractorEntry(sub.name)}
-                      className="text-red-600 font-extrabold text-2xl ml-auto px-4 py-1 hover:bg-red-50 rounded-lg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* ⑪ 備考 (Gray) */}
+          <section>
+            <label className="block font-bold text-lg mb-2">⑪ 業務内容・備考</label>
+            <textarea className="w-full h-32 p-4 border-2 rounded-xl text-xl"></textarea>
+          </section>
 
-            {/* 自社重機選択（オレンジ系） */}
-            <div className="bg-amber-50 p-6 rounded-xl border-2 border-amber-200 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-amber-900">自社重機</label>
-              <select
-                value={selectedHeavyMachine}
-                onChange={(e) => setSelectedHeavyMachine(e.target.value)}
-                className="w-full border-2 border-amber-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-              >
-                <option value="">重機を選択（なしの場合は空欄）</option>
-                {heavyMachinesList.map((hm) => (
-                  <option key={hm} value={hm}>{hm}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 車両・燃料関連（インディゴ系） */}
-            <div className="bg-indigo-50 p-6 rounded-xl border-2 border-indigo-200 shadow-sm space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xl font-bold mb-3 text-indigo-900">車両</label>
-                  <select
-                    value={selectedVehicle}
-                    onChange={(e) => setSelectedVehicle(e.target.value)}
-                    className="w-full border-2 border-indigo-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                  >
-                    <option value="">車両を選択</option>
-                    {vehiclesList.map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xl font-bold mb-3 text-indigo-900">走行距離 (km)</label>
-                  <input
-                    type="number"
-                    value={distance}
-                    onChange={(e) => setDistance(e.target.value)}
-                    className="w-full border-2 border-indigo-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                    placeholder="例: 50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-xl font-bold mb-3 text-indigo-900">軽油 (L)</label>
-                  <input
-                    type="number"
-                    value={fuelLiters}
-                    onChange={(e) => setFuelLiters(e.target.value)}
-                    className="w-full border-2 border-indigo-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xl font-bold mb-3 text-indigo-900">軽油金額 (円)</label>
-                  <input
-                    type="number"
-                    value={fuelCost}
-                    onChange={(e) => setFuelCost(e.target.value)}
-                    className="w-full border-2 border-indigo-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xl font-bold mb-3 text-indigo-900">レギュラー購入金額 (円)</label>
-                  <input
-                    type="number"
-                    value={regularGasCost}
-                    onChange={(e) => setRegularGasCost(e.target.value)}
-                    className="w-full border-2 border-indigo-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                    placeholder="例: 3000"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 処分・スクラップ項目（ローズ・赤系） */}
-            <div className="bg-rose-50 p-6 rounded-xl border-2 border-rose-200 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-rose-900">処分・スクラップ</label>
-              <div className="flex gap-3 mb-4">
-                <select
-                  onChange={(e) => {
-                    addScrapEntry(e.target.value);
-                    e.target.value = '';
-                  }}
-                  className="w-full border-2 border-rose-300 p-4 rounded-xl text-xl bg-white text-gray-900 font-bold"
-                >
-                  <option value="">処分場・品目を選択して追加</option>
-                  {scrapOptions.map((sc, idx) => (
-                    <option key={idx} value={`${sc.location}:${sc.item}`}>
-                      {sc.location} - {sc.item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-3">
-                {scrapEntries.map((sc, index) => (
-                  <div key={index} className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-rose-300 shadow-sm">
-                    <span className="font-bold text-lg w-48 truncate text-gray-900">{sc.location} / {sc.item}</span>
-                    <input
-                      type="text"
-                      placeholder="金額または数量"
-                      value={sc.value}
-                      onChange={(e) => updateScrapValue(index, e.target.value)}
-                      className="border-2 border-gray-400 p-3 flex-1 rounded-xl text-xl font-bold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeScrapEntry(index)}
-                      className="text-red-600 font-extrabold text-2xl px-4 py-1 hover:bg-red-50 rounded-lg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 業務内容（グレー系） */}
-            <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-300 shadow-sm">
-              <label className="block text-xl font-bold mb-3 text-gray-900">業務内容・備考</label>
-              <textarea
-                value={workDescription}
-                onChange={(e) => setWorkDescription(e.target.value)}
-                className="w-full border-2 border-gray-400 p-4 rounded-xl text-xl bg-white text-gray-900 h-32 font-bold"
-                placeholder="本日の作業内容を入力してください"
-              ></textarea>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white font-extrabold text-2xl p-5 rounded-xl shadow-lg hover:bg-blue-700 transition"
-            >
-              日報を送信する
-            </button>
-          </form>
-        </div>
+          <button type="submit" className="w-full bg-blue-600 text-white font-black text-2xl py-6 rounded-2xl shadow-xl hover:bg-blue-700">
+            日報を送信する
+          </button>
+        </form>
       </div>
     </div>
   );
