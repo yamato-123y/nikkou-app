@@ -11,15 +11,10 @@ export default function AdminPage() {
   const [companyMachines, setCompanyMachines] = useState<{ name: string; price: number }[]>([]);
   const [vehicles, setVehicles] = useState<{ name: string; price: number }[]>([]);
   const [disposalLocations, setDisposalLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([]);
-  const [scrapLocations, setScrapLocations] = useState<{ location: string; item: string; unit: string; price: number }[]>([]);
   const [managers, setManagers] = useState<{ name: string; price: number }[]>([]);
   const [workers, setWorkers] = useState<{ name: string; price: number }[]>([]);
 
-  const [editingReportIndex, setEditingReportIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<any>({});
-  const [modalLocation, setModalLocation] = useState<string | null>(null);
-  const [filterLocation, setFilterLocation] = useState('');
-
+  // 新規追加用の状態
   const [newLocationName, setNewLocationName] = useState('');
   const [newLocationPrice, setNewLocationPrice] = useState(0);
   const [newLeaseName, setNewLeaseName] = useState('');
@@ -39,28 +34,15 @@ export default function AdminPage() {
       if (resR.ok) setReports(await resR.json());
       if (resS.ok) {
         const s = await resS.json();
-        const locs = (s.locations || []).map((l: any) => typeof l === 'string' ? { name: l, price: 0 } : l);
-        setLocations(locs);
+        setLocations((s.locations || []).map((l: any) => typeof l === 'string' ? { name: l, price: 0 } : l));
         setLeases(s.leases || []);
         setCompanyMachines(s.companyMachines || []);
         setVehicles(s.vehicles || []);
         setDisposalLocations(s.disposalLocations || []);
-        setScrapLocations(s.scrapLocations || []);
         setManagers(s.managers || []);
         setWorkers(s.workers || []);
       }
     } catch (e) { console.error(e); }
-  };
-
-  const downloadAllCSV = () => {
-    const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "作業内容"];
-    const rows = reports.map(r => [r.date, r.location, r.manager, (r.workers || []).join(','), r.machine, r.vehicle, r.fuel, r.etcPrice, r.workDescription]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `全日報データ_${new Date().toLocaleDateString()}.csv`;
-    link.click();
   };
 
   useEffect(() => {
@@ -76,58 +58,13 @@ export default function AdminPage() {
     fetchData();
   };
 
-  const updateMaster = (key: string, data: any) => saveSettings({ locations, leases, companyMachines, vehicles, disposalLocations, scrapLocations, managers, workers, [key]: data });
-
-  const updateReport = async (index: number, newData: any) => {
-    const updated = [...reports];
-    updated[index] = { ...updated[index], ...newData };
-    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-    setEditingReportIndex(null);
-    fetchData();
-  };
-
-  const handleDeleteReport = async (index: number) => {
-    const updated = reports.filter((_, i) => i !== index);
-    setReports(updated);
-    await fetch('/api/reports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-    fetchData();
-  };
-
-  const calculateCosts = (locName: string) => {
-    const locMapped = reports.filter(r => r.location === locName || r.locations?.includes(locName));
-    let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0;
-    
-    locMapped.forEach(r => {
-      const mgrs = Array.isArray(r.managers) ? r.managers : (r.manager ? [r.manager] : []);
-      mgrs.forEach((m: any) => laborCost += (managers.find(x => x.name === m)?.price || 20000));
-      const wrks = Array.isArray(r.workers) ? r.workers : (typeof r.workers === 'string' ? r.workers.split(',') : []);
-      wrks.forEach((w: any) => laborCost += (workers.find(x => x.name === w.trim())?.price || 15000));
-      
-      const mName = r.machine || r.lease;
-      leaseCost += (leases.find(x => x.name === mName)?.price || 0);
-      
-      (r.disposals || []).forEach((d: any) => {
-        const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 3000;
-        disposalCost += (Number(d.quantity || 0) * unitPrice);
-      });
-
-      fuelCost += Number(r.fuelPrice || 0);
-      etcCost += Number(r.etcPrice || 0);
-      otherCost += Number(r.otherPrice || 0);
-    });
-
-    const totalCost = laborCost + leaseCost + disposalCost + fuelCost + etcCost + otherCost;
-    const contractPrice = locations.find(l => l.name === locName)?.price || 0;
-    const profit = contractPrice - totalCost;
-
-    return { days: locMapped.length, laborCost, leaseCost, disposalCost, fuelCost, etcCost, otherCost, total: totalCost, contractPrice, profit, reportsWithIndex: locMapped };
-  };
+  const updateMaster = (key: string, data: any) => saveSettings({ locations, leases, companyMachines, vehicles, disposalLocations, managers, workers, [key]: data });
 
   if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-4">
-          <h1 className="text-xl font-normal text-center text-slate-800">🔒管理画面ログイン</h1>
+          <h1 className="text-xl font-normal text-center text-slate-800">??管理画面ログイン</h1>
           <input type="password" placeholder="パスワードを入力" className="w-full p-3 border rounded-xl outline-none font-bold" onChange={e => setPassword(e.target.value)} />
           <button onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} className="w-full bg-[#E56312] text-white font-bold py-3 rounded-xl shadow">ログイン</button>
         </div>
@@ -135,57 +72,45 @@ export default function AdminPage() {
     );
   }
 
-  const modalData = modalLocation ? calculateCosts(modalLocation) : null;
-  const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation) || r.locations?.includes(filterLocation));
-
   return (
     <div className="p-6 bg-slate-100 min-h-screen space-y-8 font-sans text-slate-800 max-w-7xl mx-auto">
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border">
-        <div>
-          <h1 className="text-xl font-black">📊 日報管理・原価詳細ダッシュボード</h1>
-        </div>
-        <button onClick={() => setIsAuthed(false)} className="bg-[#1e293b] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow">ログアウト</button>
+        <h1 className="text-xl font-black">?? 管理ダッシュボード</h1>
+        <button onClick={() => setIsAuthed(false)} className="bg-[#1e293b] text-white px-4 py-2.5 rounded-xl font-bold text-sm">ログアウト</button>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border overflow-x-auto">
-        <h2 className="text-lg font-black mb-4">🏢 現場別 経費集計サマリー</h2>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b text-slate-500 text-sm">
-              <th className="pb-3 font-bold">現場名</th>
-              <th className="pb-3 font-bold">請負金額</th>
-              <th className="pb-3 font-bold">稼働日数</th>
-              <th className="pb-3 font-bold">合計経費</th>
-              <th className="pb-3 font-bold">粗利</th>
-              <th className="pb-3 text-center font-bold">詳細</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y font-bold text-base">
-            {locations.map(locObj => {
-              const c = calculateCosts(locObj.name);
-              return (
-                <tr key={locObj.name} className="hover:bg-slate-50 transition">
-                  <td className="py-4 text-[#0066cc]">{locObj.name}</td>
-                  <td className="text-slate-700">¥{locObj.price.toLocaleString()}</td>
-                  <td>{c.days} 日</td>
-                  <td>¥{c.total.toLocaleString()}</td>
-                  <td className={c.profit >= 0 ? "text-emerald-600 font-black" : "text-red-600 font-black"}>¥{c.profit.toLocaleString()}</td>
-                  <td className="text-center">
-                    <button onClick={() => setModalLocation(locObj.name)} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm shadow">詳細 →</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* マスタ登録エリア */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+        <h2 className="text-lg font-black">?? マスタ登録</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          {/* 現場マスタ */}
+          <div className="bg-slate-50 p-4 rounded-xl border space-y-2">
+            <h3 className="font-bold text-sm">?? 現場・請負金額</h3>
+            <input placeholder="現場名" value={newLocationName} onChange={e=>setNewLocationName(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+            <input type="number" placeholder="金額" value={newLocationPrice} onChange={e=>setNewLocationPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm" />
+            <button onClick={() => { const up=[...locations, {name: newLocationName, price: newLocationPrice}]; setLocations(up); saveSettings({locations: up, leases, companyMachines, vehicles, disposalLocations, managers, workers}); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm">追加</button>
+          </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h2 className="text-lg font-black mb-4">📥 送信された日報一覧</h2>
-        <div className="flex gap-2 mb-4">
-          <button onClick={downloadAllCSV} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">全日報CSVダウンロード</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+          {/* リース重機マスタ */}
+          <div className="bg-slate-50 p-4 rounded-xl border space-y-2">
+            <h3 className="font-bold text-sm">?? リース重機・日額</h3>
+            <input placeholder="重機名" value={newLeaseName} onChange={e=>setNewLeaseName(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+            <input type="number" value={newLeasePrice} onChange={e=>setNewLeasePrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm" />
+            <button onClick={() => { const up=[...leases, {name: newLeaseName, price: newLeasePrice}]; setLeases(up); updateMaster('leases', up); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm">追加</button>
+          </div>
+
+          {/* 処分場マスタ */}
+          <div className="bg-slate-50 p-4 rounded-xl border space-y-2">
+            <h3 className="font-bold text-sm">??? 処分場・品目</h3>
+            <input placeholder="処分場名" value={newDispLoc} onChange={e=>setNewDispLoc(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+            <input placeholder="品目" value={newDispItem} onChange={e=>setNewDispItem(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+            <button onClick={() => { const up=[...disposalLocations, {location: newDispLoc, item: newDispItem, unit: newDispUnit, price: newDispPrice}]; setDisposalLocations(up); updateMaster('disposalLocations', up); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm">追加</button>
+          </div>
+
+          {/* 作業員マスタ */}
+          <div className="bg-slate-50 p-4 rounded-xl border space-y-2">
+            <h3 className="font-bold text-sm">?? 作業員・日額</h3>
+            <input placeholder="作業員名" value={newWorkerName} onChange={e=>setNewWorkerName(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+            <input type="number" value={newWorkerPrice} onChange={e=>setNewWorkerPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm" />
+            <button onClick={() => { const up=[...workers, {name: newWorkerName, price: newWorkerPrice}]; setWorkers(up); updateMaster('workers', up); }} className="w-full 
