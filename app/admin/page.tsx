@@ -27,7 +27,6 @@ export default function AdminPage() {
     fetchData();
   };
 
-  // 追加後にフォームを完全にクリアする処理
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
     saveMaster(key, [...(settings[key] || []), newItem]);
     const cleared = { ...form };
@@ -37,7 +36,6 @@ export default function AdminPage() {
 
   const deleteMaster = (key: string, idx: number) => saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
 
-  // 登録後の金額・単価を直接変更した際の処理
   const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
     const list = [...(settings[key] || [])];
     list[idx] = { ...list[idx], [field]: Number(value) || 0 };
@@ -171,7 +169,7 @@ export default function AdminPage() {
         </table>
       </div>
 
-      {/* ⚙️ マスタ登録エリア（追加後に空欄クリア ＆ 登録後も単価直接変更可能） */}
+      {/* ⚙️ マスタ登録エリア */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
         <h2 className="text-lg font-black">⚙️ マスタ登録・単価設定</h2>
         
@@ -309,17 +307,17 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* 7. 処分場 */}
+          {/* 7. 処分場（レイアウト修正版） */}
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
             <h3 className="font-bold text-sm text-orange-600">🗑️ 処分場マスタ＆単価</h3>
             <div className="space-y-2">
               <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dLoc: e.target.value})} />
-              <div className="flex gap-2">
-                <input type="text" placeholder="品目" value={form.dItem || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dItem: e.target.value})} />
-                <input type="text" placeholder="単位(t)" value={form.dUnit || ''} className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dUnit: e.target.value})} />
-                <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dPrice: e.target.value})} />
-                <button onClick={() => addMaster('disposalLocations', {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <div className="grid grid-cols-12 gap-1">
+                <input type="text" placeholder="品目" value={form.dItem || ''} className="col-span-4 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                <input type="text" placeholder="単位" value={form.dUnit || ''} className="col-span-3 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                <input type="number" placeholder="単価" value={form.dPrice || ''} className="col-span-5 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dPrice: e.target.value})} />
               </div>
+              <button onClick={() => addMaster('disposalLocations', {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
             <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.disposalLocations || []).map((d:any, idx:number)=>(
@@ -335,17 +333,17 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* 8. スクラップ */}
+          {/* 8. スクラップ（レイアウト修正版） */}
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
             <h3 className="font-bold text-sm text-orange-600">♻️ スクラップマスタ＆単価</h3>
             <div className="space-y-2">
               <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sLoc: e.target.value})} />
-              <div className="flex gap-2">
-                <input type="text" placeholder="品目" value={form.sItem || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sItem: e.target.value})} />
-                <input type="text" placeholder="単位(t)" value={form.sUnit || ''} className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sUnit: e.target.value})} />
-                <input type="number" placeholder="単価" value={form.sPrice || ''} className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sPrice: e.target.value})} />
-                <button onClick={() => addMaster('scrapLocations', {location: form.sLoc, item: form.sItem, unit: form.sUnit || 't', price: Number(form.sPrice)||0}, ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加ボタン</button>
+              <div className="grid grid-cols-12 gap-1">
+                <input type="text" placeholder="品目" value={form.sItem || ''} className="col-span-4 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                <input type="text" placeholder="単位" value={form.sUnit || ''} className="col-span-3 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                <input type="number" placeholder="単価" value={form.sPrice || ''} className="col-span-5 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sPrice: e.target.value})} />
               </div>
+              <button onClick={() => addMaster('scrapLocations', {location: form.sLoc, item: form.sItem, unit: form.sUnit || 't', price: Number(form.sPrice)||0}, ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
             <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.scrapLocations || []).map((sc:any, idx:number)=>(
