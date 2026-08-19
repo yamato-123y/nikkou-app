@@ -27,8 +27,22 @@ export default function AdminPage() {
     fetchData();
   };
 
-  const addMaster = (key: string, newItem: any) => saveMaster(key, [...(settings[key] || []), newItem]);
+  // 追加後にフォームを完全にクリアする処理
+  const addMaster = (key: string, newItem: any, formKeys: string[]) => {
+    saveMaster(key, [...(settings[key] || []), newItem]);
+    const cleared = { ...form };
+    formKeys.forEach(k => cleared[k] = '');
+    setForm(cleared);
+  };
+
   const deleteMaster = (key: string, idx: number) => saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
+
+  // 登録後の金額・単価を直接変更した際の処理
+  const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
+    const list = [...(settings[key] || [])];
+    list[idx] = { ...list[idx], [field]: Number(value) || 0 };
+    saveMaster(key, list);
+  };
 
   // --- 計算ロジック & CSVダウンロード ---
   const calculateReportDailyCost = (r: any) => {
@@ -157,7 +171,7 @@ export default function AdminPage() {
         </table>
       </div>
 
-      {/* ⚙️ 新・マスタ登録エリア（画像のご要望の形式） */}
+      {/* ⚙️ マスタ登録エリア（追加後に空欄クリア ＆ 登録後も単価直接変更可能） */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-6">
         <h2 className="text-lg font-black">⚙️ マスタ登録・単価設定</h2>
         
@@ -167,15 +181,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🏢 現場名一覧</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="新しい現場名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, lName: e.target.value})} />
-              <input type="number" placeholder="請負金額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, lPrice: e.target.value})} />
-              <button onClick={() => addMaster('locations', {name: form.lName, price: Number(form.lPrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="新しい現場名" value={form.lName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, lName: e.target.value})} />
+              <input type="number" placeholder="請負金額" value={form.lPrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, lPrice: e.target.value})} />
+              <button onClick={() => addMaster('locations', {name: form.lName, price: Number(form.lPrice)||0}, ['lName', 'lPrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {locList.map((l:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{l.name} (¥{(l.price||0).toLocaleString()})</span>
-                  <button onClick={()=>deleteMaster('locations', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{l.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={l.price || 0} onChange={(e)=>updateItemPrice('locations', idx, 'price', e.target.value)} className="w-24 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('locations', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -185,16 +203,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">👤 現場責任者＆日額単価</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="責任者名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, mName: e.target.value})} />
-              <input type="number" placeholder="日額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, mPrice: e.target.value})} />
-              <button onClick={() => addMaster('managers', {name: form.mName, price: Number(form.mPrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="責任者名" value={form.mName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, mName: e.target.value})} />
+              <input type="number" placeholder="日額" value={form.mPrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, mPrice: e.target.value})} />
+              <button onClick={() => addMaster('managers', {name: form.mName, price: Number(form.mPrice)||0}, ['mName', 'mPrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.managers || []).map((m:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{m.name}</span>
-                  <span className="text-slate-500">日額 ¥{(m.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('managers', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{m.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">日額 ¥</span>
+                    <input type="number" value={m.price || 0} onChange={(e)=>updateItemPrice('managers', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('managers', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -204,16 +225,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">👥 作業メンバー＆日額単価</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="メンバー名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, wName: e.target.value})} />
-              <input type="number" placeholder="日額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, wPrice: e.target.value})} />
-              <button onClick={() => addMaster('workers', {name: form.wName, price: Number(form.wPrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="メンバー名" value={form.wName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, wName: e.target.value})} />
+              <input type="number" placeholder="日額" value={form.wPrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, wPrice: e.target.value})} />
+              <button onClick={() => addMaster('workers', {name: form.wName, price: Number(form.wPrice)||0}, ['wName', 'wPrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.workers || []).map((w:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{w.name}</span>
-                  <span className="text-slate-500">日額 ¥{(w.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('workers', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{w.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">日額 ¥</span>
+                    <input type="number" value={w.price || 0} onChange={(e)=>updateItemPrice('workers', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('workers', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -223,16 +247,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🚚 自社車両＆日額単価</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="車両名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, vName: e.target.value})} />
-              <input type="number" placeholder="日額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, vPrice: e.target.value})} />
-              <button onClick={() => addMaster('vehicles', {name: form.vName, price: Number(form.vPrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="車両名" value={form.vName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, vName: e.target.value})} />
+              <input type="number" placeholder="日額" value={form.vPrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, vPrice: e.target.value})} />
+              <button onClick={() => addMaster('vehicles', {name: form.vName, price: Number(form.vPrice)||0}, ['vName', 'vPrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.vehicles || []).map((v:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{v.name}</span>
-                  <span className="text-slate-500">日額 ¥{(v.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('vehicles', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{v.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">日額 ¥</span>
+                    <input type="number" value={v.price || 0} onChange={(e)=>updateItemPrice('vehicles', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('vehicles', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -242,16 +269,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🚜 自社重機＆日額単価</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="重機名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, cmName: e.target.value})} />
-              <input type="number" placeholder="日額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, cmPrice: e.target.value})} />
-              <button onClick={() => addMaster('companyMachines', {name: form.cmName, price: Number(form.cmPrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="重機名" value={form.cmName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, cmName: e.target.value})} />
+              <input type="number" placeholder="日額" value={form.cmPrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, cmPrice: e.target.value})} />
+              <button onClick={() => addMaster('companyMachines', {name: form.cmName, price: Number(form.cmPrice)||0}, ['cmName', 'cmPrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.companyMachines || []).map((cm:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{cm.name}</span>
-                  <span className="text-slate-500">日額 ¥{(cm.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('companyMachines', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{cm.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">日額 ¥</span>
+                    <input type="number" value={cm.price || 0} onChange={(e)=>updateItemPrice('companyMachines', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('companyMachines', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -261,16 +291,19 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🏗️ リース重機＆日額単価</h3>
             <div className="flex gap-2">
-              <input type="text" placeholder="リース名" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, leaseName: e.target.value})} />
-              <input type="number" placeholder="日額" className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, leasePrice: e.target.value})} />
-              <button onClick={() => addMaster('leases', {name: form.leaseName, price: Number(form.leasePrice)||0})} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+              <input type="text" placeholder="リース名" value={form.leaseName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, leaseName: e.target.value})} />
+              <input type="number" placeholder="日額" value={form.leasePrice || ''} className="w-24 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, leasePrice: e.target.value})} />
+              <button onClick={() => addMaster('leases', {name: form.leaseName, price: Number(form.leasePrice)||0}, ['leaseName', 'leasePrice'])} className="bg-[#E56312] text-white px-4 py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.leases || []).map((ls:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{ls.name}</span>
-                  <span className="text-slate-500">日額 ¥{(ls.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('leases', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{ls.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">日額 ¥</span>
+                    <input type="number" value={ls.price || 0} onChange={(e)=>updateItemPrice('leases', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('leases', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -280,20 +313,23 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
             <h3 className="font-bold text-sm text-orange-600">🗑️ 処分場マスタ＆単価</h3>
             <div className="space-y-2">
-              <input type="text" placeholder="処分場名" className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dLoc: e.target.value})} />
+              <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dLoc: e.target.value})} />
               <div className="flex gap-2">
-                <input type="text" placeholder="品目" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dItem: e.target.value})} />
-                <input type="text" placeholder="単位(t等)" className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dUnit: e.target.value})} />
-                <input type="number" placeholder="単価" className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dPrice: e.target.value})} />
-                <button onClick={() => addMaster('disposalLocations', {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0})} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+                <input type="text" placeholder="品目" value={form.dItem || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                <input type="text" placeholder="単位(t)" value={form.dUnit || ''} className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, dPrice: e.target.value})} />
+                <button onClick={() => addMaster('disposalLocations', {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加</button>
               </div>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.disposalLocations || []).map((d:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{d.location} ({d.item}/{d.unit})</span>
-                  <span className="text-slate-500">¥{(d.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('disposalLocations', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{d.location} ({d.item}/{d.unit})</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={d.price || 0} onChange={(e)=>updateItemPrice('disposalLocations', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('disposalLocations', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -303,20 +339,23 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
             <h3 className="font-bold text-sm text-orange-600">♻️ スクラップマスタ＆単価</h3>
             <div className="space-y-2">
-              <input type="text" placeholder="スクラップ場名" className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sLoc: e.target.value})} />
+              <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sLoc: e.target.value})} />
               <div className="flex gap-2">
-                <input type="text" placeholder="品目" className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sItem: e.target.value})} />
-                <input type="text" placeholder="単位(t等)" className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sUnit: e.target.value})} />
-                <input type="number" placeholder="単価" className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sPrice: e.target.value})} />
-                <button onClick={() => addMaster('scrapLocations', {location: form.sLoc, item: form.sItem, unit: form.sUnit || 't', price: Number(form.sPrice)||0})} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加</button>
+                <input type="text" placeholder="品目" value={form.sItem || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                <input type="text" placeholder="単位(t)" value={form.sUnit || ''} className="w-16 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                <input type="number" placeholder="単価" value={form.sPrice || ''} className="w-20 p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, sPrice: e.target.value})} />
+                <button onClick={() => addMaster('scrapLocations', {location: form.sLoc, item: form.sItem, unit: form.sUnit || 't', price: Number(form.sPrice)||0}, ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="bg-[#E56312] text-white px-3 py-2 rounded-lg font-bold text-sm shadow">追加ボタン</button>
               </div>
             </div>
-            <div className="max-h-36 overflow-y-auto divide-y bg-white border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.scrapLocations || []).map((sc:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold">
-                  <span>{sc.location} ({sc.item}/{sc.unit})</span>
-                  <span className="text-slate-500">¥{(sc.price||0).toLocaleString()}</span>
-                  <button onClick={()=>deleteMaster('scrapLocations', idx)} className="text-red-500">削除</button>
+                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
+                  <span className="truncate">{sc.location} ({sc.item}/{sc.unit})</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={sc.price || 0} onChange={(e)=>updateItemPrice('scrapLocations', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
+                    <button onClick={()=>deleteMaster('scrapLocations', idx)} className="text-red-500 ml-1">削除</button>
+                  </div>
                 </div>
               ))}
             </div>
