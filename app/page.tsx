@@ -24,7 +24,9 @@ export default function Home() {
   const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'idle' | 'success'>('idle');
+  
+  // 送信完了ポップアップ用ステート
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -51,8 +53,6 @@ export default function Home() {
         createdAt: new Date().toISOString()
       })
     });
-    setStatus('success');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     // フォームリセット
     setSelectedWorkers([]); 
@@ -61,11 +61,24 @@ export default function Home() {
     setSelectedVehicles([]);
     setFuel(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
     setDisposals([]); setScraps([]); setDescription('');
-    setTimeout(() => setStatus('idle'), 3000);
+
+    // 成功ポップアップを表示
+    setShowSuccessModal(true);
+  };
+
+  const handleContinue = () => {
+    setShowSuccessModal(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFinish = () => {
+    setShowSuccessModal(false);
+    // 必要に応じて管理画面やトップ等に飛ばしたい場合はここに記述（例: window.location.href = '/'）
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className="p-4 max-w-xl mx-auto space-y-4 font-sans pb-20 bg-slate-100 min-h-screen text-slate-800">
+    <div className="p-4 max-w-xl mx-auto space-y-4 font-sans pb-20 bg-slate-100 min-h-screen text-slate-800 relative">
       
       {/* ヘッダー */}
       <div className="bg-[#10172a] text-white p-4 rounded-2xl text-center shadow-md">
@@ -73,7 +86,33 @@ export default function Home() {
         <p className="text-xs text-slate-400">株式会社大和</p>
       </div>
       
-      {status === 'success' && <div className="bg-emerald-500 text-white p-4 rounded-xl font-bold text-center shadow">日報を送信しました！</div>}
+      {/* 送信完了ポップアップ（モーダル） */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm space-y-4 text-center border">
+            <div className="text-4xl">🎉</div>
+            <h2 className="text-lg font-black text-slate-800">日報報告の送信が完了しました</h2>
+            <p className="text-xs text-slate-500">続けて別の報告を入力しますか？</p>
+            
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={handleContinue} 
+                className="flex-1 bg-[#E56312] text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-orange-700 transition"
+              >
+                続けて報告する
+              </button>
+              <button 
+                type="button" 
+                onClick={handleFinish} 
+                className="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
+              >
+                終了する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
