@@ -16,7 +16,7 @@ export default function AdminPage() {
   const [disposalLocations, setDisposalLocations] = useState<{location: string, item: string, unit: string, price: number}[]>([]);
   const [scrapLocations, setScrapLocations] = useState<{location: string, item: string, unit: string, price: number}[]>([]);
 
-  // 新規追加用ステート（初期値を空または0に設定し、プレースホルダーで案内）
+  // 新規追加用ステート
   const [newLoc, setNewLoc] = useState(''); const [newLocPrice, setNewLocPrice] = useState<any>('');
   const [newMgr, setNewMgr] = useState(''); const [newMgrPrice, setNewMgrPrice] = useState<any>('');
   const [newWrk, setNewWrk] = useState(''); const [newWrkPrice, setNewWrkPrice] = useState<any>('');
@@ -66,9 +66,26 @@ export default function AdminPage() {
     link.click();
   };
 
+  // 現場ごとのCSVダウンロード
+  const downloadLocationCSV = (locName: string) => {
+    const locReports = reports.filter(r => r.location === locName);
+    const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "雑費名", "雑費金額", "作業内容"];
+    const rows = locReports.map(r => [
+      r.date, r.location, r.manager, (r.workers || []).join('/'), 
+      r.machine, r.vehicle, r.fuel || 0, r.etcPrice || 0, 
+      r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${locName}_日報データ_${new Date().toLocaleDateString()}.csv`;
+    link.click();
+  };
+
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
-    let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0;
+    let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0, scrapTotal = 0;
     
     locMapped.forEach(r => {
       if (r.manager) laborCost += (managers.find(x => x.name === r.manager)?.price || 0);
@@ -77,9 +94,16 @@ export default function AdminPage() {
       const mName = r.machine;
       leaseCost += (leases.find(x => x.name === mName)?.price || companyMachines.find(x => x.name === mName)?.price || 0);
       
+      // 処分費計算
       (r.disposals || []).forEach((d: any) => {
         const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 0;
         disposalCost += (Number(d.quantity || 0) * unitPrice);
+      });
+
+      // スクラップ売却・収支計算
+      (r.scraps || []).forEach((sc: any) => {
+        const unitPrice = scrapLocations.find(s => s.location === sc.location && s.item === sc.item)?.price || 0;
+        scrapTotal += (Number(sc.quantity || 0) * unitPrice);
       });
 
       fuelCost += Number(r.fuelPrice || 0);
@@ -89,9 +113,12 @@ export default function AdminPage() {
 
     const totalCost = laborCost + leaseCost + disposalCost + fuelCost + etcCost + otherCost;
     const contractPrice = locations.find(l => l.name === locName)?.price || 0;
-    const profit = contractPrice - totalCost;
+    const profit = (contractPrice - totalCost) + scrapTotal;
 
-    return { days: locMapped.length, laborCost, leaseCost, disposalCost, fuelCost, etcCost, otherCost, total: totalCost, contractPrice, profit, reportsWithIndex: locMapped };
+    return { 
+      days: locMapped.length, laborCost, leaseCost, disposalCost, fuelCost, etcCost, otherCost, scrapTotal, 
+      total: totalCost, contractPrice, profit, reportsWithIndex: locMapped 
+    };
   };
 
   if (!isAuthed) {
@@ -135,7 +162,7 @@ export default function AdminPage() {
               <th className="pb-3 font-bold">稼働日数</th>
               <th className="pb-3 font-bold">合計経費</th>
               <th className="pb-3 font-bold">粗利</th>
-              <th className="pb-3 text-center font-bold">詳細</th>
+              <th className="pb-3 text-center font-bold">詳細・CSV</th>
             </tr>
           </thead>
           <tbody className="divide-y font-bold text-base">
@@ -148,8 +175,9 @@ export default function AdminPage() {
                   <td>{c.days} 日</td>
                   <td>¥{c.total.toLocaleString()}</td>
                   <td className={c.profit >= 0 ? "text-emerald-600 font-black" : "text-red-600 font-black"}>¥{c.profit.toLocaleString()}</td>
-                  <td className="text-center">
+                  <td className="text-center space-x-2">
                     <button onClick={() => setModalLocation(loc.name)} className="bg-[#0066cc] hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm shadow">詳細 →</button>
+                    <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm shadow">CSV</button>
                   </td>
                 </tr>
               );
@@ -339,20 +367,42 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 現場詳細モーダル */}
+      {/* 現場詳細モーダル（すべての経費の内訳と合計を表示） */}
       {modalLocation && modalData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h2 className="text-xl font-black">{modalLocation} (詳細分析)</h2>
-              <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
+              <div>
+                <h2 className="text-xl font-black">{modalLocation} (詳細分析)</h2>
+                <p className="text-xs text-slate-500">お金の流れと経費の内訳</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">この現場のCSVダウンロード</button>
+                <button onClick={() => setModalLocation(null)} className="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">閉じる</button>
+              </div>
             </div>
+
             <div className="grid grid-cols-4 gap-3 text-center">
               <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">請負金額</div><div className="text-md font-black">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">合計経費</div><div className="text-md font-black text-emerald-700">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">粗利</div><div className="text-md font-black text-blue-700">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">粗利（売却益込）</div><div className="text-md font-black text-blue-700">¥{modalData.profit.toLocaleString()}</div></div>
               <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">稼働日数</div><div className="text-md font-black text-amber-700">{modalData.days}日</div></div>
             </div>
+
+            {/* 経費の詳細内訳グリッド */}
+            <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">📋 経費・収支の内訳明細</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">人件費:</span><span className="font-bold">¥{modalData.laborCost.toLocaleString()}</span></div>
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">重機リース:</span><span className="font-bold">¥{modalData.leaseCost.toLocaleString()}</span></div>
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">処分費:</span><span className="font-bold">¥{modalData.disposalCost.toLocaleString()}</span></div>
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">燃料代 (軽油):</span><span className="font-bold">¥{modalData.fuelCost.toLocaleString()}</span></div>
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">高速代・ETC:</span><span className="font-bold">¥{modalData.etcCost.toLocaleString()}</span></div>
+                <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">その他雑費:</span><span className="font-bold">¥{modalData.otherCost.toLocaleString()}</span></div>
+                <div className="bg-emerald-50 p-3 rounded-lg border flex justify-between col-span-full"><span className="text-emerald-700 font-bold">♻️ スクラップ売却計:</span><span className="font-black text-emerald-700">+ ¥{modalData.scrapTotal.toLocaleString()}</span></div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
