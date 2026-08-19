@@ -16,16 +16,16 @@ export default function AdminPage() {
   const [disposalLocations, setDisposalLocations] = useState<{location: string, item: string, unit: string, price: number}[]>([]);
   const [scrapLocations, setScrapLocations] = useState<{location: string, item: string, unit: string, price: number}[]>([]);
 
-  // 新規追加用ステート
-  const [newLoc, setNewLoc] = useState(''); const [newLocPrice, setNewLocPrice] = useState(0);
-  const [newMgr, setNewMgr] = useState(''); const [newMgrPrice, setNewMgrPrice] = useState(20000);
-  const [newWrk, setNewWrk] = useState(''); const [newWrkPrice, setNewWrkPrice] = useState(15000);
-  const [newVeh, setNewVeh] = useState(''); const [newVehPrice, setNewVehPrice] = useState(5000);
-  const [newComMac, setNewComMac] = useState(''); const [newComMacPrice, setNewComMacPrice] = useState(10000);
-  const [newLease, setNewLease] = useState(''); const [newLeasePrice, setNewLeasePrice] = useState(15000);
+  // 新規追加用ステート（初期値を空または0に設定し、プレースホルダーで案内）
+  const [newLoc, setNewLoc] = useState(''); const [newLocPrice, setNewLocPrice] = useState<any>('');
+  const [newMgr, setNewMgr] = useState(''); const [newMgrPrice, setNewMgrPrice] = useState<any>('');
+  const [newWrk, setNewWrk] = useState(''); const [newWrkPrice, setNewWrkPrice] = useState<any>('');
+  const [newVeh, setNewVeh] = useState(''); const [newVehPrice, setNewVehPrice] = useState<any>('');
+  const [newComMac, setNewComMac] = useState(''); const [newComMacPrice, setNewComMacPrice] = useState<any>('');
+  const [newLease, setNewLease] = useState(''); const [newLeasePrice, setNewLeasePrice] = useState<any>('');
   
-  const [newDispLoc, setNewDispLoc] = useState(''); const [newDispItem, setNewDispItem] = useState('ガラ'); const [newDispUnit, setNewDispUnit] = useState('t'); const [newDispPrice, setNewDispPrice] = useState(3000);
-  const [newScrapLoc, setNewScrapLoc] = useState(''); const [newScrapItem, setNewScrapItem] = useState('鉄スクラップ'); const [newScrapUnit, setNewScrapUnit] = useState('t'); const [newScrapPrice, setNewScrapPrice] = useState(0);
+  const [newDispLoc, setNewDispLoc] = useState(''); const [newDispItem, setNewDispItem] = useState('ガラ'); const [newDispUnit, setNewDispUnit] = useState('t'); const [newDispPrice, setNewDispPrice] = useState<any>('');
+  const [newScrapLoc, setNewScrapLoc] = useState(''); const [newScrapItem, setNewScrapItem] = useState('鉄スクラップ'); const [newScrapUnit, setNewScrapUnit] = useState('t'); const [newScrapPrice, setNewScrapPrice] = useState<any>('');
 
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   const [filterLocation, setFilterLocation] = useState('');
@@ -55,7 +55,6 @@ export default function AdminPage() {
     fetchData();
   };
 
-  // CSVダウンロード
   const downloadAllCSV = () => {
     const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "作業内容"];
     const rows = reports.map(r => [r.date, r.location, r.manager, (r.workers || []).join('/'), r.machine, r.vehicle, r.fuel, r.etcPrice, r.workDescription]);
@@ -67,20 +66,19 @@ export default function AdminPage() {
     link.click();
   };
 
-  // 経費・原価計算ロジック
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
     let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0;
     
     locMapped.forEach(r => {
-      if (r.manager) laborCost += (managers.find(x => x.name === r.manager)?.price || 20000);
-      (r.workers || []).forEach((w: string) => laborCost += (workers.find(x => x.name === w)?.price || 15000));
+      if (r.manager) laborCost += (managers.find(x => x.name === r.manager)?.price || 0);
+      (r.workers || []).forEach((w: string) => laborCost += (workers.find(x => x.name === w)?.price || 0));
       
       const mName = r.machine;
       leaseCost += (leases.find(x => x.name === mName)?.price || companyMachines.find(x => x.name === mName)?.price || 0);
       
       (r.disposals || []).forEach((d: any) => {
-        const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 3000;
+        const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 0;
         disposalCost += (Number(d.quantity || 0) * unitPrice);
       });
 
@@ -170,8 +168,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🏢 現場名・請負金額</h3>
             <input type="text" placeholder="現場名" value={newLoc} onChange={e=>setNewLoc(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="請負金額(円)" value={newLocPrice} onChange={e=>setNewLocPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newLoc.trim())return; const up=[...locations, {name:newLoc, price:newLocPrice}]; setLocations(up); saveSettings({locations:up, managers, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewLoc(''); setNewLocPrice(0); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newLocPrice} onChange={e=>setNewLocPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newLoc.trim())return; const up=[...locations, {name:newLoc, price:Number(newLocPrice)||0}]; setLocations(up); saveSettings({locations:up, managers, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewLoc(''); setNewLocPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {locations.map((l, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -186,8 +184,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">👤 現場責任者・日額単価</h3>
             <input type="text" placeholder="責任者名" value={newMgr} onChange={e=>setNewMgr(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="日額単価" value={newMgrPrice} onChange={e=>setNewMgrPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newMgr.trim())return; const up=[...managers, {name:newMgr, price:newMgrPrice}]; setManagers(up); saveSettings({locations, managers:up, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewMgr(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newMgrPrice} onChange={e=>setNewMgrPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newMgr.trim())return; const up=[...managers, {name:newMgr, price:Number(newMgrPrice)||0}]; setManagers(up); saveSettings({locations, managers:up, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewMgr(''); setNewMgrPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {managers.map((m, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -202,8 +200,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">👥 作業員・日額単価</h3>
             <input type="text" placeholder="作業員名" value={newWrk} onChange={e=>setNewWrk(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="日額単価" value={newWrkPrice} onChange={e=>setNewWrkPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newWrk.trim())return; const up=[...workers, {name:newWrk, price:newWrkPrice}]; setWorkers(up); saveSettings({locations, managers, workers:up, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewWrk(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newWrkPrice} onChange={e=>setNewWrkPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newWrk.trim())return; const up=[...workers, {name:newWrk, price:Number(newWrkPrice)||0}]; setWorkers(up); saveSettings({locations, managers, workers:up, vehicles, companyMachines, leases, disposalLocations, scrapLocations}); setNewWrk(''); setNewWrkPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {workers.map((w, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -218,8 +216,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🚚 自社車両・日額単価</h3>
             <input type="text" placeholder="車両名" value={newVeh} onChange={e=>setNewVeh(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="日額単価" value={newVehPrice} onChange={e=>setNewVehPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newVeh.trim())return; const up=[...vehicles, {name:newVeh, price:newVehPrice}]; setVehicles(up); saveSettings({locations, managers, workers, vehicles:up, companyMachines, leases, disposalLocations, scrapLocations}); setNewVeh(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newVehPrice} onChange={e=>setNewVehPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newVeh.trim())return; const up=[...vehicles, {name:newVeh, price:Number(newVehPrice)||0}]; setVehicles(up); saveSettings({locations, managers, workers, vehicles:up, companyMachines, leases, disposalLocations, scrapLocations}); setNewVeh(''); setNewVehPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {vehicles.map((v, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -234,8 +232,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🚜 自社重機・日額単価</h3>
             <input type="text" placeholder="重機名" value={newComMac} onChange={e=>setNewComMac(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="日額単価" value={newComMacPrice} onChange={e=>setNewComMacPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newComMac.trim())return; const up=[...companyMachines, {name:newComMac, price:newComMacPrice}]; setCompanyMachines(up); saveSettings({locations, managers, workers, vehicles, companyMachines:up, leases, disposalLocations, scrapLocations}); setNewComMac(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newComMacPrice} onChange={e=>setNewComMacPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newComMac.trim())return; const up=[...companyMachines, {name:newComMac, price:Number(newComMacPrice)||0}]; setCompanyMachines(up); saveSettings({locations, managers, workers, vehicles, companyMachines:up, leases, disposalLocations, scrapLocations}); setNewComMac(''); setNewComMacPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {companyMachines.map((cm, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -250,8 +248,8 @@ export default function AdminPage() {
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
             <h3 className="font-bold text-sm text-orange-600">🏗️ リース重機・日額単価</h3>
             <input type="text" placeholder="リース名" value={newLease} onChange={e=>setNewLease(e.target.value)} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <input type="number" placeholder="日額単価" value={newLeasePrice} onChange={e=>setNewLeasePrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newLease.trim())return; const up=[...leases, {name:newLease, price:newLeasePrice}]; setLeases(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases:up, disposalLocations, scrapLocations}); setNewLease(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newLeasePrice} onChange={e=>setNewLeasePrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newLease.trim())return; const up=[...leases, {name:newLease, price:Number(newLeasePrice)||0}]; setLeases(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases:up, disposalLocations, scrapLocations}); setNewLease(''); setNewLeasePrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {leases.map((ls, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -272,8 +270,8 @@ export default function AdminPage() {
                 <option value="t">t</option><option value="m3">m3</option><option value="台">台</option><option value="個">個</option>
               </select>
             </div>
-            <input type="number" placeholder="単価" value={newDispPrice} onChange={e=>setNewDispPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newDispLoc.trim())return; const up=[...disposalLocations, {location:newDispLoc, item:newDispItem, unit:newDispUnit, price:newDispPrice}]; setDisposalLocations(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases, disposalLocations:up, scrapLocations}); setNewDispLoc(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newDispPrice} onChange={e=>setNewDispPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newDispLoc.trim())return; const up=[...disposalLocations, {location:newDispLoc, item:newDispItem, unit:newDispUnit, price:Number(newDispPrice)||0}]; setDisposalLocations(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases, disposalLocations:up, scrapLocations}); setNewDispLoc(''); setNewDispPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {disposalLocations.map((d, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
@@ -294,8 +292,8 @@ export default function AdminPage() {
                 <option value="t">t</option><option value="m3">m3</option><option value="台">台</option><option value="個">個</option>
               </select>
             </div>
-            <input type="number" placeholder="単価" value={newScrapPrice} onChange={e=>setNewScrapPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
-            <button onClick={() => { if(!newScrapLoc.trim())return; const up=[...scrapLocations, {location:newScrapLoc, item:newScrapItem, unit:newScrapUnit, price:newScrapPrice}]; setScrapLocations(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations:up}); setNewScrapLoc(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
+            <input type="number" placeholder="金額を入力" value={newScrapPrice} onChange={e=>setNewScrapPrice(e.target.value === '' ? '' : Number(e.target.value))} className="w-full p-2 border rounded-lg text-sm bg-white" />
+            <button onClick={() => { if(!newScrapLoc.trim())return; const up=[...scrapLocations, {location:newScrapLoc, item:newScrapItem, unit:newScrapUnit, price:Number(newScrapPrice)||0}]; setScrapLocations(up); saveSettings({locations, managers, workers, vehicles, companyMachines, leases, disposalLocations, scrapLocations:up}); setNewScrapLoc(''); setNewScrapPrice(''); }} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             <div className="max-h-32 overflow-y-auto divide-y bg-white border rounded-lg p-2">
               {scrapLocations.map((sc, idx)=>(
                 <div key={idx} className="py-1 flex justify-between items-center text-xs font-bold">
