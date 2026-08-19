@@ -66,7 +66,6 @@ export default function AdminPage() {
     link.click();
   };
 
-  // 現場ごとのCSVダウンロード
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
     const headers = ["日付", "現場名", "責任者", "作業者", "重機", "車両", "軽油L", "ETC", "雑費名", "雑費金額", "作業内容"];
@@ -83,32 +82,49 @@ export default function AdminPage() {
     link.click();
   };
 
+  // 各日報ごとの個別コストを計算するヘルパー
+  const calculateReportDailyCost = (r: any) => {
+    let lCost = 0;
+    if (r.manager) lCost += (managers.find(x => x.name === r.manager)?.price || 0);
+    (r.workers || []).forEach((w: string) => lCost += (workers.find(x => x.name === w)?.price || 0));
+
+    let leaseC = 0;
+    const mName = r.machine;
+    leaseC += (leases.find(x => x.name === mName)?.price || companyMachines.find(x => x.name === mName)?.price || 0);
+
+    let dispC = 0;
+    (r.disposals || []).forEach((d: any) => {
+      const uPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 0;
+      dispC += (Number(d.quantity || 0) * uPrice);
+    });
+
+    let scrapC = 0;
+    (r.scraps || []).forEach((sc: any) => {
+      const uPrice = scrapLocations.find(s => s.location === sc.location && s.item === sc.item)?.price || 0;
+      scrapC += (Number(sc.quantity || 0) * uPrice);
+    });
+
+    const fC = Number(r.fuelPrice || 0);
+    const eC = Number(r.etcPrice || 0);
+    const oC = Number(r.otherPrice || 0);
+    const totalDailyCost = lCost + leaseC + dispC + fC + eC + oC;
+
+    return { lCost, leaseC, dispC, fC, eC, oC, scrapC, totalDailyCost };
+  };
+
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
     let laborCost = 0, leaseCost = 0, disposalCost = 0, fuelCost = 0, etcCost = 0, otherCost = 0, scrapTotal = 0;
     
     locMapped.forEach(r => {
-      if (r.manager) laborCost += (managers.find(x => x.name === r.manager)?.price || 0);
-      (r.workers || []).forEach((w: string) => laborCost += (workers.find(x => x.name === w)?.price || 0));
-      
-      const mName = r.machine;
-      leaseCost += (leases.find(x => x.name === mName)?.price || companyMachines.find(x => x.name === mName)?.price || 0);
-      
-      // 処分費計算
-      (r.disposals || []).forEach((d: any) => {
-        const unitPrice = disposalLocations.find(s => s.location === d.location && s.item === d.item)?.price || 0;
-        disposalCost += (Number(d.quantity || 0) * unitPrice);
-      });
-
-      // スクラップ売却・収支計算
-      (r.scraps || []).forEach((sc: any) => {
-        const unitPrice = scrapLocations.find(s => s.location === sc.location && s.item === sc.item)?.price || 0;
-        scrapTotal += (Number(sc.quantity || 0) * unitPrice);
-      });
-
-      fuelCost += Number(r.fuelPrice || 0);
-      etcCost += Number(r.etcPrice || 0);
-      otherCost += Number(r.otherPrice || 0);
+      const dc = calculateReportDailyCost(r);
+      laborCost += dc.lCost;
+      leaseCost += dc.leaseC;
+      disposalCost += dc.dispC;
+      fuelCost += dc.fC;
+      etcCost += dc.eC;
+      otherCost += dc.oC;
+      scrapTotal += dc.scrapC;
     });
 
     const totalCost = laborCost + leaseCost + disposalCost + fuelCost + etcCost + otherCost;
@@ -367,14 +383,14 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 現場詳細モーダル（すべての経費の内訳と合計を表示） */}
+      {/* 現場詳細モーダル（すべての経費の内訳と合計、さらに日報ごとの個別内訳を表示） */}
       {modalLocation && modalData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
                 <h2 className="text-xl font-black">{modalLocation} (詳細分析)</h2>
-                <p className="text-xs text-slate-500">お金の流れと経費の内訳</p>
+                <p className="text-xs text-slate-500">お金の流れと日報ごとの内訳</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow">この現場のCSVダウンロード</button>
@@ -391,7 +407,7 @@ export default function AdminPage() {
 
             {/* 経費の詳細内訳グリッド */}
             <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-              <h3 className="font-bold text-sm text-slate-700">📋 経費・収支の内訳明細</h3>
+              <h3 className="font-bold text-sm text-slate-700">📋 経費・収支の内訳明細（総合計）</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">人件費:</span><span className="font-bold">¥{modalData.laborCost.toLocaleString()}</span></div>
                 <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">重機リース:</span><span className="font-bold">¥{modalData.leaseCost.toLocaleString()}</span></div>
@@ -401,6 +417,41 @@ export default function AdminPage() {
                 <div className="bg-white p-3 rounded-lg border flex justify-between"><span className="text-slate-500">その他雑費:</span><span className="font-bold">¥{modalData.otherCost.toLocaleString()}</span></div>
                 <div className="bg-emerald-50 p-3 rounded-lg border flex justify-between col-span-full"><span className="text-emerald-700 font-bold">♻️ スクラップ売却計:</span><span className="font-black text-emerald-700">+ ¥{modalData.scrapTotal.toLocaleString()}</span></div>
               </div>
+            </div>
+
+            {/* 1日分ずつ報告された日報ごとの経費リスト */}
+            <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
+              <h3 className="font-bold text-sm text-slate-700">📅 1日ごとの日報データ・経費明細</h3>
+              {modalData.reportsWithIndex.length === 0 ? (
+                <p className="text-xs text-slate-400">この現場の日報はまだありません</p>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto">
+                  {modalData.reportsWithIndex.map((r, idx) => {
+                    const daily = calculateReportDailyCost(r);
+                    return (
+                      <div key={idx} className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
+                        <div className="flex justify-between items-center border-b pb-2 text-xs font-bold text-slate-600">
+                          <span>📅 日付: {r.date}</span>
+                          <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded">日報合計経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div><span className="text-slate-400">責任者:</span> {r.manager || '-'}</div>
+                          <div><span className="text-slate-400">作業員:</span> {(r.workers || []).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">重機/車両:</span> {r.machine || '-'} / {r.vehicle || '-'}</div>
+                          <div><span className="text-slate-400">軽油:</span> {r.fuel || 0} L</div>
+                          <div><span className="text-slate-400">ETC:</span> ¥{Number(r.etcPrice || 0).toLocaleString()}</div>
+                          <div><span className="text-slate-400">雑費({r.otherItem || 'なし'}):</span> ¥{Number(r.otherPrice || 0).toLocaleString()}</div>
+                        </div>
+                        {r.workDescription && (
+                          <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                            <span className="font-bold text-slate-700">作業内容:</span> {r.workDescription}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
