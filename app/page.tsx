@@ -53,8 +53,12 @@ export default function Home() {
     });
     setStatus('success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     // フォームリセット
-    setSelectedWorkers([]); setSelectedMachines([]); setSelectedOwnMachines([]); setSelectedVehicles[];
+    setSelectedWorkers([]); 
+    setSelectedMachines([]); 
+    setSelectedOwnMachines([]); 
+    setSelectedVehicles([]);
     setFuel(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
     setDisposals([]); setScraps([]); setDescription('');
     setTimeout(() => setStatus('idle'), 3000);
