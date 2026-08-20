@@ -8,34 +8,49 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const SETTINGS_KEY = 'app_settings';
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', SETTINGS_KEY)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', SETTINGS_KEY)
+      .maybeSingle();
 
-  if (error || !data) {
+    if (error) {
+      console.error('GET Error:', error);
+      return NextResponse.json({});
+    }
+
+    if (!data || !data.value) {
+      return NextResponse.json({});
+    }
+
+    const settingsData = typeof data.value === 'object' ? data.value : JSON.parse(data.value);
+    return NextResponse.json(settingsData);
+  } catch (err) {
+    console.error('GET Exception:', err);
     return NextResponse.json({});
   }
-
-  const settingsData = typeof data.value === 'object' ? data.value : JSON.parse(data.value || '{}');
-  return NextResponse.json(settingsData);
 }
 
 export async function POST(request: Request) {
-  const newSettings = await request.json();
+  try {
+    const newSettings = await request.json();
 
-  // keyが 'app_settings' の行を上書き（なければ挿入）する
-  const { error } = await supabase
-    .from('settings')
-    .upsert([
-      { key: SETTINGS_KEY, value: newSettings }
-    ], { onConflict: 'key' });
+    const { error } = await supabase
+      .from('settings')
+      .upsert(
+        { key: SETTINGS_KEY, value: newSettings },
+        { onConflict: 'key' }
+      );
 
-  if (error) {
-    console.error('Supabase Settings POST Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (error) {
+      console.error('POST Error:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('POST Exception:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true });
 }
