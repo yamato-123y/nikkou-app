@@ -20,6 +20,9 @@ export default function AdminPage() {
   // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
 
+  // 各項目の編集モードを管理するステート（キーごとのオブジェクト: { [locName]: { labor: true, sub: false, ... } }）
+  const [editingCostFields, setEditingCostFields] = useState<any>({});
+
   const fetchData = async () => {
     try {
       const [resR, resS] = await Promise.all([fetch('/api/reports'), fetch('/api/settings')]);
@@ -66,6 +69,18 @@ export default function AdminPage() {
     setCostOverrides(newOverrides);
     const newData = { ...settings, costOverrides: newOverrides };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
+  // 編集モードを切り替える関数
+  const toggleCostFieldEdit = (locName: string, field: string) => {
+    const current = editingCostFields[locName] || {};
+    setEditingCostFields({
+      ...editingCostFields,
+      [locName]: {
+        ...current,
+        [field]: !current[field]
+      }
+    });
   };
 
   // 日報の削除（IDまたはインデックスを確実に対象に指定）
@@ -689,7 +704,7 @@ export default function AdminPage() {
                         <label key={v.name} className="flex items-center gap-1">
                           <input type="checkbox" checked={checked} onChange={e=>{
                             const cur = editingReport.vehicles || [];
-                            const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
+                            const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==m.name);
                             setEditingReport({...editingReport, vehicles: next});
                           }} />
                           <span className="truncate">{v.name}</span>
@@ -744,106 +759,70 @@ export default function AdminPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                 
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">社員人件費</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.labor ?? modalData.laborCost} onChange={e=>handleCostOverrideChange(modalLocation, 'labor', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
+                {/* 共通のカスタム項目カード（えんぴつマーク切り替え対応） */}
+                {[
+                  { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
+                  { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
+                  { key: 'lease', label: 'リース (MOK)', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost },
+                  { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
+                  { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
+                  { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
+                  { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
+                  { key: 'fuel', label: '燃料代 (軽油)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                  { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
+                  { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
+                  { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
+                ].map((item) => {
+                  const isEditing = editingCostFields[modalLocation]?.[item.key];
+                  return (
+                    <div key={item.key} className={`bg-white p-3 rounded-lg border flex flex-col gap-1 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                      <div className="flex justify-between items-center">
+                        <span className={`text-xs font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-500'}`}>{item.label}</span>
+                        {/* ✏️ えんぴつ編集ボタン */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1"
+                        >
+                          {isEditing ? '🔒 完了' : '✏️ 編集'}
+                        </button>
+                      </div>
 
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">外注人件費</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.sub ?? modalData.subCostTotal} onChange={e=>handleCostOverrideChange(modalLocation, 'sub', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">リース (MOK)</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.lease ?? modalData.leaseCost} onChange={e=>handleCostOverrideChange(modalLocation, 'lease', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">その他リース</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost} onChange={e=>handleCostOverrideChange(modalLocation, 'otherLease', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">自社重機</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost} onChange={e=>handleCostOverrideChange(modalLocation, 'ownMachine', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">自社車両</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost} onChange={e=>handleCostOverrideChange(modalLocation, 'vehicle', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                {/* 処分費枠 */}
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1 col-span-full md:col-span-1">
-                  <span className="text-xs text-orange-600 font-bold">🗑️ 処分費 (合計)</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.disposal ?? modalData.disposalCost} onChange={e=>handleCostOverrideChange(modalLocation, 'disposal', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-1 space-y-0.5">
-                    {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
-                      <div>内訳なし</div>
-                    ) : (
-                      Object.entries(modalData.aggregatedDisposalBreakdown).map(([locName, val]: [string, any]) => (
-                        <div key={locName} className="flex justify-between">
-                          <span>・{locName}:</span>
-                          <span>¥{val.toLocaleString()}</span>
+                      {isEditing ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-slate-400">¥</span>
+                          <input
+                            type="number"
+                            value={costOverrides[modalLocation]?.[item.key] ?? (item.isDisposal ? modalData.disposalCost : (item.key === 'labor' ? modalData.laborCost : item.key === 'sub' ? modalData.subCostTotal : item.key === 'lease' ? modalData.leaseCost : item.key === 'otherLease' ? modalData.otherLeaseCost : item.key === 'ownMachine' ? modalData.ownMachineCost : item.key === 'vehicle' ? modalData.vehicleCost : item.key === 'fuel' ? modalData.fuelCost : item.key === 'etc' ? modalData.etcCost : item.key === 'parking' ? modalData.parkingCost : modalData.otherCost))}
+                            onChange={e => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+                            className="w-full p-1.5 border rounded font-bold text-right text-sm"
+                            autoFocus
+                          />
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                      ) : (
+                        <div className="font-black text-slate-800 text-base py-1">
+                          ¥{Number(item.val || 0).toLocaleString()}
+                        </div>
+                      )}
 
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">燃料代 (軽油)</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.fuel ?? modalData.fuelCost} onChange={e=>handleCostOverrideChange(modalLocation, 'fuel', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">高速代・ETC</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.etc ?? modalData.etcCost} onChange={e=>handleCostOverrideChange(modalLocation, 'etc', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">駐車場代</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.parking ?? modalData.parkingCost} onChange={e=>handleCostOverrideChange(modalLocation, 'parking', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">その他雑費</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-400">¥</span>
-                    <input type="number" value={costOverrides[modalLocation]?.other ?? modalData.otherCost} onChange={e=>handleCostOverrideChange(modalLocation, 'other', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
-                  </div>
-                </div>
+                      {/* 処分費の場合の内訳表示 */}
+                      {item.isDisposal && (
+                        <div className="text-[10px] text-slate-500 mt-1 space-y-0.5 border-t pt-1">
+                          {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                            <div>内訳なし</div>
+                          ) : (
+                            Object.entries(modalData.aggregatedDisposalBreakdown).map(([locName, val]: [string, any]) => (
+                              <div key={locName} className="flex justify-between">
+                                <span>・{locName}:</span>
+                                <span>¥{val.toLocaleString()}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 <div className="bg-emerald-50 p-3 rounded-lg border flex justify-between items-center col-span-full">
                   <span className="text-emerald-700 font-bold text-xs">♻️ スクラップ売却計</span>
@@ -872,7 +851,7 @@ export default function AdminPage() {
                           <div><span className="text-slate-400">作業員:</span> {(r.workers || []).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">外注:</span> {(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">リース(MOK):</span> {(r.machines || []).join(', ') || '-'}</div>
-                          <div><span className="text-slate-400">その他リース:</span> {(r.otherLeases || []).map((ol:any)=>`${ol.name}(¥${ol.price})`).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">その他リース:</span> {(r.otherLeases || []).map((ol:any)=>`${ol.name}(${ol.count || 0}個)`).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">自社重機:</span> {(r.ownMachines || []).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">自社車両:</span> {(r.vehicles || []).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">軽油:</span> {r.fuel || 0} L</div>
