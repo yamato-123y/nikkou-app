@@ -12,6 +12,7 @@ export default function Home() {
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [otherLeases, setOtherLeases] = useState<string[]>(['']); // その他リース用ステート
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
@@ -47,6 +48,7 @@ export default function Home() {
         if (list && list.length > 0) {
           const last = list[list.length - 1];
           if (last.machines) setSelectedMachines(last.machines);
+          if (last.otherLeases) setOtherLeases(last.otherLeases);
           if (last.ownMachines) setSelectedOwnMachines(last.ownMachines);
           if (last.vehicles) setSelectedVehicles(last.vehicles);
           alert('前回登録された重機・車両データを反映しました！');
@@ -83,7 +85,10 @@ export default function Home() {
       body: JSON.stringify({
         date, location, manager, workers: selectedWorkers, 
         subcontractors,
-        machines: selectedMachines, ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
+        machines: selectedMachines, 
+        otherLeases: otherLeases.filter(Boolean), 
+        ownMachines: selectedOwnMachines, 
+        vehicles: selectedVehicles, 
         fuel: fuel || '0', etcPrice: etcPrice || '0', parkingPrice: parkingPrice || '0',
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description,
@@ -94,6 +99,7 @@ export default function Home() {
     setSelectedWorkers([]); 
     setSubcontractors([]);
     setSelectedMachines([]); 
+    setOtherLeases(['']);
     setSelectedOwnMachines([]); 
     setSelectedVehicles([]);
     setFuel(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
@@ -112,19 +118,16 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 登録されている外注会社名のユニークリストを取得
   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
 
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-28 bg-slate-100 min-h-screen text-slate-800 relative">
       
-      {/* ヘッダー */}
       <div className="bg-[#1e293b] text-white p-5 rounded-2xl text-center shadow-md">
         <h1 className="text-xl font-bold">📱 現場日報入力</h1>
         <p className="text-xs text-slate-300 mt-1">株式会社大和</p>
       </div>
       
-      {/* 送信完了ポップアップ */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm space-y-4 text-center border">
@@ -133,20 +136,8 @@ export default function Home() {
             <p className="text-xs text-slate-600">続けて別の報告を入力しますか？</p>
             
             <div className="flex gap-3 pt-2">
-              <button 
-                type="button" 
-                onClick={handleContinue} 
-                className="flex-1 bg-[#E56312] text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-orange-700 transition"
-              >
-                続けて報告する
-              </button>
-              <button 
-                type="button" 
-                onClick={handleFinish} 
-                className="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-300 transition"
-              >
-                終了する
-              </button>
+              <button type="button" onClick={handleContinue} className="flex-1 bg-[#E56312] text-white py-3 rounded-xl font-bold text-sm shadow hover:bg-orange-700 transition">続けて報告する</button>
+              <button type="button" onClick={handleFinish} className="flex-1 bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-sm hover:bg-slate-300 transition">終了する</button>
             </div>
           </div>
         </div>
@@ -157,24 +148,19 @@ export default function Home() {
         {/* 1. 日付と現場の選択 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
            <div className="font-bold text-base text-orange-600 border-b pb-2">📍 1. 日付と現場の選択</div>
-           
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【日付】</label>
              <input type="text" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-3 border rounded-xl font-medium bg-slate-50 text-center text-lg" />
            </div>
-
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【現場名】</label>
              <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-3 border rounded-xl font-medium text-base bg-white">
                <option value="">現場を選択してください</option>
                {(settings.locations || []).map((l:any)=>(
-                 <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>
-                   {typeof l === 'string' ? l : l.name}
-                 </option>
+                 <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>{typeof l === 'string' ? l : l.name}</option>
                ))}
              </select>
            </div>
-
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【現場責任者】</label>
              <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-3 border rounded-xl font-medium text-base bg-white">
@@ -186,9 +172,7 @@ export default function Home() {
 
         {/* 2. 作業員 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="border-b pb-2">
-             <span className="font-bold text-base text-orange-600">👥 2. 作業員（複数選択可）</span>
-           </div>
+           <div className="border-b pb-2"><span className="font-bold text-base text-orange-600">👥 2. 作業員（複数選択可）</span></div>
            <div className="grid grid-cols-2 gap-2 pt-1">
              {(settings.workers || []).map((w:any) => (
                <button type="button" key={w.name} onClick={() => toggleSelection(selectedWorkers, w.name, setSelectedWorkers)}
@@ -203,19 +187,14 @@ export default function Home() {
              </div>
              
              {subcontractors.map((sub, index) => {
-               // 選択された会社に紐づく作業内容の候補を抽出
                const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
-
                return (
                  <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
                    <div className="grid grid-cols-2 gap-2">
                      <div>
                        <label className="text-xs font-bold text-slate-500 block mb-1">外注会社名</label>
                        <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.company} onChange={(e)=>{
-                         const updated = [...subcontractors]; 
-                         updated[index].company = e.target.value; 
-                         updated[index].task = ''; // 会社が変わったら作業内容をリセット
-                         setSubcontractors(updated);
+                         const updated = [...subcontractors]; updated[index].company = e.target.value; updated[index].task = ''; setSubcontractors(updated);
                        }}>
                          <option value="">会社を選択...</option>
                          {uniqueCompanies.map((comp:any)=><option key={comp} value={comp}>{comp}</option>)}
@@ -253,8 +232,9 @@ export default function Home() {
              <button type="button" onClick={handleCopyMachinesYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
 
+           {/* リース（MOK） */}
            <div className="space-y-1.5">
-             <label className="text-xs font-bold text-slate-500">【リース重機】</label>
+             <label className="text-xs font-bold text-slate-500">【リース（MOK）】</label>
              <div className="grid grid-cols-2 gap-2">
                {(settings.leases || []).map((m:any) => (
                  <button type="button" key={m.name} onClick={() => toggleSelection(selectedMachines, m.name, setSelectedMachines)}
@@ -263,7 +243,25 @@ export default function Home() {
              </div>
            </div>
 
-           <div className="space-y-1.5 pt-2">
+           {/* その他リース（自由記入＆追加ボタン） */}
+           <div className="space-y-2 pt-2 border-t">
+             <div className="flex justify-between items-center">
+               <label className="text-xs font-bold text-slate-500">【その他リース】</label>
+               <button type="button" onClick={() => setOtherLeases([...otherLeases, ''])} className="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+             </div>
+             {otherLeases.map((val, idx) => (
+               <div key={idx} className="flex gap-2 items-center">
+                 <input type="text" placeholder="リース名を入力" value={val} onChange={e=>{
+                   const updated = [...otherLeases]; updated[idx] = e.target.value; setOtherLeases(updated);
+                 }} className="flex-1 p-2.5 border rounded-xl text-sm bg-white" />
+                 {otherLeases.length > 1 && (
+                   <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==idx))} className="bg-red-50 text-red-600 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-red-100 transition shrink-0">削除</button>
+                 )}
+               </div>
+             ))}
+           </div>
+
+           <div className="space-y-1.5 pt-2 border-t">
              <label className="text-xs font-bold text-slate-500">【自社重機】</label>
              <div className="grid grid-cols-2 gap-2">
                {(settings.companyMachines || []).map((m:any) => (
@@ -273,7 +271,7 @@ export default function Home() {
              </div>
            </div>
 
-           <div className="space-y-1.5 pt-2">
+           <div className="space-y-1.5 pt-2 border-t">
              <label className="text-xs font-bold text-slate-500">【自社車両】</label>
              <div className="grid grid-cols-2 gap-2">
                {(settings.vehicles || []).map((v:any) => (
@@ -290,17 +288,14 @@ export default function Home() {
              <span className="font-bold text-base text-orange-600">⛽ 4. 燃料・経費</span>
              <button type="button" onClick={handleCopyFuelYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
-           
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【軽油 (L)】</label>
              <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-3 border rounded-xl font-medium text-lg bg-white" />
            </div>
-
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【高速代・ETC (円)】</label>
              <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full p-3 border rounded-xl font-medium text-lg bg-white" />
            </div>
-
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【駐車場代 (円)】</label>
              <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full p-3 border rounded-xl font-medium text-lg bg-white" />
@@ -313,11 +308,7 @@ export default function Home() {
              <span className="font-bold text-base text-orange-600">🗑️ 5. 処分場への搬出</span>
              <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
-           
-           {disposals.length === 0 && (
-             <p className="text-xs font-medium text-slate-400 text-center py-2">「追加する」ボタンを押して選択してください</p>
-           )}
-
+           {disposals.length === 0 && <p className="text-xs font-medium text-slate-400 text-center py-2">「追加する」ボタンを押して選択してください</p>}
            {disposals.map((entry, index) => (
              <div key={index} className="p-4 border rounded-xl bg-slate-50 space-y-3">
                <div>
@@ -333,7 +324,6 @@ export default function Home() {
                    {settings.disposalLocations?.map((d:any, idx:number)=><option key={idx} value={`${d.location}|${d.item}`}>{d.location} ({d.item})</option>)}
                  </select>
                </div>
-               
                <div className="flex items-end gap-2">
                  <div className="flex-1">
                    <label className="text-xs font-bold text-slate-500 block mb-1">数量</label>
@@ -354,11 +344,7 @@ export default function Home() {
              <span className="font-bold text-base text-orange-600">♻️ 6. スクラップの搬出</span>
              <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
-
-           {scraps.length === 0 && (
-             <p className="text-xs font-medium text-slate-400 text-center py-2">「追加する」ボタンを押して選択してください</p>
-           )}
-
+           {scraps.length === 0 && <p className="text-xs font-medium text-slate-400 text-center py-2">「追加する」ボタンを押して選択してください</p>}
            {scraps.map((entry, index) => (
              <div key={index} className="p-4 border rounded-xl bg-slate-50 space-y-3">
                <div>
@@ -374,7 +360,6 @@ export default function Home() {
                    {settings.scrapLocations?.map((s:any, idx:number)=><option key={idx} value={`${s.location}|${s.item}`}>{s.location} ({s.item})</option>)}
                  </select>
                </div>
-
                <div className="flex items-end gap-2">
                  <div className="flex-1">
                    <label className="text-xs font-bold text-slate-500 block mb-1">数量</label>
@@ -404,15 +389,11 @@ export default function Home() {
 
         {/* 7. 本日の作業内容 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="border-b pb-2">
-             <span className="font-bold text-base text-orange-600">📝 7. 本日の作業内容</span>
-           </div>
+           <div className="border-b pb-2"><span className="font-bold text-base text-orange-600">📝 7. 本日の作業内容</span></div>
            <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-3 rounded-xl border h-32 font-medium text-base outline-none bg-white" />
         </div>
 
-        <button type="submit" className="w-full bg-[#E56312] text-white font-bold text-xl py-4 rounded-2xl shadow-lg hover:bg-orange-700 transition">
-          📩 日報を送信する
-        </button>
+        <button type="submit" className="w-full bg-[#E56312] text-white font-bold text-xl py-4 rounded-2xl shadow-lg hover:bg-orange-700 transition">📩 日報を送信する</button>
 
       </form>
     </div>
