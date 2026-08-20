@@ -51,7 +51,7 @@ export default function AdminPage() {
 
   const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
     const list = [...(settings[key] || [])];
-    list[idx] = { ...list[idx], [field]: Number(value) || 0 };
+    list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' ? value : (Number(value) || 0) };
     saveMaster(key, list);
   };
 
@@ -69,7 +69,7 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
-  // 日報の削除（インデックスや各種IDのフォールバック対応）
+  // 日報の削除
   const handleDeleteReport = async (report: any, index: number) => {
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
     const targetId = report.id || report._id || report.reportId || index;
@@ -81,7 +81,7 @@ export default function AdminPage() {
     fetchData();
   };
 
-  // 日報の更新（編集保存）
+  // 日報の更新（全項目編集対応）
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -105,7 +105,8 @@ export default function AdminPage() {
 
     let subCost = 0;
     (r.subcontractors || []).forEach((sub: any) => {
-      const subMaster = (settings.subcontractors || []).find((x:any) => x.name === sub.company);
+      // 統合された subcontractors マスタから会社名と作業内容が一致するものの単価を取得
+      const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
       const unitP = subMaster?.price || 0;
       subCost += (Number(sub.count || 0) * unitP);
     });
@@ -160,9 +161,7 @@ export default function AdminPage() {
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
-    
     const baseContractPrice = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName)?.price || 0;
-    
     const profit = (baseContractPrice - sumOverrideCost) + scrapTotal;
 
     return { 
@@ -356,38 +355,26 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-            <h3 className="font-bold text-sm text-orange-600">🏢 外注会社＆日額単価</h3>
-            <div className="flex gap-2">
-              <input type="text" placeholder="外注会社名" value={form.subName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, subName: e.target.value})} />
-              <input type="number" placeholder="日額" value={form.subPrice || ''} className="w-20 md:w-24 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-              <button onClick={() => addMaster('subcontractors', {name: form.subName, price: Number(form.subPrice)||0}, ['subName', 'subPrice'])} className="bg-[#E56312] text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm shadow shrink-0">追加</button>
+          {/* 統合された「外注会社・作業内容・単価」マスタ */}
+          <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
+            <h3 className="font-bold text-sm text-orange-600">🏢 外注会社・作業内容・単価</h3>
+            <div className="space-y-2">
+              <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2 border rounded-lg text-sm bg-white" onChange={e=>setForm({...form, subComp: e.target.value})} />
+              <div className="grid grid-cols-12 gap-1">
+                <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+              </div>
+              <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-[#E56312] text-white py-2 rounded-lg font-bold text-sm shadow">追加</button>
             </div>
             <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
               {(settings.subcontractors || []).map((sub:any, idx:number)=>(
                 <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
-                  <span className="truncate">{sub.name}</span>
+                  <span className="truncate">{sub.company} / {sub.task}</span>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-slate-400">日額 ¥</span>
-                    <input type="number" value={sub.price || 0} onChange={(e)=>updateItemPrice('subcontractors', idx, 'price', e.target.value)} className="w-16 md:w-20 p-1 border rounded text-right text-xs" />
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={sub.price || 0} onChange={(e)=>updateItemPrice('subcontractors', idx, 'price', e.target.value)} className="w-20 p-1 border rounded text-right text-xs" />
                     <button onClick={()=>deleteMaster('subcontractors', idx)} className="text-red-500 ml-1">削除</button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-            <h3 className="font-bold text-sm text-orange-600">📝 外注作業内容マスタ</h3>
-            <div className="flex gap-2">
-              <input type="text" placeholder="作業内容名" value={form.stName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, stName: e.target.value})} />
-              <button onClick={() => addMaster('subTasks', {name: form.stName}, ['stName'])} className="bg-[#E56312] text-white px-3 md:px-4 py-2 rounded-lg font-bold text-sm shadow shrink-0">追加</button>
-            </div>
-            <div className="max-h-40 overflow-y-auto divide-y bg-white border rounded-lg p-2 space-y-1">
-              {(settings.subTasks || []).map((st:any, idx:number)=>(
-                <div key={idx} className="py-1.5 flex justify-between items-center text-xs font-bold gap-2">
-                  <span className="truncate">{st.name}</span>
-                  <button onClick={()=>deleteMaster('subTasks', idx)} className="text-red-500 ml-1">削除</button>
                 </div>
               ))}
             </div>
@@ -553,40 +540,177 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 日報編集モーダル */}
+      {/* 日報編集モーダル（全項目編集対応） */}
       {editingReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
-            <h2 className="text-lg font-black border-b pb-2">✏️ 日報内容の編集</h2>
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+            <h2 className="text-lg font-black border-b pb-2">✏️ 日報内容の編集（全項目）</h2>
             
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">日付</label>
-              <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">日付</label>
+                <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">現場名</label>
+                <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white">
+                  {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">現場責任者</label>
+                <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white">
+                  <option value="">選択なし</option>
+                  {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">軽油 (L)</label>
+                <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">高速代・ETC (円)</label>
+                <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">駐車場代 (円)</label>
+                <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+              </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">現場名</label>
-              <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white">
-                {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
-              </select>
+            {/* 作業員の編集 */}
+            <div className="space-y-2 border-t pt-3">
+              <label className="text-xs font-bold text-orange-600 block">作業員（社員）</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(settings.workers || []).map((w:any) => {
+                  const isChecked = (editingReport.workers || []).includes(w.name);
+                  return (
+                    <label key={w.name} className={`p-2 border rounded-lg text-xs flex items-center gap-2 cursor-pointer ${isChecked ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>
+                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
+                        const current = editingReport.workers || [];
+                        const next = e.target.checked ? [...current, w.name] : current.filter((x:string)=>x!==w.name);
+                        setEditingReport({...editingReport, workers: next});
+                      }} className="rounded" />
+                      {w.name}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">現場責任者</label>
-              <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm bg-white">
-                <option value="">選択なし</option>
-                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
-              </select>
+            {/* 外注作業員の編集 */}
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-orange-600">外注・派遣作業員</label>
+                <button type="button" onClick={() => {
+                  const subs = editingReport.subcontractors || [];
+                  setEditingReport({...editingReport, subcontractors: [...subs, {company: '', task: '', count: ''}]});
+                }} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded font-bold">＋ 追加</button>
+              </div>
+              {(editingReport.subcontractors || []).map((sub:any, idx:number)=>(
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded border">
+                  <select value={sub.company} onChange={e=>{
+                    const subs = [...(editingReport.subcontractors || [])];
+                    subs[idx].company = e.target.value;
+                    setEditingReport({...editingReport, subcontractors: subs});
+                  }} className="col-span-4 p-1.5 border rounded text-xs bg-white">
+                    <option value="">会社名...</option>
+                    {Array.from(new Set((settings.subcontractors || []).map((s:any)=>s.company))).map((comp:any)=>(
+                      <option key={comp} value={comp}>{comp}</option>
+                    ))}
+                  </select>
+                  <select value={sub.task} onChange={e=>{
+                    const subs = [...(editingReport.subcontractors || [])];
+                    subs[idx].task = e.target.value;
+                    setEditingReport({...editingReport, subcontractors: subs});
+                  }} className="col-span-5 p-1.5 border rounded text-xs bg-white">
+                    <option value="">作業内容...</option>
+                    {(settings.subcontractors || []).filter((s:any)=>!sub.company || s.company === sub.company).map((s:any, i:number)=>(
+                      <option key={i} value={s.task}>{s.task}</option>
+                    ))}
+                  </select>
+                  <input type="number" placeholder="人数" value={sub.count} onChange={e=>{
+                    const subs = [...(editingReport.subcontractors || [])];
+                    subs[idx].count = e.target.value;
+                    setEditingReport({...editingReport, subcontractors: subs});
+                  }} className="col-span-2 p-1.5 border rounded text-xs bg-white" />
+                  <button type="button" onClick={()=>{
+                    const subs = (editingReport.subcontractors || []).filter((_:any,i:number)=>i!==idx);
+                    setEditingReport({...editingReport, subcontractors: subs});
+                  }} className="col-span-1 text-red-500 font-bold text-center">✕</button>
+                </div>
+              ))}
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">軽油 (L)</label>
-              <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+            {/* 重機・車両の編集 */}
+            <div className="space-y-2 border-t pt-3">
+              <label className="text-xs font-bold text-orange-600 block">重機・車両</label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-slate-500 block mb-1">リース重機</span>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
+                    {(settings.leases || []).map((m:any)=>{
+                      const checked = (editingReport.machines || []).includes(m.name);
+                      return (
+                        <label key={m.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.machines || [];
+                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
+                            setEditingReport({...editingReport, machines: next});
+                          }} />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-500 block mb-1">自社重機</span>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
+                    {(settings.companyMachines || []).map((m:any)=>{
+                      const checked = (editingReport.ownMachines || []).includes(m.name);
+                      return (
+                        <label key={m.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.ownMachines || [];
+                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
+                            setEditingReport({...editingReport, ownMachines: next});
+                          }} />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-500 block mb-1">自社車両</span>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
+                    {(settings.vehicles || []).map((v:any)=>{
+                      const checked = (editingReport.vehicles || []).includes(v.name);
+                      return (
+                        <label key={v.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.vehicles || [];
+                            const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
+                            setEditingReport({...editingReport, vehicles: next});
+                          }} />
+                          <span className="truncate">{v.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">作業内容</label>
-              <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm h-24" />
+              <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm h-20" />
             </div>
 
             <div className="flex gap-2 pt-2">
@@ -619,7 +743,7 @@ export default function AdminPage() {
               <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">稼働日数</div><div className="text-sm md:text-md font-black text-amber-700">{modalData.days}日</div></div>
             </div>
 
-            {/* 経費・収支の内訳明細（各項目を手動編集可能に修正） */}
+            {/* 経費・収支の内訳明細 */}
             <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-sm text-slate-700">📋 経費・収支の内訳明細（総合計・編集可能）</h3>
@@ -739,7 +863,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 処分費詳細モーダル（処分内容一覧）※レイヤー競合を防ぐため最上位に独立配置 */}
+      {/* 処分費詳細モーダル（処分内容一覧） */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl">
