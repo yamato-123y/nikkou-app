@@ -17,7 +17,7 @@ export default function AdminPage() {
   // 処分費詳細モーダル用ステート
   const [showDisposalModal, setShowDisposalModal] = useState(false);
 
-  // 経費内訳明細の手動編集用オーバーライドステート（現場名ごとに各費用の値を保持）
+  // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
 
   const fetchData = async () => {
@@ -55,7 +55,6 @@ export default function AdminPage() {
     saveMaster(key, list);
   };
 
-  // 経費内訳明細の個別金額変更の保存
   const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
     const newOverrides = {
       ...costOverrides,
@@ -69,7 +68,6 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
-  // 日報の削除
   const handleDeleteReport = async (report: any, index: number) => {
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
     const targetId = report.id || report._id || report.reportId || index;
@@ -81,7 +79,6 @@ export default function AdminPage() {
     fetchData();
   };
 
-  // 日報の更新（全項目編集対応）
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -105,21 +102,33 @@ export default function AdminPage() {
 
     let subCost = 0;
     (r.subcontractors || []).forEach((sub: any) => {
-      // 統合された subcontractors マスタから会社名と作業内容が一致するものの単価を取得
       const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
       const unitP = subMaster?.price || 0;
       subCost += (Number(sub.count || 0) * unitP);
     });
 
-    let leaseC = 0;
+    let leaseC = 0; // リース（MOK）
     (r.machines || []).forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ownMachines || []).forEach((m: string) => leaseC += ((settings.companyMachines || []).find((x:any) => x.name === m)?.price || 0));
-    (r.vehicles || []).forEach((v: string) => leaseC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
+
+    let otherLeaseC = 0; // その他リース（入力された金額の合計）
+    (r.otherLeases || []).forEach((ol: any) => {
+      otherLeaseC += Number(ol.price || 0);
+    });
+
+    let ownMachineC = 0; // 自社重機
+    (r.ownMachines || []).forEach((m: string) => ownMachineC += ((settings.companyMachines || []).find((x:any) => x.name === m)?.price || 0));
+
+    let vehicleC = 0; // 自社車両
+    (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
+    const disposalBreakdown: {[locName: string]: number} = {};
     (r.disposals || []).forEach((d: any) => {
       const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
-      dispC += (Number(d.quantity || 0) * uPrice);
+      const subT = Number(d.quantity || 0) * uPrice;
+      dispC += subT;
+      const locKey = d.location || 'その他処分場';
+      disposalBreakdown[locKey] = (disposalBreakdown[locKey] || 0) + subT;
     });
 
     let scrapC = 0;
@@ -132,21 +141,31 @@ export default function AdminPage() {
     const eC = Number(r.etcPrice || 0);
     const pC = Number(r.parkingPrice || 0);
     const oC = Number(r.otherPrice || 0);
-    const totalDailyCost = lCost + subCost + leaseC + dispC + fC + eC + pC + oC;
+    const totalDailyCost = lCost + subCost + leaseC + otherLeaseC + ownMachineC + vehicleC + dispC + fC + eC + pC + oC;
 
-    return { lCost, subCost, leaseC, dispC, fC, eC, pC, oC, scrapC, totalDailyCost };
+    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC, eC, pC, oC, scrapC, totalDailyCost };
   };
 
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
-    let calcLabor = 0, calcSub = 0, calcLease = 0, calcDisp = 0, calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
+    let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
+    let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
+    const aggregatedDisposalBreakdown: {[loc: string]: number} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
       calcLabor += dc.lCost; 
       calcSub += dc.subCost; 
       calcLease += dc.leaseC; 
+      calcOtherLease += dc.otherLeaseC;
+      calcOwnMachine += dc.ownMachineC;
+      calcVehicle += dc.vehicleC;
       calcDisp += dc.dispC;
+
+      Object.entries(dc.disposalBreakdown).forEach(([loc, val]) => {
+        aggregatedDisposalBreakdown[loc] = (aggregatedDisposalBreakdown[loc] || 0) + val;
+      });
+
       calcFuel += dc.fC; calcEtc += dc.eC; calcParking += dc.pC; calcOther += dc.oC; scrapTotal += dc.scrapC;
     });
 
@@ -154,13 +173,16 @@ export default function AdminPage() {
     const laborCost = ov.labor !== '' && ov.labor !== undefined ? Number(ov.labor) : calcLabor;
     const subCostTotal = ov.sub !== '' && ov.sub !== undefined ? Number(ov.sub) : calcSub;
     const leaseCost = ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease;
+    const otherLeaseCost = ov.otherLease !== '' && ov.otherLease !== undefined ? Number(ov.otherLease) : calcOtherLease;
+    const ownMachineCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
+    const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
     const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : calcDisp;
     const fuelCost = ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel;
     const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
-    const sumOverrideCost = laborCost + subCostTotal + leaseCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
+    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
     const baseContractPrice = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName)?.price || 0;
     const profit = (baseContractPrice - sumOverrideCost) + scrapTotal;
 
@@ -169,7 +191,11 @@ export default function AdminPage() {
       laborCost, 
       subCostTotal, 
       leaseCost, 
+      otherLeaseCost,
+      ownMachineCost,
+      vehicleCost,
       disposalCost, 
+      aggregatedDisposalBreakdown,
       fuelCost, 
       etcCost, 
       parkingCost, 
@@ -184,11 +210,14 @@ export default function AdminPage() {
 
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
-    const headers = ["日付", "現場名", "責任者", "作業者", "外注", "重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "責任者", "作業者", "外注", "リース(MOK)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-      [...(r.machines||[]), ...(r.ownMachines||[])].join('/'), (r.vehicles||[]).join('/'), 
+      (r.machines || []).join('/'),
+      (r.otherLeases || []).map((ol:any)=>`${ol.name}(¥${ol.price})`).join('/'),
+      (r.ownMachines || []).join('/'),
+      (r.vehicles || []).join('/'), 
       r.fuel || 0, r.etcPrice || 0, r.parkingPrice || 0,
       r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
     ]);
@@ -355,7 +384,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* 統合された「外注会社・作業内容・単価」マスタ */}
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3 col-span-full lg:col-span-1">
             <h3 className="font-bold text-sm text-orange-600">🏢 外注会社・作業内容・単価</h3>
             <div className="space-y-2">
@@ -423,7 +451,7 @@ export default function AdminPage() {
           </div>
 
           <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-            <h3 className="font-bold text-sm text-orange-600">🏗️ リース重機＆日額単価</h3>
+            <h3 className="font-bold text-sm text-orange-600">🏗️ リース（MOK）＆日額単価</h3>
             <div className="flex gap-2">
               <input type="text" placeholder="リース名" value={form.leaseName || ''} className="flex-1 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, leaseName: e.target.value})} />
               <input type="number" placeholder="日額" value={form.leasePrice || ''} className="w-20 md:w-24 p-2 border rounded-lg text-sm bg-white min-w-0" onChange={e=>setForm({...form, leasePrice: e.target.value})} />
@@ -527,7 +555,7 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-3 text-xs">{[...(r.machines || []), ...(r.ownMachines || [])].join(', ') || '-'} / {(r.vehicles || []).join(', ') || '-'}</td>
+                  <td className="py-3 text-xs">{[...(r.machines || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
                   <td className="py-3 text-xs">{r.workDescription || '-'}</td>
                   <td className="py-3 text-center space-x-2 whitespace-nowrap">
                     <button onClick={() => setEditingReport(r)} className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-100">編集</button>
@@ -540,7 +568,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 日報編集モーダル（全項目編集対応） */}
+      {/* 日報編集モーダル */}
       {editingReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
@@ -583,131 +611,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 作業員の編集 */}
-            <div className="space-y-2 border-t pt-3">
-              <label className="text-xs font-bold text-orange-600 block">作業員（社員）</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(settings.workers || []).map((w:any) => {
-                  const isChecked = (editingReport.workers || []).includes(w.name);
-                  return (
-                    <label key={w.name} className={`p-2 border rounded-lg text-xs flex items-center gap-2 cursor-pointer ${isChecked ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>
-                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
-                        const current = editingReport.workers || [];
-                        const next = e.target.checked ? [...current, w.name] : current.filter((x:string)=>x!==w.name);
-                        setEditingReport({...editingReport, workers: next});
-                      }} className="rounded" />
-                      {w.name}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 外注作業員の編集 */}
-            <div className="space-y-2 border-t pt-3">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-orange-600">外注・派遣作業員</label>
-                <button type="button" onClick={() => {
-                  const subs = editingReport.subcontractors || [];
-                  setEditingReport({...editingReport, subcontractors: [...subs, {company: '', task: '', count: ''}]});
-                }} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded font-bold">＋ 追加</button>
-              </div>
-              {(editingReport.subcontractors || []).map((sub:any, idx:number)=>(
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded border">
-                  <select value={sub.company} onChange={e=>{
-                    const subs = [...(editingReport.subcontractors || [])];
-                    subs[idx].company = e.target.value;
-                    setEditingReport({...editingReport, subcontractors: subs});
-                  }} className="col-span-4 p-1.5 border rounded text-xs bg-white">
-                    <option value="">会社名...</option>
-                    {Array.from(new Set((settings.subcontractors || []).map((s:any)=>s.company))).map((comp:any)=>(
-                      <option key={comp} value={comp}>{comp}</option>
-                    ))}
-                  </select>
-                  <select value={sub.task} onChange={e=>{
-                    const subs = [...(editingReport.subcontractors || [])];
-                    subs[idx].task = e.target.value;
-                    setEditingReport({...editingReport, subcontractors: subs});
-                  }} className="col-span-5 p-1.5 border rounded text-xs bg-white">
-                    <option value="">作業内容...</option>
-                    {(settings.subcontractors || []).filter((s:any)=>!sub.company || s.company === sub.company).map((s:any, i:number)=>(
-                      <option key={i} value={s.task}>{s.task}</option>
-                    ))}
-                  </select>
-                  <input type="number" placeholder="人数" value={sub.count} onChange={e=>{
-                    const subs = [...(editingReport.subcontractors || [])];
-                    subs[idx].count = e.target.value;
-                    setEditingReport({...editingReport, subcontractors: subs});
-                  }} className="col-span-2 p-1.5 border rounded text-xs bg-white" />
-                  <button type="button" onClick={()=>{
-                    const subs = (editingReport.subcontractors || []).filter((_:any,i:number)=>i!==idx);
-                    setEditingReport({...editingReport, subcontractors: subs});
-                  }} className="col-span-1 text-red-500 font-bold text-center">✕</button>
-                </div>
-              ))}
-            </div>
-
-            {/* 重機・車両の編集 */}
-            <div className="space-y-2 border-t pt-3">
-              <label className="text-xs font-bold text-orange-600 block">重機・車両</label>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">リース重機</span>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
-                    {(settings.leases || []).map((m:any)=>{
-                      const checked = (editingReport.machines || []).includes(m.name);
-                      return (
-                        <label key={m.name} className="flex items-center gap-1">
-                          <input type="checkbox" checked={checked} onChange={e=>{
-                            const cur = editingReport.machines || [];
-                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
-                            setEditingReport({...editingReport, machines: next});
-                          }} />
-                          <span className="truncate">{m.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">自社重機</span>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
-                    {(settings.companyMachines || []).map((m:any)=>{
-                      const checked = (editingReport.ownMachines || []).includes(m.name);
-                      return (
-                        <label key={m.name} className="flex items-center gap-1">
-                          <input type="checkbox" checked={checked} onChange={e=>{
-                            const cur = editingReport.ownMachines || [];
-                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
-                            setEditingReport({...editingReport, ownMachines: next});
-                          }} />
-                          <span className="truncate">{m.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-500 block mb-1">自社車両</span>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border p-1 rounded bg-slate-50">
-                    {(settings.vehicles || []).map((v:any)=>{
-                      const checked = (editingReport.vehicles || []).includes(v.name);
-                      return (
-                        <label key={v.name} className="flex items-center gap-1">
-                          <input type="checkbox" checked={checked} onChange={e=>{
-                            const cur = editingReport.vehicles || [];
-                            const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
-                            setEditingReport({...editingReport, vehicles: next});
-                          }} />
-                          <span className="truncate">{v.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">作業内容</label>
               <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm h-20" />
@@ -743,7 +646,7 @@ export default function AdminPage() {
               <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">稼働日数</div><div className="text-sm md:text-md font-black text-amber-700">{modalData.days}日</div></div>
             </div>
 
-            {/* 経費・収支の内訳明細 */}
+            {/* 経費・収支の内訳明細（リース等を個別分離） */}
             <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-sm text-slate-700">📋 経費・収支の内訳明細（総合計・編集可能）</h3>
@@ -768,7 +671,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">重機リース・自社重機</span>
+                  <span className="text-xs text-slate-500 font-bold">リース (MOK)</span>
                   <div className="flex items-center gap-1">
                     <span className="text-slate-400">¥</span>
                     <input type="number" value={costOverrides[modalLocation]?.lease ?? modalData.leaseCost} onChange={e=>handleCostOverrideChange(modalLocation, 'lease', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
@@ -776,10 +679,47 @@ export default function AdminPage() {
                 </div>
 
                 <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
-                  <span className="text-xs text-slate-500 font-bold">処分費</span>
+                  <span className="text-xs text-slate-500 font-bold">その他リース</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost} onChange={e=>handleCostOverrideChange(modalLocation, 'otherLease', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
+                  <span className="text-xs text-slate-500 font-bold">自社重機</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost} onChange={e=>handleCostOverrideChange(modalLocation, 'ownMachine', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1">
+                  <span className="text-xs text-slate-500 font-bold">自社車両</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400">¥</span>
+                    <input type="number" value={costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost} onChange={e=>handleCostOverrideChange(modalLocation, 'vehicle', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
+                  </div>
+                </div>
+
+                {/* 処分費枠（処分場ごとの合計を表示） */}
+                <div className="bg-white p-3 rounded-lg border flex flex-col gap-1 col-span-full md:col-span-1">
+                  <span className="text-xs text-orange-600 font-bold">🗑️ 処分費 (合計)</span>
                   <div className="flex items-center gap-1">
                     <span className="text-slate-400">¥</span>
                     <input type="number" value={costOverrides[modalLocation]?.disposal ?? modalData.disposalCost} onChange={e=>handleCostOverrideChange(modalLocation, 'disposal', e.target.value)} className="w-full p-1.5 border rounded font-bold text-right" />
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1 space-y-0.5">
+                    {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                      <div>内訳なし</div>
+                    ) : (
+                      Object.entries(modalData.aggregatedDisposalBreakdown).map(([locName, val]: [string, any]) => (
+                        <div key={locName} className="flex justify-between">
+                          <span>・{locName}:</span>
+                          <span>¥{val.toLocaleString()}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -841,11 +781,11 @@ export default function AdminPage() {
                           <div><span className="text-slate-400">責任者:</span> {r.manager || '-'}</div>
                           <div><span className="text-slate-400">作業員:</span> {(r.workers || []).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">外注:</span> {(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</div>
-                          <div><span className="text-slate-400">重機:</span> {[...(r.machines || []), ...(r.ownMachines || [])].join(', ') || '-'}</div>
-                          <div><span className="text-slate-400">車両:</span> {(r.vehicles || []).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">リース(MOK):</span> {(r.machines || []).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">その他リース:</span> {(r.otherLeases || []).map((ol:any)=>`${ol.name}(¥${ol.price})`).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">自社重機:</span> {(r.ownMachines || []).join(', ') || '-'}</div>
+                          <div><span className="text-slate-400">自社車両:</span> {(r.vehicles || []).join(', ') || '-'}</div>
                           <div><span className="text-slate-400">軽油:</span> {r.fuel || 0} L</div>
-                          <div><span className="text-slate-400">ETC:</span> ¥{Number(r.etcPrice || 0).toLocaleString()}</div>
-                          <div><span className="text-slate-400">駐車場代:</span> ¥{Number(r.parkingPrice || 0).toLocaleString()}</div>
                         </div>
                         {r.workDescription && (
                           <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
@@ -863,7 +803,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 処分費詳細モーダル（処分内容一覧） */}
+      {/* 処分費詳細モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl">
