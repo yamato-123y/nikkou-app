@@ -12,7 +12,7 @@ export default function Home() {
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
-  const [otherLeases, setOtherLeases] = useState<{name: string, price: string}[]>([]);
+  const [otherLeases, setOtherLeases] = useState<{name: string, count: string}[]>([]);
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
@@ -268,15 +268,15 @@ export default function Home() {
            <div className="space-y-2 pt-2">
              <div className="flex justify-between items-center">
                <label className="text-xs font-bold text-slate-500">【その他リース】</label>
-               <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', price: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+               <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
              {otherLeases.map((ol, index) => (
                <div key={index} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border">
                  <input type="text" placeholder="リース名" value={ol.name} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
                  }} className="flex-1 p-2 border rounded-lg text-sm bg-white" />
-                 <input type="number" placeholder="金額" value={ol.price} onChange={e=>{
-                   const updated = [...otherLeases]; updated[index].price = e.target.value; setOtherLeases(updated);
+                 <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
+                   const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
                  }} className="w-24 p-2 border rounded-lg text-sm bg-white" />
                  <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg font-bold text-xs">削除</button>
                </div>
