@@ -9,10 +9,8 @@ export default function Home() {
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   
-  // 外注作業員の複数追加用
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
-  // 複数選択用
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
@@ -41,33 +39,42 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
-  // 「昨日と同じ」ボタンの処理（直近の送信済みデータからコピー）
-  const handleCopyYesterday = async () => {
+  // 重機・車両の昨日と同じ
+  const handleCopyMachinesYesterday = async () => {
     try {
       const res = await fetch('/api/reports');
       if (res.ok) {
         const list = await res.json();
         if (list && list.length > 0) {
-          const last = list[list.length - 1]; // 最新のデータを取得
-          if (last.location) setLocation(last.location);
-          if (last.manager) setManager(last.manager);
-          if (last.workers) setSelectedWorkers(last.workers);
-          if (last.subcontractors) setSubcontractors(last.subcontractors);
+          const last = list[list.length - 1];
           if (last.machines) setSelectedMachines(last.machines);
           if (last.ownMachines) setSelectedOwnMachines(last.ownMachines);
           if (last.vehicles) setSelectedVehicles(last.vehicles);
+          alert('前回登録された重機・車両データを反映しました！');
+        } else {
+          alert('過去のデータがありません。');
+        }
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  // 燃料・経費の昨日と同じ
+  const handleCopyFuelYesterday = async () => {
+    try {
+      const res = await fetch('/api/reports');
+      if (res.ok) {
+        const list = await res.json();
+        if (list && list.length > 0) {
+          const last = list[list.length - 1];
           if (last.fuel) setFuel(last.fuel);
           if (last.etcPrice) setEtcPrice(last.etcPrice);
           if (last.parkingPrice) setParkingPrice(last.parkingPrice);
-          alert('直近の前回データを反映しました！');
+          alert('前回登録された燃料・経費データを反映しました！');
         } else {
-          alert('コピー元となる過去の日報データがありません。');
+          alert('過去のデータがありません。');
         }
       }
-    } catch (e) {
-      console.error(e);
-      alert('前回データの取得に失敗しました。');
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,16 +118,9 @@ export default function Home() {
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-28 bg-slate-100 min-h-screen text-slate-800 relative">
       
       {/* ヘッダー */}
-      <div className="bg-[#1e293b] text-white p-5 rounded-2xl text-center shadow-md relative">
+      <div className="bg-[#1e293b] text-white p-5 rounded-2xl text-center shadow-md">
         <h1 className="text-xl font-bold">📱 現場日報入力</h1>
         <p className="text-xs text-slate-300 mt-1">株式会社大和</p>
-        <button 
-          type="button" 
-          onClick={handleCopyYesterday}
-          className="absolute top-4 right-4 bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-2 rounded-xl font-bold shadow transition"
-        >
-          🔄 昨日と同じ
-        </button>
       </div>
       
       {/* 送信完了ポップアップ */}
@@ -183,7 +183,7 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 2. 作業員 ＆ 外注作業員 */}
+        {/* 2. 作業員 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
            <div className="border-b pb-2">
              <span className="font-bold text-base text-orange-600">👥 2. 作業員（複数選択可）</span>
@@ -195,7 +195,6 @@ export default function Home() {
              ))}
            </div>
 
-           {/* 外注作業員セクション */}
            <div className="border-t pt-4 space-y-3">
              <div className="flex justify-between items-center">
                <span className="font-bold text-sm text-slate-700">👤 外注・派遣作業員</span>
@@ -238,13 +237,13 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 3. 重機・車両（複数選択） */}
+        {/* 3. 重機・車両 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="border-b pb-2">
+           <div className="flex justify-between items-center border-b pb-2">
              <span className="font-bold text-base text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
+             <button type="button" onClick={handleCopyMachinesYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
 
-           {/* リース重機 */}
            <div className="space-y-1.5">
              <label className="text-xs font-bold text-slate-500">【リース重機】</label>
              <div className="grid grid-cols-2 gap-2">
@@ -255,7 +254,6 @@ export default function Home() {
              </div>
            </div>
 
-           {/* 自社重機 */}
            <div className="space-y-1.5 pt-2">
              <label className="text-xs font-bold text-slate-500">【自社重機】</label>
              <div className="grid grid-cols-2 gap-2">
@@ -266,7 +264,6 @@ export default function Home() {
              </div>
            </div>
 
-           {/* 自社車両 */}
            <div className="space-y-1.5 pt-2">
              <label className="text-xs font-bold text-slate-500">【自社車両】</label>
              <div className="grid grid-cols-2 gap-2">
@@ -278,9 +275,12 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 燃料・ETC・駐車場代 */}
+        {/* 4. 燃料・経費 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="font-bold text-base text-orange-600 border-b pb-2">⛽ 4. 燃料・経費</div>
+           <div className="flex justify-between items-center border-b pb-2">
+             <span className="font-bold text-base text-orange-600">⛽ 4. 燃料・経費</span>
+             <button type="button" onClick={handleCopyFuelYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
+           </div>
            
            <div>
              <label className="text-sm font-medium text-slate-600 block mb-1">【軽油 (L)】</label>
@@ -401,7 +401,6 @@ export default function Home() {
            <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-3 rounded-xl border h-32 font-medium text-base outline-none bg-white" />
         </div>
 
-        {/* 送信ボタン */}
         <button type="submit" className="w-full bg-[#E56312] text-white font-bold text-xl py-4 rounded-2xl shadow-lg hover:bg-orange-700 transition">
           📩 日報を送信する
         </button>
