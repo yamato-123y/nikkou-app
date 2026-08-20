@@ -1,17 +1,44 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
-const filePath = path.join(process.cwd(), 'data/settings.json');
+// Renderの環境変数からSupabaseに接続するクライアントを作成
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function GET() {
-  if (!fs.existsSync(filePath)) return NextResponse.json({});
-  return NextResponse.json(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
+  // `settings` テーブルから最新の設定データを取得する
+  const { data, error } = await supabase
+    .from('settings')
+    .select('*')
+    .order('id', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    // まだデータがない場合は空のオブジェクトを返す
+    return NextResponse.json({});
+  }
+
+  // 保存されている `data` カラムのJSONオブジェクトを返す
+  const settingsData = typeof data.data === 'object' ? data.data : JSON.parse(data.data || '{}');
+  return NextResponse.json(settingsData);
 }
 
 export async function POST(request: Request) {
-  const data = await request.json();
-  if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data));
+  const newSettings = await request.json();
+
+  // Supabaseの 'settings' テーブルに保存
+  const { error } = await supabase
+    .from('settings')
+    .insert([
+      { data: newSettings }
+    ]);
+
+  if (error) {
+    console.error('Supabase Settings POST Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+
   return NextResponse.json({ success: true });
 }
