@@ -5,26 +5,21 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const SETTINGS_KEY = 'app_settings';
-
 export async function GET() {
   try {
+    // `settings` テーブルから一番新しいデータを1件取得する
     const { data, error } = await supabase
       .from('settings')
-      .select('value')
-      .eq('key', SETTINGS_KEY)
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (error) {
-      console.error('GET Error:', error);
+    if (error || !data) {
       return NextResponse.json({});
     }
 
-    if (!data || !data.value) {
-      return NextResponse.json({});
-    }
-
-    const settingsData = typeof data.value === 'object' ? data.value : JSON.parse(data.value);
+    const settingsData = typeof data.value === 'object' ? data.value : JSON.parse(data.value || '{}');
     return NextResponse.json(settingsData);
   } catch (err) {
     console.error('GET Exception:', err);
@@ -36,12 +31,12 @@ export async function POST(request: Request) {
   try {
     const newSettings = await request.json();
 
+    // 単純に新しい設定データをINSERTする
     const { error } = await supabase
       .from('settings')
-      .upsert(
-        { key: SETTINGS_KEY, value: newSettings },
-        { onConflict: 'key' }
-      );
+      .insert([
+        { value: newSettings }
+      ]);
 
     if (error) {
       console.error('POST Error:', error);
