@@ -68,9 +68,10 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
+  // 日報の削除（IDまたはインデックスを確実に対象に指定）
   const handleDeleteReport = async (report: any, index: number) => {
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
-    const targetId = report.id || report._id || report.reportId || index;
+    const targetId = report.id || report._id || report.reportId;
     await fetch('/api/reports', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -79,19 +80,24 @@ export default function AdminPage() {
     fetchData();
   };
 
+  // 日報の更新（全項目編集対応）
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
       ...editingReport,
       id: editingReport.id || editingReport._id
     };
-    await fetch('/api/reports', {
+    const res = await fetch('/api/reports', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    setEditingReport(null);
-    fetchData();
+    if (res.ok) {
+      setEditingReport(null);
+      fetchData();
+    } else {
+      alert('更新に失敗しました。');
+    }
   };
 
   // --- 計算ロジック ---
@@ -110,7 +116,7 @@ export default function AdminPage() {
     let leaseC = 0; // リース（MOK）
     (r.machines || []).forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
 
-    let otherLeaseC = 0; // その他リース（入力された金額の合計）
+    let otherLeaseC = 0; // その他リース
     (r.otherLeases || []).forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
     });
@@ -558,7 +564,7 @@ export default function AdminPage() {
                   <td className="py-3 text-xs">{[...(r.machines || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
                   <td className="py-3 text-xs">{r.workDescription || '-'}</td>
                   <td className="py-3 text-center space-x-2 whitespace-nowrap">
-                    <button onClick={() => setEditingReport(r)} className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-100">編集</button>
+                    <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-100">編集</button>
                     <button onClick={() => handleDeleteReport(r, i)} className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100">削除</button>
                   </td>
                 </tr>
@@ -568,10 +574,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 日報編集モーダル */}
+      {/* 日報編集モーダル（全項目対応） */}
       {editingReport && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
             <h2 className="text-lg font-black border-b pb-2">✏️ 日報内容の編集（全項目）</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -608,6 +614,90 @@ export default function AdminPage() {
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-1">駐車場代 (円)</label>
                 <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-2.5 border rounded-lg text-sm" />
+              </div>
+            </div>
+
+            {/* 作業員チェックボックス */}
+            <div className="space-y-1 border-t pt-3">
+              <label className="text-xs font-bold text-orange-600 block">作業員（社員）</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(settings.workers || []).map((w:any) => {
+                  const isChecked = (editingReport.workers || []).includes(w.name);
+                  return (
+                    <label key={w.name} className={`p-2 border rounded-lg text-xs flex items-center gap-2 cursor-pointer ${isChecked ? 'bg-slate-800 text-white' : 'bg-slate-50'}`}>
+                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
+                        const cur = editingReport.workers || [];
+                        const next = e.target.checked ? [...cur, w.name] : cur.filter((x:string)=>x!==w.name);
+                        setEditingReport({...editingReport, workers: next});
+                      }} className="rounded" />
+                      {w.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 重機・車両選択の編集 */}
+            <div className="space-y-2 border-t pt-3">
+              <label className="text-xs font-bold text-orange-600 block">重機・車両の選択</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                {/* リース(MOK) */}
+                <div className="border p-2 rounded bg-slate-50 space-y-1">
+                  <span className="font-bold text-slate-600">リース (MOK)</span>
+                  <div className="max-h-28 overflow-y-auto space-y-1">
+                    {(settings.leases || []).map((m:any) => {
+                      const checked = (editingReport.machines || []).includes(m.name);
+                      return (
+                        <label key={m.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.machines || [];
+                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
+                            setEditingReport({...editingReport, machines: next});
+                          }} />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* 自社重機 */}
+                <div className="border p-2 rounded bg-slate-50 space-y-1">
+                  <span className="font-bold text-slate-600">自社重機</span>
+                  <div className="max-h-28 overflow-y-auto space-y-1">
+                    {(settings.companyMachines || []).map((m:any) => {
+                      const checked = (editingReport.ownMachines || []).includes(m.name);
+                      return (
+                        <label key={m.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.ownMachines || [];
+                            const next = e.target.checked ? [...cur, m.name] : cur.filter((x:string)=>x!==m.name);
+                            setEditingReport({...editingReport, ownMachines: next});
+                          }} />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* 自社車両 */}
+                <div className="border p-2 rounded bg-slate-50 space-y-1">
+                  <span className="font-bold text-slate-600">自社車両</span>
+                  <div className="max-h-28 overflow-y-auto space-y-1">
+                    {(settings.vehicles || []).map((v:any) => {
+                      const checked = (editingReport.vehicles || []).includes(v.name);
+                      return (
+                        <label key={v.name} className="flex items-center gap-1">
+                          <input type="checkbox" checked={checked} onChange={e=>{
+                            const cur = editingReport.vehicles || [];
+                            const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
+                            setEditingReport({...editingReport, vehicles: next});
+                          }} />
+                          <span className="truncate">{v.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -702,7 +792,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 処分費枠（処分場ごとの合計を表示） */}
+                {/* 処分費枠 */}
                 <div className="bg-white p-3 rounded-lg border flex flex-col gap-1 col-span-full md:col-span-1">
                   <span className="text-xs text-orange-600 font-bold">🗑️ 処分費 (合計)</span>
                   <div className="flex items-center gap-1">
