@@ -9,6 +9,9 @@ export default function Home() {
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   
+  // 外注作業員の複数追加用
+  const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
+
   // 複数選択用
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
@@ -25,7 +28,6 @@ export default function Home() {
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
   
-  // 送信完了ポップアップ用ステート
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
@@ -39,6 +41,35 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
+  // 「昨日と同じ」ボタンの処理（直近の送信済みデータからコピー）
+  const handleCopyYesterday = async () => {
+    try {
+      const res = await fetch('/api/reports');
+      if (res.ok) {
+        const list = await res.json();
+        if (list && list.length > 0) {
+          const last = list[list.length - 1]; // 最新のデータを取得
+          if (last.location) setLocation(last.location);
+          if (last.manager) setManager(last.manager);
+          if (last.workers) setSelectedWorkers(last.workers);
+          if (last.subcontractors) setSubcontractors(last.subcontractors);
+          if (last.machines) setSelectedMachines(last.machines);
+          if (last.ownMachines) setSelectedOwnMachines(last.ownMachines);
+          if (last.vehicles) setSelectedVehicles(last.vehicles);
+          if (last.fuel) setFuel(last.fuel);
+          if (last.etcPrice) setEtcPrice(last.etcPrice);
+          if (last.parkingPrice) setParkingPrice(last.parkingPrice);
+          alert('直近の前回データを反映しました！');
+        } else {
+          alert('コピー元となる過去の日報データがありません。');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert('前回データの取得に失敗しました。');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/reports', {
@@ -46,6 +77,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         date, location, manager, workers: selectedWorkers, 
+        subcontractors,
         machines: selectedMachines, ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
         fuel: fuel || '0', etcPrice: etcPrice || '0', parkingPrice: parkingPrice || '0',
         otherItem, otherPrice: otherPrice || '0',
@@ -54,15 +86,14 @@ export default function Home() {
       })
     });
     
-    // フォームリセット
     setSelectedWorkers([]); 
+    setSubcontractors([]);
     setSelectedMachines([]); 
     setSelectedOwnMachines([]); 
     setSelectedVehicles([]);
     setFuel(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
     setDisposals([]); setScraps([]); setDescription('');
 
-    // 成功ポップアップを表示
     setShowSuccessModal(true);
   };
 
@@ -80,12 +111,19 @@ export default function Home() {
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-28 bg-slate-100 min-h-screen text-slate-800 relative">
       
       {/* ヘッダー */}
-      <div className="bg-[#1e293b] text-white p-5 rounded-2xl text-center shadow-md">
+      <div className="bg-[#1e293b] text-white p-5 rounded-2xl text-center shadow-md relative">
         <h1 className="text-xl font-bold">📱 現場日報入力</h1>
         <p className="text-xs text-slate-300 mt-1">株式会社大和</p>
+        <button 
+          type="button" 
+          onClick={handleCopyYesterday}
+          className="absolute top-4 right-4 bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-2 rounded-xl font-bold shadow transition"
+        >
+          🔄 昨日と同じ
+        </button>
       </div>
       
-      {/* 送信完了ポップアップ（モーダル） */}
+      {/* 送信完了ポップアップ */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm space-y-4 text-center border">
@@ -145,7 +183,7 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 2. 作業員 */}
+        {/* 2. 作業員 ＆ 外注作業員 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
            <div className="border-b pb-2">
              <span className="font-bold text-base text-orange-600">👥 2. 作業員（複数選択可）</span>
@@ -154,6 +192,48 @@ export default function Home() {
              {(settings.workers || []).map((w:any) => (
                <button type="button" key={w.name} onClick={() => toggleSelection(selectedWorkers, w.name, setSelectedWorkers)}
                className={`p-3 rounded-xl font-medium border text-base transition ${selectedWorkers.includes(w.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{w.name}</button>
+             ))}
+           </div>
+
+           {/* 外注作業員セクション */}
+           <div className="border-t pt-4 space-y-3">
+             <div className="flex justify-between items-center">
+               <span className="font-bold text-sm text-slate-700">👤 外注・派遣作業員</span>
+               <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+             </div>
+             
+             {subcontractors.map((sub, index) => (
+               <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
+                 <div className="grid grid-cols-2 gap-2">
+                   <div>
+                     <label className="text-xs font-bold text-slate-500 block mb-1">外注会社名</label>
+                     <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.company} onChange={(e)=>{
+                       const updated = [...subcontractors]; updated[index].company = e.target.value; setSubcontractors(updated);
+                     }}>
+                       <option value="">会社を選択...</option>
+                       {(settings.subcontractors || []).map((sc:any, idx:number)=><option key={idx} value={sc.name}>{sc.name}</option>)}
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-xs font-bold text-slate-500 block mb-1">作業内容</label>
+                     <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.task} onChange={(e)=>{
+                       const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
+                     }}>
+                       <option value="">内容を選択...</option>
+                       {(settings.subTasks || []).map((st:any, idx:number)=><option key={idx} value={st.name}>{st.name}</option>)}
+                     </select>
+                   </div>
+                 </div>
+                 <div className="flex items-end gap-2">
+                   <div className="flex-1">
+                     <label className="text-xs font-bold text-slate-500 block mb-1">人数</label>
+                     <input type="number" placeholder="0" className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.count} onChange={(e)=>{
+                       const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
+                     }}/>
+                   </div>
+                   <button type="button" onClick={() => setSubcontractors(subcontractors.filter((_,i)=>i!==index))} className="bg-red-50 text-red-600 px-3 py-2.5 rounded-lg font-bold text-xs hover:bg-red-100 transition shrink-0">削除</button>
+                 </div>
+               </div>
              ))}
            </div>
         </div>
