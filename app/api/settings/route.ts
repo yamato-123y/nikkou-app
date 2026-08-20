@@ -5,12 +5,14 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const SETTINGS_KEY = 'app_settings';
+
 export async function GET() {
   try {
-    // `settings` テーブルから一番新しいデータを1件取得する
     const { data, error } = await supabase
       .from('settings')
-      .select('*')
+      .select('value')
+      .eq('key', SETTINGS_KEY)
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -31,11 +33,11 @@ export async function POST(request: Request) {
   try {
     const newSettings = await request.json();
 
-    // 単純に新しい設定データをINSERTする
+    // keyとvalueの両方をセットで保存する
     const { error } = await supabase
       .from('settings')
       .insert([
-        { value: newSettings }
+        { key: SETTINGS_KEY, value: newSettings }
       ]);
 
     if (error) {
