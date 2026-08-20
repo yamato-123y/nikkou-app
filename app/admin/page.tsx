@@ -403,10 +403,12 @@ export default function AdminPage() {
                   <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">追加</button>
                 </div>
               ) : (
-                <div className="flex gap-2">
-                  <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="flex-1 p-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                  <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-24 p-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-xl font-bold text-sm shadow-sm transition shrink-0">追加</button>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2">
+                    <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="col-span-7 p-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                    <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="col-span-5 p-3 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                  </div>
+                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">追加</button>
                 </div>
               )}
 
