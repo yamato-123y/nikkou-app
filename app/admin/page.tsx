@@ -69,19 +69,19 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
-  // 日報の削除（IDのフォールバック対応）
-  const handleDeleteReport = async (report: any) => {
+  // 日報の削除（インデックスや各種IDのフォールバック対応）
+  const handleDeleteReport = async (report: any, index: number) => {
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
-    const targetId = report.id || report._id;
+    const targetId = report.id || report._id || report.reportId || index;
     await fetch('/api/reports', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: targetId })
+      body: JSON.stringify({ id: targetId, index })
     });
     fetchData();
   };
 
-  // 日報の更新（編集保存：IDのフォールバック対応）
+  // 日報の更新（編集保存）
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -544,7 +544,7 @@ export default function AdminPage() {
                   <td className="py-3 text-xs">{r.workDescription || '-'}</td>
                   <td className="py-3 text-center space-x-2 whitespace-nowrap">
                     <button onClick={() => setEditingReport(r)} className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-100">編集</button>
-                    <button onClick={() => handleDeleteReport(r)} className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100">削除</button>
+                    <button onClick={() => handleDeleteReport(r, i)} className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100">削除</button>
                   </td>
                 </tr>
               ))}
@@ -597,48 +597,9 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 処分費詳細モーダル（処分内容一覧） */}
-      {showDisposalModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-lg font-black text-slate-800">🗑️ {modalLocation} - 処分内容一覧</h3>
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">閉じる</button>
-            </div>
-
-            <div className="space-y-3">
-              {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => ({ ...d, date: r.date }))).length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">搬出された処分データはありません</p>
-              ) : (
-                <div className="divide-y border rounded-xl overflow-hidden">
-                  <div className="grid grid-cols-4 bg-slate-100 p-3 text-xs font-bold text-slate-600">
-                    <div>日付</div>
-                    <div>処分場名</div>
-                    <div>品目</div>
-                    <div className="text-right">数量・金額</div>
-                  </div>
-                  {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => {
-                    const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
-                    const subTotal = Number(d.quantity || 0) * uPrice;
-                    return (
-                      <div key={idx} className="grid grid-cols-4 p-3 text-xs items-center bg-white">
-                        <div className="font-bold">{r.date}</div>
-                        <div>{d.location || '-'}</div>
-                        <div>{d.item || '-'}</div>
-                        <div className="text-right font-bold">{Number(d.quantity || 0)} {d.unit || 't'} (¥{subTotal.toLocaleString()})</div>
-                      </div>
-                    );
-                  }))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 現場詳細モーダル */}
       {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 md:p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 md:p-4 z-40">
           <div className="bg-white rounded-2xl w-full max-w-4xl p-4 md:p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
@@ -774,6 +735,45 @@ export default function AdminPage() {
               )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 処分費詳細モーダル（処分内容一覧）※レイヤー競合を防ぐため最上位に独立配置 */}
+      {showDisposalModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-black text-slate-800">🗑️ {modalLocation} - 処分内容一覧</h3>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-800 transition">閉じる</button>
+            </div>
+
+            <div className="space-y-3">
+              {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => ({ ...d, date: r.date }))).length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">搬出された処分データはありません</p>
+              ) : (
+                <div className="divide-y border rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-4 bg-slate-100 p-3 text-xs font-bold text-slate-600">
+                    <div>日付</div>
+                    <div>処分場名</div>
+                    <div>品目</div>
+                    <div className="text-right">数量・金額</div>
+                  </div>
+                  {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => {
+                    const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
+                    const subTotal = Number(d.quantity || 0) * uPrice;
+                    return (
+                      <div key={idx} className="grid grid-cols-4 p-3 text-xs items-center bg-white">
+                        <div className="font-bold">{r.date}</div>
+                        <div>{d.location || '-'}</div>
+                        <div>{d.item || '-'}</div>
+                        <div className="text-right font-bold">{Number(d.quantity || 0)} {d.unit || 't'} (¥{subTotal.toLocaleString()})</div>
+                      </div>
+                    );
+                  }))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
