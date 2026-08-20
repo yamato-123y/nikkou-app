@@ -17,9 +17,6 @@ export default function AdminPage() {
   // 処分費詳細モーダル用ステート
   const [showDisposalModal, setShowDisposalModal] = useState(false);
 
-  // 請求書照合・最終調整金額用のステート（現場名ごとに保持）
-  const [adjustments, setAdjustments] = useState<any>({});
-
   // 経費内訳明細の手動編集用オーバーライドステート（現場名ごとに各費用の値を保持）
   const [costOverrides, setCostOverrides] = useState<any>({});
 
@@ -30,7 +27,6 @@ export default function AdminPage() {
       if (resS.ok) {
         const sData = await resS.json();
         setSettings(sData || {});
-        if (sData.adjustments) setAdjustments(sData.adjustments);
         if (sData.costOverrides) setCostOverrides(sData.costOverrides);
       }
     } catch (e) { console.error(e); }
@@ -59,20 +55,6 @@ export default function AdminPage() {
     saveMaster(key, list);
   };
 
-  // 調整金額の保存
-  const handleAdjustmentChange = async (locName: string, field: string, val: string) => {
-    const newAdj = {
-      ...adjustments,
-      [locName]: {
-        ...(adjustments[locName] || { finalContract: '', finalCost: '' }),
-        [field]: val
-      }
-    };
-    setAdjustments(newAdj);
-    const newData = { ...settings, adjustments: newAdj, costOverrides };
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
-  };
-
   // 経費内訳明細の個別金額変更の保存
   const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
     const newOverrides = {
@@ -83,28 +65,33 @@ export default function AdminPage() {
       }
     };
     setCostOverrides(newOverrides);
-    const newData = { ...settings, adjustments, costOverrides: newOverrides };
+    const newData = { ...settings, costOverrides: newOverrides };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
-  // 日報の削除
-  const handleDeleteReport = async (reportId: string) => {
+  // 日報の削除（IDのフォールバック対応）
+  const handleDeleteReport = async (report: any) => {
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
+    const targetId = report.id || report._id;
     await fetch('/api/reports', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: reportId })
+      body: JSON.stringify({ id: targetId })
     });
     fetchData();
   };
 
-  // 日報の更新（編集保存）
+  // 日報の更新（編集保存：IDのフォールバック対応）
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload = {
+      ...editingReport,
+      id: editingReport.id || editingReport._id
+    };
     await fetch('/api/reports', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingReport)
+      body: JSON.stringify(payload)
     });
     setEditingReport(null);
     fetchData();
@@ -172,17 +159,11 @@ export default function AdminPage() {
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
-    const sumCalculatedCost = calcLabor + calcSub + calcLease + calcDisp + calcFuel + calcEtc + calcParking + calcOther;
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
     
     const baseContractPrice = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName)?.price || 0;
     
-    const adj = adjustments[locName] || {};
-    const finalContractPrice = adj.finalContract !== '' && adj.finalContract !== undefined ? Number(adj.finalContract) : baseContractPrice;
-    
-    const finalTotalCost = adj.finalCost !== '' && adj.finalCost !== undefined ? Number(adj.finalCost) : sumOverrideCost;
-
-    const profit = (finalContractPrice - finalTotalCost) + scrapTotal;
+    const profit = (baseContractPrice - sumOverrideCost) + scrapTotal;
 
     return { 
       days: locMapped.length, 
@@ -195,10 +176,8 @@ export default function AdminPage() {
       parkingCost, 
       otherCost, 
       scrapTotal, 
-      total: finalTotalCost, 
-      calculatedTotal: sumCalculatedCost,
-      contractPrice: finalContractPrice, 
-      baseContractPrice,
+      total: sumOverrideCost, 
+      contractPrice: baseContractPrice, 
       profit, 
       reportsWithIndex: locMapped 
     };
@@ -550,7 +529,7 @@ export default function AdminPage() {
             </thead>
             <tbody className="divide-y">
               {filteredReports.map((r, i) => (
-                <tr key={r.id || i} className="hover:bg-slate-50">
+                <tr key={r.id || r._id || i} className="hover:bg-slate-50">
                   <td className="py-3 font-bold">{r.date}</td>
                   <td className="py-3 font-bold text-[#0066cc]">{r.location}</td>
                   <td className="py-3 text-xs">
@@ -565,7 +544,7 @@ export default function AdminPage() {
                   <td className="py-3 text-xs">{r.workDescription || '-'}</td>
                   <td className="py-3 text-center space-x-2 whitespace-nowrap">
                     <button onClick={() => setEditingReport(r)} className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-100">編集</button>
-                    <button onClick={() => handleDeleteReport(r.id)} className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100">削除</button>
+                    <button onClick={() => handleDeleteReport(r)} className="bg-red-50 text-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-100">削除</button>
                   </td>
                 </tr>
               ))}
@@ -663,8 +642,8 @@ export default function AdminPage() {
           <div className="bg-white rounded-2xl w-full max-w-4xl p-4 md:p-6 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
-                <h2 className="text-lg md:text-xl font-black">{modalLocation} (詳細分析・請求書照合)</h2>
-                <p className="text-xs text-slate-500">お金の流れと請求書に基づく最終調整</p>
+                <h2 className="text-lg md:text-xl font-black">{modalLocation} (詳細分析)</h2>
+                <p className="text-xs text-slate-500">お金の流れと原価詳細</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs md:text-sm font-bold shadow">CSV</button>
@@ -672,26 +651,10 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 請求書との照合・最終正確な金額入力セクション */}
-            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl space-y-3">
-              <h3 className="font-bold text-sm text-orange-800">💡 請求書照合による最終利益の再計算</h3>
-              <p className="text-xs text-slate-600">請求書が届き、概算金額と異なる場合は正確な金額を入力してください。下部の最終利益に反映されます。</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">最終正確な請負金額 (円) [空欄なら概算: ¥{modalData.baseContractPrice.toLocaleString()}]</label>
-                  <input type="number" placeholder={modalData.baseContractPrice.toString()} value={adjustments[modalLocation]?.finalContract ?? ''} onChange={e=>handleAdjustmentChange(modalLocation, 'finalContract', e.target.value)} className="w-full p-2.5 border rounded-lg bg-white font-bold" />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">最終正確な合計経費 (円) [空欄なら下部明細の合計: ¥{modalData.total.toLocaleString()}]</label>
-                  <input type="number" placeholder={modalData.total.toString()} value={adjustments[modalLocation]?.finalCost ?? ''} onChange={e=>handleAdjustmentChange(modalLocation, 'finalCost', e.target.value)} className="w-full p-2.5 border rounded-lg bg-white font-bold" />
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-center">
-              <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">最終請負金額</div><div className="text-sm md:text-md font-black">¥{modalData.contractPrice.toLocaleString()}</div></div>
-              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">最終合計経費</div><div className="text-sm md:text-md font-black text-emerald-700">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">最終利益（売却益込）</div><div className="text-sm md:text-md font-black text-blue-700">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-slate-50 p-3 rounded-xl border"><div className="text-xs text-slate-500">請負金額</div><div className="text-sm md:text-md font-black">¥{modalData.contractPrice.toLocaleString()}</div></div>
+              <div className="bg-emerald-50 p-3 rounded-xl border"><div className="text-xs text-emerald-600">合計経費</div><div className="text-sm md:text-md font-black text-emerald-700">¥{modalData.total.toLocaleString()}</div></div>
+              <div className="bg-blue-50 p-3 rounded-xl border"><div className="text-xs text-blue-600">利益（売却益込）</div><div className="text-sm md:text-md font-black text-blue-700">¥{modalData.profit.toLocaleString()}</div></div>
               <div className="bg-amber-50 p-3 rounded-xl border"><div className="text-xs text-amber-600">稼働日数</div><div className="text-sm md:text-md font-black text-amber-700">{modalData.days}日</div></div>
             </div>
 
@@ -784,7 +747,7 @@ export default function AdminPage() {
                   {modalData.reportsWithIndex.map((r, idx) => {
                     const daily = calculateReportDailyCost(r);
                     return (
-                      <div key={r.id || idx} className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
+                      <div key={r.id || r._id || idx} className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
                         <div className="flex justify-between items-center border-b pb-2 text-xs font-bold text-slate-600">
                           <span>📅 日付: {r.date}</span>
                           <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded">日報合計経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
