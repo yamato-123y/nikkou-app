@@ -39,7 +39,6 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
-  // 重機・車両の昨日と同じ
   const handleCopyMachinesYesterday = async () => {
     try {
       const res = await fetch('/api/reports');
@@ -58,7 +57,6 @@ export default function Home() {
     } catch (e) { console.error(e); }
   };
 
-  // 燃料・経費の昨日と同じ
   const handleCopyFuelYesterday = async () => {
     try {
       const res = await fetch('/api/reports');
@@ -113,6 +111,9 @@ export default function Home() {
     setShowSuccessModal(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // 登録されている外注会社名のユニークリストを取得
+  const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
 
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-28 bg-slate-100 min-h-screen text-slate-800 relative">
@@ -201,39 +202,47 @@ export default function Home() {
                <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
              
-             {subcontractors.map((sub, index) => (
-               <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
-                 <div className="grid grid-cols-2 gap-2">
-                   <div>
-                     <label className="text-xs font-bold text-slate-500 block mb-1">外注会社名</label>
-                     <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.company} onChange={(e)=>{
-                       const updated = [...subcontractors]; updated[index].company = e.target.value; setSubcontractors(updated);
-                     }}>
-                       <option value="">会社を選択...</option>
-                       {(settings.subcontractors || []).map((sc:any, idx:number)=><option key={idx} value={sc.name}>{sc.name}</option>)}
-                     </select>
+             {subcontractors.map((sub, index) => {
+               // 選択された会社に紐づく作業内容の候補を抽出
+               const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
+
+               return (
+                 <div key={index} className="p-3 border rounded-xl bg-slate-50 space-y-2">
+                   <div className="grid grid-cols-2 gap-2">
+                     <div>
+                       <label className="text-xs font-bold text-slate-500 block mb-1">外注会社名</label>
+                       <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.company} onChange={(e)=>{
+                         const updated = [...subcontractors]; 
+                         updated[index].company = e.target.value; 
+                         updated[index].task = ''; // 会社が変わったら作業内容をリセット
+                         setSubcontractors(updated);
+                       }}>
+                         <option value="">会社を選択...</option>
+                         {uniqueCompanies.map((comp:any)=><option key={comp} value={comp}>{comp}</option>)}
+                       </select>
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-slate-500 block mb-1">作業内容</label>
+                       <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.task} onChange={(e)=>{
+                         const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
+                       }}>
+                         <option value="">内容を選択...</option>
+                         {availableTasks.map((t:any, idx:number)=><option key={idx} value={t}>{t}</option>)}
+                       </select>
+                     </div>
                    </div>
-                   <div>
-                     <label className="text-xs font-bold text-slate-500 block mb-1">作業内容</label>
-                     <select className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.task} onChange={(e)=>{
-                       const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
-                     }}>
-                       <option value="">内容を選択...</option>
-                       {(settings.subTasks || []).map((st:any, idx:number)=><option key={idx} value={st.name}>{st.name}</option>)}
-                     </select>
+                   <div className="flex items-end gap-2">
+                     <div className="flex-1">
+                       <label className="text-xs font-bold text-slate-500 block mb-1">人数</label>
+                       <input type="number" placeholder="0" className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.count} onChange={(e)=>{
+                         const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
+                       }}/>
+                     </div>
+                     <button type="button" onClick={() => setSubcontractors(subcontractors.filter((_,i)=>i!==index))} className="bg-red-50 text-red-600 px-3 py-2.5 rounded-lg font-bold text-xs hover:bg-red-100 transition shrink-0">削除</button>
                    </div>
                  </div>
-                 <div className="flex items-end gap-2">
-                   <div className="flex-1">
-                     <label className="text-xs font-bold text-slate-500 block mb-1">人数</label>
-                     <input type="number" placeholder="0" className="w-full p-2.5 rounded-lg border text-sm bg-white" value={sub.count} onChange={(e)=>{
-                       const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
-                     }}/>
-                   </div>
-                   <button type="button" onClick={() => setSubcontractors(subcontractors.filter((_,i)=>i!==index))} className="bg-red-50 text-red-600 px-3 py-2.5 rounded-lg font-bold text-xs hover:bg-red-100 transition shrink-0">削除</button>
-                 </div>
-               </div>
-             ))}
+               );
+             })}
            </div>
         </div>
 
