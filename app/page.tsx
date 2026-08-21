@@ -16,6 +16,11 @@ export default function Home() {
   const [leaseAttach, setLeaseAttach] = useState<string[]>([]);
   const [leaseOther, setLeaseOther] = useState<string[]>([]);
 
+  // 各セクションの開閉状態を管理するステート
+  const [isOpenHeavy, setIsOpenHeavy] = useState(false);
+  const [isOpenAttach, setIsOpenAttach] = useState(false);
+  const [isOpenOther, setIsOpenOther] = useState(false);
+
   const [otherLeases, setOtherLeases] = useState<{name: string, count: string}[]>([]);
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
@@ -265,37 +270,64 @@ export default function Home() {
              <button type="button" onClick={handleCopyMachinesYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
 
-           {/* 重機を選択 */}
+           {/* 重機を選択ボタン */}
            <div className="space-y-1.5">
-             <label className="text-xs font-bold text-slate-500">【重機を選択】</label>
-             <div className="grid grid-cols-2 gap-2">
-               {(settings.leaseHeavy || []).map((m:any) => (
-                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
-                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseHeavy.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
-               ))}
-             </div>
+             <button 
+               type="button" 
+               onClick={() => setIsOpenHeavy(!isOpenHeavy)} 
+               className="w-full text-left p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 flex justify-between items-center hover:bg-slate-100 transition"
+             >
+               <span>【重機を選択する】 {leaseHeavy.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseHeavy.length}選定中</span>}</span>
+               <span className="text-slate-400">{isOpenHeavy ? '▲' : '▼'}</span>
+             </button>
+             {isOpenHeavy && (
+               <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
+                 {(settings.leaseHeavy || []).map((m:any) => (
+                   <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
+                   className={`p-3 rounded-xl font-medium border text-sm transition ${leaseHeavy.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+                 ))}
+               </div>
+             )}
            </div>
 
-           {/* アタッチメントを選択 */}
+           {/* アタッチメントを選択ボタン */}
            <div className="space-y-1.5 pt-2">
-             <label className="text-xs font-bold text-slate-500">【アタッチメントを選択】</label>
-             <div className="grid grid-cols-2 gap-2">
-               {(settings.leaseAttach || []).map((m:any) => (
-                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
-                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseAttach.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
-               ))}
-             </div>
+             <button 
+               type="button" 
+               onClick={() => setIsOpenAttach(!isOpenAttach)} 
+               className="w-full text-left p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 flex justify-between items-center hover:bg-slate-100 transition"
+             >
+               <span>【アタッチメントを選択する】 {leaseAttach.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseAttach.length}選定中</span>}</span>
+               <span className="text-slate-400">{isOpenAttach ? '▲' : '▼'}</span>
+             </button>
+             {isOpenAttach && (
+               <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
+                 {(settings.leaseAttach || []).map((m:any) => (
+                   <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
+                   className={`p-3 rounded-xl font-medium border text-sm transition ${leaseAttach.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+                 ))}
+               </div>
+             )}
            </div>
 
-           {/* その他 機械・機器を選択 */}
+           {/* その他の機械・機器を選択ボタン */}
            <div className="space-y-1.5 pt-2">
-             <label className="text-xs font-bold text-slate-500">【その他 機械・機器を選択】</label>
-             <div className="grid grid-cols-2 gap-2">
-               {(settings.leaseOther || []).map((m:any) => (
-                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
-                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseOther.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
-               ))}
-             </div>
+             <button 
+               type="button" 
+               onClick={() => setIsOpenOther(!isOpenOther)} 
+               className="w-full text-left p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 flex justify-between items-center hover:bg-slate-100 transition"
+             >
+               <span>【その他の機械・機器を選択する】 {leaseOther.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseOther.length}選定中</span>}</span>
+               <span className="text-slate-400">{isOpenOther ? '▲' : '▼'}</span>
+             </button>
+             {isOpenOther && (
+               <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
+                 {(settings.leaseOther || []).map((m:any) => (
+                   <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
+                   className={`p-3 rounded-xl font-medium border text-sm transition ${leaseOther.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+                 ))}
+               </div>
+             )}
            </div>
 
            {/* その他リース（自由記述テキスト ＋ 追加ボタン） */}
