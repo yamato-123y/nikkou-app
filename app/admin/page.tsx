@@ -553,6 +553,120 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* 🚜 自社重機 */}
+            <div className="space-y-3 border-t border-slate-100 pt-5">
+              <label className="text-sm font-bold text-orange-600 block">自社重機</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {(settings.companyMachines || []).map((cm:any) => {
+                  const isChecked = (editingReport.ownMachines || []).includes(cm.name);
+                  return (
+                    <label key={cm.name} className={`p-3.5 border rounded-2xl text-sm flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200'}`}>
+                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
+                        const cur = editingReport.ownMachines || [];
+                        const next = e.target.checked ? [...cur, cm.name] : cur.filter((x:string)=>x!==cm.name);
+                        setEditingReport({...editingReport, ownMachines: next});
+                      }} className="rounded accent-orange-600 w-4 h-4" />
+                      <span className="font-bold">{cm.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 🚚 自社車両 */}
+            <div className="space-y-3 border-t border-slate-100 pt-5">
+              <label className="text-sm font-bold text-orange-600 block">自社車両</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {(settings.vehicles || []).map((v:any) => {
+                  const isChecked = (editingReport.vehicles || []).includes(v.name);
+                  return (
+                    <label key={v.name} className={`p-3.5 border rounded-2xl text-sm flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-200'}`}>
+                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
+                        const cur = editingReport.vehicles || [];
+                        const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
+                        setEditingReport({...editingReport, vehicles: next});
+                      }} className="rounded accent-orange-600 w-4 h-4" />
+                      <span className="font-bold">{v.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 🗑️ 処分場への搬出 */}
+            <div className="space-y-3 border-t border-slate-100 pt-5">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-bold text-orange-600 block">処分場への搬出</label>
+                <button type="button" onClick={() => {
+                  const cur = editingReport.disposals || [];
+                  setEditingReport({ ...editingReport, disposals: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
+                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs px-3 py-1.5 rounded-xl font-bold transition">＋ 処分行を追加</button>
+              </div>
+              <div className="space-y-3">
+                {(editingReport.disposals || []).map((d:any, idx:number) => (
+                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <input type="text" placeholder="処分場名" value={d.location || ''} onChange={e => {
+                      const list = [...editingReport.disposals];
+                      list[idx] = { ...list[idx], location: e.target.value };
+                      setEditingReport({ ...editingReport, disposals: list });
+                    }} className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
+                    <input type="text" placeholder="品目" value={d.item || ''} onChange={e => {
+                      const list = [...editingReport.disposals];
+                      list[idx] = { ...list[idx], item: e.target.value };
+                      setEditingReport({ ...editingReport, disposals: list });
+                    }} className="w-28 p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
+                    <input type="number" placeholder="数量" value={d.quantity || 0} onChange={e => {
+                      const list = [...editingReport.disposals];
+                      list[idx] = { ...list[idx], quantity: Number(e.target.value) };
+                      setEditingReport({ ...editingReport, disposals: list });
+                    }} className="w-20 p-2.5 border border-slate-200 rounded-xl text-sm bg-white text-right" />
+                    <span className="text-xs text-slate-500 font-bold">t</span>
+                    <button type="button" onClick={() => {
+                      const list = (editingReport.disposals || []).filter((_:any, i:number) => i !== idx);
+                      setEditingReport({ ...editingReport, disposals: list });
+                    }} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ♻️ スクラップの搬出 */}
+            <div className="space-y-3 border-t border-slate-100 pt-5">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-bold text-orange-600 block">スクラップの搬出</label>
+                <button type="button" onClick={() => {
+                  const cur = editingReport.scraps || [];
+                  setEditingReport({ ...editingReport, scraps: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
+                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs px-3 py-1.5 rounded-xl font-bold transition">＋ スクラップ行を追加</button>
+              </div>
+              <div className="space-y-3">
+                {(editingReport.scraps || []).map((sc:any, idx:number) => (
+                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <input type="text" placeholder="スクラップ場名" value={sc.location || ''} onChange={e => {
+                      const list = [...editingReport.scraps];
+                      list[idx] = { ...list[idx], location: e.target.value };
+                      setEditingReport({ ...editingReport, scraps: list });
+                    }} className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
+                    <input type="text" placeholder="品目" value={sc.item || ''} onChange={e => {
+                      const list = [...editingReport.scraps];
+                      list[idx] = { ...list[idx], item: e.target.value };
+                      setEditingReport({ ...editingReport, scraps: list });
+                    }} className="w-28 p-2.5 border border-slate-200 rounded-xl text-sm bg-white" />
+                    <input type="number" placeholder="数量" value={sc.quantity || 0} onChange={e => {
+                      const list = [...editingReport.scraps];
+                      list[idx] = { ...list[idx], quantity: Number(e.target.value) };
+                      setEditingReport({ ...editingReport, scraps: list });
+                    }} className="w-20 p-2.5 border border-slate-200 rounded-xl text-sm bg-white text-right" />
+                    <span className="text-xs text-slate-500 font-bold">t</span>
+                    <button type="button" onClick={() => {
+                      const list = (editingReport.scraps || []).filter((_:any, i:number) => i !== idx);
+                      setEditingReport({ ...editingReport, scraps: list });
+                    }} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div>
               <label className="text-sm font-bold text-slate-500 block mb-1.5">作業内容</label>
               <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-200 rounded-2xl text-base h-28" />
