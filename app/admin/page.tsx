@@ -126,7 +126,11 @@ export default function AdminPage() {
     });
 
     let leaseC = 0;
+    // 旧仕様の machines も考慮しつつ新仕様の 3分類を加算
     (r.machines || []).forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseHeavy || []).forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseOther || []).forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
 
     let otherLeaseC = 0;
     (r.otherLeases || []).forEach((ol: any) => {
@@ -238,11 +242,11 @@ export default function AdminPage() {
 
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
-    const headers = ["日付", "現場名", "責任者", "作業者", "外注", "リース(MOK)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "責任者", "作業者", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-      (r.machines || []).join('/'),
+      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || [])].join('/'),
       (r.otherLeases || []).map((ol:any)=>`${ol.name}(¥${ol.price})`).join('/'),
       (r.ownMachines || []).join('/'),
       (r.vehicles || []).join('/'), 
@@ -385,7 +389,9 @@ export default function AdminPage() {
             { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
             { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
             { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-            { title: "🏗️ リース（MOK）＆日額単価", key: "leases", nameKey: "name", addForm: ['leaseName', 'leasePrice'], placeholders: ["リース名", "日額"], type: "leases" },
+            { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
+            { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
+            { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
             { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
             { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
           ].map((sec, idx) => (
@@ -482,7 +488,7 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-4 px-4 text-slate-600">{[...(r.machines || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
+                  <td className="py-4 px-4 text-slate-600">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
                   <td className="py-4 px-4 text-slate-600 max-w-xs truncate">{r.workDescription || '-'}</td>
                   <td className="py-4 px-4 text-center space-x-3 whitespace-nowrap">
                     <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2 rounded-xl font-bold transition shadow-sm text-xs">編集</button>
@@ -713,7 +719,7 @@ export default function AdminPage() {
                 {[
                   { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
                   { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
-                  { key: 'lease', label: 'リース (MOK)', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost },
+                  { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost },
                   { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
                   { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                   { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
@@ -813,11 +819,11 @@ export default function AdminPage() {
                           <div><span className="text-slate-400 block text-xs">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
                           <div><span className="text-slate-400 block text-xs">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
                           <div><span className="text-slate-400 block text-xs">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-400 block text-xs">リース(MOK)</span> <span className="font-bold">{(r.machines || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-400 block text-xs">その他リース</span> <span className="font-bold">{(r.otherLeases || []).map((ol:any)=>`${ol.name}(${ol.count || 0}個)`).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-400 block text-xs">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-400 block text-xs">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-400 block text-xs">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
                           <div><span className="text-slate-400 block text-xs">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
                           <div><span className="text-slate-400 block text-xs">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-400 block text-xs">軽油</span> <span className="font-bold">{r.fuel || 0} L</span></div>
                         </div>
                         {r.workDescription && (
                           <div className="text-sm text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
