@@ -150,9 +150,13 @@ export default function AdminPage() {
     });
 
     let scrapC = 0;
+    const scrapBreakdown: {[key: string]: number} = {};
     (r.scraps || []).forEach((sc: any) => {
       const uPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
-      scrapC += (Number(sc.quantity || 0) * uPrice);
+      const subT = Number(sc.quantity || 0) * uPrice;
+      scrapC += subT;
+      const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
+      scrapBreakdown[scrapKey] = (scrapBreakdown[scrapKey] || 0) + subT;
     });
 
     const fC = Number(r.fuel || 0);
@@ -161,7 +165,7 @@ export default function AdminPage() {
     const oC = Number(r.otherPrice || 0);
     const totalDailyCost = lCost + subCost + leaseC + otherLeaseC + ownMachineC + vehicleC + dispC + fC + eC + pC + oC;
 
-    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC, eC, pC, oC, scrapC, totalDailyCost };
+    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC, eC, pC, oC, scrapC, scrapBreakdown, totalDailyCost };
   };
 
   const calculateCosts = (locName: string) => {
@@ -169,6 +173,7 @@ export default function AdminPage() {
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
     let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
     const aggregatedDisposalBreakdown: {[loc: string]: number} = {};
+    const aggregatedScrapBreakdown: {[key: string]: number} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -182,6 +187,10 @@ export default function AdminPage() {
 
       Object.entries(dc.disposalBreakdown).forEach(([loc, val]) => {
         aggregatedDisposalBreakdown[loc] = (aggregatedDisposalBreakdown[loc] || 0) + val;
+      });
+
+      Object.entries(dc.scrapBreakdown).forEach(([key, val]) => {
+        aggregatedScrapBreakdown[key] = (aggregatedScrapBreakdown[key] || 0) + val;
       });
 
       calcFuel += dc.fC; calcEtc += dc.eC; calcParking += dc.pC; calcOther += dc.oC; scrapTotal += dc.scrapC;
@@ -218,7 +227,8 @@ export default function AdminPage() {
       etcCost, 
       parkingCost, 
       otherCost, 
-      scrapTotal, 
+      scrapTotal,
+      aggregatedScrapBreakdown,
       total: sumOverrideCost, 
       contractPrice: baseContractPrice, 
       profit, 
@@ -648,9 +658,23 @@ export default function AdminPage() {
                   );
                 })}
 
-                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex justify-between items-center col-span-full shadow-xs">
-                  <span className="text-emerald-800 font-bold text-sm">♻️ スクラップ売却計</span>
-                  <span className="font-black text-emerald-700 text-lg">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex flex-col gap-2 col-span-full shadow-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-emerald-800 font-bold text-sm">♻️ スクラップ売却計</span>
+                    <span className="font-black text-emerald-700 text-lg">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 space-y-1 border-t border-emerald-200/60 pt-2">
+                    {Object.entries(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                      <div>内訳なし</div>
+                    ) : (
+                      Object.entries(modalData.aggregatedScrapBreakdown).map(([scrapKey, val]: [string, any]) => (
+                        <div key={scrapKey} className="flex justify-between">
+                          <span>・{scrapKey}:</span>
+                          <span className="font-bold">+ ¥{val.toLocaleString()}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
 
               </div>
