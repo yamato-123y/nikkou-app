@@ -52,6 +52,17 @@ export default function AdminPage() {
 
   const deleteMaster = (key: string, idx: number) => saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
 
+  // 並び替え機能（上へ / 下へ）
+  const moveMasterItem = (key: string, idx: number, direction: 'up' | 'down') => {
+    const list = [...(settings[key] || [])];
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[idx];
+    list[idx] = list[targetIdx];
+    list[targetIdx] = temp;
+    saveMaster(key, list);
+  };
+
   const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
     const list = [...(settings[key] || [])];
     list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' ? value : (Number(value) || 0) };
@@ -126,7 +137,6 @@ export default function AdminPage() {
     });
 
     let leaseC = 0;
-    // 旧仕様の machines も考慮しつつ新仕様の 3分類を加算
     (r.machines || []).forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseHeavy || []).forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
@@ -426,20 +436,42 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* 一覧リスト */}
+              {/* 一覧リスト（並び替えボタン付き） */}
               <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200/60 rounded-xl p-3 space-y-2">
                 {(settings[sec.key] || []).length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-3">登録データがありません</p>
                 ) : (
                   (settings[sec.key] || []).map((item:any, idx:number)=>(
-                    <div key={idx} className="py-2.5 flex justify-between items-center text-sm font-medium gap-3">
-                      <span className="truncate text-slate-800 font-bold">
+                    <div key={idx} className="py-2.5 flex justify-between items-center text-sm font-medium gap-2">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button 
+                          type="button" 
+                          onClick={() => moveMasterItem(sec.key, idx, 'up')} 
+                          disabled={idx === 0}
+                          className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition"
+                          title="上へ"
+                        >
+                          ▲
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => moveMasterItem(sec.key, idx, 'down')} 
+                          disabled={idx === (settings[sec.key] || []).length - 1}
+                          className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition"
+                          title="下へ"
+                        >
+                          ▼
+                        </button>
+                      </div>
+
+                      <span className="truncate text-slate-800 font-bold flex-1 px-1">
                         {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
                       </span>
+                      
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-slate-400">¥</span>
-                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-24 p-2 border border-slate-200 rounded-xl text-right text-sm font-bold bg-slate-50" />
-                        <button onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs ml-1">削除</button>
+                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-20 p-2 border border-slate-200 rounded-xl text-right text-sm font-bold bg-slate-50" />
+                        <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs ml-1">削除</button>
                       </div>
                     </div>
                   ))
@@ -790,7 +822,7 @@ export default function AdminPage() {
                       Object.entries(modalData.aggregatedScrapBreakdown).map(([scrapKey, val]: [string, any]) => (
                         <div key={scrapKey} className="flex justify-between">
                           <span>・{scrapKey}:</span>
-                          <span className="font-bold">+ ¥{val.toLocaleString()}</span>
+                          <span className="font-black text-emerald-700">+ ¥{val.toLocaleString()}</span>
                         </div>
                       ))
                     )}
