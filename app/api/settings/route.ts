@@ -13,8 +13,6 @@ export async function GET() {
       .from('settings')
       .select('value')
       .eq('key', SETTINGS_KEY)
-      .order('id', { ascending: false })
-      .limit(1)
       .maybeSingle();
 
     if (error || !data) {
@@ -33,7 +31,13 @@ export async function POST(request: Request) {
   try {
     const newSettings = await request.json();
 
-    // keyとvalueの両方をセットで保存する
+    // 常に最新の1行だけにするため、まず既存のデータを削除する
+    await supabase
+      .from('settings')
+      .delete()
+      .eq('key', SETTINGS_KEY);
+
+    // 新しい設定データを1行だけ挿入する
     const { error } = await supabase
       .from('settings')
       .insert([
