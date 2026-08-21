@@ -49,46 +49,6 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
-  const handleCopyMachinesYesterday = async () => {
-    try {
-      const res = await fetch('/api/reports');
-      if (res.ok) {
-        const list = await res.json();
-        if (list && list.length > 0) {
-          const last = list[list.length - 1];
-          if (last.leaseHeavy) setLeaseHeavy(last.leaseHeavy);
-          if (last.leaseAttach) setLeaseAttach(last.leaseAttach);
-          if (last.leaseOther) setLeaseOther(last.leaseOther);
-          if (last.machines) setLeaseHeavy(last.machines); // 互換性のため
-          if (last.otherLeases) setOtherLeases(last.otherLeases);
-          if (last.ownMachines) setSelectedOwnMachines(last.ownMachines);
-          if (last.vehicles) setSelectedVehicles(last.vehicles);
-          alert('前回登録された重機・リースデータを反映しました！');
-        } else {
-          alert('過去のデータがありません。');
-        }
-      }
-    } catch (e) { console.error(e); }
-  };
-
-  const handleCopyFuelYesterday = async () => {
-    try {
-      const res = await fetch('/api/reports');
-      if (res.ok) {
-        const list = await res.json();
-        if (list && list.length > 0) {
-          const last = list[list.length - 1];
-          if (last.fuel) setFuel(last.fuel);
-          if (last.etcPrice) setEtcPrice(last.etcPrice);
-          if (last.parkingPrice) setParkingPrice(last.parkingPrice);
-          alert('前回登録された燃料・経費データを反映しました！');
-        } else {
-          alert('過去のデータがありません。');
-        }
-      }
-    } catch (e) { console.error(e); }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('/api/reports', {
@@ -265,9 +225,8 @@ export default function Home() {
 
         {/* 3. 重機・車両 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="flex justify-between items-center border-b pb-2">
+           <div className="border-b pb-2">
              <span className="font-bold text-base text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
-             <button type="button" onClick={handleCopyMachinesYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
 
            {/* 重機を選択ボタン */}
@@ -372,9 +331,8 @@ export default function Home() {
 
         {/* 4. 燃料・経費 */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
-           <div className="flex justify-between items-center border-b pb-2">
+           <div className="border-b pb-2">
              <span className="font-bold text-base text-orange-600">⛽ 4. 燃料・経費</span>
-             <button type="button" onClick={handleCopyFuelYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
            
            <div>
