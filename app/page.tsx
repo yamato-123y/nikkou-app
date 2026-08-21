@@ -11,7 +11,11 @@ export default function Home() {
   
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
-  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  // 新・リース欄の3分類
+  const [leaseHeavy, setLeaseHeavy] = useState<string[]>([]);
+  const [leaseAttach, setLeaseAttach] = useState<string[]>([]);
+  const [leaseOther, setLeaseOther] = useState<string[]>([]);
+
   const [otherLeases, setOtherLeases] = useState<{name: string, count: string}[]>([]);
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
@@ -47,11 +51,14 @@ export default function Home() {
         const list = await res.json();
         if (list && list.length > 0) {
           const last = list[list.length - 1];
-          if (last.machines) setSelectedMachines(last.machines);
+          if (last.leaseHeavy) setLeaseHeavy(last.leaseHeavy);
+          if (last.leaseAttach) setLeaseAttach(last.leaseAttach);
+          if (last.leaseOther) setLeaseOther(last.leaseOther);
+          if (last.machines) setLeaseHeavy(last.machines); // 互換性のため
           if (last.otherLeases) setOtherLeases(last.otherLeases);
           if (last.ownMachines) setSelectedOwnMachines(last.ownMachines);
           if (last.vehicles) setSelectedVehicles(last.vehicles);
-          alert('前回登録された重機・車両データを反映しました！');
+          alert('前回登録された重機・リースデータを反映しました！');
         } else {
           alert('過去のデータがありません。');
         }
@@ -85,7 +92,9 @@ export default function Home() {
       body: JSON.stringify({
         date, location, manager, workers: selectedWorkers, 
         subcontractors,
-        machines: selectedMachines, otherLeases, ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
+        leaseHeavy, leaseAttach, leaseOther,
+        machines: leaseHeavy, // 互換用
+        otherLeases, ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
         fuel: fuel || '0', etcPrice: etcPrice || '0', parkingPrice: parkingPrice || '0',
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description,
@@ -95,7 +104,9 @@ export default function Home() {
     
     setSelectedWorkers([]); 
     setSubcontractors([]);
-    setSelectedMachines([]); 
+    setLeaseHeavy([]);
+    setLeaseAttach([]);
+    setLeaseOther([]);
     setOtherLeases([]);
     setSelectedOwnMachines([]); 
     setSelectedVehicles([]);
@@ -254,12 +265,35 @@ export default function Home() {
              <button type="button" onClick={handleCopyMachinesYesterday} className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow transition">🔄 昨日と同じ</button>
            </div>
 
+           {/* 重機を選択 */}
            <div className="space-y-1.5">
-             <label className="text-xs font-bold text-slate-500">【リース（MOK）】</label>
+             <label className="text-xs font-bold text-slate-500">【重機を選択】</label>
              <div className="grid grid-cols-2 gap-2">
-               {(settings.leases || []).map((m:any) => (
-                 <button type="button" key={m.name} onClick={() => toggleSelection(selectedMachines, m.name, setSelectedMachines)}
-                 className={`p-3 rounded-xl font-medium border text-sm transition ${selectedMachines.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+               {(settings.leaseHeavy || []).map((m:any) => (
+                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
+                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseHeavy.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+               ))}
+             </div>
+           </div>
+
+           {/* アタッチメントを選択 */}
+           <div className="space-y-1.5 pt-2">
+             <label className="text-xs font-bold text-slate-500">【アタッチメントを選択】</label>
+             <div className="grid grid-cols-2 gap-2">
+               {(settings.leaseAttach || []).map((m:any) => (
+                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
+                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseAttach.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
+               ))}
+             </div>
+           </div>
+
+           {/* その他 機械・機器を選択 */}
+           <div className="space-y-1.5 pt-2">
+             <label className="text-xs font-bold text-slate-500">【その他 機械・機器を選択】</label>
+             <div className="grid grid-cols-2 gap-2">
+               {(settings.leaseOther || []).map((m:any) => (
+                 <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
+                 className={`p-3 rounded-xl font-medium border text-sm transition ${leaseOther.includes(m.name) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>{m.name}</button>
                ))}
              </div>
            </div>
@@ -267,7 +301,7 @@ export default function Home() {
            {/* その他リース（自由記述テキスト ＋ 追加ボタン） */}
            <div className="space-y-2 pt-2">
              <div className="flex justify-between items-center">
-               <label className="text-xs font-bold text-slate-500">【その他リース】</label>
+               <label className="text-xs font-bold text-slate-500">【その他リース（自由入力）】</label>
                <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
              {otherLeases.map((ol, index) => (
