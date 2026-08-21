@@ -300,7 +300,7 @@ export default function AdminPage() {
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
 
   return (
-    <div className="p-4 md:p-10 bg-slate-100 min-h-screen space-y-6 md:space-y-8 w-full max-w-[1500px] mx-auto font-sans text-slate-800 text-base md:text-lg">
+    <div className="p-4 md:p-10 bg-slate-100 min-h-screen space-y-6 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg">
       
       {/* 🚀 ヘッダー */}
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 gap-4">
@@ -387,10 +387,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（3列に変更 & 文字サイズアップ） */}
+      {/* ⚙️ マスタ登録・単価設定エリア（2列配置に変更して横幅を十分に確保） */}
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {[
             { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
@@ -466,13 +466,13 @@ export default function AdminPage() {
                         </button>
                       </div>
 
-                      <span className="truncate text-slate-900 font-bold flex-1 px-1.5 text-lg">
+                      <span className="text-slate-900 font-bold flex-1 px-2 text-lg">
                         {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
                       </span>
                       
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-slate-400 text-base">¥</span>
-                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-28 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
+                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-32 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
                         <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-base ml-2 p-1.5">削除</button>
                       </div>
                     </div>
