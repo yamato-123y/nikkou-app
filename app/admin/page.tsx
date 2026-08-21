@@ -269,24 +269,24 @@ export default function AdminPage() {
   };
 
   if (!isAuthed) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
-      <div className="bg-white p-8 rounded-3xl shadow-xl space-y-6 w-full max-w-sm border border-slate-100">
-        <div className="text-center space-y-2">
-          <div className="text-4xl">🔒</div>
-          <h1 className="text-xl font-bold text-slate-800">管理者ログイン</h1>
-          <p className="text-sm text-slate-400">株式会社大和 音声日報システム</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6 font-sans">
+      <div className="bg-white p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100">
+        <div className="text-center space-y-3">
+          <div className="text-5xl">🔒</div>
+          <h1 className="text-2xl font-bold text-slate-800">管理者ログイン</h1>
+          <p className="text-base text-slate-400">株式会社大和 音声日報システム</p>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-5">
           <input 
             type="password" 
             placeholder="パスワードを入力" 
-            className="w-full p-4 border border-slate-200 rounded-2xl text-base focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition" 
+            className="w-full p-4 border border-slate-200 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition" 
             onChange={e => setPassword(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && ((password === 'yamato123' || password === 'yamato') && setIsAuthed(true))}
           />
           <button 
             onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} 
-            className="w-full bg-[#E56312] hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-base shadow-md shadow-orange-500/20 transition"
+            className="w-full bg-[#E56312] hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md shadow-orange-500/20 transition"
           >
             ログインする
           </button>
@@ -300,47 +300,47 @@ export default function AdminPage() {
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
 
   return (
-    <div className="p-3 md:p-6 bg-slate-100 min-h-screen space-y-5 md:space-y-6 w-full mx-auto font-sans text-slate-800">
+    <div className="p-4 md:p-10 bg-slate-100 min-h-screen space-y-6 md:space-y-8 w-full max-w-[1500px] mx-auto font-sans text-slate-800 text-base md:text-lg">
       
       {/* 🚀 ヘッダー */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 gap-4">
         <div className="space-y-1 text-center md:text-left">
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
-          <p className="text-sm text-slate-500 font-medium">株式会社大和 音声日報システム</p>
+          <p className="text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
         <div className="flex w-full md:w-auto gap-3">
-          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-5 py-3 rounded-2xl font-bold text-sm transition flex items-center justify-center gap-2">
+          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-6 py-3.5 rounded-2xl font-bold text-base transition flex items-center justify-center gap-2">
             🔄 最新データに更新
           </button>
-          <button onClick={() => setIsAuthed(false)} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-3 rounded-2xl font-bold text-sm transition">
+          <button onClick={() => setIsAuthed(false)} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3.5 rounded-2xl font-bold text-base transition">
             ログアウト
           </button>
         </div>
       </div>
 
       {/* 🏢 現場別 経費集計サマリー */}
-      <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-        <h2 className="text-xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
+      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+        <h2 className="text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
         
         <div className="block md:hidden space-y-4">
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
             return (
-              <div key={loc.name} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+              <div key={loc.name} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-blue-600 text-base">{loc.name}</span>
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <span className="font-bold text-blue-600 text-lg">{loc.name}</span>
+                  <span className={`text-sm px-3.5 py-1 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                     粗利: ¥{c.profit.toLocaleString()}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 text-xs gap-2 text-slate-500 font-medium border-y border-slate-200/60 py-3">
-                  <div>請負: <span className="text-slate-900 font-bold text-sm block">¥{c.contractPrice.toLocaleString()}</span></div>
-                  <div>日数: <span className="text-slate-900 font-bold text-sm block">{c.days}日</span></div>
-                  <div>経費: <span className="text-slate-900 font-bold text-sm block">¥{c.total.toLocaleString()}</span></div>
+                <div className="grid grid-cols-3 text-sm gap-2 text-slate-500 font-medium border-y border-slate-200/60 py-3">
+                  <div>請負: <span className="text-slate-900 font-bold text-base block">¥{c.contractPrice.toLocaleString()}</span></div>
+                  <div>日数: <span className="text-slate-900 font-bold text-base block">{c.days}日</span></div>
+                  <div>経費: <span className="text-slate-900 font-bold text-base block">¥{c.total.toLocaleString()}</span></div>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">詳細分析</button>
-                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">CSV出力</button>
+                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl text-base font-bold shadow-sm transition">詳細分析</button>
+                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl text-base font-bold shadow-sm transition">CSV出力</button>
                 </div>
               </div>
             );
@@ -350,32 +350,32 @@ export default function AdminPage() {
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-sm font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">現場名</th>
-                <th className="py-3 px-4">請負金額</th>
-                <th className="py-3 px-4">稼働日数</th>
-                <th className="py-3 px-4">合計経費</th>
-                <th className="py-3 px-4">粗利</th>
-                <th className="py-3 px-4 text-center">アクション</th>
+              <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
+                <th className="py-4 px-5">現場名</th>
+                <th className="py-4 px-5">請負金額</th>
+                <th className="py-4 px-5">稼働日数</th>
+                <th className="py-4 px-5">合計経費</th>
+                <th className="py-4 px-5">粗利</th>
+                <th className="py-4 px-5 text-center">アクション</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-base font-medium">
+            <tbody className="divide-y divide-slate-100 text-lg font-medium">
               {locList.map((loc:any) => {
                 const c = calculateCosts(loc.name);
                 return (
                   <tr key={loc.name} className="hover:bg-slate-50/80 transition">
-                    <td className="py-4 px-4 font-bold text-blue-600 text-lg">{loc.name}</td>
-                    <td className="py-4 px-4 text-slate-700 font-bold">¥{c.contractPrice.toLocaleString()}</td>
-                    <td className="py-4 px-4 text-slate-700">{c.days} 日</td>
-                    <td className="py-4 px-4 text-slate-900 font-bold">¥{c.total.toLocaleString()}</td>
-                    <td className={`py-4 px-4 font-black text-lg ${c.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <td className="py-5 px-5 font-bold text-blue-600 text-xl">{loc.name}</td>
+                    <td className="py-5 px-5 text-slate-700 font-bold">¥{c.contractPrice.toLocaleString()}</td>
+                    <td className="py-5 px-5 text-slate-700">{c.days} 日</td>
+                    <td className="py-5 px-5 text-slate-900 font-bold">¥{c.total.toLocaleString()}</td>
+                    <td className={`py-5 px-5 font-black text-xl ${c.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       ¥{c.profit.toLocaleString()}
                     </td>
-                    <td className="py-4 px-4 text-center space-x-3">
-                      <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                    <td className="py-5 px-5 text-center space-x-3">
+                      <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
                         詳細分析 →
                       </button>
-                      <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                      <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
                         CSV
                       </button>
                     </td>
@@ -387,10 +387,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア */}
-      <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
-        <h2 className="text-xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      {/* ⚙️ マスタ登録・単価設定エリア（3列に変更 & 文字サイズアップ） */}
+      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+        <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           
           {[
             { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
@@ -405,52 +405,52 @@ export default function AdminPage() {
             { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
             { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
           ].map((sec, idx) => (
-            <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
-              <div className="space-y-3">
-                <h3 className="font-bold text-sm text-orange-600 uppercase tracking-wider">{sec.title}</h3>
+            <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
                 
                 {/* 各追加フォーム */}
                 {sec.isSub ? (
-                  <div className="space-y-2">
-                    <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                    <div className="grid grid-cols-12 gap-2">
-                      <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                      <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                  <div className="space-y-3.5">
+                    <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                    <div className="grid grid-cols-12 gap-2.5">
+                      <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                      <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                     </div>
-                    <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition">追加</button>
+                    <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
                   </div>
                 ) : sec.isDisp || sec.isScrap ? (
-                  <div className="space-y-2">
-                    <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
-                    <div className="grid grid-cols-12 gap-2">
-                      <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
-                      <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
-                      <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
+                  <div className="space-y-3.5">
+                    <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
+                    <div className="grid grid-cols-12 gap-2.5">
+                      <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
+                      <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
+                      <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
                     </div>
-                    <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition">追加</button>
+                    <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                    <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                    <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition">追加</button>
+                  <div className="space-y-3.5">
+                    <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                    <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                    <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
                   </div>
                 )}
               </div>
 
               {/* 一覧リスト（並び替えボタン付き） */}
-              <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl p-2.5 space-y-2 mt-3">
+              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 mt-4">
                 {(settings[sec.key] || []).length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-3">登録データがありません</p>
+                  <p className="text-base text-slate-400 text-center py-5">登録データがありません</p>
                 ) : (
                   (settings[sec.key] || []).map((item:any, idx:number)=>(
-                    <div key={idx} className="py-2 flex justify-between items-center text-sm font-medium gap-2">
-                      <div className="flex items-center gap-1 shrink-0">
+                    <div key={idx} className="py-3 flex justify-between items-center text-lg font-medium gap-2.5">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button 
                           type="button" 
                           onClick={() => moveMasterItem(sec.key, idx, 'up')} 
                           disabled={idx === 0}
-                          className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition"
+                          className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition"
                           title="上へ"
                         >
                           ▲
@@ -459,21 +459,21 @@ export default function AdminPage() {
                           type="button" 
                           onClick={() => moveMasterItem(sec.key, idx, 'down')} 
                           disabled={idx === (settings[sec.key] || []).length - 1}
-                          className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition"
+                          className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition"
                           title="下へ"
                         >
                           ▼
                         </button>
                       </div>
 
-                      <span className="truncate text-slate-900 font-bold flex-1 px-1 text-sm">
+                      <span className="truncate text-slate-900 font-bold flex-1 px-1.5 text-lg">
                         {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
                       </span>
                       
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-slate-400 text-xs">¥</span>
-                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-20 p-2 border border-slate-300 rounded-xl text-right text-sm font-bold bg-slate-50" />
-                        <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs ml-1 p-1">削除</button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-slate-400 text-base">¥</span>
+                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-28 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
+                        <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-base ml-2 p-1.5">削除</button>
                       </div>
                     </div>
                   ))
@@ -486,35 +486,35 @@ export default function AdminPage() {
       </div>
 
       {/* 📥 送信された日報一覧 */}
-      <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <h2 className="text-xl font-black text-slate-900">📥 送信された日報一覧</h2>
+          <h2 className="text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
           <input 
             type="text" 
             placeholder="🔍 現場名で絞り込み..." 
             value={filterLocation} 
             onChange={e => setFilterLocation(e.target.value)} 
-            className="p-3 border border-slate-300 rounded-2xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-80 transition" 
+            className="p-3.5 border border-slate-300 rounded-2xl text-base bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-96 transition" 
           />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-base text-left border-collapse">
+          <table className="w-full text-lg text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-sm font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">日付</th>
-                <th className="py-3 px-4">現場名</th>
-                <th className="py-3 px-4">責任者 / 作業者 / 外注</th>
-                <th className="py-3 px-4">重機 / 車両</th>
-                <th className="py-3 px-4">作業内容</th>
-                <th className="py-3 px-4 text-center">操作</th>
+              <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
+                <th className="py-4 px-5">日付</th>
+                <th className="py-4 px-5">現場名</th>
+                <th className="py-4 px-5">責任者 / 作業者 / 外注</th>
+                <th className="py-4 px-5">重機 / 車両</th>
+                <th className="py-4 px-5">作業内容</th>
+                <th className="py-4 px-5 text-center">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm font-medium">
+            <tbody className="divide-y divide-slate-100 text-base font-medium">
               {filteredReports.map((r, i) => (
                 <tr key={r.id || r._id || i} className="hover:bg-slate-50/80 transition">
-                  <td className="py-4 px-4 font-bold text-slate-900 text-base">{r.date}</td>
-                  <td className="py-4 px-4 font-bold text-blue-600 text-base">{r.location}</td>
-                  <td className="py-4 px-4 text-slate-700 space-y-1 text-sm">
+                  <td className="py-5 px-5 font-bold text-slate-900 text-lg">{r.date}</td>
+                  <td className="py-5 px-5 font-bold text-blue-600 text-lg">{r.location}</td>
+                  <td className="py-5 px-5 text-slate-700 space-y-1 text-base">
                     <div className="font-bold">{r.manager} / {(r.workers || []).join(', ')}</div>
                     {(r.subcontractors || []).length > 0 && (
                       <div className="text-orange-600 font-bold">
@@ -522,11 +522,11 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-4 px-4 text-slate-700 text-sm">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
-                  <td className="py-4 px-4 text-slate-700 text-sm max-w-xs truncate">{r.workDescription || '-'}</td>
-                  <td className="py-4 px-4 text-center space-x-3 whitespace-nowrap">
-                    <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2 rounded-xl font-bold transition shadow-sm text-sm">編集</button>
-                    <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2 rounded-xl font-bold transition shadow-sm text-sm">削除</button>
+                  <td className="py-5 px-5 text-slate-700 text-base">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
+                  <td className="py-5 px-5 text-slate-700 text-base max-w-xs truncate">{r.workDescription || '-'}</td>
+                  <td className="py-5 px-5 text-center space-x-3 whitespace-nowrap">
+                    <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">編集</button>
+                    <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">削除</button>
                   </td>
                 </tr>
               ))}
@@ -538,54 +538,54 @@ export default function AdminPage() {
       {/* ✏️ 日報編集モーダル */}
       {editingReport && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-3xl w-full max-w-3xl p-6 md:p-8 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <h2 className="text-xl font-black text-slate-900 border-b border-slate-100 pb-4">✏️ 日報内容の編集</h2>
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-3xl w-full max-w-3xl p-6 md:p-10 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <h2 className="text-2xl font-black text-slate-900 border-b border-slate-100 pb-4">✏️ 日報内容の編集</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">日付</label>
-                <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base bg-slate-50/50" />
+                <label className="text-base font-bold text-slate-700 block mb-2">日付</label>
+                <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-slate-50/50" />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">現場名</label>
-                <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base bg-white">
+                <label className="text-base font-bold text-slate-700 block mb-2">現場名</label>
+                <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-white">
                   {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">現場責任者</label>
-                <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base bg-white">
+                <label className="text-base font-bold text-slate-700 block mb-2">現場責任者</label>
+                <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-white">
                   <option value="">選択なし</option>
                   {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">軽油 (L)</label>
-                <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base" />
+                <label className="text-base font-bold text-slate-700 block mb-2">軽油 (L)</label>
+                <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">高速代・ETC (円)</label>
-                <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base" />
+                <label className="text-base font-bold text-slate-700 block mb-2">高速代・ETC (円)</label>
+                <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1.5">駐車場代 (円)</label>
-                <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base" />
+                <label className="text-base font-bold text-slate-700 block mb-2">駐車場代 (円)</label>
+                <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
               </div>
             </div>
 
             {/* 作業員 */}
-            <div className="space-y-3 border-t border-slate-200 pt-5">
-              <label className="text-base font-bold text-orange-600 block">作業員（社員）</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-3 border-t border-slate-200 pt-6">
+              <label className="text-lg font-bold text-orange-600 block">作業員（社員）</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
                 {(settings.workers || []).map((w:any) => {
                   const isChecked = (editingReport.workers || []).includes(w.name);
                   return (
-                    <label key={w.name} className={`p-3.5 border rounded-2xl text-sm flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
+                    <label key={w.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
                       <input type="checkbox" checked={isChecked} onChange={(e)=>{
                         const cur = editingReport.workers || [];
                         const next = e.target.checked ? [...cur, w.name] : cur.filter((x:string)=>x!==w.name);
                         setEditingReport({...editingReport, workers: next});
-                      }} className="rounded accent-orange-600 w-4 h-4" />
+                      }} className="rounded accent-orange-600 w-5 h-5" />
                       <span className="font-bold">{w.name}</span>
                     </label>
                   );
@@ -594,18 +594,18 @@ export default function AdminPage() {
             </div>
 
             {/* 🚜 自社重機 */}
-            <div className="space-y-3 border-t border-slate-200 pt-5">
-              <label className="text-base font-bold text-orange-600 block">自社重機</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-3 border-t border-slate-200 pt-6">
+              <label className="text-lg font-bold text-orange-600 block">自社重機</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
                 {(settings.companyMachines || []).map((cm:any) => {
                   const isChecked = (editingReport.ownMachines || []).includes(cm.name);
                   return (
-                    <label key={cm.name} className={`p-3.5 border rounded-2xl text-sm flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
+                    <label key={cm.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
                       <input type="checkbox" checked={isChecked} onChange={(e)=>{
                         const cur = editingReport.ownMachines || [];
                         const next = e.target.checked ? [...cur, cm.name] : cur.filter((x:string)=>x!==cm.name);
                         setEditingReport({...editingReport, ownMachines: next});
-                      }} className="rounded accent-orange-600 w-4 h-4" />
+                      }} className="rounded accent-orange-600 w-5 h-5" />
                       <span className="font-bold">{cm.name}</span>
                     </label>
                   );
@@ -614,18 +614,18 @@ export default function AdminPage() {
             </div>
 
             {/* 🚚 自社車両 */}
-            <div className="space-y-3 border-t border-slate-200 pt-5">
-              <label className="text-base font-bold text-orange-600 block">自社車両</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-3 border-t border-slate-200 pt-6">
+              <label className="text-lg font-bold text-orange-600 block">自社車両</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
                 {(settings.vehicles || []).map((v:any) => {
                   const isChecked = (editingReport.vehicles || []).includes(v.name);
                   return (
-                    <label key={v.name} className={`p-3.5 border rounded-2xl text-sm flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
+                    <label key={v.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
                       <input type="checkbox" checked={isChecked} onChange={(e)=>{
                         const cur = editingReport.vehicles || [];
                         const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
                         setEditingReport({...editingReport, vehicles: next});
-                      }} className="rounded accent-orange-600 w-4 h-4" />
+                      }} className="rounded accent-orange-600 w-5 h-5" />
                       <span className="font-bold">{v.name}</span>
                     </label>
                   );
@@ -634,87 +634,87 @@ export default function AdminPage() {
             </div>
 
             {/* 🗑️ 処分場への搬出 */}
-            <div className="space-y-3 border-t border-slate-200 pt-5">
+            <div className="space-y-3 border-t border-slate-200 pt-6">
               <div className="flex justify-between items-center">
-                <label className="text-base font-bold text-orange-600 block">処分場への搬出</label>
+                <label className="text-lg font-bold text-orange-600 block">処分場への搬出</label>
                 <button type="button" onClick={() => {
                   const cur = editingReport.disposals || [];
                   setEditingReport({ ...editingReport, disposals: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
-                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs px-3 py-1.5 rounded-xl font-bold transition">＋ 処分行を追加</button>
+                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-sm px-4 py-2 rounded-xl font-bold transition">＋ 処分行を追加</button>
               </div>
               <div className="space-y-3">
                 {(editingReport.disposals || []).map((d:any, idx:number) => (
-                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-2xl border border-slate-300">
+                  <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-300">
                     <input type="text" placeholder="処分場名" value={d.location || ''} onChange={e => {
                       const list = [...editingReport.disposals];
                       list[idx] = { ...list[idx], location: e.target.value };
                       setEditingReport({ ...editingReport, disposals: list });
-                    }} className="flex-1 p-2.5 border border-slate-300 rounded-xl text-sm bg-white" />
+                    }} className="flex-1 p-3 border border-slate-300 rounded-xl text-base bg-white" />
                     <input type="text" placeholder="品目" value={d.item || ''} onChange={e => {
                       const list = [...editingReport.disposals];
                       list[idx] = { ...list[idx], item: e.target.value };
                       setEditingReport({ ...editingReport, disposals: list });
-                    }} className="w-28 p-2.5 border border-slate-300 rounded-xl text-sm bg-white" />
+                    }} className="w-32 p-3 border border-slate-300 rounded-xl text-base bg-white" />
                     <input type="number" placeholder="数量" value={d.quantity || 0} onChange={e => {
                       const list = [...editingReport.disposals];
                       list[idx] = { ...list[idx], quantity: Number(e.target.value) };
                       setEditingReport({ ...editingReport, disposals: list });
-                    }} className="w-20 p-2.5 border border-slate-300 rounded-xl text-sm bg-white text-right" />
-                    <span className="text-xs text-slate-700 font-bold">t</span>
+                    }} className="w-24 p-3 border border-slate-300 rounded-xl text-base bg-white text-right" />
+                    <span className="text-sm text-slate-700 font-bold">t</span>
                     <button type="button" onClick={() => {
                       const list = (editingReport.disposals || []).filter((_:any, i:number) => i !== idx);
                       setEditingReport({ ...editingReport, disposals: list });
-                    }} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
+                    }} className="text-rose-500 hover:text-rose-700 font-bold text-sm p-1">削除</button>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* ♻️ スクラップの搬出 */}
-            <div className="space-y-3 border-t border-slate-200 pt-5">
+            <div className="space-y-3 border-t border-slate-200 pt-6">
               <div className="flex justify-between items-center">
-                <label className="text-base font-bold text-orange-600 block">スクラップの搬出</label>
+                <label className="text-lg font-bold text-orange-600 block">スクラップの搬出</label>
                 <button type="button" onClick={() => {
                   const cur = editingReport.scraps || [];
                   setEditingReport({ ...editingReport, scraps: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
-                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs px-3 py-1.5 rounded-xl font-bold transition">＋ スクラップ行を追加</button>
+                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-sm px-4 py-2 rounded-xl font-bold transition">＋ スクラップ行を追加</button>
               </div>
               <div className="space-y-3">
                 {(editingReport.scraps || []).map((sc:any, idx:number) => (
-                  <div key={idx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-2xl border border-slate-300">
+                  <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-300">
                     <input type="text" placeholder="スクラップ場名" value={sc.location || ''} onChange={e => {
                       const list = [...editingReport.scraps];
                       list[idx] = { ...list[idx], location: e.target.value };
                       setEditingReport({ ...editingReport, scraps: list });
-                    }} className="flex-1 p-2.5 border border-slate-300 rounded-xl text-sm bg-white" />
+                    }} className="flex-1 p-3 border border-slate-300 rounded-xl text-base bg-white" />
                     <input type="text" placeholder="品目" value={sc.item || ''} onChange={e => {
                       const list = [...editingReport.scraps];
                       list[idx] = { ...list[idx], item: e.target.value };
                       setEditingReport({ ...editingReport, scraps: list });
-                    }} className="w-28 p-2.5 border border-slate-300 rounded-xl text-sm bg-white" />
+                    }} className="w-32 p-3 border border-slate-300 rounded-xl text-base bg-white" />
                     <input type="number" placeholder="数量" value={sc.quantity || 0} onChange={e => {
                       const list = [...editingReport.scraps];
                       list[idx] = { ...list[idx], quantity: Number(e.target.value) };
                       setEditingReport({ ...editingReport, scraps: list });
-                    }} className="w-20 p-2.5 border border-slate-300 rounded-xl text-sm bg-white text-right" />
-                    <span className="text-xs text-slate-700 font-bold">t</span>
+                    }} className="w-24 p-3 border border-slate-300 rounded-xl text-base bg-white text-right" />
+                    <span className="text-sm text-slate-700 font-bold">t</span>
                     <button type="button" onClick={() => {
                       const list = (editingReport.scraps || []).filter((_:any, i:number) => i !== idx);
                       setEditingReport({ ...editingReport, scraps: list });
-                    }} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
+                    }} className="text-rose-500 hover:text-rose-700 font-bold text-sm p-1">削除</button>
                   </div>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-slate-700 block mb-1.5">作業内容</label>
-              <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-base h-28" />
+              <label className="text-base font-bold text-slate-700 block mb-2">作業内容</label>
+              <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg h-32" />
             </div>
 
-            <div className="flex gap-4 pt-3">
-              <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-base shadow-md transition">更新を保存する</button>
-              <button type="button" onClick={() => setEditingReport(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-base transition">キャンセル</button>
+            <div className="flex gap-4 pt-4">
+              <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition">更新を保存する</button>
+              <button type="button" onClick={() => setEditingReport(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-lg transition">キャンセル</button>
             </div>
           </form>
         </div>
@@ -722,33 +722,33 @@ export default function AdminPage() {
 
       {/* 🔍 現場詳細モーダル */}
       {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 z-40 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-5">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 z-40 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-6xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-6">
               <div>
-                <h2 className="text-2xl md:text-3xl font-black text-slate-900">{modalLocation} <span className="text-lg font-normal text-slate-500">（詳細分析）</span></h2>
-                <p className="text-sm text-slate-500">原価・収支および内訳明細</p>
+                <h2 className="text-2xl md:text-4xl font-black text-slate-900">{modalLocation} <span className="text-xl font-normal text-slate-500">（詳細分析）</span></h2>
+                <p className="text-base text-slate-500 mt-1">原価・収支および内訳明細</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition">CSV出力</button>
-                <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold transition">閉じる</button>
+                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-base font-bold shadow-sm transition">CSV出力</button>
+                <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-3 rounded-xl text-base font-bold transition">閉じる</button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200"><div className="text-sm text-slate-600 font-medium">請負金額</div><div className="text-xl md:text-2xl font-black text-slate-900 mt-1">¥{modalData.contractPrice.toLocaleString()}</div></div>
-              <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200"><div className="text-sm text-emerald-700 font-medium">合計経費</div><div className="text-xl md:text-2xl font-black text-emerald-800 mt-1">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-200"><div className="text-sm text-blue-700 font-medium">利益（売却益込）</div><div className="text-xl md:text-2xl font-black text-blue-800 mt-1">¥{modalData.profit.toLocaleString()}</div></div>
-              <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200"><div className="text-sm text-amber-700 font-medium">稼働日数</div><div className="text-xl md:text-2xl font-black text-amber-800 mt-1">{modalData.days}日</div></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5 text-center">
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200"><div className="text-base text-slate-600 font-medium">請負金額</div><div className="text-2xl md:text-3xl font-black text-slate-900 mt-2">¥{modalData.contractPrice.toLocaleString()}</div></div>
+              <div className="bg-emerald-50/60 p-6 rounded-2xl border border-emerald-200"><div className="text-base text-emerald-700 font-medium">合計経費</div><div className="text-2xl md:text-3xl font-black text-emerald-800 mt-2">¥{modalData.total.toLocaleString()}</div></div>
+              <div className="bg-blue-50/60 p-6 rounded-2xl border border-blue-200"><div className="text-base text-blue-700 font-medium">利益（売却益込）</div><div className="text-2xl md:text-3xl font-black text-blue-800 mt-2">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-amber-50/60 p-6 rounded-2xl border border-amber-200"><div className="text-base text-amber-700 font-medium">稼働日数</div><div className="text-2xl md:text-3xl font-black text-amber-800 mt-2">{modalData.days}日</div></div>
             </div>
 
             {/* 📋 経費・収支の内訳明細（編集可能カード） */}
-            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-5">
-              <div className="flex justify-between items-center flex-wrap gap-3">
-                <h3 className="font-bold text-lg text-slate-900">📋 経費・収支の内訳明細（編集可能）</h3>
-                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-sm transition">🔍 処分費の内訳を確認</button>
+            <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6">
+              <div className="flex justify-between items-center flex-wrap gap-4">
+                <h3 className="font-bold text-xl text-slate-900">📋 経費・収支の内訳明細（編集可能）</h3>
+                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-base px-5 py-3 rounded-xl font-bold shadow-sm transition">🔍 処分費の内訳を確認</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 
                 {[
                   { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
@@ -765,13 +765,13 @@ export default function AdminPage() {
                 ].map((item) => {
                   const isEditing = editingCostFields[modalLocation]?.[item.key];
                   return (
-                    <div key={item.key} className={`bg-white p-5 rounded-2xl border border-slate-300 shadow-xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                    <div key={item.key} className={`bg-white p-6 rounded-2xl border border-slate-300 shadow-xs flex flex-col justify-between gap-4 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                       <div className="flex justify-between items-center">
-                        <span className={`text-sm font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-600'}`}>{item.label}</span>
+                        <span className={`text-base font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-600'}`}>{item.label}</span>
                         <button
                           type="button"
                           onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5"
                         >
                           {isEditing ? '🔒 完了' : '✏️ 編集'}
                         </button>
@@ -779,23 +779,23 @@ export default function AdminPage() {
 
                       {isEditing ? (
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-slate-500 font-bold text-lg">¥</span>
+                          <span className="text-slate-500 font-bold text-xl">¥</span>
                           <input
                             type="number"
                             value={costOverrides[modalLocation]?.[item.key] ?? (item.isDisposal ? modalData.disposalCost : (item.key === 'labor' ? modalData.laborCost : item.key === 'sub' ? modalData.subCostTotal : item.key === 'lease' ? modalData.leaseCost : item.key === 'otherLease' ? modalData.otherLeaseCost : item.key === 'ownMachine' ? modalData.ownMachineCost : item.key === 'vehicle' ? modalData.vehicleCost : item.key === 'fuel' ? modalData.fuelCost : item.key === 'etc' ? modalData.etcCost : item.key === 'parking' ? modalData.parkingCost : modalData.otherCost))}
                             onChange={e => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-right text-base bg-slate-50"
+                            className="w-full p-3 border border-slate-300 rounded-xl font-bold text-right text-lg bg-slate-50"
                             autoFocus
                           />
                         </div>
                       ) : (
-                        <div className="font-black text-slate-900 text-2xl">
+                        <div className="font-black text-slate-900 text-3xl">
                           ¥{Number(item.val || 0).toLocaleString()}
                         </div>
                       )}
 
                       {item.isDisposal && (
-                        <div className="text-xs text-slate-600 mt-2 space-y-1 border-t border-slate-200 pt-2">
+                        <div className="text-sm text-slate-600 mt-2 space-y-1.5 border-t border-slate-200 pt-3">
                           {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                             <div>内訳なし</div>
                           ) : (
@@ -812,12 +812,12 @@ export default function AdminPage() {
                   );
                 })}
 
-                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 flex flex-col gap-2 col-span-full shadow-xs">
+                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 col-span-full shadow-xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-emerald-900 font-bold text-base">♻️ スクラップ売却計</span>
-                    <span className="font-black text-emerald-800 text-xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                    <span className="text-emerald-900 font-bold text-lg">♻️ スクラップ売却計</span>
+                    <span className="font-black text-emerald-800 text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
                   </div>
-                  <div className="text-xs text-slate-600 space-y-1 border-t border-emerald-200 pt-2">
+                  <div className="text-sm text-slate-600 space-y-1.5 border-t border-emerald-200 pt-3">
                     {Object.entries(modalData.aggregatedScrapBreakdown).length === 0 ? (
                       <div>内訳なし</div>
                     ) : (
@@ -835,32 +835,32 @@ export default function AdminPage() {
             </div>
 
             {/* 📅 1日ごとの日報データ・経費明細 */}
-            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
-              <h3 className="font-bold text-lg text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
+            <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-5">
+              <h3 className="font-bold text-xl text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
               {modalData.reportsWithIndex.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-6">この現場の日報はまだありません</p>
+                <p className="text-base text-slate-500 text-center py-8">この現場の日報はまだありません</p>
               ) : (
-                <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-3">
                   {modalData.reportsWithIndex.map((r, idx) => {
                     const daily = calculateReportDailyCost(r);
                     return (
-                      <div key={r.id || r._id || idx} className="bg-white p-5 rounded-2xl border border-slate-300 shadow-xs space-y-3">
-                        <div className="flex justify-between items-center border-b border-slate-200 pb-3 text-sm font-bold text-slate-800">
-                          <span className="text-blue-600 text-lg">📅 {r.date}</span>
-                          <span className="text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl font-bold text-sm">日報合計経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
+                      <div key={r.id || r._id || idx} className="bg-white p-6 rounded-2xl border border-slate-300 shadow-xs space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-200 pb-3.5 text-base font-bold text-slate-800">
+                          <span className="text-blue-600 text-xl">📅 {r.date}</span>
+                          <span className="text-emerald-800 bg-emerald-50 px-4 py-2 rounded-xl font-bold text-base">日報合計経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-slate-800">
-                          <div><span className="text-slate-500 block text-xs">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-base text-slate-800">
+                          <div><span className="text-slate-500 block text-sm">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-sm">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
                         </div>
                         {r.workDescription && (
-                          <div className="text-sm text-slate-700 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                          <div className="text-base text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                             <span className="font-bold text-slate-900 block mb-1">作業内容:</span> {r.workDescription}
                           </div>
                         )}
@@ -878,18 +878,18 @@ export default function AdminPage() {
       {/* 🗑️ 処分費詳細モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 md:p-8 max-h-[85vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <h3 className="text-xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition">閉じる</button>
+              <h3 className="text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-xl text-base font-bold transition">閉じる</button>
             </div>
 
             <div className="space-y-3">
               {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => ({ ...d, date: r.date }))).length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">搬出された処分データはありません</p>
+                <p className="text-base text-slate-500 text-center py-8">搬出された処分データはありません</p>
               ) : (
                 <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                  <div className="grid grid-cols-4 bg-slate-100 p-4 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  <div className="grid grid-cols-4 bg-slate-100 p-4 text-sm font-bold text-slate-600 uppercase tracking-wider">
                     <div>日付</div>
                     <div>処分場名</div>
                     <div>品目</div>
@@ -899,11 +899,11 @@ export default function AdminPage() {
                     const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
                     const subTotal = Number(d.quantity || 0) * uPrice;
                     return (
-                      <div key={idx} className="grid grid-cols-4 p-4 text-sm items-center bg-white hover:bg-slate-50 transition">
+                      <div key={idx} className="grid grid-cols-4 p-4 text-base items-center bg-white hover:bg-slate-50 transition">
                         <div className="font-bold text-slate-900">{r.date}</div>
                         <div className="text-slate-800">{d.location || '-'}</div>
                         <div className="text-slate-800">{d.item || '-'}</div>
-                        <div className="text-right font-bold text-slate-900">{Number(d.quantity || 0)} {d.unit || 't'} <span className="text-slate-500 font-normal block text-xs">(¥{subTotal.toLocaleString()})</span></div>
+                        <div className="text-right font-bold text-slate-900">{Number(d.quantity || 0)} {d.unit || 't'} <span className="text-slate-500 font-normal block text-sm">(¥{subTotal.toLocaleString()})</span></div>
                       </div>
                     );
                   }))}
