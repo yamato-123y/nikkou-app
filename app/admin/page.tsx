@@ -30,7 +30,7 @@ export default function AdminPage() {
   // 管理エリアの開閉ステート（PCでのみ開く・スマホでは通常閉じ気味）
   const [showAdminSection, setShowAdminSection] = useState(false);
 
-  // 出勤確認表の年月選択ステート（デフォルト：現在または最新日報の年月）
+  // 出勤確認表の年月選択ステート
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -50,7 +50,7 @@ export default function AdminPage() {
             const normalized = latestDate.replace(/\//g, '-');
             const parts = normalized.split('-');
             if (parts.length >= 2) {
-              setCalendarYearMonth(`${parts[0]}-${parts[1]}`);
+              setCalendarYearMonth(`${parts[0]}-${parts[1].padStart(2, '0')}`);
             }
           }
         }
@@ -82,7 +82,6 @@ export default function AdminPage() {
     }
   };
 
-  // 明示的に保存ボタンを押したときだけサーバーへ保存するよう変更
   const saveMaster = async (key: string, customList?: any[]) => {
     if (authRole === 'viewer') {
       alert('閲覧専用モードのため変更できません。');
@@ -129,7 +128,6 @@ export default function AdminPage() {
     setSettings({ ...settings, [key]: updatedList });
   };
 
-  // 並び替え機能（ローカルステートのみ変更し、保存ボタンで確定）
   const moveMasterItem = (key: string, idx: number, direction: 'up' | 'down') => {
     if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
@@ -370,6 +368,20 @@ export default function AdminPage() {
     return days;
   };
 
+  // 日付の正規化（YYYY-MM-DD形式に統一して比較するため）
+  const normalizeDateStr = (dateStr: string) => {
+    if (!dateStr) return '';
+    const cleaned = dateStr.replace(/\//g, '-');
+    const parts = cleaned.split('-');
+    if (parts.length === 3) {
+      const y = parts[0];
+      const m = parts[1].padStart(2, '0');
+      const d = parts[2].padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return cleaned;
+  };
+
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
       <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
@@ -607,8 +619,8 @@ export default function AdminPage() {
                       </td>
                       {calendarDays.map(dateStr => {
                         const matchedReports = reports.filter(r => {
-                          const rDate = (r.date || '').replace(/\//g, '-');
-                          if (rDate !== dateStr) return false;
+                          const rDateNormalized = normalizeDateStr(r.date);
+                          if (rDateNormalized !== dateStr) return false;
                           const isManager = r.manager === staff;
                           const isWorker = (r.workers || []).includes(staff);
                           return isManager || isWorker;
@@ -856,45 +868,187 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✏️ 日報編集モーダル */}
+      {/* ✏️ フル編集対応日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-3xl w-full max-w-3xl p-6 md:p-10 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <h2 className="text-2xl font-black text-slate-900 border-b border-slate-100 pb-4">✏️ 日報内容の編集</h2>
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-3xl w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <h2 className="text-2xl font-black text-slate-900 border-b border-slate-100 pb-4">✏️ 日報内容の完全編集</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 日付 */}
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">日付</label>
-                <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-slate-50/50" />
+                <label className="text-sm font-bold text-slate-700 block mb-2">日付</label>
+                <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base bg-slate-50/50 font-bold" />
               </div>
+
+              {/* 現場名 */}
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">現場名</label>
-                <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-white">
+                <label className="text-sm font-bold text-slate-700 block mb-2">現場名</label>
+                <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base bg-white font-bold text-blue-600">
                   {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
                 </select>
               </div>
+
+              {/* 現場責任者 */}
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">現場責任者</label>
-                <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg bg-white">
+                <label className="text-sm font-bold text-slate-700 block mb-2">現場責任者</label>
+                <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base bg-white">
                   <option value="">選択なし</option>
                   {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
+
+              {/* 作業員（チェックボックス複数選択） */}
+              <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="text-sm font-bold text-slate-700 block mb-2">作業メンバー</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {(settings.workers || []).map((w: any) => {
+                    const checked = (editingReport.workers || []).includes(w.name);
+                    return (
+                      <label key={w.name} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.workers || [];
+                            const updated = e.target.checked ? [...current, w.name] : current.filter((x: string) => x !== w.name);
+                            setEditingReport({ ...editingReport, workers: updated });
+                          }}
+                          className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
+                        />
+                        {w.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 重機リース */}
+              <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="text-sm font-bold text-slate-700 block mb-2">リース重機</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(settings.leaseHeavy || []).map((lh: any) => {
+                    const checked = (editingReport.leaseHeavy || []).includes(lh.name);
+                    return (
+                      <label key={lh.name} className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.leaseHeavy || [];
+                            const updated = e.target.checked ? [...current, lh.name] : current.filter((x: string) => x !== lh.name);
+                            setEditingReport({ ...editingReport, leaseHeavy: updated });
+                          }}
+                          className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                        />
+                        {lh.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* アタッチメントリース */}
+              <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="text-sm font-bold text-slate-700 block mb-2">アタッチメント</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(settings.leaseAttach || []).map((la: any) => {
+                    const checked = (editingReport.leaseAttach || []).includes(la.name);
+                    return (
+                      <label key={la.name} className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.leaseAttach || [];
+                            const updated = e.target.checked ? [...current, la.name] : current.filter((x: string) => x !== la.name);
+                            setEditingReport({ ...editingReport, leaseAttach: updated });
+                          }}
+                          className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                        />
+                        {la.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 自社重機 */}
+              <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="text-sm font-bold text-slate-700 block mb-2">自社重機</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(settings.companyMachines || []).map((cm: any) => {
+                    const checked = (editingReport.ownMachines || []).includes(cm.name);
+                    return (
+                      <label key={cm.name} className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.ownMachines || [];
+                            const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
+                            setEditingReport({ ...editingReport, ownMachines: updated });
+                          }}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                        />
+                        {cm.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 自社車両 */}
+              <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label className="text-sm font-bold text-slate-700 block mb-2">自社車両</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {(settings.vehicles || []).map((v: any) => {
+                    const checked = (editingReport.vehicles || []).includes(v.name);
+                    return (
+                      <label key={v.name} className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.vehicles || [];
+                            const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
+                            setEditingReport({ ...editingReport, vehicles: updated });
+                          }}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                        />
+                        {v.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 燃料・経費等 */}
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">軽油 (L)</label>
-                <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
+                <label className="text-sm font-bold text-slate-700 block mb-2">軽油 (L)</label>
+                <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base" />
               </div>
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">高速代・ETC (円)</label>
-                <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
+                <label className="text-sm font-bold text-slate-700 block mb-2">高速代・ETC (円)</label>
+                <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base" />
               </div>
               <div>
-                <label className="text-base font-bold text-slate-700 block mb-2">駐車場代 (円)</label>
-                <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg" />
+                <label className="text-sm font-bold text-slate-700 block mb-2">駐車場代 (円)</label>
+                <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-700 block mb-2">その他雑費 (円)</label>
+                <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base" />
+              </div>
+
+              {/* 作業内容 */}
+              <div className="md:col-span-2">
+                <label className="text-sm font-bold text-slate-700 block mb-2">作業内容メモ</label>
+                <textarea rows={3} value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-base" />
               </div>
             </div>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-4 pt-4 border-t border-slate-100">
               <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition">更新を保存する</button>
               <button type="button" onClick={() => setEditingReport(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-lg transition">キャンセル</button>
             </div>
