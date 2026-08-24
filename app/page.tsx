@@ -296,13 +296,14 @@ export default function Home() {
              </div>
            </div>
 
-           {/* ■ その他リース（自由入力） */}
+           {/* ■ その他リース（自由入力） - 2行に整理して見やすく改善 */}
            <div className="space-y-2 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
-             <div className="flex justify-between items-center">
-               <div className="text-xs font-black text-amber-800 bg-amber-100 px-3 py-1.5 rounded-lg">
-                 📦 その他（MOK以外からのリース・機械など）
+             <div className="flex justify-between items-start gap-2">
+               <div className="text-xs font-black text-amber-800 bg-amber-100 px-3 py-1.5 rounded-lg leading-relaxed">
+                 📦 その他<br />
+                 <span className="font-normal">（MOK以外からのリース・機械など）</span>
                </div>
-               <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3.5 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+               <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3.5 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition shrink-0">＋ 追加</button>
              </div>
              {otherLeases.map((ol, index) => (
                <div key={index} className="flex gap-2 items-center bg-white p-2.5 rounded-xl border border-amber-200">
