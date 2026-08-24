@@ -31,17 +31,35 @@ export async function POST(request: Request) {
   try {
     const newSettings = await request.json();
 
-    // 常に最新の1行だけにするため、まず既存のデータを削除する
+    // 1. 既存のデータを取得する
+    const { data: existingData } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', SETTINGS_KEY)
+      .maybeSingle();
+
+    let currentSettings = {};
+    if (existingData && existingData.value) {
+      currentSettings = typeof existingData.value === 'object' ? existingData.value : JSON.parse(existingData.value || '{}');
+    }
+
+    // 2. 既存のデータと新しく送られてきたデータを安全にマージ（結合）する
+    // 送信されてきたキー（例: locations, workers など）のみを上書きし、含まれていないキーやデータは保持する
+    const mergedSettings = {
+      ...currentSettings,
+      ...newSettings,
+    };
+
+    // 3. 一度削除して最新化する代わりに、安全にupsert（存在すれば更新、なければ挿入）またはdelete/insertを行う
     await supabase
       .from('settings')
       .delete()
       .eq('key', SETTINGS_KEY);
 
-    // 新しい設定データを1行だけ挿入する
     const { error } = await supabase
       .from('settings')
       .insert([
-        { key: SETTINGS_KEY, value: newSettings }
+        { key: SETTINGS_KEY, value: mergedSettings }
       ]);
 
     if (error) {
