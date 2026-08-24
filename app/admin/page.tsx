@@ -30,11 +30,31 @@ export default function AdminPage() {
   // 管理エリアの開閉ステート（PCでのみ開く・スマホでは通常閉じ気味）
   const [showAdminSection, setShowAdminSection] = useState(false);
 
+  // 出勤確認表の年月選択ステート（デフォルト：現在または最新日報の年月）
+  const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
       const [resR, resS] = await Promise.all([fetch('/api/reports'), fetch('/api/settings')]);
-      if (resR.ok) setReports(await resR.json());
+      if (resR.ok) {
+        const rData = await resR.json();
+        setReports(rData);
+        if (rData && rData.length > 0) {
+          const dates = rData.map((r: any) => r.date).filter(Boolean).sort();
+          const latestDate = dates[dates.length - 1];
+          if (latestDate) {
+            const normalized = latestDate.replace(/\//g, '-');
+            const parts = normalized.split('-');
+            if (parts.length >= 2) {
+              setCalendarYearMonth(`${parts[0]}-${parts[1]}`);
+            }
+          }
+        }
+      }
       if (resS.ok) {
         const sData = await resS.json();
         if (sData && Object.keys(sData).length > 0) {
@@ -334,6 +354,22 @@ export default function AdminPage() {
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${locName}_日報データ.csv`; link.click();
   };
 
+  // --- カレンダー（出勤確認表）用ヘルパー関数 ---
+  const getDaysInMonth = (yearMonthStr: string) => {
+    const [y, m] = yearMonthStr.split('-').map(Number);
+    if (!y || !m) return [];
+    const date = new Date(y, m - 1, 1);
+    const days = [];
+    while (date.getMonth() === m - 1) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      days.push(`${yyyy}-${mm}-${dd}`);
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  };
+
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
       <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
@@ -405,6 +441,14 @@ export default function AdminPage() {
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
+
+  // 全登録メンバーリスト（責任者＋作業員）
+  const allStaffNames = Array.from(new Set([
+    ...(settings.managers || []).map((m: any) => m.name),
+    ...(settings.workers || []).map((w: any) => w.name)
+  ])).filter(Boolean);
+
+  const calendarDays = getDaysInMonth(calendarYearMonth);
 
   return (
     <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-sm md:text-lg">
@@ -511,6 +555,96 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* 📅 出勤確認表（カレンダー形式・管理画面限定） */}
+      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
+        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h2 className="text-lg md:text-2xl font-black text-slate-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
+            <p className="text-xs md:text-sm text-slate-400 mt-0.5">どの日に・誰がどの現場に入っていたか（または未割り当てか）をチェックできます</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs md:text-sm font-bold text-slate-600">表示月:</span>
+            <input 
+              type="month" 
+              value={calendarYearMonth} 
+              onChange={e => setCalendarYearMonth(e.target.value)}
+              className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50 focus:bg-white focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {allStaffNames.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-6">登録されているスタッフがいません（マスタ設定を確認してください）</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold">
+                  <th className="py-3 px-3 sticky left-0 bg-slate-50 z-10 min-w-[120px] shadow-xs">スタッフ名</th>
+                  {calendarDays.map(dateStr => {
+                    const dayNum = Number(dateStr.split('-')[2]);
+                    const dObj = new Date(dateStr);
+                    const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+                    const wDay = weekDays[dObj.getDay()];
+                    const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
+                    return (
+                      <th key={dateStr} className={`py-3 px-1 text-center min-w-[36px] ${isWeekend ? 'text-rose-500 bg-rose-50/40' : ''}`}>
+                        <div className="text-[10px] text-slate-400">{wDay}</div>
+                        <div className="text-xs md:text-sm">{dayNum}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {allStaffNames.map(staff => {
+                  return (
+                    <tr key={staff} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
+                        👤 {staff}
+                      </td>
+                      {calendarDays.map(dateStr => {
+                        const matchedReports = reports.filter(r => {
+                          const rDate = (r.date || '').replace(/\//g, '-');
+                          if (rDate !== dateStr) return false;
+                          const isManager = r.manager === staff;
+                          const isWorker = (r.workers || []).includes(staff);
+                          return isManager || isWorker;
+                        });
+
+                        const hasEntry = matchedReports.length > 0;
+                        const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+
+                        return (
+                          <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                            {hasEntry ? (
+                              <div 
+                                title={`${dateStr}: ${locNames}`}
+                                className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
+                              >
+                                ◯
+                              </div>
+                            ) : (
+                              <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
+                                -
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
+              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ） */}
@@ -626,7 +760,7 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* スマホ用カード型リスト（見やすさを大幅改善） */}
+        {/* スマホ用カード型リスト */}
         <div className="block md:hidden space-y-3">
           {filteredReports.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-6">日報データはありません</p>
