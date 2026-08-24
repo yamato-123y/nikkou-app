@@ -8,6 +8,7 @@ export default function AdminPage() {
 
   const [reports, setReports] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
+  const [isLoading, setIsLoading] = useState(false);
   
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   const [filterLocation, setFilterLocation] = useState('');
@@ -27,14 +28,21 @@ export default function AdminPage() {
 
   const fetchData = async () => {
     try {
+      setIsLoading(true);
       const [resR, resS] = await Promise.all([fetch('/api/reports'), fetch('/api/settings')]);
       if (resR.ok) setReports(await resR.json());
       if (resS.ok) {
         const sData = await resS.json();
-        setSettings(sData || {});
-        if (sData.costOverrides) setCostOverrides(sData.costOverrides);
+        if (sData && Object.keys(sData).length > 0) {
+          setSettings(sData);
+          if (sData.costOverrides) setCostOverrides(sData.costOverrides);
+        }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error(e); 
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
@@ -48,19 +56,42 @@ export default function AdminPage() {
     }
   };
 
-  const saveMaster = async (key: string, newList: any[]) => {
+  // 明示的に保存ボタンを押したときだけサーバーへ保存するよう変更
+  const saveMaster = async (key: string, customList?: any[]) => {
     if (authRole === 'viewer') {
       alert('閲覧専用モードのため変更できません。');
       return;
     }
-    const newData = { ...settings, [key]: newList };
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
-    fetchData();
+    if (isLoading) {
+      alert('データを読み込み中です。しばらくお待ちください。');
+      return;
+    }
+    try {
+      const targetList = customList !== undefined ? customList : settings[key];
+      const newData = { ...settings, [key]: targetList };
+      
+      const res = await fetch('/api/settings', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(newData) 
+      });
+      
+      if (res.ok) {
+        setSettings(newData);
+        alert('保存しました！');
+      } else {
+        alert('保存に失敗しました。');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。');
+    }
   };
 
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
     if (authRole === 'viewer') return;
-    saveMaster(key, [...(settings[key] || []), newItem]);
+    const updatedList = [...(settings[key] || []), newItem];
+    setSettings({ ...settings, [key]: updatedList });
     const cleared = { ...form };
     formKeys.forEach(k => cleared[k] = '');
     setForm(cleared);
@@ -68,10 +99,11 @@ export default function AdminPage() {
 
   const deleteMaster = (key: string, idx: number) => {
     if (authRole === 'viewer') return;
-    saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
+    const updatedList = (settings[key] || []).filter((_:any, i:number) => i !== idx);
+    setSettings({ ...settings, [key]: updatedList });
   };
 
-  // 並び替え機能（上へ / 下へ）
+  // 並び替え機能（ローカルステートのみ変更し、保存ボタンで確定）
   const moveMasterItem = (key: string, idx: number, direction: 'up' | 'down') => {
     if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
@@ -80,14 +112,14 @@ export default function AdminPage() {
     const temp = list[idx];
     list[idx] = list[targetIdx];
     list[targetIdx] = temp;
-    saveMaster(key, list);
+    setSettings({ ...settings, [key]: list });
   };
 
   const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
     if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
-    list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' ? value : (Number(value) || 0) };
-    saveMaster(key, list);
+    list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' || field === 'item' || field === 'unit' || field === 'location' ? value : (Number(value) || 0) };
+    setSettings({ ...settings, [key]: list });
   };
 
   const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
@@ -330,6 +362,14 @@ export default function AdminPage() {
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans text-xl font-bold text-slate-600">
+        🔄 データを読み込んでいます...
+      </div>
+    );
+  }
+
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
@@ -436,7 +476,10 @@ export default function AdminPage() {
       {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ表示） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-          <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
@@ -453,7 +496,15 @@ export default function AdminPage() {
             ].map((sec, idx) => (
               <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-5 flex flex-col justify-between">
                 <div className="space-y-4">
-                  <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
+                    <button 
+                      onClick={() => saveMaster(sec.key)} 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm transition"
+                    >
+                      💾 この設定を保存する
+                    </button>
+                  </div>
                   
                   {sec.isSub ? (
                     <div className="space-y-3.5">
@@ -462,7 +513,7 @@ export default function AdminPage() {
                         <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
                         <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                       </div>
-                      <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
+                      <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
                     </div>
                   ) : sec.isDisp || sec.isScrap ? (
                     <div className="space-y-3.5">
@@ -472,13 +523,13 @@ export default function AdminPage() {
                         <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
                         <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
                       </div>
-                      <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
+                      <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
                     </div>
                   ) : (
                     <div className="space-y-3.5">
                       <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                       <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                      <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
+                      <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
                     </div>
                   )}
                 </div>
