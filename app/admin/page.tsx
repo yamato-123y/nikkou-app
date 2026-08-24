@@ -410,7 +410,7 @@ export default function AdminPage() {
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
             <h1 className="text-lg md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理</h1>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-orange-100 text-orange-700'}`}>
               {authRole === 'admin' ? '👑 管理者モード' : '👑 社長モード'}
             </span>
           </div>
@@ -428,7 +428,7 @@ export default function AdminPage() {
 
       {authRole === 'viewer' && (
         <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3.5 rounded-2xl font-medium text-center text-xs md:text-base shadow-xs">
-          👑 社長モードで表示しています。（データの確認とCSV出力が可能です）
+          👑 社長モードで表示しています。（データの確認が可能です）
         </div>
       )}
 
@@ -455,7 +455,9 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-2 pt-0.5">
                   <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-xs transition">詳細分析</button>
-                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-xs transition">CSV出力</button>
+                  {authRole !== 'viewer' && (
+                    <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-xs transition">CSV出力</button>
+                  )}
                 </div>
               </div>
             );
@@ -491,9 +493,11 @@ export default function AdminPage() {
                       <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
                         詳細分析 →
                       </button>
-                      <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
-                        CSV
-                      </button>
+                      {authRole !== 'viewer' && (
+                        <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
+                          CSV
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -615,7 +619,64 @@ export default function AdminPage() {
             className="p-3 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-80 transition" 
           />
         </div>
-        <div className="overflow-x-auto">
+
+        {/* スマホ用カード型リスト（見やすさを大幅改善） */}
+        <div className="block md:hidden space-y-3">
+          {filteredReports.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">日報データはありません</p>
+          ) : (
+            filteredReports.map((r, i) => (
+              <div key={r.id || r._id || i} className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="font-bold text-blue-600 text-base">📅 {r.date}</span>
+                  <span className="font-bold text-slate-900 text-sm bg-white px-2.5 py-1 rounded-lg border border-slate-200">{r.location}</span>
+                </div>
+                
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div>
+                    <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">責任者 / 作業者</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      👤 {r.manager || '-'} / {(r.workers || []).join(', ') || '-'}
+                    </span>
+                  </div>
+
+                  {(r.subcontractors || []).length > 0 && (
+                    <div>
+                      <span className="text-orange-600 block text-[11px] font-semibold mb-0.5">外注</span>
+                      <span className="font-bold text-orange-700 text-sm">
+                        {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">重機 / 車両</span>
+                    <span className="font-medium text-slate-800">
+                      🚜 {[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}
+                    </span>
+                  </div>
+
+                  {r.workDescription && (
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">作業内容</span>
+                      <span className="text-slate-800 text-xs leading-relaxed">{r.workDescription}</span>
+                    </div>
+                  )}
+                </div>
+
+                {authRole === 'admin' && (
+                  <div className="flex gap-2 pt-2 border-t border-slate-200">
+                    <button onClick={() => setEditingReport({ ...r })} className="flex-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 py-2 rounded-xl font-bold transition text-xs">編集</button>
+                    <button onClick={() => handleDeleteReport(r, i)} className="flex-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 py-2 rounded-xl font-bold transition text-xs">削除</button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* PC用テーブル表示 */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm md:text-base text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-xs md:text-sm font-bold uppercase tracking-wider">
@@ -711,7 +772,9 @@ export default function AdminPage() {
                 <p className="text-xs md:text-base text-slate-500 mt-0.5">原価・収支および内訳明細</p>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold shadow-xs transition">CSV出力</button>
+                {authRole !== 'viewer' && (
+                  <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold shadow-xs transition">CSV出力</button>
+                )}
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
               </div>
             </div>
