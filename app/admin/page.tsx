@@ -26,6 +26,9 @@ export default function AdminPage() {
   // 各項目の編集モードを管理するステート
   const [editingCostFields, setEditingCostFields] = useState<any>({});
 
+  // 管理エリアの開閉ステート（PCでのみ開く・スマホでは通常閉じ気味）
+  const [showAdminSection, setShowAdminSection] = useState(false);
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -48,9 +51,15 @@ export default function AdminPage() {
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
 
   const handleLogin = (role: 'admin' | 'viewer') => {
+    if (role === 'viewer') {
+      setIsAuthed(true);
+      setAuthRole('viewer');
+      return;
+    }
     if (password === 'yamato123' || password === 'yamato') {
       setIsAuthed(true);
-      setAuthRole(role);
+      setAuthRole('admin');
+      setShowAdminSection(true); // 管理者の場合は最初から管理エリアを表示可能に
     } else {
       alert('パスワードが間違っています。');
     }
@@ -330,33 +339,45 @@ export default function AdminPage() {
 
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6 font-sans">
-      <div className="bg-white p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
+      <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
         <div className="space-y-3">
-          <div className="text-5xl">🔒</div>
-          <h1 className="text-2xl font-bold text-slate-800">管理画面 ログイン</h1>
-          <p className="text-base text-slate-400">株式会社大和 音声日報システム</p>
+          <div className="text-5xl">📊</div>
+          <h1 className="text-2xl font-bold text-slate-800">音声日報システム</h1>
+          <p className="text-sm text-slate-400">株式会社大和</p>
         </div>
-        <div className="space-y-4">
-          <input 
-            type="password" 
-            placeholder="パスワードを入力" 
-            className="w-full p-4 border border-slate-200 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition text-center" 
-            value={password}
-            onChange={e => setPassword(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && handleLogin('admin')}
-          />
-          <button 
-            onClick={() => handleLogin('admin')} 
-            className="w-full bg-[#E56312] hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md shadow-orange-500/20 transition"
-          >
-            👑 管理者としてログイン（編集可）
-          </button>
+        
+        {/* メイン：スマホ用の閲覧モード入口（大きく目立たせる） */}
+        <div className="space-y-4 pt-2">
           <button 
             onClick={() => handleLogin('viewer')} 
-            className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-lg transition"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2"
           >
-            👀 閲覧専用としてログイン（見るだけ）
+            👀 スマホで確認する（閲覧専用）
           </button>
+          
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink mx-4 text-slate-400 text-xs">管理者の方はこちら</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          {/* サブ：PC用の管理者ログイン（小さく控えめに） */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+            <input 
+              type="password" 
+              placeholder="管理者パスワード" 
+              className="w-full p-3 border border-slate-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition text-center" 
+              value={password}
+              onChange={e => setPassword(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleLogin('admin')}
+            />
+            <button 
+              onClick={() => handleLogin('admin')} 
+              className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-sm transition"
+            >
+              👑 管理者としてログイン（PC用）
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -381,58 +402,60 @@ export default function AdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 gap-4">
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center gap-3 justify-center md:justify-start flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
-            <span className={`text-xs px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-700'}`}>
-              {authRole === 'admin' ? '👑 管理者モード' : '👀 閲覧専用モード'}
+            <h1 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
+            <span className={`text-xs px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+              {authRole === 'admin' ? '👑 管理者モード' : '📱 スマホ閲覧モード'}
             </span>
           </div>
-          <p className="text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
+          <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
         <div className="flex w-full md:w-auto gap-3">
-          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-6 py-3.5 rounded-2xl font-bold text-base transition flex items-center justify-center gap-2">
-            🔄 最新データに更新
+          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-5 py-3 rounded-2xl font-bold text-sm md:text-base transition flex items-center justify-center gap-2">
+            🔄 更新
           </button>
-          <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3.5 rounded-2xl font-bold text-base transition">
-            ログアウト
+          <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-3 rounded-2xl font-bold text-sm md:text-base transition">
+            終了
           </button>
         </div>
       </div>
 
       {authRole === 'viewer' && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl font-bold text-center shadow-xs">
-          ⚠️ 現在は「閲覧専用モード」です。データの追加・編集・削除は制限されています。
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-2xl font-medium text-center text-sm md:text-base shadow-xs">
+          📱 スマホ閲覧モードで表示しています。（データの確認とCSV出力が可能です）
         </div>
       )}
 
-      {/* 🏢 現場別 経費集計サマリー */}
-      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-5">
-        <h2 className="text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
+      {/* 🏢 現場別 経費集計サマリー（スマホ・PC共通メイン） */}
+      <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+        <h2 className="text-xl md:text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
         
+        {/* スマホ最適化カード表示 */}
         <div className="block md:hidden space-y-4">
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
             return (
-              <div key={loc.name} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+              <div key={loc.name} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-blue-600 text-lg">{loc.name}</span>
-                  <span className={`text-sm px-3.5 py-1 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <span className="font-bold text-blue-600 text-base">{loc.name}</span>
+                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                     粗利: ¥{c.profit.toLocaleString()}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 text-sm gap-2 text-slate-500 font-medium border-y border-slate-200/60 py-3">
-                  <div>請負: <span className="text-slate-900 font-bold text-base block">¥{c.contractPrice.toLocaleString()}</span></div>
-                  <div>日数: <span className="text-slate-900 font-bold text-base block">{c.days}日</span></div>
-                  <div>経費: <span className="text-slate-900 font-bold text-base block">¥{c.total.toLocaleString()}</span></div>
+                <div className="grid grid-cols-3 text-xs gap-1 text-slate-500 font-medium border-y border-slate-200/80 py-2.5 text-center">
+                  <div>請負<span className="text-slate-900 font-bold block text-sm">¥{c.contractPrice.toLocaleString()}</span></div>
+                  <div>日数<span className="text-slate-900 font-bold block text-sm">{c.days}日</span></div>
+                  <div>経費<span className="text-slate-900 font-bold block text-sm">¥{c.total.toLocaleString()}</span></div>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl text-base font-bold shadow-sm transition">詳細分析</button>
-                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl text-base font-bold shadow-sm transition">CSV出力</button>
+                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">詳細分析</button>
+                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">CSV</button>
                 </div>
               </div>
             );
           })}
         </div>
 
+        {/* PC用テーブル表示 */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -473,99 +496,110 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ表示） */}
+      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ：初期はコンパクト、トグルで開閉） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-          <div className="flex justify-between items-center flex-wrap gap-4">
-            <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
+          <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
+              <p className="text-sm text-slate-400 mt-0.5">各種単価や現場名、外注先の登録を行います</p>
+            </div>
+            <button 
+              onClick={() => setShowAdminSection(!showAdminSection)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition"
+            >
+              {showAdminSection ? '📂 設定エリアを隠す ▲' : '📁 設定エリアを開く ▼'}
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[
-              { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
-              { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
-              { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
-              { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
-              { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
-              { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-              { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
-              { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-              { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
-              { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
-              { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
-            ].map((sec, idx) => (
-              <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-5 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
-                    <button 
-                      onClick={() => saveMaster(sec.key)} 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl font-bold shadow-sm transition"
-                    >
-                      💾 この設定を保存する
-                    </button>
+          {showAdminSection && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-fadeIn">
+              {[
+                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
+                { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
+                { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
+                { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
+                { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
+                { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
+                { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
+                { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
+                { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+                { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
+                { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
+              ].map((sec, idx) => (
+                <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-bold text-base text-orange-600 tracking-wider">{sec.title}</h3>
+                      <button 
+                        onClick={() => saveMaster(sec.key)} 
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm transition"
+                      >
+                        💾 保存する
+                      </button>
+                    </div>
+                    
+                    {sec.isSub ? (
+                      <div className="space-y-2.5">
+                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                        <div className="grid grid-cols-12 gap-2">
+                          <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                          <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                        </div>
+                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                      </div>
+                    ) : sec.isDisp || sec.isScrap ? (
+                      <div className="space-y-2.5">
+                        <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
+                        <div className="grid grid-cols-12 gap-2">
+                          <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
+                          <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
+                          <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
+                        </div>
+                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                      </div>
+                    )}
                   </div>
-                  
-                  {sec.isSub ? (
-                    <div className="space-y-3.5">
-                      <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                      <div className="grid grid-cols-12 gap-2.5">
-                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-                      </div>
-                      <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
-                    </div>
-                  ) : sec.isDisp || sec.isScrap ? (
-                    <div className="space-y-3.5">
-                      <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
-                      <div className="grid grid-cols-12 gap-2.5">
-                        <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
-                        <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
-                      </div>
-                      <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3.5">
-                      <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                      <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                      <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">＋ リストに追加</button>
-                    </div>
-                  )}
-                </div>
 
-                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 mt-4">
-                  {(settings[sec.key] || []).length === 0 ? (
-                    <p className="text-base text-slate-400 text-center py-5">登録データがありません</p>
-                  ) : (
-                    (settings[sec.key] || []).map((item:any, idx:number)=>(
-                      <div key={idx} className="py-3 flex justify-between items-center text-lg font-medium gap-2.5">
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition" title="上へ">▲</button>
-                          <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                  <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3 space-y-2 mt-2">
+                    {(settings[sec.key] || []).length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
+                    ) : (
+                      (settings[sec.key] || []).map((item:any, idx:number)=>(
+                        <div key={idx} className="py-2.5 flex justify-between items-center text-sm font-medium gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
+                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                          </div>
+                          <span className="text-slate-900 font-bold flex-1 px-1 text-sm">
+                            {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-slate-400 text-xs">¥</span>
+                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-24 p-2 border border-slate-300 rounded-xl text-right text-sm font-bold bg-slate-50" />
+                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs ml-1 p-1">削除</button>
+                          </div>
                         </div>
-                        <span className="text-slate-900 font-bold flex-1 px-2 text-lg">
-                          {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-slate-400 text-base">¥</span>
-                          <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-32 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
-                          <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-base ml-2 p-1.5">削除</button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <h2 className="text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
+          <h2 className="text-xl md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
           <input 
             type="text" 
             placeholder="🔍 現場名で絞り込み..." 
@@ -575,23 +609,23 @@ export default function AdminPage() {
           />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-lg text-left border-collapse">
+          <table className="w-full text-base text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-5">日付</th>
-                <th className="py-4 px-5">現場名</th>
-                <th className="py-4 px-5">責任者 / 作業者 / 外注</th>
-                <th className="py-4 px-5">重機 / 車両</th>
-                <th className="py-4 px-5">作業内容</th>
-                {authRole === 'admin' && <th className="py-4 px-5 text-center">操作</th>}
+              <tr className="border-b border-slate-200 text-slate-500 text-sm font-bold uppercase tracking-wider">
+                <th className="py-3 px-4">日付</th>
+                <th className="py-3 px-4">現場名</th>
+                <th className="py-3 px-4">責任者 / 作業者 / 外注</th>
+                <th className="py-3 px-4">重機 / 車両</th>
+                <th className="py-3 px-4">作業内容</th>
+                {authRole === 'admin' && <th className="py-3 px-4 text-center">操作</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-base font-medium">
+            <tbody className="divide-y divide-slate-100 text-sm font-medium">
               {filteredReports.map((r, i) => (
                 <tr key={r.id || r._id || i} className="hover:bg-slate-50/80 transition">
-                  <td className="py-5 px-5 font-bold text-slate-900 text-lg">{r.date}</td>
-                  <td className="py-5 px-5 font-bold text-blue-600 text-lg">{r.location}</td>
-                  <td className="py-5 px-5 text-slate-700 space-y-1 text-base">
+                  <td className="py-4 px-4 font-bold text-slate-900">{r.date}</td>
+                  <td className="py-4 px-4 font-bold text-blue-600">{r.location}</td>
+                  <td className="py-4 px-4 text-slate-700 space-y-1">
                     <div className="font-bold">{r.manager} / {(r.workers || []).join(', ')}</div>
                     {(r.subcontractors || []).length > 0 && (
                       <div className="text-orange-600 font-bold">
@@ -599,12 +633,12 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-5 px-5 text-slate-700 text-base">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
-                  <td className="py-5 px-5 text-slate-700 text-base max-w-xs truncate">{r.workDescription || '-'}</td>
+                  <td className="py-4 px-4 text-slate-700">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
+                  <td className="py-4 px-4 text-slate-700 max-w-xs truncate">{r.workDescription || '-'}</td>
                   {authRole === 'admin' && (
-                    <td className="py-5 px-5 text-center space-x-3 whitespace-nowrap">
-                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">編集</button>
-                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">削除</button>
+                    <td className="py-4 px-4 text-center space-x-2 whitespace-nowrap">
+                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3.5 py-2 rounded-xl font-bold transition shadow-sm text-xs">編集</button>
+                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-3.5 py-2 rounded-xl font-bold transition shadow-sm text-xs">削除</button>
                     </td>
                   )}
                 </tr>
