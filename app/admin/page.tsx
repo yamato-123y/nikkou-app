@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
+  const [viewerPassword, setViewerPassword] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
   const [authRole, setAuthRole] = useState<'admin' | 'viewer' | null>(null);
 
@@ -51,15 +52,11 @@ export default function AdminPage() {
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
 
   const handleLogin = (role: 'admin' | 'viewer') => {
-    if (role === 'viewer') {
+    const targetPassword = role === 'viewer' ? viewerPassword : password;
+    if (targetPassword === 'yamato123' || targetPassword === 'yamato') {
       setIsAuthed(true);
-      setAuthRole('viewer');
-      return;
-    }
-    if (password === 'yamato123' || password === 'yamato') {
-      setIsAuthed(true);
-      setAuthRole('admin');
-      setShowAdminSection(true); // 管理者の場合は最初から管理エリアを表示可能に
+      setAuthRole(role);
+      if (role === 'admin') setShowAdminSection(true);
     } else {
       alert('パスワードが間違っています。');
     }
@@ -338,31 +335,43 @@ export default function AdminPage() {
   };
 
   if (!isAuthed) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6 font-sans">
-      <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
-        <div className="space-y-3">
-          <div className="text-5xl">📊</div>
-          <h1 className="text-2xl font-bold text-slate-800">音声日報システム</h1>
-          <p className="text-sm text-slate-400">株式会社大和</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
+      <div className="bg-white p-6 md:p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
+        <div className="space-y-2">
+          <div className="text-4xl">📊</div>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">音声日報システム</h1>
+          <p className="text-xs md:text-sm text-slate-400">株式会社大和</p>
         </div>
         
-        {/* メイン：スマホ用の閲覧モード入口（大きく目立たせる） */}
-        <div className="space-y-4 pt-2">
-          <button 
-            onClick={() => handleLogin('viewer')} 
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2"
-          >
-            👀 スマホで確認する（閲覧専用）
-          </button>
+        <div className="space-y-5 pt-2">
+          {/* スマホ確認（閲覧専用モード）用ログインエリア */}
+          <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-100 space-y-3 text-left">
+            <label className="text-xs font-bold text-blue-800 block">📱 スマホで確認する（閲覧専用）</label>
+            <input 
+              type="password" 
+              placeholder="パスワードを入力" 
+              className="w-full p-3 border border-blue-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-center" 
+              value={viewerPassword}
+              onChange={e => setViewerPassword(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleLogin('viewer')}
+            />
+            <button 
+              onClick={() => handleLogin('viewer')} 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
+            >
+              👀 閲覧モードでログイン
+            </button>
+          </div>
           
-          <div className="relative flex py-2 items-center">
+          <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-4 text-slate-400 text-xs">管理者の方はこちら</span>
+            <span className="flex-shrink mx-4 text-slate-400 text-xs">または管理者</span>
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
-          {/* サブ：PC用の管理者ログイン（小さく控えめに） */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+          {/* PC用の管理者ログインエリア */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 text-left">
+            <label className="text-xs font-bold text-slate-600 block">👑 管理者としてログイン（PC用）</label>
             <input 
               type="password" 
               placeholder="管理者パスワード" 
@@ -373,9 +382,9 @@ export default function AdminPage() {
             />
             <button 
               onClick={() => handleLogin('admin')} 
-              className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl font-bold text-sm transition"
+              className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3.5 rounded-xl font-bold text-sm transition"
             >
-              👑 管理者としてログイン（PC用）
+              管理者としてログイン
             </button>
           </div>
         </div>
@@ -396,59 +405,59 @@ export default function AdminPage() {
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
 
   return (
-    <div className="p-4 md:p-10 bg-slate-100 min-h-screen space-y-6 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg">
+    <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-sm md:text-lg">
       
       {/* 🚀 ヘッダー */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 gap-3">
         <div className="space-y-1 text-center md:text-left">
-          <div className="flex items-center gap-3 justify-center md:justify-start flex-wrap">
-            <h1 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
-            <span className={`text-xs px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+          <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
+            <h1 className="text-lg md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理</h1>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
               {authRole === 'admin' ? '👑 管理者モード' : '📱 スマホ閲覧モード'}
             </span>
           </div>
-          <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
+          <p className="text-xs md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
-        <div className="flex w-full md:w-auto gap-3">
-          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-5 py-3 rounded-2xl font-bold text-sm md:text-base transition flex items-center justify-center gap-2">
+        <div className="flex w-full md:w-auto gap-2">
+          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5">
             🔄 更新
           </button>
-          <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-3 rounded-2xl font-bold text-sm md:text-base transition">
+          <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm transition">
             終了
           </button>
         </div>
       </div>
 
       {authRole === 'viewer' && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-2xl font-medium text-center text-sm md:text-base shadow-xs">
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-2xl font-medium text-center text-xs md:text-base shadow-xs">
           📱 スマホ閲覧モードで表示しています。（データの確認とCSV出力が可能です）
         </div>
       )}
 
-      {/* 🏢 現場別 経費集計サマリー（スマホ・PC共通メイン） */}
-      <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-5">
-        <h2 className="text-xl md:text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
+      {/* 🏢 現場別 経費集計サマリー */}
+      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
+        <h2 className="text-lg md:text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
         
-        {/* スマホ最適化カード表示 */}
-        <div className="block md:hidden space-y-4">
+        {/* スマホ最適化カード表示（スマホで見やすくブラッシュアップ） */}
+        <div className="block md:hidden space-y-3">
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
             return (
-              <div key={loc.name} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div key={loc.name} className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5 shadow-2xs">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-blue-600 text-base">{loc.name}</span>
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                     粗利: ¥{c.profit.toLocaleString()}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 text-xs gap-1 text-slate-500 font-medium border-y border-slate-200/80 py-2.5 text-center">
-                  <div>請負<span className="text-slate-900 font-bold block text-sm">¥{c.contractPrice.toLocaleString()}</span></div>
-                  <div>日数<span className="text-slate-900 font-bold block text-sm">{c.days}日</span></div>
-                  <div>経費<span className="text-slate-900 font-bold block text-sm">¥{c.total.toLocaleString()}</span></div>
+                <div className="grid grid-cols-3 text-xs gap-1 bg-white p-2.5 rounded-xl border border-slate-100 text-slate-500 font-medium text-center">
+                  <div>請負<span className="text-slate-900 font-bold block text-sm mt-0.5">¥{c.contractPrice.toLocaleString()}</span></div>
+                  <div>日数<span className="text-slate-900 font-bold block text-sm mt-0.5">{c.days}日</span></div>
+                  <div>経費<span className="text-slate-900 font-bold block text-sm mt-0.5">¥{c.total.toLocaleString()}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">詳細分析</button>
-                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-sm font-bold shadow-sm transition">CSV</button>
+                <div className="flex gap-2 pt-0.5">
+                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-xs transition">詳細分析</button>
+                  <button onClick={() => downloadLocationCSV(loc.name)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-xs transition">CSV出力</button>
                 </div>
               </div>
             );
@@ -496,7 +505,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ：初期はコンパクト、トグルで開閉） */}
+      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
@@ -597,35 +606,35 @@ export default function AdminPage() {
       )}
 
       {/* 📥 送信された日報一覧 */}
-      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-        <div className="flex justify-between items-center flex-wrap gap-4">
-          <h2 className="text-xl md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
+      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
+        <div className="flex justify-between items-center flex-wrap gap-3">
+          <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
           <input 
             type="text" 
             placeholder="🔍 現場名で絞り込み..." 
             value={filterLocation} 
             onChange={e => setFilterLocation(e.target.value)} 
-            className="p-3.5 border border-slate-300 rounded-2xl text-base bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-96 transition" 
+            className="p-3 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-80 transition" 
           />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-base text-left border-collapse">
+          <table className="w-full text-sm md:text-base text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-sm font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">日付</th>
-                <th className="py-3 px-4">現場名</th>
-                <th className="py-3 px-4">責任者 / 作業者 / 外注</th>
-                <th className="py-3 px-4">重機 / 車両</th>
-                <th className="py-3 px-4">作業内容</th>
-                {authRole === 'admin' && <th className="py-3 px-4 text-center">操作</th>}
+              <tr className="border-b border-slate-200 text-slate-500 text-xs md:text-sm font-bold uppercase tracking-wider">
+                <th className="py-3 px-3">日付</th>
+                <th className="py-3 px-3">現場名</th>
+                <th className="py-3 px-3">責任者 / 作業者 / 外注</th>
+                <th className="py-3 px-3">重機 / 車両</th>
+                <th className="py-3 px-3">作業内容</th>
+                {authRole === 'admin' && <th className="py-3 px-3 text-center">操作</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm font-medium">
+            <tbody className="divide-y divide-slate-100 text-xs md:text-sm font-medium">
               {filteredReports.map((r, i) => (
                 <tr key={r.id || r._id || i} className="hover:bg-slate-50/80 transition">
-                  <td className="py-4 px-4 font-bold text-slate-900">{r.date}</td>
-                  <td className="py-4 px-4 font-bold text-blue-600">{r.location}</td>
-                  <td className="py-4 px-4 text-slate-700 space-y-1">
+                  <td className="py-3.5 px-3 font-bold text-slate-900 whitespace-nowrap">{r.date}</td>
+                  <td className="py-3.5 px-3 font-bold text-blue-600 whitespace-nowrap">{r.location}</td>
+                  <td className="py-3.5 px-3 text-slate-700 space-y-0.5">
                     <div className="font-bold">{r.manager} / {(r.workers || []).join(', ')}</div>
                     {(r.subcontractors || []).length > 0 && (
                       <div className="text-orange-600 font-bold">
@@ -633,12 +642,12 @@ export default function AdminPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-4 px-4 text-slate-700">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
-                  <td className="py-4 px-4 text-slate-700 max-w-xs truncate">{r.workDescription || '-'}</td>
+                  <td className="py-3.5 px-3 text-slate-700">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
+                  <td className="py-3.5 px-3 text-slate-700 max-w-xs truncate">{r.workDescription || '-'}</td>
                   {authRole === 'admin' && (
-                    <td className="py-4 px-4 text-center space-x-2 whitespace-nowrap">
-                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3.5 py-2 rounded-xl font-bold transition shadow-sm text-xs">編集</button>
-                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-3.5 py-2 rounded-xl font-bold transition shadow-sm text-xs">削除</button>
+                    <td className="py-3.5 px-3 text-center space-x-2 whitespace-nowrap">
+                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3 py-1.5 rounded-lg font-bold transition shadow-xs text-xs">編集</button>
+                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-3 py-1.5 rounded-lg font-bold transition shadow-xs text-xs">削除</button>
                     </td>
                   )}
                 </tr>
@@ -696,32 +705,32 @@ export default function AdminPage() {
 
       {/* 🔍 現場詳細モーダル */}
       {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 z-40 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-6xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-6">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-8 z-40 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-6xl p-4 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 md:space-y-8 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-4 md:pb-6 gap-2">
               <div>
-                <h2 className="text-2xl md:text-4xl font-black text-slate-900">{modalLocation} <span className="text-xl font-normal text-slate-500">（詳細分析）</span></h2>
-                <p className="text-base text-slate-500 mt-1">原価・収支および内訳明細</p>
+                <h2 className="text-xl md:text-4xl font-black text-slate-900">{modalLocation} <span className="text-sm md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
+                <p className="text-xs md:text-base text-slate-500 mt-0.5">原価・収支および内訳明細</p>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-base font-bold shadow-sm transition">CSV出力</button>
-                <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-3 rounded-xl text-base font-bold transition">閉じる</button>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold shadow-xs transition">CSV出力</button>
+                <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5 text-center">
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200"><div className="text-base text-slate-600 font-medium">請負金額</div><div className="text-2xl md:text-3xl font-black text-slate-900 mt-2">¥{modalData.contractPrice.toLocaleString()}</div></div>
-              <div className="bg-emerald-50/60 p-6 rounded-2xl border border-emerald-200"><div className="text-base text-emerald-700 font-medium">合計経費</div><div className="text-2xl md:text-3xl font-black text-emerald-800 mt-2">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-6 rounded-2xl border border-blue-200"><div className="text-base text-blue-700 font-medium">利益（売却益込）</div><div className="text-2xl md:text-3xl font-black text-blue-800 mt-2">¥{modalData.profit.toLocaleString()}</div></div>
-              <div className="bg-amber-50/60 p-6 rounded-2xl border border-amber-200"><div className="text-base text-amber-700 font-medium">稼働日数</div><div className="text-2xl md:text-3xl font-black text-amber-800 mt-2">{modalData.days}日</div></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
+              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-medium">請負金額</div><div className="text-lg md:text-3xl font-black text-slate-900 mt-1 md:mt-2">¥{modalData.contractPrice.toLocaleString()}</div></div>
+              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-emerald-200"><div className="text-xs md:text-base text-emerald-700 font-medium">合計経費</div><div className="text-lg md:text-3xl font-black text-emerald-800 mt-1 md:mt-2">¥{modalData.total.toLocaleString()}</div></div>
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-blue-200"><div className="text-xs md:text-base text-blue-700 font-medium">利益（売却益込）</div><div className="text-lg md:text-3xl font-black text-blue-800 mt-1 md:mt-2">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-medium">稼働日数</div><div className="text-lg md:text-3xl font-black text-amber-800 mt-1 md:mt-2">{modalData.days}日</div></div>
             </div>
 
-            <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6">
-              <div className="flex justify-between items-center flex-wrap gap-4">
-                <h3 className="font-bold text-xl text-slate-900">📋 経費・収支の内訳明細 {authRole === 'viewer' && <span className="text-sm text-slate-500 font-normal">（閲覧モード）</span>}</h3>
-                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-base px-5 py-3 rounded-xl font-bold shadow-sm transition">🔍 処分費の内訳を確認</button>
+            <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+              <div className="flex justify-between items-center flex-wrap gap-3">
+                <h3 className="font-bold text-base md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
+                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
                 
                 {[
                   { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
@@ -738,14 +747,14 @@ export default function AdminPage() {
                 ].map((item) => {
                   const isEditing = editingCostFields[modalLocation]?.[item.key];
                   return (
-                    <div key={item.key} className={`bg-white p-6 rounded-2xl border border-slate-300 shadow-xs flex flex-col justify-between gap-4 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                    <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                       <div className="flex justify-between items-center">
-                        <span className={`text-base font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-600'}`}>{item.label}</span>
+                        <span className={`text-sm md:text-base font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-600'}`}>{item.label}</span>
                         {authRole === 'admin' && (
                           <button
                             type="button"
                             onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5"
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1"
                           >
                             {isEditing ? '🔒 完了' : '✏️ 編集'}
                           </button>
@@ -754,23 +763,23 @@ export default function AdminPage() {
 
                       {isEditing && authRole === 'admin' ? (
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-slate-500 font-bold text-xl">¥</span>
+                          <span className="text-slate-500 font-bold text-lg">¥</span>
                           <input
                             type="number"
                             value={costOverrides[modalLocation]?.[item.key] ?? (item.isDisposal ? modalData.disposalCost : (item.key === 'labor' ? modalData.laborCost : item.key === 'sub' ? modalData.subCostTotal : item.key === 'lease' ? modalData.leaseCost : item.key === 'otherLease' ? modalData.otherLeaseCost : item.key === 'ownMachine' ? modalData.ownMachineCost : item.key === 'vehicle' ? modalData.vehicleCost : item.key === 'fuel' ? modalData.fuelCost : item.key === 'etc' ? modalData.etcCost : item.key === 'parking' ? modalData.parkingCost : modalData.otherCost))}
                             onChange={e => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                            className="w-full p-3 border border-slate-300 rounded-xl font-bold text-right text-lg bg-slate-50"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-right text-base bg-slate-50"
                             autoFocus
                           />
                         </div>
                       ) : (
-                        <div className="font-black text-slate-900 text-3xl">
+                        <div className="font-black text-slate-900 text-2xl md:text-3xl">
                           ¥{Number(item.val || 0).toLocaleString()}
                         </div>
                       )}
 
                       {item.isDisposal && (
-                        <div className="text-sm text-slate-600 mt-2 space-y-1.5 border-t border-slate-200 pt-3">
+                        <div className="text-xs md:text-sm text-slate-600 mt-1.5 space-y-1 border-t border-slate-200 pt-2.5">
                           {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                             <div>内訳なし</div>
                           ) : (
@@ -787,12 +796,12 @@ export default function AdminPage() {
                   );
                 })}
 
-                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 col-span-full shadow-xs">
+                <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-2.5 col-span-full shadow-2xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-emerald-900 font-bold text-lg">♻️ スクラップ売却計</span>
-                    <span className="font-black text-emerald-800 text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                    <span className="text-emerald-900 font-bold text-base md:text-lg">♻️ スクラップ売却計</span>
+                    <span className="font-black text-emerald-800 text-xl md:text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
                   </div>
-                  <div className="text-sm text-slate-600 space-y-1.5 border-t border-emerald-200 pt-3">
+                  <div className="text-xs md:text-sm text-slate-600 space-y-1 border-t border-emerald-200 pt-2.5">
                     {Object.entries(modalData.aggregatedScrapBreakdown).length === 0 ? (
                       <div>内訳なし</div>
                     ) : (
@@ -809,33 +818,33 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-5">
-              <h3 className="font-bold text-xl text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
+            <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4">
+              <h3 className="font-bold text-base md:text-xl text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
               {modalData.reportsWithIndex.length === 0 ? (
-                <p className="text-base text-slate-500 text-center py-8">この現場の日報はまだありません</p>
+                <p className="text-sm text-slate-500 text-center py-6">この現場の日報はまだありません</p>
               ) : (
-                <div className="space-y-4 max-h-96 overflow-y-auto pr-3">
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
                   {modalData.reportsWithIndex.map((r, idx) => {
                     const daily = calculateReportDailyCost(r);
                     return (
-                      <div key={r.id || r._id || idx} className="bg-white p-6 rounded-2xl border border-slate-300 shadow-xs space-y-4">
-                        <div className="flex justify-between items-center border-b border-slate-200 pb-3.5 text-base font-bold text-slate-800">
-                          <span className="text-blue-600 text-xl">📅 {r.date}</span>
-                          <span className="text-emerald-800 bg-emerald-50 px-4 py-2 rounded-xl font-bold text-base">日報合計経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
+                      <div key={r.id || r._id || idx} className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs space-y-3">
+                        <div className="flex justify-between items-center border-b border-slate-200 pb-2.5 text-sm font-bold text-slate-800">
+                          <span className="text-blue-600 text-base">📅 {r.date}</span>
+                          <span className="text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl font-bold text-xs md:text-sm">日報経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-base text-slate-800">
-                          <div><span className="text-slate-500 block text-sm">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-sm">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs md:text-sm text-slate-800">
+                          <div><span className="text-slate-500 block text-xs">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
+                          <div><span className="text-slate-500 block text-xs">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
                         </div>
                         {r.workDescription && (
-                          <div className="text-base text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                            <span className="font-bold text-slate-900 block mb-1">作業内容:</span> {r.workDescription}
+                          <div className="text-xs md:text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <span className="font-bold text-slate-900 block mb-0.5">作業内容:</span> {r.workDescription}
                           </div>
                         )}
                       </div>
@@ -851,19 +860,19 @@ export default function AdminPage() {
 
       {/* 🗑️ 処分費詳細モーダル */}
       {showDisposalModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 md:p-8 max-h-[85vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-              <h3 className="text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-xl text-base font-bold transition">閉じる</button>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
 
             <div className="space-y-3">
               {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => ({ ...d, date: r.date }))).length === 0 ? (
-                <p className="text-base text-slate-500 text-center py-8">搬出された処分データはありません</p>
+                <p className="text-sm text-slate-500 text-center py-6">搬出された処分データはありません</p>
               ) : (
-                <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                  <div className="grid grid-cols-4 bg-slate-100 p-4 text-sm font-bold text-slate-600 uppercase tracking-wider">
+                <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs text-xs md:text-base">
+                  <div className="grid grid-cols-4 bg-slate-100 p-3 font-bold text-slate-600 uppercase tracking-wider">
                     <div>日付</div>
                     <div>処分場名</div>
                     <div>品目</div>
@@ -873,11 +882,11 @@ export default function AdminPage() {
                     const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
                     const subTotal = Number(d.quantity || 0) * uPrice;
                     return (
-                      <div key={idx} className="grid grid-cols-4 p-4 text-base items-center bg-white hover:bg-slate-50 transition">
+                      <div key={idx} className="grid grid-cols-4 p-3 items-center bg-white hover:bg-slate-50 transition">
                         <div className="font-bold text-slate-900">{r.date}</div>
                         <div className="text-slate-800">{d.location || '-'}</div>
                         <div className="text-slate-800">{d.item || '-'}</div>
-                        <div className="text-right font-bold text-slate-900">{Number(d.quantity || 0)} {d.unit || 't'} <span className="text-slate-500 font-normal block text-sm">(¥{subTotal.toLocaleString()})</span></div>
+                        <div className="text-right font-bold text-slate-900">{Number(d.quantity || 0)} {d.unit || 't'} <span className="text-slate-500 font-normal block text-xs">(¥{subTotal.toLocaleString()})</span></div>
                       </div>
                     );
                   }))}
