@@ -387,7 +387,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（2列配置に変更して横幅を十分に確保） */}
+      {/* ⚙️ マスタ登録・単価設定エリア */}
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -409,7 +409,6 @@ export default function AdminPage() {
               <div className="space-y-4">
                 <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
                 
-                {/* 各追加フォーム */}
                 {sec.isSub ? (
                   <div className="space-y-3.5">
                     <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
@@ -438,7 +437,6 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* 一覧リスト（並び替えボタン付き） */}
               <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 mt-4">
                 {(settings[sec.key] || []).length === 0 ? (
                   <p className="text-base text-slate-400 text-center py-5">登録データがありません</p>
@@ -573,7 +571,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 作業員 */}
             <div className="space-y-3 border-t border-slate-200 pt-6">
               <label className="text-lg font-bold text-orange-600 block">作業員（社員）</label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
@@ -593,7 +590,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 🚜 自社重機 */}
             <div className="space-y-3 border-t border-slate-200 pt-6">
               <label className="text-lg font-bold text-orange-600 block">自社重機</label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
@@ -613,7 +609,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 🚚 自社車両 */}
             <div className="space-y-3 border-t border-slate-200 pt-6">
               <label className="text-lg font-bold text-orange-600 block">自社車両</label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
@@ -633,7 +628,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 🗑️ 処分場への搬出 */}
             <div className="space-y-3 border-t border-slate-200 pt-6">
               <div className="flex justify-between items-center">
                 <label className="text-lg font-bold text-orange-600 block">処分場への搬出</label>
@@ -670,7 +664,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ♻️ スクラップの搬出 */}
             <div className="space-y-3 border-t border-slate-200 pt-6">
               <div className="flex justify-between items-center">
                 <label className="text-lg font-bold text-orange-600 block">スクラップの搬出</label>
@@ -742,7 +735,6 @@ export default function AdminPage() {
               <div className="bg-amber-50/60 p-6 rounded-2xl border border-amber-200"><div className="text-base text-amber-700 font-medium">稼働日数</div><div className="text-2xl md:text-3xl font-black text-amber-800 mt-2">{modalData.days}日</div></div>
             </div>
 
-            {/* 📋 経費・収支の内訳明細（編集可能カード） */}
             <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-4">
                 <h3 className="font-bold text-xl text-slate-900">📋 経費・収支の内訳明細（編集可能）</h3>
@@ -834,7 +826,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 📅 1日ごとの日報データ・経費明細 */}
             <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-5">
               <h3 className="font-bold text-xl text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
               {modalData.reportsWithIndex.length === 0 ? (
