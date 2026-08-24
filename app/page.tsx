@@ -239,6 +239,7 @@ export default function Home() {
                <span>【重機を選択する】 {leaseHeavy.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseHeavy.length}選定中</span>}</span>
                <span className="text-slate-400">{isOpenHeavy ? '▲' : '▼'}</span>
              </button>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 南大阪建機（MOK）からのリース重機・機器など</p>
              {isOpenHeavy && (
                <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
                  {(settings.leaseHeavy || []).map((m:any) => (
@@ -259,6 +260,7 @@ export default function Home() {
                <span>【アタッチメントを選択する】 {leaseAttach.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseAttach.length}選定中</span>}</span>
                <span className="text-slate-400">{isOpenAttach ? '▲' : '▼'}</span>
              </button>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 南大阪建機（MOK）からのリース重機・機器など</p>
              {isOpenAttach && (
                <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
                  {(settings.leaseAttach || []).map((m:any) => (
@@ -279,6 +281,7 @@ export default function Home() {
                <span>【その他の機械・機器を選択する】 {leaseOther.length > 0 && <span className="ml-2 bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">{leaseOther.length}選定中</span>}</span>
                <span className="text-slate-400">{isOpenOther ? '▲' : '▼'}</span>
              </button>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 南大阪建機（MOK）からのリース重機・機器など</p>
              {isOpenOther && (
                <div className="grid grid-cols-2 gap-2 pt-1 animate-fadeIn">
                  {(settings.leaseOther || []).map((m:any) => (
@@ -295,6 +298,7 @@ export default function Home() {
                <label className="text-sm font-bold text-slate-800">【その他リース（自由入力）】</label>
                <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 南大阪建機（MOK）以外からのリース重機・機械など</p>
              {otherLeases.map((ol, index) => (
                <div key={index} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border">
                  <input type="text" placeholder="リース名" value={ol.name} onChange={e=>{
@@ -310,6 +314,7 @@ export default function Home() {
 
            <div className="space-y-1.5 pt-2">
              <label className="text-sm font-bold text-slate-800 block">【自社重機】</label>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 自社保有の重機・アタッチメントなど</p>
              <div className="grid grid-cols-2 gap-2">
                {(settings.companyMachines || []).map((m:any) => (
                  <button type="button" key={m.name} onClick={() => toggleSelection(selectedOwnMachines, m.name, setSelectedOwnMachines)}
@@ -320,6 +325,7 @@ export default function Home() {
 
            <div className="space-y-1.5 pt-2">
              <label className="text-sm font-bold text-slate-800 block">【自社車両】</label>
+             <p className="text-xs font-bold text-rose-600 px-1">💡 自社保有・現場に乗って行った乗用車や使用したトラック</p>
              <div className="grid grid-cols-2 gap-2">
                {(settings.vehicles || []).map((v:any) => (
                  <button type="button" key={v.name} onClick={() => toggleSelection(selectedVehicles, v.name, setSelectedVehicles)}
