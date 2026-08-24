@@ -36,7 +36,6 @@ function SiteDetailContent() {
     }
   }, [isAuthed, siteName]);
 
-  // ログイン処理
   const handleLogin = (role: 'admin' | 'viewer') => {
     if (password === 'yamato123' || password === 'yamato') {
       setIsAuthed(true);
@@ -46,7 +45,6 @@ function SiteDetailContent() {
     }
   };
 
-  // 🔒 未認証（ログイン前）の画面
   if (!isAuthed) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: '1.5rem', fontFamily: 'sans-serif' }}>
@@ -90,7 +88,6 @@ function SiteDetailContent() {
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '1.5rem', boxSizing: 'border-box', fontFamily: 'sans-serif' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         
-        {/* ヘッダー */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <a href="/admin" style={{ color: '#ea580c', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.9rem' }}>← 管理画面トップへ戻る</a>
@@ -111,14 +108,12 @@ function SiteDetailContent() {
           </button>
         </div>
 
-        {/* 閲覧専用の注意書き */}
         {authRole === 'viewer' && (
           <div style={{ backgroundColor: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.85rem 1.25rem', borderRadius: '8px', fontWeight: 'bold', marginBottom: '1.5rem', textAlign: 'center' }}>
             ⚠️ 現在は「閲覧専用」モードです。安全にデータを閲覧・確認いただけます。
           </div>
         )}
 
-        {/* 📅 日付指定（期間フィルター） */}
         <div style={{ backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', marginBottom: '0.75rem', color: '#1e293b' }}>📅 集計期間の指定</h2>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -147,7 +142,6 @@ function SiteDetailContent() {
           <p style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>データが取得できませんでした。</p>
         ) : (
           <>
-            {/* 📊 集計サマリーカード */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
               <div style={{ backgroundColor: 'white', padding: '1.25rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 0.25rem 0' }}>累計稼働日数</p>
@@ -167,7 +161,6 @@ function SiteDetailContent() {
               </div>
             </div>
 
-            {/* 🗑️ 処分場ごとの集計テーブル */}
             <div style={{ backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', marginBottom: '0.85rem', color: '#1e293b' }}>🗑️ 処分場・品目別 搬出集計サマリー</h2>
               {Object.keys(data.summary.disposalSummary).length === 0 ? (
@@ -200,7 +193,6 @@ function SiteDetailContent() {
               )}
             </div>
 
-            {/* 📋 日割り明細一覧 */}
             <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
               <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>📋 日割り明細一覧（日報）</h2>
