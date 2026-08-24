@@ -491,10 +491,10 @@ export default function AdminPage() {
         </div>
         <div className="flex w-full md:w-auto gap-2">
           <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5">
-            🔄 更新
+            🔄 最新の状態にする
           </button>
           <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm transition">
-            終了
+            ログアウト
           </button>
         </div>
       </div>
