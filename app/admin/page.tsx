@@ -446,11 +446,13 @@ export default function AdminPage() {
             const c = calculateCosts(loc.name);
             return (
               <div key={loc.name} className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5 shadow-2xs">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-blue-600 text-base">{loc.name}</span>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    粗利: ¥{c.profit.toLocaleString()}
-                  </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-bold text-blue-600 text-base leading-snug">{loc.name}</span>
+                  <div>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                      粗利: ¥{c.profit.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 text-xs gap-1 bg-white p-2.5 rounded-xl border border-slate-100 text-slate-500 font-medium text-center">
                   <div>請負<span className="text-slate-900 font-bold block text-sm mt-0.5">¥{c.contractPrice.toLocaleString()}</span></div>
