@@ -299,7 +299,7 @@ export default function Home() {
              </div>
            </div>
 
-           {/* ■ その他リース（自由入力） - 2行化＆ハミ出し防止 */}
+           {/* ■ その他リース（自由入力） - 個数と削除を50%ずつに修正 */}
            <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
              <div className="flex justify-between items-start gap-3">
                <div className="text-sm font-black text-amber-950 bg-amber-200 px-4 py-2 rounded-xl leading-relaxed">
@@ -313,11 +313,13 @@ export default function Home() {
                  <input type="text" placeholder="リース名を入力" value={ol.name} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
                  }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
-                 <div className="flex gap-2 items-center">
+                 
+                 {/* 個数と削除を50%ずつのグリッドに変更 */}
+                 <div className="grid grid-cols-2 gap-2 items-center">
                    <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
                      const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
-                   }} className="flex-1 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
-                   <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-5 py-3 rounded-xl font-bold text-sm shrink-0">削除</button>
+                   }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
+                   <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
                  </div>
                </div>
              ))}
