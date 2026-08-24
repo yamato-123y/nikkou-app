@@ -336,53 +336,51 @@ export default function AdminPage() {
 
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
-      <div className="bg-white p-6 md:p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
-        <div className="space-y-2">
-          <div className="text-4xl">📊</div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800">音声日報システム</h1>
-          <p className="text-xs md:text-sm text-slate-400">株式会社大和</p>
+      <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
+        <div className="space-y-3">
+          <div className="text-5xl">🔒</div>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800">音声日報システム</h1>
+          <p className="text-sm md:text-base text-slate-400 font-medium">株式会社大和</p>
         </div>
         
-        <div className="space-y-5 pt-2">
-          {/* スマホ確認（閲覧専用モード）用ログインエリア */}
-          <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-100 space-y-3 text-left">
-            <label className="text-xs font-bold text-blue-800 block">📱 スマホで確認する（閲覧専用）</label>
+        <div className="space-y-6 pt-2">
+          {/* 社長モード（閲覧専用）用ログインエリア */}
+          <div className="bg-orange-50/70 p-6 rounded-3xl border border-orange-100 space-y-4 text-left shadow-xs">
             <input 
               type="password" 
               placeholder="パスワードを入力" 
-              className="w-full p-3 border border-blue-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-center" 
+              className="w-full p-4 border border-orange-200 rounded-2xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition text-center font-bold" 
               value={viewerPassword}
               onChange={e => setViewerPassword(e.target.value)} 
               onKeyDown={e => e.key === 'Enter' && handleLogin('viewer')}
             />
             <button 
               onClick={() => handleLogin('viewer')} 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-base md:text-lg shadow-md shadow-orange-500/20 transition flex items-center justify-center gap-2"
             >
-              👀 閲覧モードでログイン
+              👑 社長モードでログイン
             </button>
           </div>
           
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink mx-4 text-slate-400 text-xs">または管理者</span>
+            <span className="flex-shrink mx-4 text-slate-400 text-sm font-medium">または管理者</span>
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
           {/* PC用の管理者ログインエリア */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 text-left">
-            <label className="text-xs font-bold text-slate-600 block">👑 管理者としてログイン（PC用）</label>
+          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200/80 space-y-4 text-left">
             <input 
               type="password" 
               placeholder="管理者パスワード" 
-              className="w-full p-3 border border-slate-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition text-center" 
+              className="w-full p-4 border border-slate-200 rounded-2xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 transition text-center font-bold" 
               value={password}
               onChange={e => setPassword(e.target.value)} 
               onKeyDown={e => e.key === 'Enter' && handleLogin('admin')}
             />
             <button 
               onClick={() => handleLogin('admin')} 
-              className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3.5 rounded-xl font-bold text-sm transition"
+              className="w-full bg-slate-700 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-base md:text-lg transition shadow-md"
             >
               管理者としてログイン
             </button>
@@ -413,7 +411,7 @@ export default function AdminPage() {
           <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
             <h1 className="text-lg md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-              {authRole === 'admin' ? '👑 管理者モード' : '📱 スマホ閲覧モード'}
+              {authRole === 'admin' ? '👑 管理者モード' : '👑 社長モード'}
             </span>
           </div>
           <p className="text-xs md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
@@ -429,8 +427,8 @@ export default function AdminPage() {
       </div>
 
       {authRole === 'viewer' && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-2xl font-medium text-center text-xs md:text-base shadow-xs">
-          📱 スマホ閲覧モードで表示しています。（データの確認とCSV出力が可能です）
+        <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3.5 rounded-2xl font-medium text-center text-xs md:text-base shadow-xs">
+          👑 社長モードで表示しています。（データの確認とCSV出力が可能です）
         </div>
       )}
 
@@ -438,7 +436,7 @@ export default function AdminPage() {
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
         <h2 className="text-lg md:text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
         
-        {/* スマホ最適化カード表示（スマホで見やすくブラッシュアップ） */}
+        {/* スマホ最適化カード表示 */}
         <div className="block md:hidden space-y-3">
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
