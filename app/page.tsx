@@ -94,7 +94,7 @@ export default function Home() {
   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
 
   return (
-    <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-900 relative text-base">
+    <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
       
       {/* ヘッダー */}
       <div className="bg-[#1e293b] text-white p-6 rounded-2xl text-center shadow-md">
@@ -107,8 +107,8 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm space-y-5 text-center border">
             <div className="text-5xl">🎉</div>
-            <h2 className="text-xl font-black text-slate-900">送信が完了しました</h2>
-            <p className="text-base text-slate-700">続けて別の報告を入力しますか？</p>
+            <h2 className="text-xl font-black text-slate-950">送信が完了しました</h2>
+            <p className="text-base text-slate-800">続けて別の報告を入力しますか？</p>
             
             <div className="flex gap-3 pt-2">
               <button 
@@ -121,7 +121,7 @@ export default function Home() {
               <button 
                 type="button" 
                 onClick={handleFinish} 
-                className="flex-1 bg-slate-200 text-slate-800 py-4 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
+                className="flex-1 bg-slate-200 text-slate-900 py-4 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
               >
                 終了する
               </button>
@@ -137,13 +137,13 @@ export default function Home() {
            <div className="font-black text-lg text-orange-600 border-b pb-3">📍 1. 日付と現場の選択</div>
            
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【日付】</label>
-             <input type="text" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold bg-slate-50 text-center text-xl text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
+             <input type="text" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold bg-slate-50 text-center text-xl text-slate-950" />
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【現場名】</label>
-             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-900">
+             <label className="text-base font-bold text-slate-950 block mb-2">【現場名】</label>
+             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950">
                <option value="">現場を選択してください</option>
                {(settings.locations || []).map((l:any)=>(
                  <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>
@@ -154,8 +154,8 @@ export default function Home() {
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【現場責任者】</label>
-             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-900">
+             <label className="text-base font-bold text-slate-950 block mb-2">【現場責任者】</label>
+             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950">
                <option value="">責任者を選択してください</option>
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
@@ -170,13 +170,13 @@ export default function Home() {
            <div className="grid grid-cols-2 gap-3 pt-1">
              {(settings.workers || []).map((w:any) => (
                <button type="button" key={w.name} onClick={() => toggleSelection(selectedWorkers, w.name, setSelectedWorkers)}
-               className={`p-4 rounded-2xl font-bold border-2 text-lg transition ${selectedWorkers.includes(w.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-800 border-slate-300'}`}>{w.name}</button>
+               className={`p-4 rounded-2xl font-bold border-2 text-lg transition ${selectedWorkers.includes(w.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-900 border-slate-300'}`}>{w.name}</button>
              ))}
            </div>
 
            <div className="border-t pt-5 space-y-4">
              <div className="flex justify-between items-center">
-               <span className="font-bold text-base text-slate-900">👤 外注・派遣作業員</span>
+               <span className="font-bold text-base text-slate-950">👤 外注・派遣作業員</span>
                <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
              
@@ -187,8 +187,8 @@ export default function Home() {
                  <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
                    <div className="grid grid-cols-2 gap-3">
                      <div>
-                       <label className="text-sm font-bold text-slate-900 block mb-1">外注会社名</label>
-                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-900" value={sub.company} onChange={(e)=>{
+                       <label className="text-sm font-bold text-slate-950 block mb-1">外注会社名</label>
+                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950" value={sub.company} onChange={(e)=>{
                          const updated = [...subcontractors]; 
                          updated[index].company = e.target.value; 
                          updated[index].task = '';
@@ -199,8 +199,8 @@ export default function Home() {
                        </select>
                      </div>
                      <div>
-                       <label className="text-sm font-bold text-slate-900 block mb-1">作業内容</label>
-                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-900" value={sub.task} onChange={(e)=>{
+                       <label className="text-sm font-bold text-slate-950 block mb-1">作業内容</label>
+                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950" value={sub.task} onChange={(e)=>{
                          const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
                        }}>
                          <option value="">内容を選択...</option>
@@ -210,8 +210,8 @@ export default function Home() {
                    </div>
                    <div className="flex items-end gap-3">
                      <div className="flex-1">
-                       <label className="text-sm font-bold text-slate-900 block mb-1">人数</label>
-                       <input type="number" placeholder="0" className="w-full p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-900" value={sub.count} onChange={(e)=>{
+                       <label className="text-sm font-bold text-slate-950 block mb-1">人数</label>
+                       <input type="number" placeholder="0" className="w-full p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-950" value={sub.count} onChange={(e)=>{
                          const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
                        }}/>
                      </div>
@@ -231,7 +231,7 @@ export default function Home() {
 
            {/* ■ 南大阪建機（MOK）リース */}
            <div className="space-y-4 bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200">
-             <div className="text-sm font-black text-blue-900 bg-blue-200 px-4 py-2 rounded-xl inline-block">
+             <div className="text-sm font-black text-blue-950 bg-blue-200 px-4 py-2 rounded-xl inline-block">
                🏢 南大阪建機（MOK）からのリース
              </div>
 
@@ -240,16 +240,17 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenHeavy(!isOpenHeavy)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-900 flex justify-between items-center shadow-xs hover:bg-blue-50 transition"
+                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition"
                >
-                 <span>【重機を選択する】 {leaseHeavy.length > 0 && <span className="ml-2 bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full">{leaseHeavy.length}選定中</span>}</span>
-                 <span className="text-lg font-bold text-slate-500">{isOpenHeavy ? '▲' : '▼'}</span>
+                 <span>【重機を選択する】</span>
+                 {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseHeavy.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenHeavy ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenHeavy && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
                    {(settings.leaseHeavy || []).map((m:any) => (
                      <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base transition ${leaseHeavy.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-300'}`}>{m.name}</button>
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseHeavy.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                    ))}
                  </div>
                )}
@@ -260,16 +261,17 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenAttach(!isOpenAttach)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-900 flex justify-between items-center shadow-xs hover:bg-blue-50 transition"
+                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition"
                >
-                 <span>【アタッチメントを選択する】 {leaseAttach.length > 0 && <span className="ml-2 bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full">{leaseAttach.length}選定中</span>}</span>
-                 <span className="text-lg font-bold text-slate-500">{isOpenAttach ? '▲' : '▼'}</span>
+                 <span>【アタッチメントを選択する】</span>
+                 {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseAttach.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenAttach ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenAttach && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
                    {(settings.leaseAttach || []).map((m:any) => (
                      <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base transition ${leaseAttach.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-300'}`}>{m.name}</button>
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseAttach.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                    ))}
                  </div>
                )}
@@ -280,66 +282,69 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenOther(!isOpenOther)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-900 flex justify-between items-center shadow-xs hover:bg-blue-50 transition"
+                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition"
                >
-                 <span>【その他の機械・機器を選択する】 {leaseOther.length > 0 && <span className="ml-2 bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full">{leaseOther.length}選定中</span>}</span>
-                 <span className="text-lg font-bold text-slate-500">{isOpenOther ? '▲' : '▼'}</span>
+                 <span>【その他の機械・機器を選択する】</span>
+                 {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseOther.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenOther ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenOther && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
                    {(settings.leaseOther || []).map((m:any) => (
                      <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base transition ${leaseOther.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-300'}`}>{m.name}</button>
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseOther.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                    ))}
                  </div>
                )}
              </div>
            </div>
 
-           {/* ■ その他リース（自由入力） */}
+           {/* ■ その他リース（自由入力） - 2行化＆ハミ出し防止 */}
            <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
              <div className="flex justify-between items-start gap-3">
-               <div className="text-sm font-black text-amber-900 bg-amber-200 px-4 py-2 rounded-xl leading-relaxed">
+               <div className="text-sm font-black text-amber-950 bg-amber-200 px-4 py-2 rounded-xl leading-relaxed">
                  📦 その他<br />
-                 <span className="text-xs font-bold">（MOK以外からのリース・機械など）</span>
+                 <span className="text-xs font-bold">（MOK以外からのリース）</span>
                </div>
                <button type="button" onClick={() => setOtherLeases([...otherLeases, {name: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition shrink-0">＋ 追加</button>
              </div>
              {otherLeases.map((ol, index) => (
-               <div key={index} className="flex gap-3 items-center bg-white p-3 rounded-2xl border-2 border-amber-300">
-                 <input type="text" placeholder="リース名" value={ol.name} onChange={e=>{
+               <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-amber-300 shadow-xs">
+                 <input type="text" placeholder="リース名を入力" value={ol.name} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
-                 }} className="flex-1 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-900" />
-                 <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
-                   const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
-                 }} className="w-24 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-900" />
-                 <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3 rounded-xl font-bold text-sm shrink-0">削除</button>
+                 }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
+                 <div className="flex gap-2 items-center">
+                   <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
+                     const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
+                   }} className="flex-1 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
+                   <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-5 py-3 rounded-xl font-bold text-sm shrink-0">削除</button>
+                 </div>
                </div>
              ))}
            </div>
 
            {/* ■ 自社保有（重機・車両） */}
            <div className="space-y-4 bg-emerald-50/70 p-5 rounded-3xl border-2 border-emerald-200">
-             <div className="text-sm font-black text-emerald-900 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
+             <div className="text-sm font-black text-emerald-950 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
                🚛 自社保有（重機・車両）
              </div>
 
              <div className="space-y-2">
-               <label className="text-sm font-bold text-slate-900 block">【自社重機】</label>
+               <label className="text-sm font-bold text-slate-950 block">【自社重機】</label>
                <div className="grid grid-cols-2 gap-3">
                  {(settings.companyMachines || []).map((m:any) => (
                    <button type="button" key={m.name} onClick={() => toggleSelection(selectedOwnMachines, m.name, setSelectedOwnMachines)}
-                   className={`p-4 rounded-2xl font-bold border-2 text-base transition ${selectedOwnMachines.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-300'}`}>{m.name}</button>
+                   className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${selectedOwnMachines.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                  ))}
                </div>
              </div>
 
              <div className="space-y-2 pt-2">
-               <label className="text-sm font-bold text-slate-900 block">【自社車両（乗用車・トラック）】</label>
+               <label className="text-sm font-bold text-slate-950 block">【自社車両（乗用車・トラック）】</label>
                <div className="grid grid-cols-2 gap-3">
                  {(settings.vehicles || []).map((v:any) => (
                    <button type="button" key={v.name} onClick={() => toggleSelection(selectedVehicles, v.name, setSelectedVehicles)}
-                   className={`p-4 rounded-2xl font-bold border-2 text-base transition ${selectedVehicles.includes(v.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-800 border-slate-300'}`}>{v.name}</button>
+                   className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${selectedVehicles.includes(v.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{v.name}</button>
                  ))}
                </div>
              </div>
@@ -354,18 +359,18 @@ export default function Home() {
            </div>
            
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【軽油 (L)】</label>
-             <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【軽油 (L)】</label>
+             <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【高速代・ETC (円)】</label>
-             <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【高速代・ETC (円)】</label>
+             <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【駐車場代 (円)】</label>
-             <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【駐車場代 (円)】</label>
+             <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
            </div>
         </div>
 
@@ -383,8 +388,8 @@ export default function Home() {
            {disposals.map((entry, index) => (
              <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
                <div>
-                 <label className="text-sm font-bold text-slate-900 block mb-1">処分場・品目</label>
-                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-900" value={`${entry.location}|${entry.item}`} onChange={(e) => {
+                 <label className="text-sm font-bold text-slate-950 block mb-1">処分場・品目</label>
+                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
                    const target = settings.disposalLocations?.find((d:any) => d.location === loc && d.item === item);
                    const updated = [...disposals];
@@ -398,12 +403,12 @@ export default function Home() {
                
                <div className="flex items-end gap-3">
                  <div className="flex-1">
-                   <label className="text-sm font-bold text-slate-900 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-900" value={entry.quantity} onChange={(e)=>{
+                   <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950" value={entry.quantity} onChange={(e)=>{
                      const updated = [...disposals]; updated[index].quantity = e.target.value; setDisposals(updated);
                    }}/>
                  </div>
-                 <div className="pb-3 font-black text-base text-slate-700 shrink-0">{entry.unit || 't'}</div>
+                 <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
                  <button type="button" onClick={() => setDisposals(disposals.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
                </div>
              </div>
@@ -424,8 +429,8 @@ export default function Home() {
            {scraps.map((entry, index) => (
              <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
                <div>
-                 <label className="text-sm font-bold text-slate-900 block mb-1">スクラップ場・品目</label>
-                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-900" value={`${entry.location}|${entry.item}`} onChange={(e) => {
+                 <label className="text-sm font-bold text-slate-950 block mb-1">スクラップ場・品目</label>
+                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
                    const target = settings.scrapLocations?.find((s:any) => s.location === loc && s.item === item);
                    const updated = [...scraps];
@@ -439,12 +444,12 @@ export default function Home() {
 
                <div className="flex items-end gap-3">
                  <div className="flex-1">
-                   <label className="text-sm font-bold text-slate-900 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-900" value={entry.quantity} onChange={(e)=>{
+                   <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950" value={entry.quantity} onChange={(e)=>{
                      const updated = [...scraps]; updated[index].quantity = e.target.value; setScraps(updated);
                    }}/>
                  </div>
-                 <div className="pb-3 font-black text-base text-slate-700 shrink-0">{entry.unit || 't'}</div>
+                 <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
                  <button type="button" onClick={() => setScraps(scraps.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
                </div>
              </div>
@@ -453,14 +458,14 @@ export default function Home() {
 
         {/* その他 雑費・消耗品等 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-           <div className="font-black text-lg text-slate-900 border-b pb-3">📦 その他 雑費・消耗品等</div>
+           <div className="font-black text-lg text-slate-950 border-b pb-3">📦 その他 雑費・消耗品等</div>
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【品名・内容】</label>
-             <input type="text" placeholder="例: 養生テープ" value={otherItem} onChange={e=>setOtherItem(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【品名・内容】</label>
+             <input type="text" placeholder="例: 養生テープ" value={otherItem} onChange={e=>setOtherItem(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950" />
            </div>
            <div>
-             <label className="text-base font-bold text-slate-900 block mb-2">【金額 (円)】</label>
-             <input type="number" placeholder="0" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-900" />
+             <label className="text-base font-bold text-slate-950 block mb-2">【金額 (円)】</label>
+             <input type="number" placeholder="0" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
            </div>
         </div>
 
@@ -469,7 +474,7 @@ export default function Home() {
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">📝 7. 本日の作業内容</span>
            </div>
-           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-900" />
+           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950" />
         </div>
 
         <button type="submit" className="w-full bg-[#E56312] text-white font-black text-2xl py-5 rounded-3xl shadow-xl hover:bg-orange-700 transition">
