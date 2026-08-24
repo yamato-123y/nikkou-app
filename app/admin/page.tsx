@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
+  const [authRole, setAuthRole] = useState<'admin' | 'viewer' | null>(null);
+
   const [reports, setReports] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
   
@@ -37,23 +39,41 @@ export default function AdminPage() {
 
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
 
+  const handleLogin = (role: 'admin' | 'viewer') => {
+    if (password === 'yamato123' || password === 'yamato') {
+      setIsAuthed(true);
+      setAuthRole(role);
+    } else {
+      alert('パスワードが間違っています。');
+    }
+  };
+
   const saveMaster = async (key: string, newList: any[]) => {
+    if (authRole === 'viewer') {
+      alert('閲覧専用モードのため変更できません。');
+      return;
+    }
     const newData = { ...settings, [key]: newList };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
     fetchData();
   };
 
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
+    if (authRole === 'viewer') return;
     saveMaster(key, [...(settings[key] || []), newItem]);
     const cleared = { ...form };
     formKeys.forEach(k => cleared[k] = '');
     setForm(cleared);
   };
 
-  const deleteMaster = (key: string, idx: number) => saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
+  const deleteMaster = (key: string, idx: number) => {
+    if (authRole === 'viewer') return;
+    saveMaster(key, (settings[key] || []).filter((_:any, i:number) => i !== idx));
+  };
 
   // 並び替え機能（上へ / 下へ）
   const moveMasterItem = (key: string, idx: number, direction: 'up' | 'down') => {
+    if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= list.length) return;
@@ -64,12 +84,14 @@ export default function AdminPage() {
   };
 
   const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
+    if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
     list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' ? value : (Number(value) || 0) };
     saveMaster(key, list);
   };
 
   const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
+    if (authRole === 'viewer') return;
     const newOverrides = {
       ...costOverrides,
       [locName]: {
@@ -83,6 +105,10 @@ export default function AdminPage() {
   };
 
   const toggleCostFieldEdit = (locName: string, field: string) => {
+    if (authRole === 'viewer') {
+      alert('閲覧専用モードのため編集できません。');
+      return;
+    }
     const current = editingCostFields[locName] || {};
     setEditingCostFields({
       ...editingCostFields,
@@ -94,6 +120,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteReport = async (report: any, index: number) => {
+    if (authRole === 'viewer') return;
     if (!confirm('この日報データを削除してもよろしいですか？')) return;
     const targetId = report.id || report._id || report.reportId;
     await fetch('/api/reports', {
@@ -106,6 +133,7 @@ export default function AdminPage() {
 
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authRole === 'viewer') return;
     const payload = {
       ...editingReport,
       id: editingReport.id || editingReport._id
@@ -270,25 +298,32 @@ export default function AdminPage() {
 
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6 font-sans">
-      <div className="bg-white p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100">
-        <div className="text-center space-y-3">
+      <div className="bg-white p-10 rounded-3xl shadow-xl space-y-6 w-full max-w-md border border-slate-100 text-center">
+        <div className="space-y-3">
           <div className="text-5xl">🔒</div>
-          <h1 className="text-2xl font-bold text-slate-800">管理者ログイン</h1>
+          <h1 className="text-2xl font-bold text-slate-800">管理画面 ログイン</h1>
           <p className="text-base text-slate-400">株式会社大和 音声日報システム</p>
         </div>
-        <div className="space-y-5">
+        <div className="space-y-4">
           <input 
             type="password" 
             placeholder="パスワードを入力" 
-            className="w-full p-4 border border-slate-200 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition" 
+            className="w-full p-4 border border-slate-200 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition text-center" 
+            value={password}
             onChange={e => setPassword(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && ((password === 'yamato123' || password === 'yamato') && setIsAuthed(true))}
+            onKeyDown={e => e.key === 'Enter' && handleLogin('admin')}
           />
           <button 
-            onClick={() => (password === 'yamato123' || password === 'yamato') && setIsAuthed(true)} 
+            onClick={() => handleLogin('admin')} 
             className="w-full bg-[#E56312] hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md shadow-orange-500/20 transition"
           >
-            ログインする
+            👑 管理者としてログイン（編集可）
+          </button>
+          <button 
+            onClick={() => handleLogin('viewer')} 
+            className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-lg transition"
+          >
+            👀 閲覧専用としてログイン（見るだけ）
           </button>
         </div>
       </div>
@@ -305,18 +340,29 @@ export default function AdminPage() {
       {/* 🚀 ヘッダー */}
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 gap-4">
         <div className="space-y-1 text-center md:text-left">
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
+          <div className="flex items-center gap-3 justify-center md:justify-start flex-wrap">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">📊 現場日報・原価管理ダッシュボード</h1>
+            <span className={`text-xs px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-700'}`}>
+              {authRole === 'admin' ? '👑 管理者モード' : '👀 閲覧専用モード'}
+            </span>
+          </div>
           <p className="text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
         <div className="flex w-full md:w-auto gap-3">
           <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-6 py-3.5 rounded-2xl font-bold text-base transition flex items-center justify-center gap-2">
             🔄 最新データに更新
           </button>
-          <button onClick={() => setIsAuthed(false)} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3.5 rounded-2xl font-bold text-base transition">
+          <button onClick={() => { setIsAuthed(false); setAuthRole(null); }} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3.5 rounded-2xl font-bold text-base transition">
             ログアウト
           </button>
         </div>
       </div>
+
+      {authRole === 'viewer' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl font-bold text-center shadow-xs">
+          ⚠️ 現在は「閲覧専用モード」です。データの追加・編集・削除は制限されています。
+        </div>
+      )}
 
       {/* 🏢 現場別 経費集計サマリー */}
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-5">
@@ -387,101 +433,83 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア */}
-      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-        <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {[
-            { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
-            { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
-            { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
-            { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
-            { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
-            { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-            { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
-            { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-            { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
-            { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
-            { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
-          ].map((sec, idx) => (
-            <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-5 flex flex-col justify-between">
-              <div className="space-y-4">
-                <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
-                
-                {sec.isSub ? (
-                  <div className="space-y-3.5">
-                    <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                    <div className="grid grid-cols-12 gap-2.5">
-                      <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                      <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-                    </div>
-                    <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
-                  </div>
-                ) : sec.isDisp || sec.isScrap ? (
-                  <div className="space-y-3.5">
-                    <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
-                    <div className="grid grid-cols-12 gap-2.5">
-                      <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
-                      <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
-                      <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
-                    </div>
-                    <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5">
-                    <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                    <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                    <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
-                  </div>
-                )}
-              </div>
-
-              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 mt-4">
-                {(settings[sec.key] || []).length === 0 ? (
-                  <p className="text-base text-slate-400 text-center py-5">登録データがありません</p>
-                ) : (
-                  (settings[sec.key] || []).map((item:any, idx:number)=>(
-                    <div key={idx} className="py-3 flex justify-between items-center text-lg font-medium gap-2.5">
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button 
-                          type="button" 
-                          onClick={() => moveMasterItem(sec.key, idx, 'up')} 
-                          disabled={idx === 0}
-                          className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition"
-                          title="上へ"
-                        >
-                          ▲
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => moveMasterItem(sec.key, idx, 'down')} 
-                          disabled={idx === (settings[sec.key] || []).length - 1}
-                          className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition"
-                          title="下へ"
-                        >
-                          ▼
-                        </button>
+      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ表示） */}
+      {authRole === 'admin' && (
+        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+          <h2 className="text-2xl font-black text-slate-900">⚙️ マスタ登録・単価設定</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
+              { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
+              { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
+              { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
+              { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
+              { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
+              { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
+              { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
+              { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+              { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
+              { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
+            ].map((sec, idx) => (
+              <div key={idx} className="bg-slate-50 p-6 rounded-2xl border border-slate-200/80 space-y-5 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <h3 className="font-bold text-lg text-orange-600 tracking-wider">{sec.title}</h3>
+                  
+                  {sec.isSub ? (
+                    <div className="space-y-3.5">
+                      <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                      <div className="grid grid-cols-12 gap-2.5">
+                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                       </div>
-
-                      <span className="text-slate-900 font-bold flex-1 px-2 text-lg">
-                        {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
-                      </span>
-                      
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-slate-400 text-base">¥</span>
-                        <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-32 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
-                        <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-base ml-2 p-1.5">削除</button>
-                      </div>
+                      <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
+                  ) : sec.isDisp || sec.isScrap ? (
+                    <div className="space-y-3.5">
+                      <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
+                      <div className="grid grid-cols-12 gap-2.5">
+                        <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
+                        <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
+                      </div>
+                      <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                      <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-4 border border-slate-300 rounded-xl text-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                      <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3.5 rounded-xl font-bold text-lg shadow-sm transition">追加</button>
+                    </div>
+                  )}
+                </div>
 
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 mt-4">
+                  {(settings[sec.key] || []).length === 0 ? (
+                    <p className="text-base text-slate-400 text-center py-5">登録データがありません</p>
+                  ) : (
+                    (settings[sec.key] || []).map((item:any, idx:number)=>(
+                      <div key={idx} className="py-3 flex justify-between items-center text-lg font-medium gap-2.5">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition" title="上へ">▲</button>
+                          <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-base font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                        </div>
+                        <span className="text-slate-900 font-bold flex-1 px-2 text-lg">
+                          {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-slate-400 text-base">¥</span>
+                          <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-32 p-3 border border-slate-300 rounded-xl text-right text-lg font-bold bg-slate-50" />
+                          <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-base ml-2 p-1.5">削除</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
@@ -504,7 +532,7 @@ export default function AdminPage() {
                 <th className="py-4 px-5">責任者 / 作業者 / 外注</th>
                 <th className="py-4 px-5">重機 / 車両</th>
                 <th className="py-4 px-5">作業内容</th>
-                <th className="py-4 px-5 text-center">操作</th>
+                {authRole === 'admin' && <th className="py-4 px-5 text-center">操作</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-base font-medium">
@@ -522,10 +550,12 @@ export default function AdminPage() {
                   </td>
                   <td className="py-5 px-5 text-slate-700 text-base">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
                   <td className="py-5 px-5 text-slate-700 text-base max-w-xs truncate">{r.workDescription || '-'}</td>
-                  <td className="py-5 px-5 text-center space-x-3 whitespace-nowrap">
-                    <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">編集</button>
-                    <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">削除</button>
-                  </td>
+                  {authRole === 'admin' && (
+                    <td className="py-5 px-5 text-center space-x-3 whitespace-nowrap">
+                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">編集</button>
+                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-5 py-2.5 rounded-xl font-bold transition shadow-sm text-base">削除</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -534,7 +564,7 @@ export default function AdminPage() {
       </div>
 
       {/* ✏️ 日報編集モーダル */}
-      {editingReport && (
+      {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-3xl w-full max-w-3xl p-6 md:p-10 max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <h2 className="text-2xl font-black text-slate-900 border-b border-slate-100 pb-4">✏️ 日報内容の編集</h2>
@@ -571,140 +601,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="space-y-3 border-t border-slate-200 pt-6">
-              <label className="text-lg font-bold text-orange-600 block">作業員（社員）</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
-                {(settings.workers || []).map((w:any) => {
-                  const isChecked = (editingReport.workers || []).includes(w.name);
-                  return (
-                    <label key={w.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
-                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
-                        const cur = editingReport.workers || [];
-                        const next = e.target.checked ? [...cur, w.name] : cur.filter((x:string)=>x!==w.name);
-                        setEditingReport({...editingReport, workers: next});
-                      }} className="rounded accent-orange-600 w-5 h-5" />
-                      <span className="font-bold">{w.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3 border-t border-slate-200 pt-6">
-              <label className="text-lg font-bold text-orange-600 block">自社重機</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
-                {(settings.companyMachines || []).map((cm:any) => {
-                  const isChecked = (editingReport.ownMachines || []).includes(cm.name);
-                  return (
-                    <label key={cm.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
-                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
-                        const cur = editingReport.ownMachines || [];
-                        const next = e.target.checked ? [...cur, cm.name] : cur.filter((x:string)=>x!==cm.name);
-                        setEditingReport({...editingReport, ownMachines: next});
-                      }} className="rounded accent-orange-600 w-5 h-5" />
-                      <span className="font-bold">{cm.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3 border-t border-slate-200 pt-6">
-              <label className="text-lg font-bold text-orange-600 block">自社車両</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3.5">
-                {(settings.vehicles || []).map((v:any) => {
-                  const isChecked = (editingReport.vehicles || []).includes(v.name);
-                  return (
-                    <label key={v.name} className={`p-4 border rounded-2xl text-base flex items-center gap-3 cursor-pointer transition ${isChecked ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-300'}`}>
-                      <input type="checkbox" checked={isChecked} onChange={(e)=>{
-                        const cur = editingReport.vehicles || [];
-                        const next = e.target.checked ? [...cur, v.name] : cur.filter((x:string)=>x!==v.name);
-                        setEditingReport({...editingReport, vehicles: next});
-                      }} className="rounded accent-orange-600 w-5 h-5" />
-                      <span className="font-bold">{v.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3 border-t border-slate-200 pt-6">
-              <div className="flex justify-between items-center">
-                <label className="text-lg font-bold text-orange-600 block">処分場への搬出</label>
-                <button type="button" onClick={() => {
-                  const cur = editingReport.disposals || [];
-                  setEditingReport({ ...editingReport, disposals: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
-                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-sm px-4 py-2 rounded-xl font-bold transition">＋ 処分行を追加</button>
-              </div>
-              <div className="space-y-3">
-                {(editingReport.disposals || []).map((d:any, idx:number) => (
-                  <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-300">
-                    <input type="text" placeholder="処分場名" value={d.location || ''} onChange={e => {
-                      const list = [...editingReport.disposals];
-                      list[idx] = { ...list[idx], location: e.target.value };
-                      setEditingReport({ ...editingReport, disposals: list });
-                    }} className="flex-1 p-3 border border-slate-300 rounded-xl text-base bg-white" />
-                    <input type="text" placeholder="品目" value={d.item || ''} onChange={e => {
-                      const list = [...editingReport.disposals];
-                      list[idx] = { ...list[idx], item: e.target.value };
-                      setEditingReport({ ...editingReport, disposals: list });
-                    }} className="w-32 p-3 border border-slate-300 rounded-xl text-base bg-white" />
-                    <input type="number" placeholder="数量" value={d.quantity || 0} onChange={e => {
-                      const list = [...editingReport.disposals];
-                      list[idx] = { ...list[idx], quantity: Number(e.target.value) };
-                      setEditingReport({ ...editingReport, disposals: list });
-                    }} className="w-24 p-3 border border-slate-300 rounded-xl text-base bg-white text-right" />
-                    <span className="text-sm text-slate-700 font-bold">t</span>
-                    <button type="button" onClick={() => {
-                      const list = (editingReport.disposals || []).filter((_:any, i:number) => i !== idx);
-                      setEditingReport({ ...editingReport, disposals: list });
-                    }} className="text-rose-500 hover:text-rose-700 font-bold text-sm p-1">削除</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 border-t border-slate-200 pt-6">
-              <div className="flex justify-between items-center">
-                <label className="text-lg font-bold text-orange-600 block">スクラップの搬出</label>
-                <button type="button" onClick={() => {
-                  const cur = editingReport.scraps || [];
-                  setEditingReport({ ...editingReport, scraps: [...cur, { location: '', item: '', quantity: 0, unit: 't' }] });
-                }} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-sm px-4 py-2 rounded-xl font-bold transition">＋ スクラップ行を追加</button>
-              </div>
-              <div className="space-y-3">
-                {(editingReport.scraps || []).map((sc:any, idx:number) => (
-                  <div key={idx} className="flex gap-3 items-center bg-slate-50 p-4 rounded-2xl border border-slate-300">
-                    <input type="text" placeholder="スクラップ場名" value={sc.location || ''} onChange={e => {
-                      const list = [...editingReport.scraps];
-                      list[idx] = { ...list[idx], location: e.target.value };
-                      setEditingReport({ ...editingReport, scraps: list });
-                    }} className="flex-1 p-3 border border-slate-300 rounded-xl text-base bg-white" />
-                    <input type="text" placeholder="品目" value={sc.item || ''} onChange={e => {
-                      const list = [...editingReport.scraps];
-                      list[idx] = { ...list[idx], item: e.target.value };
-                      setEditingReport({ ...editingReport, scraps: list });
-                    }} className="w-32 p-3 border border-slate-300 rounded-xl text-base bg-white" />
-                    <input type="number" placeholder="数量" value={sc.quantity || 0} onChange={e => {
-                      const list = [...editingReport.scraps];
-                      list[idx] = { ...list[idx], quantity: Number(e.target.value) };
-                      setEditingReport({ ...editingReport, scraps: list });
-                    }} className="w-24 p-3 border border-slate-300 rounded-xl text-base bg-white text-right" />
-                    <span className="text-sm text-slate-700 font-bold">t</span>
-                    <button type="button" onClick={() => {
-                      const list = (editingReport.scraps || []).filter((_:any, i:number) => i !== idx);
-                      setEditingReport({ ...editingReport, scraps: list });
-                    }} className="text-rose-500 hover:text-rose-700 font-bold text-sm p-1">削除</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-base font-bold text-slate-700 block mb-2">作業内容</label>
-              <textarea value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-lg h-32" />
-            </div>
-
             <div className="flex gap-4 pt-4">
               <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-md transition">更新を保存する</button>
               <button type="button" onClick={() => setEditingReport(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-lg transition">キャンセル</button>
@@ -737,7 +633,7 @@ export default function AdminPage() {
 
             <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-4">
-                <h3 className="font-bold text-xl text-slate-900">📋 経費・収支の内訳明細（編集可能）</h3>
+                <h3 className="font-bold text-xl text-slate-900">📋 経費・収支の内訳明細 {authRole === 'viewer' && <span className="text-sm text-slate-500 font-normal">（閲覧モード）</span>}</h3>
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-base px-5 py-3 rounded-xl font-bold shadow-sm transition">🔍 処分費の内訳を確認</button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -760,16 +656,18 @@ export default function AdminPage() {
                     <div key={item.key} className={`bg-white p-6 rounded-2xl border border-slate-300 shadow-xs flex flex-col justify-between gap-4 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                       <div className="flex justify-between items-center">
                         <span className={`text-base font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-600'}`}>{item.label}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5"
-                        >
-                          {isEditing ? '🔒 完了' : '✏️ 編集'}
-                        </button>
+                        {authRole === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5"
+                          >
+                            {isEditing ? '🔒 完了' : '✏️ 編集'}
+                          </button>
+                        )}
                       </div>
 
-                      {isEditing ? (
+                      {isEditing && authRole === 'admin' ? (
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-slate-500 font-bold text-xl">¥</span>
                           <input
