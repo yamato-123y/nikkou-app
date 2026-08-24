@@ -7,6 +7,10 @@ function SiteDetailContent() {
   const searchParams = useSearchParams();
   const siteName = searchParams.get('siteName') || '';
 
+  const [password, setPassword] = useState('');
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [authRole, setAuthRole] = useState<'admin' | 'viewer' | null>(null);
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [data, setData] = useState<any>(null);
@@ -27,26 +31,92 @@ function SiteDetailContent() {
   };
 
   useEffect(() => {
-    if (siteName) fetchSummary();
-  }, [siteName]);
+    if (isAuthed && siteName) {
+      fetchSummary();
+    }
+  }, [isAuthed, siteName]);
+
+  // ログイン処理
+  const handleLogin = (role: 'admin' | 'viewer') => {
+    if (password === 'yamato123' || password === 'yamato') {
+      setIsAuthed(true);
+      setAuthRole(role);
+    } else {
+      alert('パスワードが間違っています。');
+    }
+  };
+
+  // 🔒 未認証（ログイン前）の画面
+  if (!isAuthed) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: '1.5rem', fontFamily: 'sans-serif' }}>
+        <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: '1.5rem', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', width: '100%', maxWidth: '400px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem' }}>現場詳細ログイン</h1>
+          <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '1.5rem' }}>株式会社大和 音声日報システム</p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input 
+              type="password" 
+              placeholder="パスワードを入力" 
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleLogin('admin')}
+              style={{ padding: '0.85rem', border: '1px solid #cbd5e1', borderRadius: '0.75rem', fontSize: '1rem', outline: 'none' }}
+            />
+            <button 
+              onClick={() => handleLogin('admin')}
+              style={{ backgroundColor: '#ea580c', color: 'white', border: 'none', padding: '0.85rem', borderRadius: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' }}
+            >
+              👑 管理者としてログイン（編集可）
+            </button>
+            <button 
+              onClick={() => handleLogin('viewer')}
+              style={{ backgroundColor: '#e2e8f0', color: '#334155', border: 'none', padding: '0.85rem', borderRadius: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' }}
+            >
+              👀 閲覧専用としてログイン（見るだけ）
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!siteName) {
     return <div style={{ padding: '2rem' }}>現場名が指定されていません。</div>;
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '1.5rem', boxSizing: 'border-box' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '1.5rem', boxSizing: 'border-box', fontFamily: 'sans-serif' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         
         {/* ヘッダー */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <a href="/admin" style={{ color: '#ea580c', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.9rem' }}>← 管理画面トップへ戻る</a>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#0f172a', margin: '0.25rem 0 0 0' }}>
-              🏗️ 現場別詳細集計: {siteName}
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
+                🏗️ 現場別詳細集計: {siteName}
+              </h1>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '9999px', fontWeight: 'bold', backgroundColor: authRole === 'admin' ? '#ffedd5' : '#e2e8f0', color: authRole === 'admin' ? '#c2410c' : '#334155' }}>
+                {authRole === 'admin' ? '👑 管理者モード' : '👀 閲覧専用モード'}
+              </span>
+            </div>
           </div>
+          <button 
+            onClick={() => { setIsAuthed(false); setAuthRole(null); }}
+            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: 'none', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            ログアウト
+          </button>
         </div>
+
+        {/* 閲覧専用の注意書き */}
+        {authRole === 'viewer' && (
+          <div style={{ backgroundColor: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.85rem 1.25rem', borderRadius: '8px', fontWeight: 'bold', marginBottom: '1.5rem', textAlign: 'center' }}>
+            ⚠️ 現在は「閲覧専用」モードです。安全にデータを閲覧・確認いただけます。
+          </div>
+        )}
 
         {/* 📅 日付指定（期間フィルター） */}
         <div style={{ backgroundColor: 'white', padding: '1.25rem 1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
