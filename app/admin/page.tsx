@@ -392,7 +392,7 @@ export default function AdminPage() {
       <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
         <div className="space-y-3">
           <div className="text-5xl">🔒</div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-800">音声日報システム</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800">日報システム</h1>
           <p className="text-sm md:text-base text-slate-400 font-medium">株式会社大和</p>
         </div>
         
