@@ -145,10 +145,14 @@ export default function AdminPage() {
     setSettings({ ...settings, [key]: list });
   };
 
-  const updateItemPrice = (key: string, idx: number, field: string, value: any) => {
+  // マスタの各項目の値（名称や価格など）を変更する共通関数
+  const updateItemField = (key: string, idx: number, field: string, value: any) => {
     if (authRole === 'viewer') return;
     const list = [...(settings[key] || [])];
-    list[idx] = { ...list[idx], [field]: field === 'company' || field === 'task' || field === 'item' || field === 'unit' || field === 'location' ? value : (Number(value) || 0) };
+    list[idx] = { 
+      ...list[idx], 
+      [field]: field === 'price' ? (Number(value) || 0) : value 
+    };
     setSettings({ ...settings, [key]: list });
   };
 
@@ -686,7 +690,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ：びよーんと伸びないようグリッド構成と幅を最適化） */}
+      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
@@ -705,15 +709,15 @@ export default function AdminPage() {
           {showAdminSection && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
               {[
-                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
-                { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
-                { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
+                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
+                { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
+                { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
                 { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
-                { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
-                { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
-                { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-                { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+                { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
+                { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
+                { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
+                { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
+                { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
@@ -757,23 +761,41 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl p-2.5 space-y-1.5 mt-3">
+                  {/* 登録済みリスト（内容も日額も直接編集可能に改良） */}
+                  <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl p-2.5 space-y-2 mt-3">
                     {(settings[sec.key] || []).length === 0 ? (
                       <p className="text-xs text-slate-400 text-center py-3">登録データがありません</p>
                     ) : (
                       (settings[sec.key] || []).map((item:any, idx:number)=>(
-                        <div key={idx} className="py-2 flex justify-between items-center text-xs md:text-sm font-medium gap-1.5">
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="上へ">▲</button>
-                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                        <div key={idx} className="py-2.5 flex flex-col gap-2 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                          <div className="flex justify-between items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-6 h-6 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="上へ">▲</button>
+                              <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-6 h-6 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                            </div>
+                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs px-2 py-0.5 bg-rose-50 rounded-md">削除</button>
                           </div>
-                          <span className="text-slate-900 font-bold flex-1 px-1 truncate text-xs">
-                            {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
-                          </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-slate-400 text-[11px]">¥</span>
-                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-20 p-1.5 border border-slate-300 rounded-lg text-right text-xs font-bold bg-slate-50" />
-                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
+
+                          {/* 内容・名称の編集欄 */}
+                          {sec.isSub ? (
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                              <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                            </div>
+                          ) : sec.isDisp || sec.isScrap ? (
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="場所名" className="p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                              <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                              <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                            </div>
+                          ) : (
+                            <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white" />
+                          )}
+
+                          {/* 金額・日額の編集欄 */}
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-slate-400 text-xs">¥</span>
+                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-28 p-1.5 border border-slate-300 rounded-lg text-right text-xs font-bold bg-white" placeholder="単価/日額" />
                           </div>
                         </div>
                       ))
@@ -1078,7 +1100,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる*/}</button>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
           </div>
         </div>
