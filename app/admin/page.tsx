@@ -234,13 +234,11 @@ export default function AdminPage() {
     (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseOther || []).forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
 
-    // MOK自由追加分やその他リースの計算（価格データがない場合は0円など安全に処理）
     let otherLeaseC = 0;
     (r.otherLeases || []).forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
     });
     (r.mokCustomMachines || []).forEach((m: any) => {
-      // マスタにある場合は単価を掛け算、なければ価格0
       const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
       const unitP = matched?.price || 0;
       otherLeaseC += (Number(m.count || 0) * unitP);
@@ -584,7 +582,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 📅 出勤確認表（📅 出勤確認表を開く▼で開け閉め可能に修正） */}
+      {/* 📅 出勤確認表 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
         <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
           <div>
@@ -688,7 +686,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ） */}
+      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ：びよーんと伸びないようグリッド構成と幅を最適化） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
@@ -705,7 +703,7 @@ export default function AdminPage() {
           </div>
 
           {showAdminSection && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-fadeIn">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
               {[
                 { title: "🏢 現場名一覧", key: "locations", nameKey: "name", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
                 { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
@@ -719,66 +717,63 @@ export default function AdminPage() {
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
-                <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-4 flex flex-col justify-between">
+                <div key={idx} className="bg-slate-50 p-4 md:p-5 rounded-2xl border border-slate-200/80 space-y-4 flex flex-col justify-between shadow-2xs">
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-bold text-base text-orange-600 tracking-wider">{sec.title}</h3>
+                    <div className="flex justify-between items-center gap-2">
+                      <h3 className="font-bold text-sm md:text-base text-orange-600 tracking-wider truncate">{sec.title}</h3>
                       <button 
                         onClick={() => saveMaster(sec.key)} 
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm transition"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow-sm transition shrink-0"
                       >
-                        💾 保存する
+                        💾 保存
                       </button>
                     </div>
                     
                     {sec.isSub ? (
                       <div className="space-y-2.5">
-                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subComp: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                          <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                          <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                          <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                         </div>
-                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 (mx-auto max-w-[92%]) */}
-                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isDisp || sec.isScrap ? (
                       <div className="space-y-2.5">
-                        <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
+                        <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
-                          <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
-                          <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
+                          <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
+                          <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
+                          <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
                         </div>
-                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 */}
-                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 */}
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     )}
                   </div>
 
-                  <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-2xl p-3 space-y-2 mt-2">
+                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl p-2.5 space-y-1.5 mt-3">
                     {(settings[sec.key] || []).length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
+                      <p className="text-xs text-slate-400 text-center py-3">登録データがありません</p>
                     ) : (
                       (settings[sec.key] || []).map((item:any, idx:number)=>(
-                        <div key={idx} className="py-2.5 flex justify-between items-center text-sm font-medium gap-2">
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
-                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                        <div key={idx} className="py-2 flex justify-between items-center text-xs md:text-sm font-medium gap-1.5">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="上へ">▲</button>
+                            <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-6 h-6 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-md text-[10px] font-bold flex items-center justify-center transition" title="下へ">▼</button>
                           </div>
-                          <span className="text-slate-900 font-bold flex-1 px-1 text-sm">
+                          <span className="text-slate-900 font-bold flex-1 px-1 truncate text-xs">
                             {sec.isSub ? `${item.company} / ${item.task}` : sec.isDisp || sec.isScrap ? `${item.location} (${item.item}/${item.unit})` : item.name}
                           </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-slate-400 text-xs">¥</span>
-                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-24 p-2 border border-slate-300 rounded-xl text-right text-sm font-bold bg-slate-50" />
-                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs ml-1 p-1">削除</button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-slate-400 text-[11px]">¥</span>
+                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemPrice(sec.key, idx, 'price', e.target.value)} className="w-20 p-1.5 border border-slate-300 rounded-lg text-right text-xs font-bold bg-slate-50" />
+                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">削除</button>
                           </div>
                         </div>
                       ))
@@ -791,7 +786,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📥 送信された日報一覧（現場名が長くなっても見やすいカードタイプデザインに変更） */}
+      {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
@@ -804,7 +799,6 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* 変更後：PC・スマホ共通でカードタイプデザインを採用し、長めの現場名でも折り返してスッキリ表示 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredReports.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-6 col-span-full">日報データはありません</p>
@@ -1084,9 +1078,8 @@ export default function AdminPage() {
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる*/}</button>
             </div>
-            {/* 処分費詳細リスト略 */}
           </div>
         </div>
       )}
