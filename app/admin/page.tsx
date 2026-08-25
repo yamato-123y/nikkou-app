@@ -30,8 +30,11 @@ export default function AdminPage() {
   // 各項目の編集モードを管理するステート
   const [editingCostFields, setEditingCostFields] = useState<any>({});
 
-  // 管理エリアの開閉ステート（PCでのみ開く・スマホでは通常閉じ気味）
+  // 管理エリアの開閉ステート
   const [showAdminSection, setShowAdminSection] = useState(false);
+
+  // 📅 出勤確認表の開閉ステート（初期値: false = 閉じ気味）
+  const [showCalendarSection, setShowCalendarSection] = useState(false);
 
   // 出勤確認表の年月選択ステート
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
@@ -205,7 +208,6 @@ export default function AdminPage() {
     if (res.ok) {
       setEditingReport(null);
       fetchData();
-      // 編集完了ポップアップを表示して2秒後に消す
       setShowSaveToast(true);
       setTimeout(() => setShowSaveToast(false), 2500);
     } else {
@@ -232,9 +234,16 @@ export default function AdminPage() {
     (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseOther || []).forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
 
+    // MOK自由追加分やその他リースの計算（価格データがない場合は0円など安全に処理）
     let otherLeaseC = 0;
     (r.otherLeases || []).forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
+    });
+    (r.mokCustomMachines || []).forEach((m: any) => {
+      // マスタにある場合は単価を掛け算、なければ価格0
+      const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
+      const unitP = matched?.price || 0;
+      otherLeaseC += (Number(m.count || 0) * unitP);
     });
 
     let ownMachineC = 0;
@@ -346,8 +355,8 @@ export default function AdminPage() {
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || [])].join('/'),
-      (r.otherLeases || []).map((ol:any)=>`${ol.name}(¥${ol.price})`).join('/'),
+      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
+      (r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
       (r.ownMachines || []).join('/'),
       (r.vehicles || []).join('/'), 
       r.fuel || 0, r.etcPrice || 0, r.parkingPrice || 0,
@@ -358,7 +367,6 @@ export default function AdminPage() {
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${locName}_日報データ.csv`; link.click();
   };
 
-  // --- カレンダー（出勤確認表）用ヘルパー関数 ---
   const getDaysInMonth = (yearMonthStr: string) => {
     const [y, m] = yearMonthStr.split('-').map(Number);
     if (!y || !m) return [];
@@ -397,7 +405,6 @@ export default function AdminPage() {
         </div>
         
         <div className="space-y-6 pt-2">
-          {/* 社長モード（閲覧専用）用ログインエリア */}
           <div className="bg-orange-50/70 p-6 rounded-3xl border border-orange-100 space-y-4 text-left shadow-xs">
             <input 
               type="password" 
@@ -423,7 +430,6 @@ export default function AdminPage() {
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
-          {/* PC用の管理者ログインエリア */}
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200/80 space-y-4 text-left">
             <input 
               type="password" 
@@ -459,7 +465,6 @@ export default function AdminPage() {
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
 
-  // 全登録メンバーリスト（責任者＋作業員）
   const allStaffNames = Array.from(new Set([
     ...(settings.managers || []).map((m: any) => m.name),
     ...(settings.workers || []).map((w: any) => w.name)
@@ -470,7 +475,6 @@ export default function AdminPage() {
   return (
     <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-sm md:text-lg relative">
       
-      {/* 💾 編集完了トースト通知（ポップアップ） */}
       {showSaveToast && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce font-bold text-base md:text-lg">
           <span className="text-2xl">✨</span>
@@ -478,7 +482,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🚀 ヘッダー */}
+      {/* ヘッダー */}
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 gap-3">
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
@@ -509,7 +513,6 @@ export default function AdminPage() {
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
         <h2 className="text-lg md:text-2xl font-black text-slate-900">🏢 現場別 経費集計サマリー</h2>
         
-        {/* スマホ最適化カード表示 */}
         <div className="block md:hidden space-y-3">
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
@@ -539,7 +542,6 @@ export default function AdminPage() {
           })}
         </div>
 
-        {/* PC用テーブル表示 */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -582,92 +584,106 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 📅 出勤確認表（カレンダー形式・管理画面限定） */}
+      {/* 📅 出勤確認表（📅 出勤確認表を開く▼で開け閉め可能に修正） */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
         <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-lg md:text-2xl font-black text-slate-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
-            <p className="text-xs md:text-sm text-slate-400 mt-0.5">どの日に・誰がどの現場に入っていたか（または未割り当てか）をチェックできます</p>
+            <p className="text-xs md:text-sm text-slate-400 mt-0.5">どの日に・誰がどの現場に入っていたかチェックできます</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs md:text-sm font-bold text-slate-600">表示月:</span>
-            <input 
-              type="month" 
-              value={calendarYearMonth} 
-              onChange={e => setCalendarYearMonth(e.target.value)}
-              className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50 focus:bg-white focus:outline-none"
-            />
+          <div className="flex items-center gap-3 flex-wrap">
+            {showCalendarSection && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs md:text-sm font-bold text-slate-600">表示月:</span>
+                <input 
+                  type="month" 
+                  value={calendarYearMonth} 
+                  onChange={e => setCalendarYearMonth(e.target.value)}
+                  className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50 focus:bg-white focus:outline-none"
+                />
+              </div>
+            )}
+            <button 
+              onClick={() => setShowCalendarSection(!showCalendarSection)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition"
+            >
+              {showCalendarSection ? '📅 出勤確認表を隠す ▲' : '📅 出勤確認表を開く ▼'}
+            </button>
           </div>
         </div>
 
-        {allStaffNames.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-6">登録されているスタッフがいません（マスタ設定を確認してください）</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold">
-                  <th className="py-3 px-3 sticky left-0 bg-slate-50 z-10 min-w-[120px] shadow-xs">スタッフ名</th>
-                  {calendarDays.map(dateStr => {
-                    const dayNum = Number(dateStr.split('-')[2]);
-                    const dObj = new Date(dateStr);
-                    const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
-                    const wDay = weekDays[dObj.getDay()];
-                    const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
-                    return (
-                      <th key={dateStr} className={`py-3 px-1 text-center min-w-[36px] ${isWeekend ? 'text-rose-500 bg-rose-50/40' : ''}`}>
-                        <div className="text-[10px] text-slate-400">{wDay}</div>
-                        <div className="text-xs md:text-sm">{dayNum}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {allStaffNames.map(staff => {
-                  return (
-                    <tr key={staff} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
-                        👤 {staff}
-                      </td>
+        {showCalendarSection && (
+          <div className="pt-2 animate-fadeIn">
+            {allStaffNames.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-6">登録されているスタッフがいません（マスタ設定を確認してください）</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs md:text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold">
+                      <th className="py-3 px-3 sticky left-0 bg-slate-50 z-10 min-w-[120px] shadow-xs">スタッフ名</th>
                       {calendarDays.map(dateStr => {
-                        const matchedReports = reports.filter(r => {
-                          const rDateNormalized = normalizeDateStr(r.date);
-                          if (rDateNormalized !== dateStr) return false;
-                          const isManager = r.manager === staff;
-                          const isWorker = (r.workers || []).includes(staff);
-                          return isManager || isWorker;
-                        });
-
-                        const hasEntry = matchedReports.length > 0;
-                        const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
-
+                        const dayNum = Number(dateStr.split('-')[2]);
+                        const dObj = new Date(dateStr);
+                        const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+                        const wDay = weekDays[dObj.getDay()];
+                        const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
                         return (
-                          <td key={dateStr} className="py-3 px-1 text-center align-middle">
-                            {hasEntry ? (
-                              <div 
-                                title={`${dateStr}: ${locNames}`}
-                                className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
-                              >
-                                ◯
-                              </div>
-                            ) : (
-                              <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
-                                -
-                              </div>
-                            )}
-                          </td>
+                          <th key={dateStr} className={`py-3 px-1 text-center min-w-[36px] ${isWeekend ? 'text-rose-500 bg-rose-50/40' : ''}`}>
+                            <div className="text-[10px] text-slate-400">{wDay}</div>
+                            <div className="text-xs md:text-sm">{dayNum}</div>
+                          </th>
                         );
                       })}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
-              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {allStaffNames.map(staff => {
+                      return (
+                        <tr key={staff} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
+                            👤 {staff}
+                          </td>
+                          {calendarDays.map(dateStr => {
+                            const matchedReports = reports.filter(r => {
+                              const rDateNormalized = normalizeDateStr(r.date);
+                              if (rDateNormalized !== dateStr) return false;
+                              const isManager = r.manager === staff;
+                              const isWorker = (r.workers || []).includes(staff);
+                              return isManager || isWorker;
+                            });
+
+                            const hasEntry = matchedReports.length > 0;
+                            const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+
+                            return (
+                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                                {hasEntry ? (
+                                  <div 
+                                    title={`${dateStr}: ${locNames}`}
+                                    className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
+                                  >
+                                    ◯
+                                  </div>
+                                ) : (
+                                  <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
+                                    -
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
+                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
+                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -722,7 +738,8 @@ export default function AdminPage() {
                           <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subTask: e.target.value})} />
                           <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                         </div>
-                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 (mx-auto max-w-[92%]) */}
+                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isDisp || sec.isScrap ? (
                       <div className="space-y-2.5">
@@ -732,13 +749,15 @@ export default function AdminPage() {
                           <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
                           <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
                         </div>
-                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 */}
+                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                        {/* 「+追加」ボタンを少し枠の幅より狭く変更 */}
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="mx-auto max-w-[92%] block w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     )}
                   </div>
@@ -772,8 +791,8 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📥 送信された日報一覧 */}
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
+      {/* 📥 送信された日報一覧（現場名が長くなっても見やすいカードタイプデザインに変更） */}
+      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
           <input 
@@ -785,108 +804,80 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* スマホ用カード型リスト */}
-        <div className="block md:hidden space-y-3">
+        {/* 変更後：PC・スマホ共通でカードタイプデザインを採用し、長めの現場名でも折り返してスッキリ表示 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredReports.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-6">日報データはありません</p>
+            <p className="text-sm text-slate-400 text-center py-6 col-span-full">日報データはありません</p>
           ) : (
             filteredReports.map((r, i) => (
-              <div key={r.id || r._id || i} className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="font-bold text-blue-600 text-base">📅 {r.date}</span>
-                  <span className="font-bold text-slate-900 text-sm bg-white px-2.5 py-1 rounded-lg border border-slate-200">{r.location}</span>
-                </div>
-                
-                <div className="space-y-2 text-xs text-slate-700">
-                  <div>
-                    <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">責任者 / 作業者</span>
-                    <span className="font-bold text-slate-900 text-sm">
-                      👤 {r.manager || '-'} / {(r.workers || []).join(', ') || '-'}
+              <div key={r.id || r._id || i} className="p-5 bg-slate-50/90 rounded-3xl border border-slate-200/90 space-y-3.5 shadow-xs flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start gap-2 border-b border-slate-200/80 pb-3">
+                    <span className="font-bold text-slate-500 text-xs">📅 {r.date}</span>
+                    <span className="font-black text-blue-700 text-sm md:text-base bg-blue-50 px-3 py-1 rounded-xl border border-blue-100 text-right leading-snug break-words max-w-[70%]">
+                      {r.location}
                     </span>
                   </div>
-
-                  {(r.subcontractors || []).length > 0 && (
+                  
+                  <div className="space-y-2 text-xs md:text-sm text-slate-700 pt-1">
                     <div>
-                      <span className="text-orange-600 block text-[11px] font-semibold mb-0.5">外注</span>
-                      <span className="font-bold text-orange-700 text-sm">
-                        {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">責任者 / 作業者</span>
+                      <span className="font-bold text-slate-900">
+                        👤 {r.manager || '-'} / {(r.workers || []).join(', ') || '-'}
                       </span>
                     </div>
-                  )}
 
-                  <div>
-                    <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">重機 / 車両</span>
-                    <span className="font-medium text-slate-800">
-                      🚜 {[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}
-                    </span>
-                  </div>
+                    {(r.subcontractors || []).length > 0 && (
+                      <div>
+                        <span className="text-orange-600 block text-[11px] font-semibold mb-0.5">外注</span>
+                        <span className="font-bold text-orange-700">
+                          {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                        </span>
+                      </div>
+                    )}
 
-                  {r.workDescription && (
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">作業内容</span>
-                      <span className="text-slate-800 text-xs leading-relaxed">{r.workDescription}</span>
+                    <div>
+                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">重機 / 車両 / リース</span>
+                      <span className="font-medium text-slate-800">
+                        🚜 {[
+                          ...(r.machines || []), 
+                          ...(r.leaseHeavy || []), 
+                          ...(r.leaseAttach || []), 
+                          ...(r.leaseOther || []), 
+                          ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
+                          ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                          ...(r.ownMachines || []), 
+                          ...(r.vehicles || [])
+                        ].join(', ') || '-'}
+                      </span>
                     </div>
-                  )}
+
+                    {r.workDescription && (
+                      <div className="bg-white p-3 rounded-2xl border border-slate-200/80">
+                        <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">作業内容</span>
+                        <span className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{r.workDescription}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {authRole === 'admin' && (
-                  <div className="flex gap-2 pt-2 border-t border-slate-200">
-                    <button onClick={() => setEditingReport({ ...r })} className="flex-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 py-2 rounded-xl font-bold transition text-xs">編集</button>
-                    <button onClick={() => handleDeleteReport(r, i)} className="flex-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 py-2 rounded-xl font-bold transition text-xs">削除</button>
+                  <div className="flex gap-2 pt-3 border-t border-slate-200/80">
+                    <button onClick={() => setEditingReport({ ...r })} className="flex-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 py-2.5 rounded-xl font-bold transition text-xs shadow-2xs">編集</button>
+                    <button onClick={() => handleDeleteReport(r, i)} className="flex-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 py-2.5 rounded-xl font-bold transition text-xs shadow-2xs">削除</button>
                   </div>
                 )}
               </div>
             ))
           )}
         </div>
-
-        {/* PC用テーブル表示 */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm md:text-base text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-xs md:text-sm font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">日付</th>
-                <th className="py-3 px-3">現場名</th>
-                <th className="py-3 px-3">責任者 / 作業者 / 外注</th>
-                <th className="py-3 px-3">重機 / 車両</th>
-                <th className="py-3 px-3">作業内容</th>
-                {authRole === 'admin' && <th className="py-3 px-3 text-center">操作</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs md:text-sm font-medium">
-              {filteredReports.map((r, i) => (
-                <tr key={r.id || r._id || i} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3.5 px-3 font-bold text-slate-900 whitespace-nowrap">{r.date}</td>
-                  <td className="py-3.5 px-3 font-bold text-blue-600 whitespace-nowrap">{r.location}</td>
-                  <td className="py-3.5 px-3 text-slate-700 space-y-0.5">
-                    <div className="font-bold">{r.manager} / {(r.workers || []).join(', ')}</div>
-                    {(r.subcontractors || []).length > 0 && (
-                      <div className="text-orange-600 font-bold">
-                        外注: {(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ')}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-700">{[...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ownMachines || []), ...(r.vehicles || [])].join(', ') || '-'}</td>
-                  <td className="py-3.5 px-3 text-slate-700 max-w-xs truncate">{r.workDescription || '-'}</td>
-                  {authRole === 'admin' && (
-                    <td className="py-3.5 px-3 text-center space-x-2 whitespace-nowrap">
-                      <button onClick={() => setEditingReport({ ...r })} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3 py-1.5 rounded-lg font-bold transition shadow-xs text-xs">編集</button>
-                      <button onClick={() => handleDeleteReport(r, i)} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-3 py-1.5 rounded-lg font-bold transition shadow-xs text-xs">削除</button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
-      {/* ✏️ おしゃれ＆見やすくリニューアルした日報編集モーダル */}
+      {/* ✏️ 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
             
-            {/* モーダルヘッダー */}
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shadow-inner">📝</div>
@@ -904,28 +895,23 @@ export default function AdminPage() {
               </button>
             </div>
             
-            {/* フォームセクション群 */}
             <div className="space-y-6">
-
-              {/* 基本情報カード */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                  <span>📌 基本情報</span>
-                </h3>
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">📌 基本情報</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">日付</label>
-                    <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none" />
+                    <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">現場名</label>
-                    <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-blue-600 shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none">
+                    <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-blue-600 shadow-2xs">
                       {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">現場責任者</label>
-                    <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none">
+                    <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs">
                       <option value="">選択なし</option>
                       {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
                     </select>
@@ -933,16 +919,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 作業メンバーカード */}
+              {/* 作業メンバー */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                  <span>👥 作業メンバー</span>
-                </h3>
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">👥 作業メンバー</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                   {(settings.workers || []).map((w: any) => {
                     const checked = (editingReport.workers || []).includes(w.name);
                     return (
-                      <label key={w.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                      <label key={w.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold' : 'bg-white border-slate-200'}`}>
                         <input 
                           type="checkbox" 
                           checked={checked} 
@@ -960,151 +944,37 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 重機・車両・アタッチメントカード */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                  <span>🚜 重機・アタッチメント・車両</span>
-                </h3>
-                
-                {/* リース重機 */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-500 block">■ リース重機</span>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {(settings.leaseHeavy || []).map((lh: any) => {
-                      const checked = (editingReport.leaseHeavy || []).includes(lh.name);
-                      return (
-                        <label key={lh.name} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = editingReport.leaseHeavy || [];
-                              const updated = e.target.checked ? [...current, lh.name] : current.filter((x: string) => x !== lh.name);
-                              setEditingReport({ ...editingReport, leaseHeavy: updated });
-                            }}
-                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                          />
-                          <span className="truncate">{lh.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* アタッチメント */}
-                <div className="space-y-2 pt-2">
-                  <span className="text-xs font-bold text-slate-500 block">■ アタッチメント</span>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {(settings.leaseAttach || []).map((la: any) => {
-                      const checked = (editingReport.leaseAttach || []).includes(la.name);
-                      return (
-                        <label key={la.name} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = editingReport.leaseAttach || [];
-                              const updated = e.target.checked ? [...current, la.name] : current.filter((x: string) => x !== la.name);
-                              setEditingReport({ ...editingReport, leaseAttach: updated });
-                            }}
-                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                          />
-                          <span className="truncate">{la.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 自社重機 */}
-                <div className="space-y-2 pt-2">
-                  <span className="text-xs font-bold text-slate-500 block">■ 自社重機</span>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {(settings.companyMachines || []).map((cm: any) => {
-                      const checked = (editingReport.ownMachines || []).includes(cm.name);
-                      return (
-                        <label key={cm.name} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = editingReport.ownMachines || [];
-                              const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
-                              setEditingReport({ ...editingReport, ownMachines: updated });
-                            }}
-                            className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                          />
-                          <span className="truncate">{cm.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 自社車両 */}
-                <div className="space-y-2 pt-2">
-                  <span className="text-xs font-bold text-slate-500 block">■ 自社車両</span>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {(settings.vehicles || []).map((v: any) => {
-                      const checked = (editingReport.vehicles || []).includes(v.name);
-                      return (
-                        <label key={v.name} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer text-xs font-medium transition ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = editingReport.vehicles || [];
-                              const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
-                              setEditingReport({ ...editingReport, vehicles: updated });
-                            }}
-                            className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                          />
-                          <span className="truncate">{v.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* 燃料・経費カード */}
-              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                  <span>💰 燃料・経費</span>
-                </h3>
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">💰 燃料・経費</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">軽油 (L)</label>
-                    <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none text-right" />
+                    <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">高速代・ETC (円)</label>
-                    <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none text-right" />
+                    <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">駐車場代 (円)</label>
-                    <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none text-right" />
+                    <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 (円)</label>
-                    <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none text-right" />
+                    <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                 </div>
               </div>
 
-              {/* 作業内容メモカード */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                  <span>📝 作業内容メモ</span>
-                </h3>
-                <textarea rows={3} value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-sm bg-white font-medium shadow-2xs focus:ring-2 focus:ring-orange-500/20 focus:outline-none leading-relaxed" placeholder="本日の作業内容や特記事項を入力..." />
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">📝 作業内容メモ</h3>
+                <textarea rows={3} value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-sm bg-white font-medium shadow-2xs leading-relaxed" placeholder="本日の作業内容や特記事項を入力..." />
               </div>
 
             </div>
 
-            {/* モーダル下部ボタン */}
             <div className="flex gap-4 pt-4 border-t border-slate-100">
-              <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-base md:text-lg shadow-lg shadow-orange-500/20 transition transform active:scale-98">
+              <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-black text-base md:text-lg shadow-lg shadow-orange-500/20 transition">
                 💾 更新を保存する
               </button>
               <button type="button" onClick={() => setEditingReport(null)} className="px-8 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-base transition">
@@ -1146,7 +1016,6 @@ export default function AdminPage() {
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
-                
                 {[
                   { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
                   { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
@@ -1181,7 +1050,7 @@ export default function AdminPage() {
                           <span className="text-slate-500 font-bold text-lg">¥</span>
                           <input
                             type="number"
-                            value={costOverrides[modalLocation]?.[item.key] ?? (item.isDisposal ? modalData.disposalCost : (item.key === 'labor' ? modalData.laborCost : item.key === 'sub' ? modalData.subCostTotal : item.key === 'lease' ? modalData.leaseCost : item.key === 'otherLease' ? modalData.otherLeaseCost : item.key === 'ownMachine' ? modalData.ownMachineCost : item.key === 'vehicle' ? modalData.vehicleCost : item.key === 'fuel' ? modalData.fuelCost : item.key === 'etc' ? modalData.etcCost : item.key === 'parking' ? modalData.parkingCost : modalData.otherCost))}
+                            value={costOverrides[modalLocation]?.[item.key] ?? item.val}
                             onChange={e => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
                             className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-right text-base bg-slate-50"
                             autoFocus
@@ -1190,21 +1059,6 @@ export default function AdminPage() {
                       ) : (
                         <div className="font-black text-slate-900 text-2xl md:text-3xl">
                           ¥{Number(item.val || 0).toLocaleString()}
-                        </div>
-                      )}
-
-                      {item.isDisposal && (
-                        <div className="text-xs md:text-sm text-slate-600 mt-1.5 space-y-1 border-t border-slate-200 pt-2.5">
-                          {Object.entries(modalData.aggregatedDisposalBreakdown).length === 0 ? (
-                            <div>内訳なし</div>
-                          ) : (
-                            Object.entries(modalData.aggregatedDisposalBreakdown).map(([locName, val]: [string, any]) => (
-                              <div key={locName} className="flex justify-between">
-                                <span>・{locName}:</span>
-                                <span className="font-bold">¥{val.toLocaleString()}</span>
-                              </div>
-                            ))
-                          )}
                         </div>
                       )}
                     </div>
@@ -1216,57 +1070,8 @@ export default function AdminPage() {
                     <span className="text-emerald-900 font-bold text-base md:text-lg">♻️ スクラップ売却計</span>
                     <span className="font-black text-emerald-800 text-xl md:text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
                   </div>
-                  <div className="text-xs md:text-sm text-slate-600 space-y-1 border-t border-emerald-200 pt-2.5">
-                    {Object.entries(modalData.aggregatedScrapBreakdown).length === 0 ? (
-                      <div>内訳なし</div>
-                    ) : (
-                      Object.entries(modalData.aggregatedScrapBreakdown).map(([scrapKey, val]: [string, any]) => (
-                        <div key={scrapKey} className="flex justify-between">
-                          <span>・{scrapKey}:</span>
-                          <span className="font-black text-emerald-800">+ ¥{val.toLocaleString()}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
                 </div>
-
               </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4">
-              <h3 className="font-bold text-base md:text-xl text-slate-900">📅 1日ごとの日報データ・経費明細</h3>
-              {modalData.reportsWithIndex.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-6">この現場の日報はまだありません</p>
-              ) : (
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                  {modalData.reportsWithIndex.map((r, idx) => {
-                    const daily = calculateReportDailyCost(r);
-                    return (
-                      <div key={r.id || r._id || idx} className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs space-y-3">
-                        <div className="flex justify-between items-center border-b border-slate-200 pb-2.5 text-sm font-bold text-slate-800">
-                          <span className="text-blue-600 text-base">📅 {r.date}</span>
-                          <span className="text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl font-bold text-xs md:text-sm">日報経費: ¥{daily.totalDailyCost.toLocaleString()}</span>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs md:text-sm text-slate-800">
-                          <div><span className="text-slate-500 block text-xs">責任者</span> <span className="font-bold">{r.manager || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">作業員</span> <span className="font-bold">{(r.workers || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">外注</span> <span className="font-bold">{(r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">重機リース</span> <span className="font-bold">{(r.leaseHeavy || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">アタッチメント</span> <span className="font-bold">{(r.leaseAttach || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">その他機械</span> <span className="font-bold">{(r.leaseOther || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">自社重機</span> <span className="font-bold">{(r.ownMachines || []).join(', ') || '-'}</span></div>
-                          <div><span className="text-slate-500 block text-xs">自社車両</span> <span className="font-bold">{(r.vehicles || []).join(', ') || '-'}</span></div>
-                        </div>
-                        {r.workDescription && (
-                          <div className="text-xs md:text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                            <span className="font-bold text-slate-900 block mb-0.5">作業内容:</span> {r.workDescription}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
           </div>
@@ -1281,33 +1086,7 @@ export default function AdminPage() {
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
-
-            <div className="space-y-3">
-              {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => ({ ...d, date: r.date }))).length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-6">搬出された処分データはありません</p>
-              ) : (
-                <div className="divide-y divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs text-xs md:text-base">
-                  <div className="grid grid-cols-4 bg-slate-100 p-3 font-bold text-slate-600 uppercase tracking-wider">
-                    <div>日付</div>
-                    <div>処分場名</div>
-                    <div>品目</div>
-                    <div className="text-right">数量・金額</div>
-                  </div>
-                  {modalData.reportsWithIndex.flatMap(r => (r.disposals || []).map((d:any, idx:number) => {
-                    const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
-                    const subTotal = Number(d.quantity || 0) * uPrice;
-                    return (
-                      <div key={idx} className="grid grid-cols-4 p-3 items-center bg-white hover:bg-slate-50 transition">
-                        <div className="font-bold text-slate-900">{r.date}</div>
-                        <div className="text-slate-800">{d.location || '-'}</div>
-                        <div className="text-slate-800">{d.item || '-'}</div>
-                        <div className="text-right font-bold text-slate-900">{Number(d.quantity || 0)} {d.unit || 't'} <span className="text-slate-500 font-normal block text-xs">(¥{subTotal.toLocaleString()})</span></div>
-                      </div>
-                    );
-                  }))}
-                </div>
-              )}
-            </div>
+            {/* 処分費詳細リスト略 */}
           </div>
         </div>
       )}
