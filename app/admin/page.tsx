@@ -27,6 +27,9 @@ export default function AdminPage() {
   // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
 
+  // 月別軽油単価のオーバーライドステート（例: { "現場名": { "2026-08": 150 } }）
+  const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
+
   // 各項目の編集モードを管理するステート
   const [editingCostFields, setEditingCostFields] = useState<any>({});
 
@@ -66,6 +69,7 @@ export default function AdminPage() {
         if (sData && Object.keys(sData).length > 0) {
           setSettings(sData);
           if (sData.costOverrides) setCostOverrides(sData.costOverrides);
+          if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
         }
       }
     } catch (e) { 
@@ -166,6 +170,20 @@ export default function AdminPage() {
     };
     setCostOverrides(newOverrides);
     const newData = { ...settings, costOverrides: newOverrides };
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
+  const handleFuelUnitPriceChange = async (locName: string, yearMonth: string, val: string) => {
+    if (authRole === 'viewer') return;
+    const newFuelPrices = {
+      ...fuelUnitPrices,
+      [locName]: {
+        ...(fuelUnitPrices[locName] || {}),
+        [yearMonth]: val
+      }
+    };
+    setFuelUnitPrices(newFuelPrices);
+    const newData = { ...settings, fuelUnitPrices: newFuelPrices };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
@@ -273,13 +291,24 @@ export default function AdminPage() {
       scrapBreakdown[scrapKey] = (scrapBreakdown[scrapKey] || 0) + subT;
     });
 
-    const fC = Number(r.fuel || 0);
+    // 燃料代の計算（日報の日付から年月を抽出し、対応する月別単価があればそれを使用。なければ登録上の軽油L数そのものを金額とするか単価未設定時は0等）
+    const rDateNorm = (r.date || '').replace(/\//g, '-');
+    const parts = rDateNorm.split('-');
+    let fuelCost = Number(r.fuel || 0);
+    if (parts.length >= 2) {
+      const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+      const locFuelPrices = fuelUnitPrices[r.location] || {};
+      const unitPrice = locFuelPrices[ym];
+      if (unitPrice !== '' && unitPrice !== undefined) {
+        fuelCost = Number(r.fuel || 0) * Number(unitPrice);
+      }
+    }
+
     const eC = Number(r.etcPrice || 0);
     const pC = Number(r.parkingPrice || 0);
     const oC = Number(r.otherPrice || 0);
-    const totalDailyCost = lCost + subCost + leaseC + otherLeaseC + ownMachineC + vehicleC + dispC + fC + eC + pC + oC;
 
-    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC, eC, pC, oC, scrapC, scrapBreakdown, totalDailyCost };
+    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: Number(r.fuel || 0), eC, pC, oC, scrapC, scrapBreakdown };
   };
 
   const calculateCosts = (locName: string) => {
@@ -472,6 +501,19 @@ export default function AdminPage() {
   ])).filter(Boolean);
 
   const calendarDays = getDaysInMonth(calendarYearMonth);
+
+  // 選択された現場に関連する日報から存在するすべての「年月」リストを抽出（月別単価設定用）
+  const modalReportYearMonths = modalLocation ? Array.from(new Set(
+    reports
+      .filter(r => r.location === modalLocation)
+      .map(r => {
+        const norm = (r.date || '').replace(/\//g, '-');
+        const parts = norm.split('-');
+        if (parts.length >= 2) return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        return null;
+      })
+      .filter(Boolean)
+  )).sort() : [];
 
   return (
     <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-sm md:text-lg relative">
@@ -760,7 +802,7 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  {/* 登録済みリスト（文字や入力欄を大きくし、より見やすく改良） */}
+                  {/* 登録済みリスト */}
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-300 rounded-2xl p-3 space-y-3 mt-4">
                     {(settings[sec.key] || []).length === 0 ? (
                       <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
@@ -775,7 +817,6 @@ export default function AdminPage() {
                             <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-600 hover:text-rose-800 font-bold text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition">削除</button>
                           </div>
 
-                          {/* 内容・名称の編集欄（文字サイズを大きく改善） */}
                           {sec.isSub ? (
                             <div className="grid grid-cols-2 gap-2">
                               <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
@@ -791,7 +832,6 @@ export default function AdminPage() {
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           )}
 
-                          {/* 金額・日額の編集欄 */}
                           <div className="flex items-center justify-end gap-1.5 pt-1">
                             <span className="text-slate-500 font-bold text-sm">¥</span>
                             <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
@@ -888,7 +928,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✏️ 日報編集モーダル */}
+      {/* ✏️ 日報編集モーダル（車両・重機・その他すべて編集可能に拡張） */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
@@ -953,6 +993,56 @@ export default function AdminPage() {
                           className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
                         />
                         <span className="truncate">{w.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 自社車両 */}
+              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">🚚 自社車両</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                  {(settings.vehicles || []).map((v: any) => {
+                    const checked = (editingReport.vehicles || []).includes(v.name);
+                    return (
+                      <label key={v.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.vehicles || [];
+                            const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
+                            setEditingReport({ ...editingReport, vehicles: updated });
+                          }}
+                          className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                        />
+                        <span className="truncate">{v.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 自社重機 */}
+              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">🚜 自社重機</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                  {(settings.companyMachines || []).map((cm: any) => {
+                    const checked = (editingReport.ownMachines || []).includes(cm.name);
+                    return (
+                      <label key={cm.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={checked} 
+                          onChange={e => {
+                            const current = editingReport.ownMachines || [];
+                            const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
+                            setEditingReport({ ...editingReport, ownMachines: updated });
+                          }}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                        />
+                        <span className="truncate">{cm.name}</span>
                       </label>
                     );
                   })}
@@ -1030,6 +1120,37 @@ export default function AdminPage() {
                 <h3 className="font-bold text-base md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
               </div>
+
+              {/* ⛽ 月ごとの軽油単価設定エリア */}
+              <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
+                <div className="font-black text-orange-900 text-sm md:text-base">⛽ 月別 1Lあたりの軽油単価設定</div>
+                <p className="text-xs text-orange-700">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代(軽油)」に自動反映されます。</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                  {modalReportYearMonths.length === 0 ? (
+                    <p className="text-xs text-slate-500">この現場の日報データがまだありません</p>
+                  ) : (
+                    modalReportYearMonths.map(ym => {
+                      const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
+                      return (
+                        <div key={ym} className="bg-white p-3 rounded-xl border border-orange-200 space-y-1 shadow-2xs">
+                          <label className="text-xs font-bold text-slate-600 block">{ym} の単価(1L)</label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-slate-400">¥</span>
+                            <input 
+                              type="number" 
+                              value={currentPrice} 
+                              onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
+                              placeholder="例: 145"
+                              className="w-full p-2 border border-slate-300 rounded-lg text-sm font-bold text-right"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
                 {[
                   { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
@@ -1039,7 +1160,7 @@ export default function AdminPage() {
                   { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                   { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
                   { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
-                  { key: 'fuel', label: '燃料代 (軽油)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                  { key: 'fuel', label: '燃料代 (軽油・月別単価計算)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
                   { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
                   { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
                   { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
