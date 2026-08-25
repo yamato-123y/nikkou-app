@@ -27,7 +27,7 @@ export default function Home() {
   // 📦 その他（MOK以外からのリース）：「リース会社名を入力」「重機・機械名」「個数」
   const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
 
-  // 自社保有（重機・車両）
+  // 自社保有（大和の重機・車両）
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
