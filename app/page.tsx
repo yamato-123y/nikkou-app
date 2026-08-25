@@ -238,7 +238,7 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
            </div>
 
-           {/* 🚛 自社保有（重機・車両）の項目を南大阪建機の上に移動 */}
+           {/* 🚛 自社保有（重機・車両） */}
            <div className="space-y-4 bg-emerald-50/70 p-5 rounded-3xl border-2 border-emerald-200">
              <div className="text-sm font-black text-emerald-950 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
                🚛 自社保有（重機・車両）
@@ -334,34 +334,37 @@ export default function Home() {
                )}
              </div>
 
-             {/* 🏢 リストにない機械を自由に追加できる機能 */}
+             {/* 🏢 リストにない機械を自由に追加できる機能（文字サイズを少し大きく、その他リースと同様に縦並びに変更） */}
              <div className="pt-3 border-t border-blue-200 space-y-3">
-               <div className="flex justify-between items-center">
-                 <span className="text-xs font-bold text-blue-900">リストにない機械の追加</span>
-                 <button type="button" onClick={() => setMokCustomMachines([...mokCustomMachines, {name: '', count: ''}])} className="bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition">＋ 追加</button>
+               <div className="flex justify-between items-center gap-3">
+                 <span className="text-sm md:text-base font-black text-blue-950">リストにない機械の追加</span>
+                 <button type="button" onClick={() => setMokCustomMachines([...mokCustomMachines, {name: '', count: ''}])} className="bg-blue-600 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-blue-700 transition shrink-0">＋ 追加</button>
                </div>
                {mokCustomMachines.map((cm, index) => (
-                 <div key={index} className="flex gap-2 items-center bg-white p-3 rounded-2xl border border-blue-200 shadow-2xs">
+                 <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-blue-300 shadow-xs">
                    <input type="text" placeholder="機械名を入力" value={cm.name} onChange={e=>{
                      const updated = [...mokCustomMachines]; updated[index].name = e.target.value; setMokCustomMachines(updated);
-                   }} className="flex-1 p-2.5 border rounded-xl text-sm font-bold bg-white text-slate-950" />
-                   <input type="number" placeholder="個数" value={cm.count} onChange={e=>{
-                     const updated = [...mokCustomMachines]; updated[index].count = e.target.value; setMokCustomMachines(updated);
-                   }} className="w-20 p-2.5 border rounded-xl text-sm font-bold bg-white text-slate-950 text-center" />
-                   <button type="button" onClick={() => setMokCustomMachines(mokCustomMachines.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs hover:bg-red-200 transition">削除</button>
+                   }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
+                   
+                   <div className="grid grid-cols-2 gap-2 items-center">
+                     <input type="number" placeholder="個数" value={cm.count} onChange={e=>{
+                       const updated = [...mokCustomMachines]; updated[index].count = e.target.value; setMokCustomMachines(updated);
+                     }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950" />
+                     <button type="button" onClick={() => setMokCustomMachines(mokCustomMachines.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
+                   </div>
                  </div>
                ))}
              </div>
            </div>
 
-           {/* ■ その他（MOK以外からのリース）変更：リース会社名を入力、重機・機械名、個数 */}
+           {/* ■ その他（MOK以外からのリース）文字サイズを少し大きく調整 */}
            <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
              <div className="flex justify-between items-start gap-3">
-               <div className="text-sm font-black text-amber-950 bg-amber-200 px-4 py-2 rounded-xl leading-relaxed">
+               <div className="text-base md:text-lg font-black text-amber-950 bg-amber-200 px-4 py-2.5 rounded-xl leading-relaxed">
                  📦 その他<br />
-                 <span className="text-xs font-bold">（MOK以外からのリース）</span>
+                 <span className="text-xs md:text-sm font-bold">（MOK以外からのリース）</span>
                </div>
-               <button type="button" onClick={() => setOtherLeases([...otherLeases, {company: '', name: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition shrink-0">＋ 追加</button>
+               <button type="button" onClick={() => setOtherLeases([...otherLeases, {company: '', name: '', count: ''}])} className="bg-emerald-600 text-white text-sm md:text-base px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition shrink-0">＋ 追加</button>
              </div>
              {otherLeases.map((ol, index) => (
                <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-amber-300 shadow-xs">
@@ -489,7 +492,7 @@ export default function Home() {
            ))}
         </div>
 
-        {/* その他 雑費・消耗品等：「例：コーナン」に変更 */}
+        {/* その他 雑費・消耗品等 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="font-black text-lg text-slate-950 border-b pb-3">📦 その他 雑費・消耗品等</div>
            <div>
