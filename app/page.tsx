@@ -163,9 +163,9 @@ export default function Home() {
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-950 block mb-2">【現場責任者】</label>
+             <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
              <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950">
-               <option value="">責任者を選択してください</option>
+               <option value="">職長を選択してください</option>
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
            </div>
@@ -173,8 +173,9 @@ export default function Home() {
 
         {/* 2. 作業員 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
-           <div className="border-b pb-3">
-             <span className="font-black text-lg text-orange-600">👥 2. 作業員（複数選択可）</span>
+           <div className="border-b pb-3 space-y-1">
+             <span className="font-black text-lg text-orange-600 block">👥 2. 作業員（複数選択可）</span>
+             <p className="text-xs md:text-sm font-bold text-slate-500">※職長も現場で作業した場合は、ここでも選択してください。</p>
            </div>
            <div className="grid grid-cols-2 gap-3 pt-1">
              {(settings.workers || []).map((w:any) => (
@@ -334,7 +335,7 @@ export default function Home() {
                )}
              </div>
 
-             {/* 🏢 リストにない機械を自由に追加できる機能（文字サイズを少し大きく、その他リースと同様に縦並びに変更） */}
+             {/* 🏢 リストにない機械を自由に追加できる機能 */}
              <div className="pt-3 border-t border-blue-200 space-y-3">
                <div className="flex justify-between items-center gap-3">
                  <span className="text-sm md:text-base font-black text-blue-950">リストにない機械の追加</span>
@@ -357,7 +358,7 @@ export default function Home() {
              </div>
            </div>
 
-           {/* ■ その他（MOK以外からのリース）文字サイズを少し大きく調整 */}
+           {/* ■ その他（MOK以外からのリース） */}
            <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
              <div className="flex justify-between items-start gap-3">
                <div className="text-base md:text-lg font-black text-amber-950 bg-amber-200 px-4 py-2.5 rounded-xl leading-relaxed">
