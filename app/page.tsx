@@ -32,6 +32,7 @@ export default function Home() {
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
   const [fuel, setFuel] = useState('');
+  const [regularPrice, setRegularPrice] = useState(''); // ①レギュラー購入分(円)
   const [etcPrice, setEtcPrice] = useState('');
   const [parkingPrice, setParkingPrice] = useState('');
   
@@ -68,7 +69,10 @@ export default function Home() {
         mokCustomMachines, // MOK自由追加機械
         otherLeases,       // 変更後のその他リース
         ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
-        fuel: fuel || '0', etcPrice: etcPrice || '0', parkingPrice: parkingPrice || '0',
+        fuel: fuel || '0', 
+        regularPrice: regularPrice || '0', // ①レギュラー購入分
+        etcPrice: etcPrice || '0', 
+        parkingPrice: parkingPrice || '0',
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description,
         createdAt: new Date().toISOString()
@@ -84,7 +88,7 @@ export default function Home() {
     setOtherLeases([]);
     setSelectedOwnMachines([]); 
     setSelectedVehicles([]);
-    setFuel(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
+    setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
     setDisposals([]); setScraps([]); setDescription('');
 
     setShowSuccessModal(true);
@@ -398,6 +402,12 @@ export default function Home() {
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【軽油 (L)】</label>
              <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
+           </div>
+
+           {/* ① レギュラー 購入分(円) の追加枠 */}
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【レギュラー 購入分 (円)】</label>
+             <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950" />
            </div>
 
            <div>
