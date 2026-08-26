@@ -647,13 +647,13 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[32%]">現場名</th>
+                <th className="py-4 px-4 w-[30%]">現場名</th>
                 <th className="py-4 px-4 w-[11%]">請負金額</th>
                 <th className="py-4 px-4 w-[9%]">稼働日数</th>
                 <th className="py-4 px-4 w-[11%]">合計経費</th>
-                <th className="py-4 px-4 w-[12%]">粗利</th>
+                <th className="py-4 px-4 w-[11%]">粗利</th>
                 <th className="py-4 px-4 w-[12%] text-center">ステータス / 完了</th>
-                <th className="py-4 px-4 w-[13%] text-center">アクション</th>
+                <th className="py-4 px-4 w-[16%] text-center">アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -693,12 +693,12 @@ export default function AdminPage() {
                       )}
                     </td>
                     <td className="py-5 px-4 text-center align-middle">
-                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3.5 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                      <div className="flex items-center justify-center gap-2 flex-nowrap">
+                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
                         {authRole !== 'viewer' && (
-                          <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                          <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                             CSV
                           </button>
                         )}
