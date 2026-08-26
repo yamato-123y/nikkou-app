@@ -159,6 +159,34 @@ export default function AdminPage() {
     setSettings({ ...settings, [key]: list });
   };
 
+  const toggleLocationFinished = async (locName: string) => {
+    if (authRole === 'viewer') {
+      alert('閲覧専用モードのため変更できません。');
+      return;
+    }
+    const currentLocs = (settings.locations || []).map((l: any) => {
+      const name = typeof l === 'string' ? l : l.name;
+      if (name === locName) {
+        const isFinished = typeof l === 'object' ? l.isFinished : false;
+        return typeof l === 'string' ? { name: l, price: 0, isFinished: !isFinished } : { ...l, isFinished: !isFinished };
+      }
+      return typeof l === 'string' ? { name: l, price: 0, isFinished: false } : l;
+    });
+
+    const newData = { ...settings, locations: currentLocs };
+    setSettings(newData);
+
+    try {
+      await fetch('/api/settings', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(newData) 
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
     if (authRole === 'viewer') return;
     const newOverrides = {
@@ -359,7 +387,9 @@ export default function AdminPage() {
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
-    const baseContractPrice = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName)?.price || 0;
+    const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
+    const baseContractPrice = matchedLocObj?.price || 0;
+    const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
     const profit = (baseContractPrice - sumOverrideCost) + scrapTotal;
 
     return { 
@@ -380,6 +410,7 @@ export default function AdminPage() {
       aggregatedScrapBreakdown,
       total: sumOverrideCost, 
       contractPrice: baseContractPrice, 
+      isFinished,
       profit, 
       reportsWithIndex: locMapped 
     };
@@ -499,7 +530,7 @@ export default function AdminPage() {
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
-  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0} : l);
+  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
 
   const allStaffNames = Array.from(new Set([
     ...(settings.managers || []).map((m: any) => m.name),
@@ -565,9 +596,21 @@ export default function AdminPage() {
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
             return (
-              <div key={loc.name} className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5 shadow-2xs">
+              <div key={loc.name} className={`p-3.5 rounded-2xl border space-y-2.5 shadow-2xs ${c.isFinished ? 'bg-slate-200/60 border-slate-300 opacity-80' : 'bg-slate-50/80 border-slate-200'}`}>
                 <div className="flex flex-col gap-1.5">
-                  <span className="font-bold text-blue-600 text-base leading-snug">{loc.name}</span>
+                  <div className="flex justify-between items-center">
+                    <span className={`font-bold text-base leading-snug ${c.isFinished ? 'text-slate-500 line-through' : 'text-blue-600'}`}>{loc.name}</span>
+                    {c.isFinished ? (
+                      <span className="bg-slate-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">✅ 完了済</span>
+                    ) : (
+                      <button 
+                        onClick={() => toggleLocationFinished(loc.name)} 
+                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] px-2.5 py-1 rounded-lg font-bold border border-emerald-200 transition"
+                      >
+                        完了にする
+                      </button>
+                    )}
+                  </div>
                   <div>
                     <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                       粗利: ¥{c.profit.toLocaleString()}
@@ -599,6 +642,7 @@ export default function AdminPage() {
                 <th className="py-4 px-5">稼働日数</th>
                 <th className="py-4 px-5">合計経費</th>
                 <th className="py-4 px-5">粗利</th>
+                <th className="py-4 px-5 text-center">ステータス / 完了ボタン</th>
                 <th className="py-4 px-5 text-center">アクション</th>
               </tr>
             </thead>
@@ -606,13 +650,31 @@ export default function AdminPage() {
               {locList.map((loc:any) => {
                 const c = calculateCosts(loc.name);
                 return (
-                  <tr key={loc.name} className="hover:bg-slate-50/80 transition">
-                    <td className="py-5 px-5 font-bold text-blue-600 text-xl">{loc.name}</td>
+                  <tr key={loc.name} className={`transition ${c.isFinished ? 'bg-slate-100/70 opacity-75' : 'hover:bg-slate-50/80'}`}>
+                    <td className={`py-5 px-5 font-bold text-xl ${c.isFinished ? 'text-slate-400 line-through' : 'text-blue-600'}`}>{loc.name}</td>
                     <td className="py-5 px-5 text-slate-700 font-bold">¥{c.contractPrice.toLocaleString()}</td>
                     <td className="py-5 px-5 text-slate-700">{c.days} 日</td>
                     <td className="py-5 px-5 text-slate-900 font-bold">¥{c.total.toLocaleString()}</td>
                     <td className={`py-5 px-5 font-black text-xl ${c.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       ¥{c.profit.toLocaleString()}
+                    </td>
+                    <td className="py-5 px-5 text-center">
+                      {c.isFinished ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs">✅ 完了済</span>
+                          {authRole !== 'viewer' && (
+                            <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                          )}
+                        </div>
+                      ) : (
+                        authRole !== 'viewer' ? (
+                          <button onClick={() => toggleLocationFinished(loc.name)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition">
+                            ✅ 現場を完了にする
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-sm font-medium">進行中</span>
+                        )
+                      )}
                     </td>
                     <td className="py-5 px-5 text-center space-x-3">
                       <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
@@ -807,7 +869,7 @@ export default function AdminPage() {
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     )}
                   </div>
@@ -824,7 +886,18 @@ export default function AdminPage() {
                               <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
                               <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
                             </div>
-                            <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-600 hover:text-rose-800 font-bold text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition">削除</button>
+                            <div className="flex items-center gap-2">
+                              {sec.key === 'locations' && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => toggleLocationFinished(typeof item === 'string' ? item : item.name)}
+                                  className={`text-xs px-2.5 py-1 rounded-lg font-bold transition ${item.isFinished ? 'bg-slate-600 text-white' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
+                                >
+                                  {item.isFinished ? '✅ 完了済' : '完了にする'}
+                                </button>
+                              )}
+                              <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-600 hover:text-rose-800 font-bold text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition">削除</button>
+                            </div>
                           </div>
 
                           {sec.isSub ? (
@@ -1221,22 +1294,6 @@ export default function AdminPage() {
                       ) : (
                         <div className="font-black text-slate-900 text-2xl md:text-3xl">
                           ¥{Number(item.val || 0).toLocaleString()}
-                        </div>
-                      )}
-
-                      {/* 処分費カードの下に内訳を表示 */}
-                      {item.isDisposal && (
-                        <div className="mt-2 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-                          {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
-                            <p className="text-slate-400">処分費のデータがありません</p>
-                          ) : (
-                            Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => (
-                              <div key={key} className="flex justify-between items-center text-slate-600 font-medium">
-                                <span className="truncate max-w-[65%]">・{key}</span>
-                                <span className="font-bold text-slate-800">{data.quantity}t × ¥{data.price.toLocaleString()} = ¥{data.total.toLocaleString()}</span>
-                              </div>
-                            ))
-                          )}
                         </div>
                       )}
                     </div>
