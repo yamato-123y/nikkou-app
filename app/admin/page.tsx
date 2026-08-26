@@ -239,7 +239,6 @@ export default function AdminPage() {
   // --- 計算ロジック ---
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
-    // 職長は日額単価を持たないため、workers（作業メンバー）に含まれている場合の単価のみを人件費として集計
     (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
 
     let subCost = 0;
@@ -291,7 +290,6 @@ export default function AdminPage() {
       scrapBreakdown[scrapKey] = (scrapBreakdown[scrapKey] || 0) + subT;
     });
 
-    // 燃料代の計算
     const rDateNorm = (r.date || '').replace(/\//g, '-');
     const parts = rDateNorm.split('-');
     let fuelCost = Number(r.fuel || 0);
@@ -822,9 +820,15 @@ export default function AdminPage() {
                           </div>
 
                           {sec.isSub ? (
-                            <div className="grid grid-cols-2 gap-2">
-                              <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                                <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                              </div>
+                              <div className="flex items-center justify-end gap-1.5 pt-1">
+                                <span className="text-slate-500 font-bold text-sm">¥</span>
+                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価" />
+                              </div>
                             </div>
                           ) : sec.isDisp || sec.isScrap ? (
                             <div className="grid grid-cols-3 gap-2">
