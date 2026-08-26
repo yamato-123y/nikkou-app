@@ -265,7 +265,7 @@ export default function AdminPage() {
     }
   };
 
-  // --- 計算ロジック（日報保存時の単価を優先するように修正） ---
+  // --- 計算ロジック ---
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
     (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
@@ -322,7 +322,6 @@ export default function AdminPage() {
     const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     (r.scraps || []).forEach((sc: any) => {
       const masterPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
-      // 日報データ側に保存されている単価があれば優先し、なければマスタを見る
       const uPrice = sc.price !== undefined && sc.price !== null && sc.price !== '' 
         ? Number(sc.price) 
         : masterPrice;
@@ -348,11 +347,15 @@ export default function AdminPage() {
       }
     }
 
+    // レギュラー購入分を加算
+    const regPrice = Number(r.regularPrice || 0);
+    fuelCost += regPrice;
+
     const eC = Number(r.etcPrice || 0);
     const pC = Number(r.parkingPrice || 0);
     const oC = Number(r.otherPrice || 0);
 
-    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: Number(r.fuel || 0), eC, pC, oC, scrapC, scrapBreakdown };
+    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: Number(r.fuel || 0), regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
   const calculateCosts = (locName: string) => {
@@ -436,7 +439,7 @@ export default function AdminPage() {
 
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
-    const headers = ["日付", "現場名", "職長", "作業者", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "職長", "作業者", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
@@ -444,7 +447,7 @@ export default function AdminPage() {
       (r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
       (r.ownMachines || []).join('/'),
       (r.vehicles || []).join('/'), 
-      r.fuel || 0, r.etcPrice || 0, r.parkingPrice || 0,
+      r.fuel || 0, r.regularPrice || 0, r.etcPrice || 0, r.parkingPrice || 0,
       r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
     ]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -982,10 +985,10 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📥 送信された日報一覧 */}
+      {/* 📥 送信された日報一覧（③ 現場別でリスト形式に変更） */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
-          <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧</h2>
+          <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
           <input 
             type="text" 
             placeholder="🔍 現場名で絞り込み..." 
@@ -995,70 +998,72 @@ export default function AdminPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredReports.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-6 col-span-full">日報データはありません</p>
-          ) : (
-            filteredReports.map((r, i) => (
-              <div key={r.id || r._id || i} className="p-5 bg-slate-50/90 rounded-3xl border border-slate-200/90 space-y-3.5 shadow-xs flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start gap-2 border-b border-slate-200/80 pb-3">
-                    <span className="font-bold text-slate-500 text-xs">📅 {r.date}</span>
-                    <span className="font-black text-blue-700 text-sm md:text-base bg-blue-50 px-3 py-1 rounded-xl border border-blue-100 text-right leading-snug break-words max-w-[70%]">
-                      {r.location}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-2 text-xs md:text-sm text-slate-700 pt-1">
-                    <div>
-                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">職長 / 作業者</span>
-                      <span className="font-bold text-slate-900">
-                        👤 {r.manager || '-'} / {(r.workers || []).join(', ') || '-'}
-                      </span>
-                    </div>
+        <div className="space-y-6">
+          {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
+            const locReports = filteredReports.filter(r => r.location === loc.name);
+            if (locReports.length === 0) return null;
 
-                    {(r.subcontractors || []).length > 0 && (
-                      <div>
-                        <span className="text-orange-600 block text-[11px] font-semibold mb-0.5">外注</span>
-                        <span className="font-bold text-orange-700">
-                          {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
-                        </span>
-                      </div>
-                    )}
-
-                    <div>
-                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">重機 / 車両 / リース</span>
-                      <span className="font-medium text-slate-800">
-                        🚜 {[
-                          ...(r.machines || []), 
-                          ...(r.leaseHeavy || []), 
-                          ...(r.leaseAttach || []), 
-                          ...(r.leaseOther || []), 
-                          ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
-                          ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                          ...(r.ownMachines || []), 
-                          ...(r.vehicles || [])
-                        ].join(', ') || '-'}
-                      </span>
-                    </div>
-
-                    {r.workDescription && (
-                      <div className="bg-white p-3 rounded-2xl border border-slate-200/80">
-                        <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">作業内容</span>
-                        <span className="text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">{r.workDescription}</span>
-                      </div>
-                    )}
+            return (
+              <div key={loc.name} className="bg-slate-50/90 rounded-3xl border border-slate-200 p-4 md:p-6 space-y-4 shadow-xs">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-lg md:text-xl text-blue-700">🏢 {loc.name}</span>
+                    <span className="bg-slate-200 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-bold">{locReports.length}件の日報</span>
                   </div>
                 </div>
 
-                {authRole === 'admin' && (
-                  <div className="flex gap-2 pt-3 border-t border-slate-200/80">
-                    <button onClick={() => setEditingReport({ ...r })} className="flex-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 py-2.5 rounded-xl font-bold transition text-xs shadow-2xs">編集</button>
-                    <button onClick={() => handleDeleteReport(r, i)} className="flex-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 py-2.5 rounded-xl font-bold transition text-xs shadow-2xs">削除</button>
-                  </div>
-                )}
+                <div className="space-y-3">
+                  {locReports.map((r, i) => {
+                    const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                    return (
+                      <div key={r.id || r._id || i} className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-bold text-slate-500 text-xs md:text-sm">📅 {r.date}</span>
+                            <span className="font-bold text-slate-900 text-xs md:text-sm">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                          </div>
+
+                          {(r.subcontractors || []).length > 0 && (
+                            <div className="text-xs text-orange-700 font-bold">
+                              外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                            </div>
+                          )}
+
+                          <div className="text-xs text-slate-700">
+                            重機・車両: {[
+                              ...(r.machines || []), 
+                              ...(r.leaseHeavy || []), 
+                              ...(r.leaseAttach || []), 
+                              ...(r.leaseOther || []), 
+                              ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
+                              ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                              ...(r.ownMachines || []), 
+                              ...(r.vehicles || [])
+                            ].join(', ') || '-'}
+                          </div>
+
+                          {r.workDescription && (
+                            <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 whitespace-pre-wrap">
+                              {r.workDescription}
+                            </div>
+                          )}
+                        </div>
+
+                        {authRole === 'admin' && (
+                          <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                            <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2 rounded-xl font-bold transition text-xs shadow-2xs">編集</button>
+                            <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2 rounded-xl font-bold transition text-xs shadow-2xs">削除</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            ))
+            );
+          })}
+          {filteredReports.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-6">日報データはありません</p>
           )}
         </div>
       </div>
@@ -1186,10 +1191,14 @@ export default function AdminPage() {
 
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">💰 燃料・経費</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">軽油 (L)</label>
                     <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">レギュラー購入分 (円)</label>
+                    <input type="number" value={editingReport.regularPrice || 0} onChange={e=>setEditingReport({...editingReport, regularPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">高速代・ETC (円)</label>
@@ -1295,7 +1304,7 @@ export default function AdminPage() {
                   { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                   { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
                   { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
-                  { key: 'fuel', label: '燃料代 (軽油・月別単価計算)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                  { key: 'fuel', label: '燃料代 (軽油・レギュラー・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
                   { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
                   { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
                   { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
@@ -1355,7 +1364,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🗑️ 処分費詳細モーダル */}
+      {/* 🗑️ 処分費詳細モーダル（② ポップアップ内の詳細に合計を表示） */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -1381,11 +1390,21 @@ export default function AdminPage() {
                 ))
               )}
             </div>
+
+            {/* ② 合計の表示エリア */}
+            {Object.keys(modalData.aggregatedDisposalBreakdown).length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex justify-between items-center font-bold text-orange-900">
+                <span>合計金額</span>
+                <span className="text-xl md:text-2xl font-black">
+                  ¥{Object.values(modalData.aggregatedDisposalBreakdown).reduce((sum: number, d: any) => sum + d.total, 0).toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ♻️ スクラップ詳細モーダル */}
+      {/* ♻️ スクラップ詳細モーダル（② ポップアップ内の詳細に合計を表示） */}
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -1411,6 +1430,16 @@ export default function AdminPage() {
                 ))
               )}
             </div>
+
+            {/* ② 合計の表示エリア */}
+            {Object.keys(modalData.aggregatedScrapBreakdown).length > 0 && (
+              <div className="bg-emerald-100 border border-emerald-300 p-4 rounded-2xl flex justify-between items-center font-bold text-emerald-950">
+                <span>売却合計金額</span>
+                <span className="text-xl md:text-2xl font-black">
+                  + ¥{Object.values(modalData.aggregatedScrapBreakdown).reduce((sum: number, d: any) => sum + d.total, 0).toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
