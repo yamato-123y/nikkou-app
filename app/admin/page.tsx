@@ -21,8 +21,9 @@ export default function AdminPage() {
   // 編集完了ポップアップ用ステート
   const [showSaveToast, setShowSaveToast] = useState(false);
 
-  // 処分費詳細モーダル用ステート
+  // モーダル用ステート
   const [showDisposalModal, setShowDisposalModal] = useState(false);
+  const [showScrapModal, setShowScrapModal] = useState(false);
 
   // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
@@ -313,13 +314,17 @@ export default function AdminPage() {
     });
 
     let scrapC = 0;
-    const scrapBreakdown: {[key: string]: number} = {};
+    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     (r.scraps || []).forEach((sc: any) => {
       const uPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
       const subT = Number(sc.quantity || 0) * uPrice;
       scrapC += subT;
       const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
-      scrapBreakdown[scrapKey] = (scrapBreakdown[scrapKey] || 0) + subT;
+      if (!scrapBreakdown[scrapKey]) {
+        scrapBreakdown[scrapKey] = { quantity: 0, price: uPrice, total: 0 };
+      }
+      scrapBreakdown[scrapKey].quantity += Number(sc.quantity || 0);
+      scrapBreakdown[scrapKey].total += subT;
     });
 
     const rDateNorm = (r.date || '').replace(/\//g, '-');
@@ -346,7 +351,7 @@ export default function AdminPage() {
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
     let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
     const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
-    const aggregatedScrapBreakdown: {[key: string]: number} = {};
+    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -366,8 +371,12 @@ export default function AdminPage() {
         aggregatedDisposalBreakdown[key].total += data.total;
       });
 
-      Object.entries(dc.scrapBreakdown).forEach(([key, val]) => {
-        aggregatedScrapBreakdown[key] = (aggregatedScrapBreakdown[key] || 0) + val;
+      Object.entries(dc.scrapBreakdown).forEach(([key, data]) => {
+        if (!aggregatedScrapBreakdown[key]) {
+          aggregatedScrapBreakdown[key] = { quantity: 0, price: data.price, total: 0 };
+        }
+        aggregatedScrapBreakdown[key].quantity += data.quantity;
+        aggregatedScrapBreakdown[key].total += data.total;
       });
 
       calcFuel += dc.fC; calcEtc += dc.eC; calcParking += dc.pC; calcOther += dc.oC; scrapTotal += dc.scrapC;
@@ -1318,10 +1327,16 @@ export default function AdminPage() {
                   );
                 })}
 
+                {/* スクラップ売却計のUI */}
                 <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-2.5 col-span-full shadow-2xs">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center flex-wrap gap-3">
                     <span className="text-emerald-900 font-bold text-base md:text-lg">♻️ スクラップ売却計</span>
-                    <span className="font-black text-emerald-800 text-xl md:text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-black text-emerald-800 text-xl md:text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                      <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm px-3.5 py-2 rounded-xl font-bold shadow-xs transition">
+                        🔍 内訳を確認
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1348,10 +1363,40 @@ export default function AdminPage() {
                   <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center gap-4">
                     <div className="space-y-1">
                       <div className="font-bold text-slate-800 text-sm md:text-base">{key}</div>
-                      <div className="text-xs text-slate-500">数量: {data.quantity}t / 単価: ¥{data.price.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">数量: {data.quantity} / 単価: ¥{data.price.toLocaleString()}</div>
                     </div>
                     <div className="font-black text-slate-900 text-base md:text-lg shrink-0">
                       ¥{data.total.toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ♻️ スクラップ詳細モーダル */}
+      {showScrapModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-emerald-200 pb-3">
+              <h3 className="text-lg md:text-2xl font-black text-slate-900">♻️ {modalLocation} - スクラップ売却内訳</h3>
+              <button onClick={() => setShowScrapModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
+            </div>
+            
+            <div className="space-y-3">
+              {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">スクラップの明細データはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => (
+                  <div key={key} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center gap-4">
+                    <div className="space-y-1">
+                      <div className="font-bold text-emerald-900 text-sm md:text-base">{key}</div>
+                      <div className="text-xs text-emerald-700">数量: {data.quantity} / 単価: ¥{data.price.toLocaleString()}</div>
+                    </div>
+                    <div className="font-black text-emerald-700 text-base md:text-lg shrink-0">
+                      + ¥{data.total.toLocaleString()}
                     </div>
                   </div>
                 ))
