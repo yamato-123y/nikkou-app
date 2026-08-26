@@ -271,13 +271,17 @@ export default function AdminPage() {
     (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
-    const disposalBreakdown: {[locName: string]: number} = {};
+    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     (r.disposals || []).forEach((d: any) => {
       const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
       const subT = Number(d.quantity || 0) * uPrice;
       dispC += subT;
-      const locKey = d.location || 'その他処分場';
-      disposalBreakdown[locKey] = (disposalBreakdown[locKey] || 0) + subT;
+      const key = `${d.location || 'その他処分場'} (${d.item || '品目未指定'})`;
+      if (!disposalBreakdown[key]) {
+        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0 };
+      }
+      disposalBreakdown[key].quantity += Number(d.quantity || 0);
+      disposalBreakdown[key].total += subT;
     });
 
     let scrapC = 0;
@@ -313,7 +317,7 @@ export default function AdminPage() {
     const locMapped = reports.filter(r => r.location === locName);
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
     let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
-    const aggregatedDisposalBreakdown: {[loc: string]: number} = {};
+    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: number} = {};
     
     locMapped.forEach(r => {
@@ -326,8 +330,12 @@ export default function AdminPage() {
       calcVehicle += dc.vehicleC;
       calcDisp += dc.dispC;
 
-      Object.entries(dc.disposalBreakdown).forEach(([loc, val]) => {
-        aggregatedDisposalBreakdown[loc] = (aggregatedDisposalBreakdown[loc] || 0) + val;
+      Object.entries(dc.disposalBreakdown).forEach(([key, data]) => {
+        if (!aggregatedDisposalBreakdown[key]) {
+          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0 };
+        }
+        aggregatedDisposalBreakdown[key].quantity += data.quantity;
+        aggregatedDisposalBreakdown[key].total += data.total;
       });
 
       Object.entries(dc.scrapBreakdown).forEach(([key, val]) => {
@@ -1215,6 +1223,22 @@ export default function AdminPage() {
                           ¥{Number(item.val || 0).toLocaleString()}
                         </div>
                       )}
+
+                      {/* 処分費カードの下に内訳を表示 */}
+                      {item.isDisposal && (
+                        <div className="mt-2 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
+                          {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                            <p className="text-slate-400">処分費のデータがありません</p>
+                          ) : (
+                            Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => (
+                              <div key={key} className="flex justify-between items-center text-slate-600 font-medium">
+                                <span className="truncate max-w-[65%]">・{key}</span>
+                                <span className="font-bold text-slate-800">{data.quantity}t × ¥{data.price.toLocaleString()} = ¥{data.total.toLocaleString()}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1239,6 +1263,24 @@ export default function AdminPage() {
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
+            </div>
+            
+            <div className="space-y-3">
+              {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">処分費の明細データはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => (
+                  <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center gap-4">
+                    <div className="space-y-1">
+                      <div className="font-bold text-slate-800 text-sm md:text-base">{key}</div>
+                      <div className="text-xs text-slate-500">数量: {data.quantity}t / 単価: ¥{data.price.toLocaleString()}</div>
+                    </div>
+                    <div className="font-black text-slate-900 text-base md:text-lg shrink-0">
+                      ¥{data.total.toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
