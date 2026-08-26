@@ -644,16 +644,16 @@ export default function AdminPage() {
         </div>
 
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-5">現場名</th>
-                <th className="py-4 px-5">請負金額</th>
-                <th className="py-4 px-5">稼働日数</th>
-                <th className="py-4 px-5">合計経費</th>
-                <th className="py-4 px-5">粗利</th>
-                <th className="py-4 px-5 text-center">ステータス / 完了ボタン</th>
-                <th className="py-4 px-5 text-center">アクション</th>
+                <th className="py-4 px-4 w-[32%]">現場名</th>
+                <th className="py-4 px-4 w-[11%]">請負金額</th>
+                <th className="py-4 px-4 w-[9%]">稼働日数</th>
+                <th className="py-4 px-4 w-[11%]">合計経費</th>
+                <th className="py-4 px-4 w-[12%]">粗利</th>
+                <th className="py-4 px-4 w-[12%] text-center">ステータス / 完了</th>
+                <th className="py-4 px-4 w-[13%] text-center">アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -661,23 +661,23 @@ export default function AdminPage() {
                 const c = calculateCosts(loc.name);
                 return (
                   <tr key={loc.name} className={`transition ${c.isFinished ? 'bg-slate-50/80' : 'hover:bg-slate-50/80'}`}>
-                    <td className="py-5 px-5">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className={`font-bold text-xl ${c.isFinished ? 'text-slate-600' : 'text-blue-600'}`}>{loc.name}</span>
+                    <td className="py-5 px-4 align-middle">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`font-bold text-lg break-all leading-snug ${c.isFinished ? 'text-slate-600' : 'text-blue-600'}`}>{loc.name}</span>
                         {c.isFinished && (
-                          <span className="bg-slate-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-2xs">📁 完了済</span>
+                          <span className="bg-slate-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-2xs shrink-0">📁 完了済</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-5 px-5 text-slate-700 font-bold">¥{c.contractPrice.toLocaleString()}</td>
-                    <td className="py-5 px-5 text-slate-700">{c.days} 日</td>
-                    <td className="py-5 px-5 text-slate-900 font-bold">¥{c.total.toLocaleString()}</td>
-                    <td className={`py-5 px-5 font-black text-xl ${c.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <td className="py-5 px-4 text-slate-700 font-bold align-middle">¥{c.contractPrice.toLocaleString()}</td>
+                    <td className="py-5 px-4 text-slate-700 align-middle">{c.days} 日</td>
+                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">¥{c.total.toLocaleString()}</td>
+                    <td className={`py-5 px-4 font-black text-xl align-middle ${c.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       ¥{c.profit.toLocaleString()}
                     </td>
-                    <td className="py-5 px-5 text-center">
+                    <td className="py-5 px-4 text-center align-middle">
                       {c.isFinished ? (
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center">
                           {authRole !== 'viewer' && (
                             <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
                           )}
@@ -692,15 +692,17 @@ export default function AdminPage() {
                         )
                       )}
                     </td>
-                    <td className="py-5 px-5 text-center space-x-3">
-                      <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
-                        詳細分析 →
-                      </button>
-                      {authRole !== 'viewer' && (
-                        <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-5 py-3 rounded-xl font-bold transition shadow-sm text-base">
-                          CSV
+                    <td className="py-5 px-4 text-center align-middle">
+                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-3.5 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                          詳細分析 →
                         </button>
-                      )}
+                        {authRole !== 'viewer' && (
+                          <button onClick={() => downloadLocationCSV(loc.name)} className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-600 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm">
+                            CSV
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
