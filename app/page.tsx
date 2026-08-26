@@ -4,7 +4,15 @@ import { useState, useEffect } from 'react';
 export default function Home() {
   const [settings, setSettings] = useState<any>({});
   
-  const [date, setDate] = useState(() => new Date().toLocaleDateString('ja-JP').replace(/\//g, '/'));
+  // 今日の日付を yyyy-mm-dd 形式で初期値に設定（type="date"用）
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
@@ -67,7 +75,7 @@ export default function Home() {
         leaseHeavy, leaseAttach, leaseOther,
         machines: leaseHeavy, // 互換用
         mokCustomMachines, // MOK自由追加機械
-        otherLeases,       // 変更後のその他リース
+        otherLeases,        // 変更後のその他リース
         ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
         fuel: fuel || '0', 
         regularPrice: regularPrice || '0', // ①レギュラー購入分
@@ -151,7 +159,13 @@ export default function Home() {
            
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
-             <input type="text" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold bg-slate-50 text-center text-xl text-slate-950" />
+             {/* 📅 type="date"に変更し、スマホ標準のカレンダーピッカーを呼び出せるようにしました */}
+             <input 
+               type="date" 
+               value={date} 
+               onChange={e=>setDate(e.target.value)} 
+               className="w-full p-4 border-2 rounded-2xl font-bold bg-slate-50 text-center text-xl text-slate-950" 
+             />
            </div>
 
            <div>
