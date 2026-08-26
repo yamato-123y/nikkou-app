@@ -596,16 +596,26 @@ export default function AdminPage() {
           {locList.map((loc:any) => {
             const c = calculateCosts(loc.name);
             return (
-              <div key={loc.name} className={`p-3.5 rounded-2xl border space-y-2.5 shadow-2xs ${c.isFinished ? 'bg-slate-200/60 border-slate-300 opacity-80' : 'bg-slate-50/80 border-slate-200'}`}>
+              <div key={loc.name} className={`p-3.5 rounded-2xl border space-y-2.5 shadow-2xs ${c.isFinished ? 'bg-slate-100 border-slate-300' : 'bg-slate-50/80 border-slate-200'}`}>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex justify-between items-center">
-                    <span className={`font-bold text-base leading-snug ${c.isFinished ? 'text-slate-500 line-through' : 'text-blue-600'}`}>{loc.name}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`font-bold text-base leading-snug ${c.isFinished ? 'text-slate-600' : 'text-blue-600'}`}>{loc.name}</span>
+                      {c.isFinished && (
+                        <span className="bg-slate-500 text-white text-[10px] px-2 py-0.5 rounded-md font-bold shadow-2xs">📁 完了済</span>
+                      )}
+                    </div>
                     {c.isFinished ? (
-                      <span className="bg-slate-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">✅ 完了済</span>
+                      <button 
+                        onClick={() => toggleLocationFinished(loc.name)} 
+                        className="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
+                      >
+                        未完了に戻す
+                      </button>
                     ) : (
                       <button 
                         onClick={() => toggleLocationFinished(loc.name)} 
-                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] px-2.5 py-1 rounded-lg font-bold border border-emerald-200 transition"
+                        className="bg-white hover:bg-slate-100 text-slate-600 text-[11px] px-2 py-1 rounded-lg font-bold border border-slate-300 transition"
                       >
                         完了にする
                       </button>
@@ -650,8 +660,15 @@ export default function AdminPage() {
               {locList.map((loc:any) => {
                 const c = calculateCosts(loc.name);
                 return (
-                  <tr key={loc.name} className={`transition ${c.isFinished ? 'bg-slate-100/70 opacity-75' : 'hover:bg-slate-50/80'}`}>
-                    <td className={`py-5 px-5 font-bold text-xl ${c.isFinished ? 'text-slate-400 line-through' : 'text-blue-600'}`}>{loc.name}</td>
+                  <tr key={loc.name} className={`transition ${c.isFinished ? 'bg-slate-50/80' : 'hover:bg-slate-50/80'}`}>
+                    <td className="py-5 px-5">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className={`font-bold text-xl ${c.isFinished ? 'text-slate-600' : 'text-blue-600'}`}>{loc.name}</span>
+                        {c.isFinished && (
+                          <span className="bg-slate-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-2xs">📁 完了済</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-5 px-5 text-slate-700 font-bold">¥{c.contractPrice.toLocaleString()}</td>
                     <td className="py-5 px-5 text-slate-700">{c.days} 日</td>
                     <td className="py-5 px-5 text-slate-900 font-bold">¥{c.total.toLocaleString()}</td>
@@ -661,15 +678,14 @@ export default function AdminPage() {
                     <td className="py-5 px-5 text-center">
                       {c.isFinished ? (
                         <div className="flex items-center justify-center gap-2">
-                          <span className="bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xs">✅ 完了済</span>
                           {authRole !== 'viewer' && (
                             <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
                           )}
                         </div>
                       ) : (
                         authRole !== 'viewer' ? (
-                          <button onClick={() => toggleLocationFinished(loc.name)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition">
-                            ✅ 現場を完了にする
+                          <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-300 shadow-2xs transition">
+                            完了にする
                           </button>
                         ) : (
                           <span className="text-slate-400 text-sm font-medium">進行中</span>
@@ -891,9 +907,9 @@ export default function AdminPage() {
                                 <button 
                                   type="button" 
                                   onClick={() => toggleLocationFinished(typeof item === 'string' ? item : item.name)}
-                                  className={`text-xs px-2.5 py-1 rounded-lg font-bold transition ${item.isFinished ? 'bg-slate-600 text-white' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
+                                  className={`text-xs px-2.5 py-1 rounded-lg font-bold transition ${item.isFinished ? 'bg-slate-600 text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}`}
                                 >
-                                  {item.isFinished ? '✅ 完了済' : '完了にする'}
+                                  {item.isFinished ? '📁 完了済' : '完了にする'}
                                 </button>
                               )}
                               <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-600 hover:text-rose-800 font-bold text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition">削除</button>
