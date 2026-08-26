@@ -159,18 +159,20 @@ export default function Home() {
            
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
-             {/* 📅 iOS特有のはみ出しを防ぐため max-w-full と min-w-0 を追加 */}
-             <input 
-               type="date" 
-               value={date} 
-               onChange={e=>setDate(e.target.value)} 
-               className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block" 
-             />
+             {/* 🛡️ 外側の div に overflow-hidden を持たせることで、中身が絶対にはみ出さないようにガードします */}
+             <div className="w-full border-2 rounded-2xl bg-white overflow-hidden box-border">
+               <input 
+                 type="date" 
+                 value={date} 
+                 onChange={e=>setDate(e.target.value)} 
+                 className="w-full p-4 font-bold text-lg bg-transparent text-slate-950 outline-none box-border block" 
+               />
+             </div>
            </div>
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【現場名】</label>
-             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
+             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
                <option value="">現場を選択してください</option>
                {(settings.locations || []).map((l:any)=>(
                  <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>
@@ -182,7 +184,7 @@ export default function Home() {
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
-             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
+             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
                <option value="">職長を選択してください</option>
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
