@@ -25,6 +25,9 @@ export default function AdminPage() {
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
 
+  // 🗑️ 処分費の内訳開閉状態を管理するステート（例: { "エヌエヌシー (コンガラ)": true }）
+  const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
+
   // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
 
@@ -302,7 +305,7 @@ export default function AdminPage() {
     (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
-    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
+    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
     (r.disposals || []).forEach((d: any) => {
       const masterPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
       const uPrice = d.price !== undefined && d.price !== null && d.price !== '' 
@@ -312,14 +315,20 @@ export default function AdminPage() {
       dispC += subT;
       const key = `${d.location || 'その他処分場'} (${d.item || '品目未指定'})`;
       if (!disposalBreakdown[key]) {
-        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0 };
+        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0, details: [] };
       }
       disposalBreakdown[key].quantity += Number(d.quantity || 0);
       disposalBreakdown[key].total += subT;
+      disposalBreakdown[key].details.push({
+        date: r.date || '日付不明',
+        quantity: Number(d.quantity || 0),
+        price: uPrice,
+        total: subT
+      });
     });
 
     let scrapC = 0;
-    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
+    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
     (r.scraps || []).forEach((sc: any) => {
       const masterPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
       const uPrice = sc.price !== undefined && sc.price !== null && sc.price !== '' 
@@ -329,10 +338,16 @@ export default function AdminPage() {
       scrapC += subT;
       const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
       if (!scrapBreakdown[scrapKey]) {
-        scrapBreakdown[scrapKey] = { quantity: 0, price: uPrice, total: 0 };
+        scrapBreakdown[scrapKey] = { quantity: 0, price: uPrice, total: 0, details: [] };
       }
       scrapBreakdown[scrapKey].quantity += Number(sc.quantity || 0);
       scrapBreakdown[scrapKey].total += subT;
+      scrapBreakdown[scrapKey].details.push({
+        date: r.date || '日付不明',
+        quantity: Number(sc.quantity || 0),
+        price: uPrice,
+        total: subT
+      });
     });
 
     const rDateNorm = (r.date || '').replace(/\//g, '-');
@@ -347,7 +362,6 @@ export default function AdminPage() {
       }
     }
 
-    // レギュラー購入分を加算
     const regPrice = Number(r.regularPrice || 0);
     fuelCost += regPrice;
 
@@ -362,8 +376,9 @@ export default function AdminPage() {
     const locMapped = reports.filter(r => r.location === locName);
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
     let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
-    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
-    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
+    
+    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
+    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -377,18 +392,20 @@ export default function AdminPage() {
 
       Object.entries(dc.disposalBreakdown).forEach(([key, data]) => {
         if (!aggregatedDisposalBreakdown[key]) {
-          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0 };
+          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0, details: [] };
         }
         aggregatedDisposalBreakdown[key].quantity += data.quantity;
         aggregatedDisposalBreakdown[key].total += data.total;
+        aggregatedDisposalBreakdown[key].details.push(...data.details);
       });
 
       Object.entries(dc.scrapBreakdown).forEach(([key, data]) => {
         if (!aggregatedScrapBreakdown[key]) {
-          aggregatedScrapBreakdown[key] = { quantity: 0, price: data.price, total: 0 };
+          aggregatedScrapBreakdown[key] = { quantity: 0, price: data.price, total: 0, details: [] };
         }
         aggregatedScrapBreakdown[key].quantity += data.quantity;
         aggregatedScrapBreakdown[key].total += data.total;
+        aggregatedScrapBreakdown[key].details.push(...data.details);
       });
 
       calcFuel += dc.fC; calcEtc += dc.eC; calcParking += dc.pC; calcOther += dc.oC; scrapTotal += dc.scrapC;
@@ -985,7 +1002,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📥 送信された日報一覧（③ 現場別でリスト形式に変更） */}
+      {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-lg md:text-2xl font-black text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
@@ -1364,7 +1381,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🗑️ 処分費詳細モーダル（② ポップアップ内の詳細に合計を表示） */}
+      {/* 🗑️ 処分費詳細モーダル（各処分場の内訳ボタン付き） */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -1377,21 +1394,51 @@ export default function AdminPage() {
               {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-6">処分費の明細データはありません</p>
               ) : (
-                Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => (
-                  <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center gap-4">
-                    <div className="space-y-1">
-                      <div className="font-bold text-slate-800 text-sm md:text-base">{key}</div>
-                      <div className="text-xs text-slate-500">数量: {data.quantity} / 単価: ¥{data.price.toLocaleString()}</div>
+                Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => {
+                  const isOpen = disposalDetailsOpen[key] || false;
+                  return (
+                    <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex justify-between items-center gap-4">
+                        <div className="space-y-1">
+                          <div className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2 flex-wrap">
+                            <span>{key}</span>
+                            <button 
+                              type="button"
+                              onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [key]: !isOpen })}
+                              className="bg-orange-100 hover:bg-orange-200 text-orange-800 px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                            >
+                              {isOpen ? '内訳 ▲' : '内訳 ▼'}
+                            </button>
+                          </div>
+                          <div className="text-xs text-slate-500">合計数量: {data.quantity} / 単価: ¥{data.price.toLocaleString()}</div>
+                        </div>
+                        <div className="font-black text-slate-900 text-base md:text-lg shrink-0">
+                          ¥{data.total.toLocaleString()}
+                        </div>
+                      </div>
+
+                      {/* 📅 日別詳細内訳の展開エリア */}
+                      {isOpen && (
+                        <div className="pt-3 border-t border-slate-200 space-y-2 animate-fadeIn">
+                          <div className="text-xs font-bold text-slate-500">📅 日別搬出明細</div>
+                          <div className="space-y-1.5">
+                            {data.details.map((detail, dIdx) => (
+                              <div key={dIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs md:text-sm shadow-2xs">
+                                <span className="font-bold text-slate-700">🗓️ {detail.date}</span>
+                                <span className="text-slate-600">数量: {detail.quantity} × ¥{detail.price.toLocaleString()}</span>
+                                <span className="font-bold text-slate-900">¥{detail.total.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="font-black text-slate-900 text-base md:text-lg shrink-0">
-                      ¥{data.total.toLocaleString()}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
-            {/* ② 合計の表示エリア */}
+            {/* 合計の表示エリア */}
             {Object.keys(modalData.aggregatedDisposalBreakdown).length > 0 && (
               <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex justify-between items-center font-bold text-orange-900">
                 <span>合計金額</span>
@@ -1404,7 +1451,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ♻️ スクラップ詳細モーダル（② ポップアップ内の詳細に合計を表示） */}
+      {/* ♻️ スクラップ詳細モーダル */}
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -1431,7 +1478,6 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* ② 合計の表示エリア */}
             {Object.keys(modalData.aggregatedScrapBreakdown).length > 0 && (
               <div className="bg-emerald-100 border border-emerald-300 p-4 rounded-2xl flex justify-between items-center font-bold text-emerald-950">
                 <span>売却合計金額</span>
