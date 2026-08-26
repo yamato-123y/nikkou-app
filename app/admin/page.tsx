@@ -239,7 +239,7 @@ export default function AdminPage() {
   // --- 計算ロジック ---
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
-    if (r.manager) lCost += ((settings.managers || []).find((x:any) => x.name === r.manager)?.price || 0);
+    // 職長は日額単価を持たないため、workers（作業メンバー）に含まれている場合の単価のみを人件費として集計
     (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
 
     let subCost = 0;
@@ -291,7 +291,7 @@ export default function AdminPage() {
       scrapBreakdown[scrapKey] = (scrapBreakdown[scrapKey] || 0) + subT;
     });
 
-    // 燃料代の計算（日報の日付から年月を抽出し、対応する月別単価があればそれを使用。なければ登録上の軽油L数そのものを金額とするか単価未設定時は0等）
+    // 燃料代の計算
     const rDateNorm = (r.date || '').replace(/\//g, '-');
     const parts = rDateNorm.split('-');
     let fuelCost = Number(r.fuel || 0);
@@ -381,7 +381,7 @@ export default function AdminPage() {
 
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
-    const headers = ["日付", "現場名", "責任者", "作業者", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "職長", "作業者", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
@@ -502,7 +502,6 @@ export default function AdminPage() {
 
   const calendarDays = getDaysInMonth(calendarYearMonth);
 
-  // 選択された現場に関連する日報から存在するすべての「年月」リストを抽出（月別単価設定用）
   const modalReportYearMonths = modalLocation ? Array.from(new Set(
     reports
       .filter(r => r.location === modalLocation)
@@ -751,7 +750,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
               {[
                 { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
-                { title: "👤 現場責任者＆日額単価", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["責任者名", "日額"], type: "managers" },
+                { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
                 { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
                 { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
                 { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
@@ -793,6 +792,11 @@ export default function AdminPage() {
                         </div>
                         <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
+                    ) : sec.isNoPrice ? (
+                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      </div>
                     ) : (
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
@@ -828,14 +832,18 @@ export default function AdminPage() {
                               <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                               <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                             </div>
+                          ) : sec.isNoPrice ? (
+                            <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           ) : (
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           )}
 
-                          <div className="flex items-center justify-end gap-1.5 pt-1">
-                            <span className="text-slate-500 font-bold text-sm">¥</span>
-                            <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
-                          </div>
+                          {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
+                            <div className="flex items-center justify-end gap-1.5 pt-1">
+                              <span className="text-slate-500 font-bold text-sm">¥</span>
+                              <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -876,7 +884,7 @@ export default function AdminPage() {
                   
                   <div className="space-y-2 text-xs md:text-sm text-slate-700 pt-1">
                     <div>
-                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">責任者 / 作業者</span>
+                      <span className="text-slate-400 block text-[11px] font-semibold mb-0.5">職長 / 作業者</span>
                       <span className="font-bold text-slate-900">
                         👤 {r.manager || '-'} / {(r.workers || []).join(', ') || '-'}
                       </span>
@@ -928,7 +936,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✏️ 日報編集モーダル（車両・重機・その他すべて編集可能に拡張） */}
+      {/* ✏️ 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
@@ -965,7 +973,7 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1.5">現場責任者</label>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">職長</label>
                     <select value={editingReport.manager || ''} onChange={e=>setEditingReport({...editingReport, manager: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs">
                       <option value="">選択なし</option>
                       {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
