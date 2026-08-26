@@ -159,18 +159,18 @@ export default function Home() {
            
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
-             {/* 📅 他の入力欄と合わせ、テキストサイズや幅が枠内にしっかり収まるように調整しました */}
+             {/* 📅 iOS特有のはみ出しを防ぐため max-w-full と min-w-0 を追加 */}
              <input 
                type="date" 
                value={date} 
                onChange={e=>setDate(e.target.value)} 
-               className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border" 
+               className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block" 
              />
            </div>
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【現場名】</label>
-             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border">
+             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
                <option value="">現場を選択してください</option>
                {(settings.locations || []).map((l:any)=>(
                  <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>
@@ -182,7 +182,7 @@ export default function Home() {
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
-             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border">
+             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
                <option value="">職長を選択してください</option>
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
@@ -216,7 +216,7 @@ export default function Home() {
                    <div className="grid grid-cols-2 gap-3">
                      <div>
                        <label className="text-sm font-bold text-slate-950 block mb-1">外注会社名</label>
-                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border" value={sub.company} onChange={(e)=>{
+                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.company} onChange={(e)=>{
                          const updated = [...subcontractors]; 
                          updated[index].company = e.target.value; 
                          updated[index].task = '';
@@ -228,7 +228,7 @@ export default function Home() {
                      </div>
                      <div>
                        <label className="text-sm font-bold text-slate-950 block mb-1">作業内容</label>
-                       <select className="w-full p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border" value={sub.task} onChange={(e)=>{
+                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.task} onChange={(e)=>{
                          const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
                        }}>
                          <option value="">内容を選択...</option>
@@ -237,9 +237,9 @@ export default function Home() {
                      </div>
                    </div>
                    <div className="flex items-end gap-3">
-                     <div className="flex-1">
+                     <div className="flex-1 min-w-0">
                        <label className="text-sm font-bold text-slate-950 block mb-1">人数</label>
-                       <input type="number" placeholder="0" className="w-full p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-950 box-border" value={sub.count} onChange={(e)=>{
+                       <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-950 box-border block" value={sub.count} onChange={(e)=>{
                          const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
                        }}/>
                      </div>
@@ -295,7 +295,7 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenHeavy(!isOpenHeavy)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【重機を選択する】</span>
                  {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseHeavy.length}選定中</span>}
@@ -316,7 +316,7 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenAttach(!isOpenAttach)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【アタッチメントを選択する】</span>
                  {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseAttach.length}選定中</span>}
@@ -337,7 +337,7 @@ export default function Home() {
                <button 
                  type="button" 
                  onClick={() => setIsOpenOther(!isOpenOther)} 
-                 className="w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【その他の機械・機器を選択する】</span>
                  {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseOther.length}選定中</span>}
@@ -363,12 +363,12 @@ export default function Home() {
                  <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-blue-300 shadow-xs">
                    <input type="text" placeholder="機械名を入力" value={cm.name} onChange={e=>{
                      const updated = [...mokCustomMachines]; updated[index].name = e.target.value; setMokCustomMachines(updated);
-                   }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border" />
+                   }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
                    
                    <div className="grid grid-cols-2 gap-2 items-center">
                      <input type="number" placeholder="個数" value={cm.count} onChange={e=>{
                        const updated = [...mokCustomMachines]; updated[index].count = e.target.value; setMokCustomMachines(updated);
-                     }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border" />
+                     }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
                      <button type="button" onClick={() => setMokCustomMachines(mokCustomMachines.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
                    </div>
                  </div>
@@ -389,16 +389,16 @@ export default function Home() {
                <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-amber-300 shadow-xs">
                  <input type="text" placeholder="リース会社名を入力" value={ol.company} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].company = e.target.value; setOtherLeases(updated);
-                 }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border" />
+                 }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
                  
                  <input type="text" placeholder="重機・機械名" value={ol.name} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
-                 }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border" />
+                 }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
                  
                  <div className="grid grid-cols-2 gap-2 items-center">
                    <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
                      const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
-                   }} className="w-full p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border" />
+                   }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
                    <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
                  </div>
                </div>
@@ -415,23 +415,23 @@ export default function Home() {
            
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【軽油 (L)】</label>
-             <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border" />
+             <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
 
            {/* ① レギュラー 購入分(円) の追加枠 */}
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【レギュラー 購入分 (円)】</label>
-             <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border" />
+             <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【高速代・ETC (円)】</label>
-             <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border" />
+             <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【駐車場代 (円)】</label>
-             <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border" />
+             <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
         </div>
 
@@ -450,7 +450,7 @@ export default function Home() {
              <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
                <div>
                  <label className="text-sm font-bold text-slate-950 block mb-1">処分場・品目</label>
-                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border" value={`${entry.location}|${entry.item}`} onChange={(e) => {
+                 <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
                    const target = settings.disposalLocations?.find((d:any) => d.location === loc && d.item === item);
                    const updated = [...disposals];
@@ -463,9 +463,9 @@ export default function Home() {
                </div>
                
                <div className="flex items-end gap-3">
-                 <div className="flex-1">
+                 <div className="flex-1 min-w-0">
                    <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border" value={entry.quantity} onChange={(e)=>{
+                   <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
                      const updated = [...disposals]; updated[index].quantity = e.target.value; setDisposals(updated);
                    }}/>
                  </div>
@@ -491,7 +491,7 @@ export default function Home() {
              <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
                <div>
                  <label className="text-sm font-bold text-slate-950 block mb-1">スクラップ場・品目</label>
-                 <select className="w-full p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border" value={`${entry.location}|${entry.item}`} onChange={(e) => {
+                 <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={`${entry.location}|${entry.item}`} onChange={(e) => {
                    const [loc, item] = e.target.value.split('|');
                    const target = settings.scrapLocations?.find((s:any) => s.location === loc && s.item === item);
                    const updated = [...scraps];
@@ -504,9 +504,9 @@ export default function Home() {
                </div>
 
                <div className="flex items-end gap-3">
-                 <div className="flex-1">
+                 <div className="flex-1 min-w-0">
                    <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border" value={entry.quantity} onChange={(e)=>{
+                   <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
                      const updated = [...scraps]; updated[index].quantity = e.target.value; setScraps(updated);
                    }}/>
                  </div>
@@ -522,11 +522,11 @@ export default function Home() {
            <div className="font-black text-lg text-slate-950 border-b pb-3">📦 その他 雑費・消耗品等</div>
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【品名・内容】</label>
-             <input type="text" placeholder="例: コーナン" value={otherItem} onChange={e=>setOtherItem(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border" />
+             <input type="text" placeholder="例: コーナン" value={otherItem} onChange={e=>setOtherItem(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block" />
            </div>
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【金額 (円)】</label>
-             <input type="number" placeholder="0" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border" />
+             <input type="number" placeholder="0" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
         </div>
 
@@ -535,7 +535,7 @@ export default function Home() {
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">📝 7. 本日の作業内容</span>
            </div>
-           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950 box-border" />
+           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950 box-border block" />
         </div>
 
         <button type="submit" className="w-full bg-[#E56312] text-white font-black text-2xl py-5 rounded-3xl shadow-xl hover:bg-orange-700 transition">
