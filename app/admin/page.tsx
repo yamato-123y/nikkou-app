@@ -265,7 +265,7 @@ export default function AdminPage() {
     }
   };
 
-  // --- 計算ロジック ---
+  // --- 計算ロジック（日報保存時の単価を優先するように修正） ---
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
     (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
@@ -273,7 +273,9 @@ export default function AdminPage() {
     let subCost = 0;
     (r.subcontractors || []).forEach((sub: any) => {
       const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
-      const unitP = subMaster?.price || 0;
+      const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' 
+        ? Number(sub.price) 
+        : (subMaster?.price || 0);
       subCost += (Number(sub.count || 0) * unitP);
     });
 
@@ -302,7 +304,10 @@ export default function AdminPage() {
     let dispC = 0;
     const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     (r.disposals || []).forEach((d: any) => {
-      const uPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
+      const masterPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
+      const uPrice = d.price !== undefined && d.price !== null && d.price !== '' 
+        ? Number(d.price) 
+        : masterPrice;
       const subT = Number(d.quantity || 0) * uPrice;
       dispC += subT;
       const key = `${d.location || 'その他処分場'} (${d.item || '品目未指定'})`;
@@ -316,7 +321,11 @@ export default function AdminPage() {
     let scrapC = 0;
     const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number}} = {};
     (r.scraps || []).forEach((sc: any) => {
-      const uPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
+      const masterPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
+      // 日報データ側に保存されている単価があれば優先し、なければマスタを見る
+      const uPrice = sc.price !== undefined && sc.price !== null && sc.price !== '' 
+        ? Number(sc.price) 
+        : masterPrice;
       const subT = Number(sc.quantity || 0) * uPrice;
       scrapC += subT;
       const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
