@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "現場日報 | 株式会社大和",
   description: "株式会社大和の現場専用日報アプリ",
+  icons: {
+    icon: "/nippo.jpg",
+    apple: "/nippo.jpg",
+  },
 };
 
 export const viewport: Viewport = {
