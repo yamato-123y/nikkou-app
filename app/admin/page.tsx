@@ -352,7 +352,7 @@ export default function AdminPage() {
     });
 
     let scrapC = 0;
-    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
+    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, item: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
     (r.scraps || []).forEach((sc: any) => {
       const masterPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
       const uPrice = sc.price !== undefined && sc.price !== null && sc.price !== '' 
@@ -368,6 +368,7 @@ export default function AdminPage() {
       scrapBreakdown[scrapKey].total += subT;
       scrapBreakdown[scrapKey].details.push({
         date: r.date || '日付不明',
+        item: sc.item || '品目未指定',
         quantity: Number(sc.quantity || 0),
         price: uPrice,
         total: subT,
@@ -403,7 +404,7 @@ export default function AdminPage() {
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     
     const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
-    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
+    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, item: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -1355,7 +1356,7 @@ export default function AdminPage() {
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-medium">稼働日数</div><div className="text-lg md:text-3xl font-black text-amber-800 mt-1 md:mt-2">{modalData.days}日</div></div>
             </div>
 
-            {/* スクラップ売却計の枠（内訳明細の上部に配置） */}
+            {/* スクラップ売却計の枠（📋 経費・収支の内訳明細の上部に移動） */}
             <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <span className="text-emerald-900 font-bold text-base md:text-lg">♻️ スクラップ売却計</span>
@@ -1583,7 +1584,7 @@ export default function AdminPage() {
                             {data.details.map((detail, dIdx) => (
                               <div key={dIdx} className="bg-white p-2.5 rounded-xl border border-emerald-200 flex justify-between items-center text-xs md:text-sm shadow-2xs">
                                 <span className="font-bold text-slate-700">🗓️ {detail.date}</span>
-                                <span className="text-slate-600">数量: {detail.quantity} × 単価¥{detail.price.toLocaleString()}</span>
+                                <span className="text-slate-600">品目: {detail.item} / 数量: {detail.quantity}t / 単価: ¥{detail.price.toLocaleString()}</span>
                                 <span className="font-bold text-emerald-800">+ ¥{detail.total.toLocaleString()}</span>
                               </div>
                             ))}
