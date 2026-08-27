@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
   const [costOverrides, setCostOverrides] = useState<any>({});
+  const [disposalOverrides, setDisposalOverrides] = useState<any>({});
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   const [editingCostFields, setEditingCostFields] = useState<any>({});
@@ -59,6 +60,7 @@ export default function AdminPage() {
         if (sData && Object.keys(sData).length > 0) {
           setSettings(sData);
           if (sData.costOverrides) setCostOverrides(sData.costOverrides);
+          if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
         }
@@ -192,6 +194,21 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
+  const handleDisposalOverrideChange = async (locName: string, key: string, val: string) => {
+    if (authRole === 'viewer') return;
+    const newDisposalOverrides = {
+      ...disposalOverrides,
+      [locName]: {
+        ...(disposalOverrides[locName] || {}),
+        [key]: val
+      }
+    };
+    setDisposalOverrides(newDisposalOverrides);
+    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
+    setSettings(newData);
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
   const handleScrapOverrideChange = async (locName: string, key: string, val: string) => {
     if (authRole === 'viewer') return;
     const newScrapOverrides = {
@@ -306,9 +323,11 @@ export default function AdminPage() {
     (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
-    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
+    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}} = {};
     (r.disposals || []).forEach((d: any) => {
-      const masterPrice = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item)?.price || 0;
+      const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item);
+      const unitStr = d.unit || masterRecord?.unit || 't';
+      const masterPrice = masterRecord?.price || 0;
       const uPrice = d.price !== undefined && d.price !== null && d.price !== '' 
         ? Number(d.price) 
         : masterPrice;
@@ -316,13 +335,14 @@ export default function AdminPage() {
       dispC += subT;
       const key = `${d.location || 'その他処分場'} (${d.item || '品目未指定'})`;
       if (!disposalBreakdown[key]) {
-        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0, details: [] };
+        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0, unit: unitStr, details: [] };
       }
       disposalBreakdown[key].quantity += Number(d.quantity || 0);
-      disposalBreakdown[key].total += subT;
       disposalBreakdown[key].details.push({
         date: r.date || '日付不明',
+        item: d.item || '品目未指定',
         quantity: Number(d.quantity || 0),
+        unit: unitStr,
         price: uPrice,
         total: subT
       });
@@ -333,7 +353,7 @@ export default function AdminPage() {
     (r.scraps || []).forEach((sc: any) => {
       const matchedMaster = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item);
       const unitStr = sc.unit || matchedMaster?.unit || 't';
-      const subT = 0; // 単価なしのため日報ベースでの金額計算は0、仕切り書入力（override）で管理
+      const subT = 0; 
       scrapC += subT;
       const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
       if (!scrapBreakdown[scrapKey]) {
@@ -372,10 +392,10 @@ export default function AdminPage() {
 
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
-    let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
+    let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     
-    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
+    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
     
     locMapped.forEach(r => {
@@ -386,11 +406,11 @@ export default function AdminPage() {
       calcOtherLease += dc.otherLeaseC;
       calcOwnMachine += dc.ownMachineC;
       calcVehicle += dc.vehicleC;
-      calcDisp += dc.dispC;
+      calcDispCalc += dc.dispC;
 
       Object.entries(dc.disposalBreakdown).forEach(([key, data]) => {
         if (!aggregatedDisposalBreakdown[key]) {
-          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0, details: [] };
+          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0, unit: data.unit, details: [] };
         }
         aggregatedDisposalBreakdown[key].quantity += data.quantity;
         aggregatedDisposalBreakdown[key].total += data.total;
@@ -413,6 +433,28 @@ export default function AdminPage() {
       scrapTotalCalc += dc.scrapC;
     });
 
+    const dispOv = disposalOverrides[locName] || {};
+    let disposalTotal = calcDispCalc;
+    const globalDispOvTotal = dispOv.total !== undefined && dispOv.total !== '' ? Number(dispOv.total) : null;
+    
+    if (globalDispOvTotal !== null) {
+      disposalTotal = globalDispOvTotal;
+    } else {
+      let overriddenDispSum = 0;
+      let hasIndividualDispOverride = false;
+      Object.keys(aggregatedDisposalBreakdown).forEach(key => {
+        if (dispOv[key] !== undefined && dispOv[key] !== '') {
+          overriddenDispSum += Number(dispOv[key]);
+          hasIndividualDispOverride = true;
+        } else {
+          overriddenDispSum += aggregatedDisposalBreakdown[key].total;
+        }
+      });
+      if (hasIndividualDispOverride) {
+        disposalTotal = overriddenDispSum;
+      }
+    }
+
     const ov = costOverrides[locName] || {};
     const laborCost = ov.labor !== '' && ov.labor !== undefined ? Number(ov.labor) : calcLabor;
     const subCostTotal = ov.sub !== '' && ov.sub !== undefined ? Number(ov.sub) : calcSub;
@@ -420,7 +462,7 @@ export default function AdminPage() {
     const otherLeaseCost = ov.otherLease !== '' && ov.otherLease !== undefined ? Number(ov.otherLease) : calcOtherLease;
     const ownMachineCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
     const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
-    const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : calcDisp;
+    const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : disposalTotal;
     const fuelCost = ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel;
     const regularCost = ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular;
     const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
@@ -1117,7 +1159,7 @@ export default function AdminPage() {
                               <div className="flex flex-col gap-1 pt-0.5">
                                 {(r.disposals || []).length > 0 && (
                                   <div className="text-xs text-amber-700 font-bold">
-                                    🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}t)`).join(', ')}
+                                    🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
                                   </div>
                                 )}
                                 {(r.scraps || []).length > 0 && (
@@ -1496,6 +1538,9 @@ export default function AdminPage() {
               ) : (
                 Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => {
                   const isOpen = disposalDetailsOpen[key] || false;
+                  const currentOverrideVal = disposalOverrides[modalLocation]?.[key] ?? '';
+                  const effectiveTotal = currentOverrideVal !== '' ? Number(currentOverrideVal) : data.total;
+
                   return (
                     <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                       <div className="flex justify-between items-center gap-4">
@@ -1510,21 +1555,29 @@ export default function AdminPage() {
                               {isOpen ? '内訳 ▲' : '内訳 ▼'}
                             </button>
                           </div>
-                          <div className="text-xs text-slate-500">合計数量: {data.quantity} / 単価: ¥{data.price.toLocaleString()}</div>
+                          <div className="text-xs text-slate-500">合計数量: {data.quantity}{data.unit} / 日報計算単価: ¥{data.price.toLocaleString()}</div>
                         </div>
-                        <div className="font-black text-slate-900 text-base md:text-lg shrink-0">
-                          ¥{data.total.toLocaleString()}
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs font-bold text-slate-700">請求金額: ¥</span>
+                          <input 
+                            type="number"
+                            value={currentOverrideVal}
+                            onChange={e => handleDisposalOverrideChange(modalLocation, key, e.target.value)}
+                            className="w-32 p-2 border border-orange-300 rounded-xl text-right font-black text-slate-900 bg-white text-base shadow-2xs"
+                            placeholder={`¥${data.total.toLocaleString()}`}
+                          />
                         </div>
                       </div>
 
                       {isOpen && (
                         <div className="pt-3 border-t border-slate-200 space-y-2 animate-fadeIn">
-                          <div className="text-xs font-bold text-slate-500">📅 日別搬出明細</div>
+                          <div className="text-xs font-bold text-slate-500">📅 日別・品目別明細</div>
                           <div className="space-y-1.5">
                             {data.details.map((detail, dIdx) => (
                               <div key={dIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs md:text-sm shadow-2xs">
                                 <span className="font-bold text-slate-700">🗓️ {detail.date}</span>
-                                <span className="text-slate-600">数量: {detail.quantity} × ¥{detail.price.toLocaleString()}</span>
+                                <span className="text-slate-600 font-medium">{detail.item} / 数量: {detail.quantity}{detail.unit} × ¥{detail.price.toLocaleString()}</span>
                                 <span className="font-bold text-slate-900">¥{detail.total.toLocaleString()}</span>
                               </div>
                             ))}
@@ -1539,9 +1592,9 @@ export default function AdminPage() {
 
             {Object.keys(modalData.aggregatedDisposalBreakdown).length > 0 && (
               <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex justify-between items-center font-bold text-orange-900">
-                <span>合計金額</span>
+                <span>処分費合計金額</span>
                 <span className="text-xl md:text-2xl font-black">
-                  ¥{Object.values(modalData.aggregatedDisposalBreakdown).reduce((sum: number, d: any) => sum + d.total, 0).toLocaleString()}
+                  ¥{modalData.disposalCost.toLocaleString()}
                 </span>
               </div>
             )}
