@@ -15,43 +15,21 @@ export default function AdminPage() {
   const [filterLocation, setFilterLocation] = useState('');
   const [form, setForm] = useState<any>({});
 
-  // 編集用ステート
   const [editingReport, setEditingReport] = useState<any | null>(null);
-
-  // 編集完了ポップアップ用ステート
   const [showSaveToast, setShowSaveToast] = useState(false);
-
-  // モーダル用ステート
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
 
-  // 🗑️ 処分費の内訳開閉状態を管理するステート
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
-  // ♻️ スクラップの内訳開閉状態を管理するステート
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
-
-  // 📥 送信された日報一覧の現場ごとの開閉状態を管理するステート
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
-
-  // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
-
-  // スクラップ売却の手動編集用オーバーライドステート
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
-
-  // 月別軽油単価のオーバーライドステート
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
-
-  // 各項目の編集モードを管理するステート
   const [editingCostFields, setEditingCostFields] = useState<any>({});
-
-  // 管理エリアの開閉ステート
   const [showAdminSection, setShowAdminSection] = useState(false);
-
-  // 📅 出勤確認表の開閉ステート
   const [showCalendarSection, setShowCalendarSection] = useState(false);
 
-  // 出勤確認表の年月選択ステート
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -292,7 +270,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- 計算ロジック ---
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
     (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
@@ -376,7 +353,6 @@ export default function AdminPage() {
       });
     });
 
-    // 軽油代の計算
     const rDateNorm = (r.date || '').replace(/\//g, '-');
     const parts = rDateNorm.split('-');
     let fuelCost = 0;
@@ -481,9 +457,7 @@ export default function AdminPage() {
     const baseContractPrice = matchedLocObj?.price || 0;
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
     
-    // 💡 差引しない場合（純粋な粗利：請負金額 - 合計経費）
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
-    // 💡 差引した後（売却益込の粗利：（請負金額 - 合計経費）+ スクラップ売却計）
     const profit = profitWithoutScrap + scrapTotal;
 
     return { 
@@ -507,7 +481,7 @@ export default function AdminPage() {
       contractPrice: baseContractPrice, 
       isFinished,
       profit, 
-      profitWithoutScrap, // 追加
+      profitWithoutScrap, 
       reportsWithIndex: locMapped 
     };
   };
@@ -859,53 +833,55 @@ export default function AdminPage() {
                           </th>
                         );
                       })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {allStaffNames.map(staff => {
-                    return (
-                      <tr key={staff} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
-                          👤 {staff}
-                        </td>
-                        {calendarDays.map(dateStr => {
-                          const matchedReports = reports.filter(r => {
-                            const rDateNormalized = normalizeDateStr(r.date);
-                            if (rDateNormalized !== dateStr) return false;
-                            const isManager = r.manager === staff;
-                            const isWorker = (r.workers || []).includes(staff);
-                            return isManager || isWorker;
-                          });
-
-                          const hasEntry = matchedReports.length > 0;
-                          const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
-
-                          return (
-                            <td key={dateStr} className="py-3 px-1 text-center align-middle">
-                              {hasEntry ? (
-                                <div 
-                                  title={`${dateStr}: ${locNames}`}
-                                  className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
-                                >
-                                  ◯
-                                </div>
-                              ) : (
-                                <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
-                                  -
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
-              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {allStaffNames.map(staff => {
+                      return (
+                        <tr key={staff} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
+                            👤 {staff}
+                          </td>
+                          {calendarDays.map(dateStr => {
+                            const matchedReports = reports.filter(r => {
+                              const rDateNormalized = normalizeDateStr(r.date);
+                              if (rDateNormalized !== dateStr) return false;
+                              const isManager = r.manager === staff;
+                              const isWorker = (r.workers || []).includes(staff);
+                              return isManager || isWorker;
+                            });
+
+                            const hasEntry = matchedReports.length > 0;
+                            const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+
+                            return (
+                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                                {hasEntry ? (
+                                  <div 
+                                    title={`${dateStr}: ${locNames}`}
+                                    className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
+                                  >
+                                    ◯
+                                  </div>
+                                ) : (
+                                  <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
+                                    -
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
+                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
+                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1042,20 +1018,21 @@ export default function AdminPage() {
                           )}
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
-                              <div className="flex items-center justify-end gap-1.5 pt-1">
-                                <span className="text-slate-500 font-bold text-sm">¥</span>
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
-                              </div>
+                            <div className="flex items-center justify-end gap-1.5 pt-1">
+                              <span className="text-slate-500 font-bold text-sm">¥</span>
+                              <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
+                            </div>
                           )}
                         </div>
                       ))
                     )}
+                  </div>
                 </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
-    </div>
 
       {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
@@ -1124,7 +1101,6 @@ export default function AdminPage() {
                               ].join(', ') || '-'}
                             </div>
 
-                            {/* 🗑️ 処分・スクラップの掲載 */}
                             {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
                               <div className="flex flex-col gap-1 pt-0.5">
                                 {(r.disposals || []).length > 0 && (
@@ -1171,7 +1147,7 @@ export default function AdminPage() {
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
-             
+            
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shadow-inner">📝</div>
@@ -1188,7 +1164,7 @@ export default function AdminPage() {
                 ✕
               </button>
             </div>
-             
+            
             <div className="space-y-6">
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">📌 基本情報</h3>
@@ -1351,9 +1327,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 💡 スクラップの差引前後の額をわかりやすく比較表示するセクション */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 差引しない場合（純粋な粗利） */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-2 shadow-2xs">
                 <div>
                   <div className="text-xs md:text-sm font-bold text-slate-500">
@@ -1368,7 +1342,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 差引した後（売却益込の粗利） */}
               <div className="bg-emerald-50/80 p-5 rounded-2xl border border-emerald-200 flex flex-col justify-between space-y-2 shadow-2xs">
                 <div>
                   <div className="text-xs md:text-sm font-bold text-emerald-800">
@@ -1391,7 +1364,6 @@ export default function AdminPage() {
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-medium">稼働日数</div><div className="text-lg md:text-3xl font-black text-amber-800 mt-1 md:mt-2">{modalData.days}日</div></div>
             </div>
 
-            {/* スクラップ売却計の枠（📋 経費・収支の内訳明細の上部に移動） */}
             <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <span className="text-emerald-900 font-bold text-base md:text-lg">♻️ スクラップ売却計</span>
@@ -1505,7 +1477,7 @@ export default function AdminPage() {
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
-             
+            
             <div className="space-y-3">
               {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-6">処分費の明細データはありません</p>
@@ -1573,7 +1545,7 @@ export default function AdminPage() {
               <h3 className="text-lg md:text-2xl font-black text-slate-900">♻️ {modalLocation} - スクラップ売却内訳</h3>
               <button onClick={() => setShowScrapModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
-             
+            
             <div className="space-y-3">
               {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-6">スクラップの明細データはありません</p>
@@ -1599,7 +1571,6 @@ export default function AdminPage() {
                           <div className="text-xs text-emerald-700">合計数量: {data.quantity} / 基準単価: ¥{data.price.toLocaleString()}</div>
                         </div>
 
-                        {/* 金額の編集フィールド */}
                         <div className="flex items-center gap-1 shrink-0">
                           <span className="text-xs font-bold text-emerald-800">+ ¥</span>
                           <input 
@@ -1644,6 +1615,6 @@ export default function AdminPage() {
         </div>
       )}
 
-  </div>
+    </div>
   );
 }
