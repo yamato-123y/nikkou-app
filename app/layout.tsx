@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "音声日報 | 株式会社大和",
-  description: "音声入力と写真撮影だけで作成できる現場日報アプリ",
+  title: "現場日報 | 株式会社大和",
+  description: "株式会社大和の現場専用日報アプリ",
 };
 
 export const viewport: Viewport = {
