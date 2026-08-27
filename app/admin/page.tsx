@@ -329,26 +329,22 @@ export default function AdminPage() {
     });
 
     let scrapC = 0;
-    const scrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, item: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
+    const scrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
     (r.scraps || []).forEach((sc: any) => {
-      const masterPrice = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item)?.price || 0;
-      const uPrice = sc.price !== undefined && sc.price !== null && sc.price !== '' 
-        ? Number(sc.price) 
-        : masterPrice;
-      const subT = Number(sc.quantity || 0) * uPrice;
+      const matchedMaster = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item);
+      const unitStr = sc.unit || matchedMaster?.unit || 't';
+      const subT = 0; // 単価なしのため日報ベースでの金額計算は0、仕切り書入力（override）で管理
       scrapC += subT;
       const scrapKey = `${sc.location || 'その他スクラップ場'} (${sc.item || '品目未指定'})`;
       if (!scrapBreakdown[scrapKey]) {
-        scrapBreakdown[scrapKey] = { quantity: 0, price: uPrice, total: 0, details: [] };
+        scrapBreakdown[scrapKey] = { quantity: 0, total: 0, details: [] };
       }
       scrapBreakdown[scrapKey].quantity += Number(sc.quantity || 0);
-      scrapBreakdown[scrapKey].total += subT;
       scrapBreakdown[scrapKey].details.push({
         date: r.date || '日付不明',
         item: sc.item || '品目未指定',
         quantity: Number(sc.quantity || 0),
-        price: uPrice,
-        total: subT,
+        unit: unitStr,
         reportId: r.id || r._id
       });
     });
@@ -380,7 +376,7 @@ export default function AdminPage() {
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     
     const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
-    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, item: string, quantity: number, price: number, total: number, reportId?: any}>}} = {};
+    const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
     
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -403,10 +399,9 @@ export default function AdminPage() {
 
       Object.entries(dc.scrapBreakdown).forEach(([key, data]) => {
         if (!aggregatedScrapBreakdown[key]) {
-          aggregatedScrapBreakdown[key] = { quantity: 0, price: data.price, total: 0, details: [] };
+          aggregatedScrapBreakdown[key] = { quantity: 0, total: 0, details: [] };
         }
         aggregatedScrapBreakdown[key].quantity += data.quantity;
-        aggregatedScrapBreakdown[key].total += data.total;
         aggregatedScrapBreakdown[key].details.push(...data.details);
       });
 
@@ -443,8 +438,6 @@ export default function AdminPage() {
         if (scOv[key] !== undefined && scOv[key] !== '') {
           overriddenScrapSum += Number(scOv[key]);
           hasIndividualOverride = true;
-        } else {
-          overriddenScrapSum += aggregatedScrapBreakdown[key].total;
         }
       });
       if (hasIndividualOverride) {
@@ -915,7 +908,7 @@ export default function AdminPage() {
                 { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
                 { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
-                { title: "♻️ スクラップマスタ＆単価", key: "scrapLocations", isScrap: true },
+                { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
                 <div key={idx} className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200/90 space-y-4 flex flex-col justify-between shadow-xs">
                   <div className="space-y-4">
@@ -938,15 +931,24 @@ export default function AdminPage() {
                         </div>
                         <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
-                    ) : sec.isDisp || sec.isScrap ? (
+                    ) : sec.isDisp ? (
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
-                        <input type="text" placeholder={sec.isDisp ? "処分場名" : "スクラップ場名"} value={form[sec.isDisp ? 'dLoc' : 'sLoc'] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.isDisp ? 'dLoc' : 'sLoc']: e.target.value})} />
+                        <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="品目" value={form[sec.isDisp ? 'dItem' : 'sItem'] || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.isDisp ? 'dItem' : 'sItem']: e.target.value})} />
-                          <input type="text" placeholder="単位" value={form[sec.isDisp ? 'dUnit' : 'sUnit'] || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.isDisp ? 'dUnit' : 'sUnit']: e.target.value})} />
-                          <input type="number" placeholder="単価" value={form[sec.isDisp ? 'dPrice' : 'sPrice'] || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.isDisp ? 'dPrice' : 'sPrice']: e.target.value})} />
+                          <input type="text" placeholder="品目" value={form.dItem || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                          <input type="text" placeholder="単位" value={form.dUnit || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                          <input type="number" placeholder="単価" value={form.dPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dPrice: e.target.value})} />
                         </div>
-                        <button onClick={() => addMaster(sec.key, {location: form[sec.isDisp ? 'dLoc' : 'sLoc'], item: form[sec.isDisp ? 'dItem' : 'sItem'], unit: form[sec.isDisp ? 'dUnit' : 'sUnit'] || 't', price: Number(form[sec.isDisp ? 'dPrice' : 'sPrice'])||0}, sec.isDisp ? ['dLoc', 'dItem', 'dUnit', 'dPrice'] : ['sLoc', 'sItem', 'sUnit', 'sPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                        <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      </div>
+                    ) : sec.isScrap ? (
+                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                        <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
+                        <div className="grid grid-cols-12 gap-2">
+                          <input type="text" placeholder="品目" value={form.sItem || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                          <input type="text" placeholder="単位" value={form.sUnit || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                        </div>
+                        <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isNoPrice ? (
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
@@ -999,7 +1001,7 @@ export default function AdminPage() {
                                 <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価" />
                               </div>
                             </div>
-                          ) : sec.isDisp || sec.isScrap ? (
+                          ) : sec.isDisp ? (
                             <div className="space-y-2">
                               <div className="grid grid-cols-3 gap-2">
                                 <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="場所名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
@@ -1009,6 +1011,16 @@ export default function AdminPage() {
                               <div className="flex items-center justify-end gap-1.5 pt-1">
                                 <span className="text-slate-500 font-bold text-sm">¥</span>
                                 <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価" />
+                              </div>
+                            </div>
+                          ) : sec.isScrap ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="スクラップ場名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                                <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                              </div>
+                              <div className="pt-1">
+                                <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位 (例: kg, t)" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                               </div>
                             </div>
                           ) : sec.isNoPrice ? (
@@ -1110,7 +1122,7 @@ export default function AdminPage() {
                                 )}
                                 {(r.scraps || []).length > 0 && (
                                   <div className="text-xs text-emerald-700 font-bold">
-                                    ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}t)`).join(', ')}
+                                    ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                                   </div>
                                 )}
                               </div>
@@ -1370,7 +1382,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-3">
                   <span className="font-black text-emerald-800 text-xl md:text-2xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
                   <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm px-3.5 py-2 rounded-xl font-bold shadow-xs transition">
-                    🔍 内訳を確認
+                    🔍 内訳・金額入力
                   </button>
                 </div>
               </div>
@@ -1542,7 +1554,7 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-emerald-200 pb-3">
-              <h3 className="text-lg md:text-2xl font-black text-slate-900">♻️ {modalLocation} - スクラップ売却内訳</h3>
+              <h3 className="text-lg md:text-2xl font-black text-slate-900">♻️ {modalLocation} - スクラップ売却内訳・金額入力</h3>
               <button onClick={() => setShowScrapModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
             
@@ -1568,30 +1580,29 @@ export default function AdminPage() {
                               {isOpen ? '内訳 ▲' : '内訳 ▼'}
                             </button>
                           </div>
-                          <div className="text-xs text-emerald-700">合計数量: {data.quantity} / 基準単価: ¥{data.price.toLocaleString()}</div>
+                          <div className="text-xs text-emerald-700">合計数量: {data.quantity}</div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-xs font-bold text-emerald-800">+ ¥</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs font-bold text-emerald-800">仕切り書金額: ¥</span>
                           <input 
                             type="number"
-                            value={currentOverrideVal !== '' ? currentOverrideVal : data.total}
+                            value={currentOverrideVal}
                             onChange={e => handleScrapOverrideChange(modalLocation, key, e.target.value)}
                             className="w-32 p-2 border border-emerald-300 rounded-xl text-right font-black text-emerald-900 bg-white text-base shadow-2xs"
-                            placeholder="金額"
+                            placeholder="金額を入力"
                           />
                         </div>
                       </div>
 
                       {isOpen && (
                         <div className="pt-3 border-t border-emerald-200 space-y-2 animate-fadeIn">
-                          <div className="text-xs font-bold text-emerald-800">📅 日別・品目別売却明細</div>
+                          <div className="text-xs font-bold text-emerald-800">📅 日別・品目別明細</div>
                           <div className="space-y-1.5">
                             {data.details.map((detail, dIdx) => (
                               <div key={dIdx} className="bg-white p-2.5 rounded-xl border border-emerald-200 flex justify-between items-center text-xs md:text-sm shadow-2xs">
                                 <span className="font-bold text-slate-700">🗓️ {detail.date}</span>
-                                <span className="text-slate-600">品目: {detail.item} / 数量: {detail.quantity}t / 単価: ¥{detail.price.toLocaleString()}</span>
-                                <span className="font-bold text-emerald-800">+ ¥{detail.total.toLocaleString()}</span>
+                                <span className="text-slate-600 font-medium">{detail.item} / 数量: {detail.quantity}{detail.unit}</span>
                               </div>
                             ))}
                           </div>
