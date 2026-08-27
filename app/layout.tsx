@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "現場日報 | 株式会社大和",
+  title: "現場日報",
   description: "株式会社大和の現場専用日報アプリ",
   icons: {
     icon: "/nippo.jpg",
