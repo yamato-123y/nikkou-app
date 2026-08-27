@@ -480,7 +480,11 @@ export default function AdminPage() {
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
-    const profit = (baseContractPrice - sumOverrideCost) + scrapTotal;
+    
+    // 💡 差引しない場合（純粋な粗利：請負金額 - 合計経費）
+    const profitWithoutScrap = baseContractPrice - sumOverrideCost;
+    // 💡 差引した後（売却益込の粗利：（請負金額 - 合計経費）+ スクラップ売却計）
+    const profit = profitWithoutScrap + scrapTotal;
 
     return { 
       days: locMapped.length, 
@@ -503,6 +507,7 @@ export default function AdminPage() {
       contractPrice: baseContractPrice, 
       isFinished,
       profit, 
+      profitWithoutScrap, // 追加
       reportsWithIndex: locMapped 
     };
   };
@@ -712,9 +717,9 @@ export default function AdminPage() {
                       </button>
                     )}
                   </div>
-                  <div>
+                  <div className="flex flex-col gap-0.5">
                     <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                      粗利: ¥{c.profit.toLocaleString()}
+                      粗利（売却益込・差引後）: ¥{c.profit.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -738,13 +743,13 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[30%]">現場名</th>
+                <th className="py-4 px-4 w-[26%]">現場名</th>
                 <th className="py-4 px-4 w-[11%]">請負金額</th>
                 <th className="py-4 px-4 w-[9%]">稼働日数</th>
                 <th className="py-4 px-4 w-[11%]">合計経費</th>
-                <th className="py-4 px-4 w-[11%]">粗利</th>
-                <th className="py-4 px-4 w-[12%] text-center">ステータス / 完了</th>
-                <th className="py-4 px-4 w-[16%] text-center">アクション</th>
+                <th className="py-4 px-4 w-[15%]">粗利（売却益込）</th>
+                <th className="py-4 px-4 w-[13%] text-center">ステータス</th>
+                <th className="py-4 px-4 w-[15%] text-center">アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -854,55 +859,53 @@ export default function AdminPage() {
                           </th>
                         );
                       })}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {allStaffNames.map(staff => {
-                      return (
-                        <tr key={staff} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
-                            👤 {staff}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allStaffNames.map(staff => {
+                    return (
+                      <tr key={staff} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap">
+                          👤 {staff}
+                        </td>
+                        {calendarDays.map(dateStr => {
+                          const matchedReports = reports.filter(r => {
+                            const rDateNormalized = normalizeDateStr(r.date);
+                            if (rDateNormalized !== dateStr) return false;
+                            const isManager = r.manager === staff;
+                            const isWorker = (r.workers || []).includes(staff);
+                            return isManager || isWorker;
+                          });
+
+                          const hasEntry = matchedReports.length > 0;
+                          const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+
+                          return (
+                            <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                              {hasEntry ? (
+                                <div 
+                                  title={`${dateStr}: ${locNames}`}
+                                  className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
+                                >
+                                  ◯
+                                </div>
+                              ) : (
+                                <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
+                                  -
+                              </div>
+                            )}
                           </td>
-                          {calendarDays.map(dateStr => {
-                            const matchedReports = reports.filter(r => {
-                              const rDateNormalized = normalizeDateStr(r.date);
-                              if (rDateNormalized !== dateStr) return false;
-                              const isManager = r.manager === staff;
-                              const isWorker = (r.workers || []).includes(staff);
-                              return isManager || isWorker;
-                            });
-
-                            const hasEntry = matchedReports.length > 0;
-                            const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
-
-                            return (
-                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
-                                {hasEntry ? (
-                                  <div 
-                                    title={`${dateStr}: ${locNames}`}
-                                    className="w-7 h-7 mx-auto bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center font-bold text-xs shadow-2xs cursor-help"
-                                  >
-                                    ◯
-                                  </div>
-                                ) : (
-                                  <div className="w-7 h-7 mx-auto bg-slate-100 text-slate-300 rounded-lg flex items-center justify-center text-[10px]">
-                                    -
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
-                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
-                  <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
-                </div>
-              </div>
-            )}
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 font-medium">
+              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-emerald-100 text-emerald-700 rounded flex items-center justify-center font-bold text-xs">◯</span> <span>現場日報に記載あり（ホバーで現場名確認）</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-100 text-slate-300 rounded flex items-center justify-center text-[10px]">-</span> <span>日報記載なし（未割り当て等）</span></div>
+            </div>
           </div>
         )}
       </div>
@@ -1039,21 +1042,20 @@ export default function AdminPage() {
                           )}
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
-                            <div className="flex items-center justify-end gap-1.5 pt-1">
-                              <span className="text-slate-500 font-bold text-sm">¥</span>
-                              <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
-                            </div>
+                              <div className="flex items-center justify-end gap-1.5 pt-1">
+                                <span className="text-slate-500 font-bold text-sm">¥</span>
+                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-black bg-white text-slate-900" placeholder="単価/日額" />
+                              </div>
                           )}
                         </div>
                       ))
                     )}
-                  </div>
                 </div>
-              ))}
             </div>
-          )}
+          ))}
         </div>
       )}
+    </div>
 
       {/* 📥 送信された日報一覧 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
@@ -1169,7 +1171,7 @@ export default function AdminPage() {
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
-            
+             
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shadow-inner">📝</div>
@@ -1186,7 +1188,7 @@ export default function AdminPage() {
                 ✕
               </button>
             </div>
-            
+             
             <div className="space-y-6">
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider">📌 基本情報</h3>
@@ -1346,6 +1348,39 @@ export default function AdminPage() {
                   <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold shadow-xs transition">CSV出力</button>
                 )}
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 md:px-6 py-2.5 md:py-3 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
+              </div>
+            </div>
+
+            {/* 💡 スクラップの差引前後の額をわかりやすく比較表示するセクション */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 差引しない場合（純粋な粗利） */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-2 shadow-2xs">
+                <div>
+                  <div className="text-xs md:text-sm font-bold text-slate-500">
+                    📉 スクラップ売却額を差引しない場合（純粋な粗利）
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    （請負金額 ¥{modalData.contractPrice.toLocaleString()} - 合計経費 ¥{modalData.total.toLocaleString()}）
+                  </div>
+                </div>
+                <div className={`text-xl md:text-3xl font-black ${modalData.profitWithoutScrap >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+                  ¥{modalData.profitWithoutScrap.toLocaleString()}
+                </div>
+              </div>
+
+              {/* 差引した後（売却益込の粗利） */}
+              <div className="bg-emerald-50/80 p-5 rounded-2xl border border-emerald-200 flex flex-col justify-between space-y-2 shadow-2xs">
+                <div>
+                  <div className="text-xs md:text-sm font-bold text-emerald-800">
+                    📈 スクラップ売却額を差引した後（売却益込・最終粗利）
+                  </div>
+                  <div className="text-xs text-emerald-600 mt-0.5">
+                    （純粋な粗利 ＋ スクラップ売却計 +¥{modalData.scrapTotal.toLocaleString()}）
+                  </div>
+                </div>
+                <div className={`text-xl md:text-3xl font-black ${modalData.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  ¥{modalData.profit.toLocaleString()}
+                </div>
               </div>
             </div>
 
@@ -1609,6 +1644,6 @@ export default function AdminPage() {
         </div>
       )}
 
-    </div>
+  </div>
   );
 }
