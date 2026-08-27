@@ -25,13 +25,13 @@ export default function AdminPage() {
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
 
-  // 🗑️ 処分費の内訳開閉状態を管理するステート（例: { "エヌエヌシー (コンガラ)": true }）
+  // 🗑️ 処分費の内訳開閉状態を管理するステート
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
 
   // 経費内訳明細の手動編集用オーバーライドステート
   const [costOverrides, setCostOverrides] = useState<any>({});
 
-  // 月別軽油単価のオーバーライドステート（例: { "現場名": { "2026-08": 150 } }）
+  // 月別軽油単価のオーバーライドステート
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
 
   // 各項目の編集モードを管理するステート
@@ -40,7 +40,7 @@ export default function AdminPage() {
   // 管理エリアの開閉ステート
   const [showAdminSection, setShowAdminSection] = useState(false);
 
-  // 📅 出勤確認表の開閉ステート（初期値: false = 閉じ気味）
+  // 📅 出勤確認表の開閉ステート
   const [showCalendarSection, setShowCalendarSection] = useState(false);
 
   // 出勤確認表の年月選択ステート
@@ -350,32 +350,34 @@ export default function AdminPage() {
       });
     });
 
+    // 軽油代の計算
     const rDateNorm = (r.date || '').replace(/\//g, '-');
     const parts = rDateNorm.split('-');
-    let fuelCost = Number(r.fuel || 0);
+    let fuelCost = 0;
+    const rawFuelL = Number(r.fuel || 0);
     if (parts.length >= 2) {
       const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
       const locFuelPrices = fuelUnitPrices[r.location] || {};
       const unitPrice = locFuelPrices[ym];
       if (unitPrice !== '' && unitPrice !== undefined) {
-        fuelCost = Number(r.fuel || 0) * Number(unitPrice);
+        fuelCost = rawFuelL * Number(unitPrice);
       }
     }
 
+    // レギュラー購入分
     const regPrice = Number(r.regularPrice || 0);
-    fuelCost += regPrice;
 
     const eC = Number(r.etcPrice || 0);
     const pC = Number(r.parkingPrice || 0);
     const oC = Number(r.otherPrice || 0);
 
-    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: Number(r.fuel || 0), regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
+    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
   const calculateCosts = (locName: string) => {
     const locMapped = reports.filter(r => r.location === locName);
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDisp = 0;
-    let calcFuel = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
+    let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotal = 0;
     
     const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, price: number, total: number, details: Array<{date: string, quantity: number, price: number, total: number}>}} = {};
@@ -408,7 +410,12 @@ export default function AdminPage() {
         aggregatedScrapBreakdown[key].details.push(...data.details);
       });
 
-      calcFuel += dc.fC; calcEtc += dc.eC; calcParking += dc.pC; calcOther += dc.oC; scrapTotal += dc.scrapC;
+      calcFuel += dc.fC; 
+      calcRegular += dc.regularPrice;
+      calcEtc += dc.eC; 
+      calcParking += dc.pC; 
+      calcOther += dc.oC; 
+      scrapTotal += dc.scrapC;
     });
 
     const ov = costOverrides[locName] || {};
@@ -420,11 +427,12 @@ export default function AdminPage() {
     const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
     const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : calcDisp;
     const fuelCost = ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel;
+    const regularCost = ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular;
     const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
-    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + etcCost + parkingCost + otherCost;
+    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
@@ -441,6 +449,7 @@ export default function AdminPage() {
       disposalCost, 
       aggregatedDisposalBreakdown,
       fuelCost, 
+      regularCost,
       etcCost, 
       parkingCost, 
       otherCost, 
@@ -1321,7 +1330,8 @@ export default function AdminPage() {
                   { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                   { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
                   { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
-                  { key: 'fuel', label: '燃料代 (軽油・レギュラー・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                  { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                  { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost },
                   { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
                   { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
                   { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
