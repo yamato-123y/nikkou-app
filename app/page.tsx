@@ -113,6 +113,8 @@ export default function Home() {
   };
 
   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
+  const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
+  const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
 
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
@@ -159,7 +161,6 @@ export default function Home() {
            
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
-             {/* 🛡️ 外側の div に overflow-hidden を持たせることで、中身が絶対にはみ出さないようにガードします */}
              <div className="w-full border-2 rounded-2xl bg-white overflow-hidden box-border">
                <input 
                  type="date" 
@@ -448,75 +449,129 @@ export default function Home() {
              <p className="text-sm font-bold text-slate-400 text-center py-3">「追加する」ボタンを押して選択してください</p>
            )}
 
-           {disposals.map((entry, index) => (
-             <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-               <div>
-                 <label className="text-sm font-bold text-slate-950 block mb-1">処分場・品目</label>
-                 <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={`${entry.location}|${entry.item}`} onChange={(e) => {
-                   const [loc, item] = e.target.value.split('|');
-                   const target = settings.disposalLocations?.find((d:any) => d.location === loc && d.item === item);
-                   const updated = [...disposals];
-                   updated[index] = { location: loc, item: item, quantity: entry.quantity, unit: target?.unit || 't' };
-                   setDisposals(updated);
-                 }}>
-                   <option value="|">選択してください...</option>
-                   {settings.disposalLocations?.map((d:any, idx:number)=><option key={idx} value={`${d.location}|${d.item}`}>{d.location} ({d.item})</option>)}
-                 </select>
-               </div>
-               
-               <div className="flex items-end gap-3">
-                 <div className="flex-1 min-w-0">
-                   <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
-                     const updated = [...disposals]; updated[index].quantity = e.target.value; setDisposals(updated);
-                   }}/>
+           {disposals.map((entry, index) => {
+             const availableItems = (settings.disposalLocations || []).filter((d:any) => d.location === entry.location);
+
+             return (
+               <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 <div>
+                   <label className="text-sm font-bold text-slate-950 block mb-1">① 処分場を選択</label>
+                   <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
+                     const updated = [...disposals];
+                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 't' };
+                     setDisposals(updated);
+                   }}>
+                     <option value="">処分場を選択...</option>
+                     {uniqueDisposalLocations.map((loc:any, idx:number)=><option key={idx} value={loc}>{loc}</option>)}
+                   </select>
                  </div>
-                 <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
-                 <button type="button" onClick={() => setDisposals(disposals.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+
+                 {entry.location && (
+                   <div>
+                     <label className="text-sm font-bold text-slate-950 block mb-1">② 品目を選択</label>
+                     <div className="grid grid-cols-2 gap-2 pt-1">
+                       {availableItems.map((d:any, idx:number) => {
+                         const isSelected = entry.item === d.item;
+                         return (
+                           <button
+                             type="button"
+                             key={idx}
+                             onClick={() => {
+                               const updated = [...disposals];
+                               updated[index] = { ...updated[index], item: d.item, unit: d.unit || 't' };
+                               setDisposals(updated);
+                             }}
+                             className={`p-3 rounded-xl font-bold border-2 text-sm text-center transition ${isSelected ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-slate-900 border-slate-300'}`}
+                           >
+                             {d.item}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
+                 
+                 <div className="flex items-end gap-3 pt-2">
+                   <div className="flex-1 min-w-0">
+                     <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                     <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
+                       const updated = [...disposals]; updated[index].quantity = e.target.value; setDisposals(updated);
+                     }}/>
+                   </div>
+                   <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
+                   <button type="button" onClick={() => setDisposals(disposals.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+                 </div>
                </div>
-             </div>
-           ))}
+             );
+           })}
         </div>
 
         {/* 6. スクラップの搬出 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="flex justify-between items-center border-b pb-3">
              <span className="font-black text-lg text-orange-600">♻️ 6. スクラップの搬出</span>
-             <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
+             <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 'kg'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
 
            {scraps.length === 0 && (
              <p className="text-sm font-bold text-slate-400 text-center py-3">「追加する」ボタンを押して選択してください</p>
            )}
 
-           {scraps.map((entry, index) => (
-             <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-               <div>
-                 <label className="text-sm font-bold text-slate-950 block mb-1">スクラップ場・品目</label>
-                 <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={`${entry.location}|${entry.item}`} onChange={(e) => {
-                   const [loc, item] = e.target.value.split('|');
-                   const target = settings.scrapLocations?.find((s:any) => s.location === loc && s.item === item);
-                   const updated = [...scraps];
-                   updated[index] = { location: loc, item: item, quantity: entry.quantity, unit: target?.unit || 't' };
-                   setScraps(updated);
-                 }}>
-                   <option value="|">選択してください...</option>
-                   {settings.scrapLocations?.map((s:any, idx:number)=><option key={idx} value={`${s.location}|${s.item}`}>{s.location} ({s.item})</option>)}
-                 </select>
-               </div>
+           {scraps.map((entry, index) => {
+             const availableItems = (settings.scrapLocations || []).filter((s:any) => s.location === entry.location);
 
-               <div className="flex items-end gap-3">
-                 <div className="flex-1 min-w-0">
-                   <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
-                   <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
-                     const updated = [...scraps]; updated[index].quantity = e.target.value; setScraps(updated);
-                   }}/>
+             return (
+               <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 <div>
+                   <label className="text-sm font-bold text-slate-950 block mb-1">① スクラップ場を選択</label>
+                   <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
+                     const updated = [...scraps];
+                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 'kg' };
+                     setScraps(updated);
+                   }}>
+                     <option value="">スクラップ場を選択...</option>
+                     {uniqueScrapLocations.map((loc:any, idx:number)=><option key={idx} value={loc}>{loc}</option>)}
+                   </select>
                  </div>
-                 <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
-                 <button type="button" onClick={() => setScraps(scraps.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+
+                 {entry.location && (
+                   <div>
+                     <label className="text-sm font-bold text-slate-950 block mb-1">② 品目を選択</label>
+                     <div className="grid grid-cols-2 gap-2 pt-1">
+                       {availableItems.map((s:any, idx:number) => {
+                         const isSelected = entry.item === s.item;
+                         return (
+                           <button
+                             type="button"
+                             key={idx}
+                             onClick={() => {
+                               const updated = [...scraps];
+                               updated[index] = { ...updated[index], item: s.item, unit: s.unit || 'kg' };
+                               setScraps(updated);
+                             }}
+                             className={`p-3 rounded-xl font-bold border-2 text-sm text-center transition ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-900 border-slate-300'}`}
+                           >
+                             {s.item}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
+
+                 <div className="flex items-end gap-3 pt-2">
+                   <div className="flex-1 min-w-0">
+                     <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                     <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
+                       const updated = [...scraps]; updated[index].quantity = e.target.value; setScraps(updated);
+                     }}/>
+                   </div>
+                   <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 'kg'}</div>
+                   <button type="button" onClick={() => setScraps(scraps.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+                 </div>
                </div>
-             </div>
-           ))}
+             );
+           })}
         </div>
 
         {/* その他 雑費・消耗品等 */}
