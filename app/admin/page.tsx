@@ -209,6 +209,22 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
+  const handleDisposalItemOverrideChange = async (locName: string, disposalName: string, itemKey: string, val: string) => {
+    if (authRole === 'viewer') return;
+    const subKey = `${disposalName}__${itemKey}`;
+    const newDisposalOverrides = {
+      ...disposalOverrides,
+      [locName]: {
+        ...(disposalOverrides[locName] || {}),
+        [subKey]: val
+      }
+    };
+    setDisposalOverrides(newDisposalOverrides);
+    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
+    setSettings(newData);
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
   const handleScrapOverrideChange = async (locName: string, key: string, val: string) => {
     if (authRole === 'viewer') return;
     const newScrapOverrides = {
@@ -323,9 +339,12 @@ export default function AdminPage() {
     (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
-    const disposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}} = {};
+    const disposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
+    
     (r.disposals || []).forEach((d: any) => {
-      const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === d.location && s.item === d.item);
+      const locName = d.location || 'その他処分場';
+      const itemName = d.item || '品目未指定';
+      const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === locName && s.item === itemName);
       const unitStr = d.unit || masterRecord?.unit || 't';
       const masterPrice = masterRecord?.price || 0;
       const uPrice = d.price !== undefined && d.price !== null && d.price !== '' 
@@ -333,14 +352,20 @@ export default function AdminPage() {
         : masterPrice;
       const subT = Number(d.quantity || 0) * uPrice;
       dispC += subT;
-      const key = `${d.location || 'その他処分場'} (${d.item || '品目未指定'})`;
-      if (!disposalBreakdown[key]) {
-        disposalBreakdown[key] = { quantity: 0, price: uPrice, total: 0, unit: unitStr, details: [] };
+
+      if (!disposalBreakdown[locName]) {
+        disposalBreakdown[locName] = { items: {}, total: 0 };
       }
-      disposalBreakdown[key].quantity += Number(d.quantity || 0);
-      disposalBreakdown[key].details.push({
+      disposalBreakdown[locName].total += subT;
+
+      if (!disposalBreakdown[locName].items[itemName]) {
+        disposalBreakdown[locName].items[itemName] = { quantity: 0, price: uPrice, total: 0, unit: unitStr, details: [] };
+      }
+      disposalBreakdown[locName].items[itemName].quantity += Number(d.quantity || 0);
+      disposalBreakdown[locName].items[itemName].total += subT;
+      disposalBreakdown[locName].items[itemName].details.push({
         date: r.date || '日付不明',
-        item: d.item || '品目未指定',
+        item: itemName,
         quantity: Number(d.quantity || 0),
         unit: unitStr,
         price: uPrice,
@@ -395,7 +420,7 @@ export default function AdminPage() {
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     
-    const aggregatedDisposalBreakdown: {[key: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}} = {};
+    const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
     
     locMapped.forEach(r => {
@@ -408,13 +433,20 @@ export default function AdminPage() {
       calcVehicle += dc.vehicleC;
       calcDispCalc += dc.dispC;
 
-      Object.entries(dc.disposalBreakdown).forEach(([key, data]) => {
-        if (!aggregatedDisposalBreakdown[key]) {
-          aggregatedDisposalBreakdown[key] = { quantity: 0, price: data.price, total: 0, unit: data.unit, details: [] };
+      Object.entries(dc.disposalBreakdown).forEach(([locKey, locData]) => {
+        if (!aggregatedDisposalBreakdown[locKey]) {
+          aggregatedDisposalBreakdown[locKey] = { items: {}, total: 0 };
         }
-        aggregatedDisposalBreakdown[key].quantity += data.quantity;
-        aggregatedDisposalBreakdown[key].total += data.total;
-        aggregatedDisposalBreakdown[key].details.push(...data.details);
+        aggregatedDisposalBreakdown[locKey].total += locData.total;
+
+        Object.entries(locData.items).forEach(([itemKey, itemData]) => {
+          if (!aggregatedDisposalBreakdown[locKey].items[itemKey]) {
+            aggregatedDisposalBreakdown[locKey].items[itemKey] = { quantity: 0, price: itemData.price, total: 0, unit: itemData.unit, details: [] };
+          }
+          aggregatedDisposalBreakdown[locKey].items[itemKey].quantity += itemData.quantity;
+          aggregatedDisposalBreakdown[locKey].items[itemKey].total += itemData.total;
+          aggregatedDisposalBreakdown[locKey].items[itemKey].details.push(...itemData.details);
+        });
       });
 
       Object.entries(dc.scrapBreakdown).forEach(([key, data]) => {
@@ -442,12 +474,30 @@ export default function AdminPage() {
     } else {
       let overriddenDispSum = 0;
       let hasIndividualDispOverride = false;
-      Object.keys(aggregatedDisposalBreakdown).forEach(key => {
-        if (dispOv[key] !== undefined && dispOv[key] !== '') {
-          overriddenDispSum += Number(dispOv[key]);
+      Object.keys(aggregatedDisposalBreakdown).forEach(locKey => {
+        // 処分場ごとの上書きチェック
+        if (dispOv[locKey] !== undefined && dispOv[locKey] !== '') {
+          overriddenDispSum += Number(dispOv[locKey]);
           hasIndividualDispOverride = true;
         } else {
-          overriddenDispSum += aggregatedDisposalBreakdown[key].total;
+          // 品目ごとの上書きチェックの合算
+          let locSum = 0;
+          let hasItemOverride = false;
+          Object.keys(aggregatedDisposalBreakdown[locKey].items).forEach(itemKey => {
+            const subKey = `${locKey}__${itemKey}`;
+            if (dispOv[subKey] !== undefined && dispOv[subKey] !== '') {
+              locSum += Number(dispOv[subKey]);
+              hasItemOverride = true;
+            } else {
+              locSum += aggregatedDisposalBreakdown[locKey].items[itemKey].total;
+            }
+          });
+          if (hasItemOverride) {
+            overriddenDispSum += locSum;
+            hasIndividualDispOverride = true;
+          } else {
+            overriddenDispSum += aggregatedDisposalBreakdown[locKey].total;
+          }
         }
       });
       if (hasIndividualDispOverride) {
@@ -1526,61 +1576,98 @@ export default function AdminPage() {
       {/* 🗑️ 処分費詳細モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-3xl w-full max-w-3xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <h3 className="text-lg md:text-2xl font-black text-slate-900">🗑️ {modalLocation} - 処分内容一覧</h3>
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs md:text-base font-bold transition">閉じる</button>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-6">処分費の明細データはありません</p>
               ) : (
-                Object.entries(modalData.aggregatedDisposalBreakdown).map(([key, data]) => {
-                  const isOpen = disposalDetailsOpen[key] || false;
-                  const currentOverrideVal = disposalOverrides[modalLocation]?.[key] ?? '';
-                  const effectiveTotal = currentOverrideVal !== '' ? Number(currentOverrideVal) : data.total;
+                Object.entries(modalData.aggregatedDisposalBreakdown).map(([disposalName, disposalData]) => {
+                  const isOpen = disposalDetailsOpen[disposalName] || false;
+                  const currentLocOverrideVal = disposalOverrides[modalLocation]?.[disposalName] ?? '';
+                  
+                  // 品目ごとの合計あるいは上書きを考慮した処分場トータル計算
+                  let calculatedLocSubtotal = 0;
+                  Object.entries(disposalData.items).forEach(([itemKey, itemData]) => {
+                    const subKey = `${disposalName}__${itemKey}`;
+                    const itemOverride = disposalOverrides[modalLocation]?.[subKey];
+                    calculatedLocSubtotal += itemOverride !== undefined && itemOverride !== '' ? Number(itemOverride) : itemData.total;
+                  });
+
+                  const effectiveLocTotal = currentLocOverrideVal !== '' ? Number(currentLocOverrideVal) : calculatedLocSubtotal;
 
                   return (
-                    <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                      <div className="flex justify-between items-center gap-4">
+                    <div key={disposalName} className="bg-slate-50 p-4 md:p-5 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex justify-between items-center gap-4 flex-wrap">
                         <div className="space-y-1">
-                          <div className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2 flex-wrap">
-                            <span>{key}</span>
+                          <div className="font-black text-slate-900 text-base md:text-lg flex items-center gap-2 flex-wrap">
+                            <span>🏢 {disposalName}</span>
                             <button 
                               type="button"
-                              onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [key]: !isOpen })}
+                              onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [disposalName]: !isOpen })}
                               className="bg-orange-100 hover:bg-orange-200 text-orange-800 px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1"
                             >
                               {isOpen ? '内訳 ▲' : '内訳 ▼'}
                             </button>
                           </div>
-                          <div className="text-xs text-slate-500">合計数量: {data.quantity}{data.unit} / 日報計算単価: ¥{data.price.toLocaleString()}</div>
+                          <div className="text-xs text-slate-500">品目数: {Object.keys(disposalData.items).length}件 / 計算小計: ¥{calculatedLocSubtotal.toLocaleString()}</div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs font-bold text-slate-700">請求金額: ¥</span>
+                          <span className="text-xs font-bold text-slate-700">処分場請求金額: ¥</span>
                           <input 
                             type="number"
-                            value={currentOverrideVal}
-                            onChange={e => handleDisposalOverrideChange(modalLocation, key, e.target.value)}
+                            value={currentLocOverrideVal}
+                            onChange={e => handleDisposalOverrideChange(modalLocation, disposalName, e.target.value)}
                             className="w-32 p-2 border border-orange-300 rounded-xl text-right font-black text-slate-900 bg-white text-base shadow-2xs"
-                            placeholder={`¥${data.total.toLocaleString()}`}
+                            placeholder={`¥${calculatedLocSubtotal.toLocaleString()}`}
                           />
                         </div>
                       </div>
 
                       {isOpen && (
-                        <div className="pt-3 border-t border-slate-200 space-y-2 animate-fadeIn">
-                          <div className="text-xs font-bold text-slate-500">📅 日別・品目別明細</div>
-                          <div className="space-y-1.5">
-                            {data.details.map((detail, dIdx) => (
-                              <div key={dIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs md:text-sm shadow-2xs">
-                                <span className="font-bold text-slate-700">🗓️ {detail.date}</span>
-                                <span className="text-slate-600 font-medium">{detail.item} / 数量: {detail.quantity}{detail.unit} × ¥{detail.price.toLocaleString()}</span>
-                                <span className="font-bold text-slate-900">¥{detail.total.toLocaleString()}</span>
-                              </div>
-                            ))}
+                        <div className="pt-3 border-t border-slate-200 space-y-3 animate-fadeIn">
+                          <div className="text-xs font-bold text-slate-500">📦 品目別内訳・金額</div>
+                          <div className="space-y-2">
+                            {Object.entries(disposalData.items).map(([itemKey, itemData]) => {
+                              const subKey = `${disposalName}__${itemKey}`;
+                              const currentItemOverride = disposalOverrides[modalLocation]?.[subKey] ?? '';
+
+                              return (
+                                <div key={itemKey} className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                                  <div className="flex justify-between items-center gap-2 flex-wrap">
+                                    <div>
+                                      <span className="font-bold text-slate-800 text-sm">{itemKey}</span>
+                                      <span className="text-xs text-slate-500 ml-2">（数量: {itemData.quantity}{itemData.unit} / 単価: ¥{itemData.price.toLocaleString()}）</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs font-bold text-slate-600">品目金額: ¥</span>
+                                      <input 
+                                        type="number"
+                                        value={currentItemOverride}
+                                        onChange={e => handleDisposalItemOverrideChange(modalLocation, disposalName, itemKey, e.target.value)}
+                                        className="w-28 p-1.5 border border-slate-300 rounded-lg text-right font-bold text-slate-900 bg-white text-xs"
+                                        placeholder={`¥${itemData.total.toLocaleString()}`}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* 日別詳細 */}
+                                  <div className="pl-3 border-l-2 border-orange-200 space-y-1 pt-1">
+                                    {itemData.details.map((detail, dIdx) => (
+                                      <div key={dIdx} className="flex justify-between items-center text-xs text-slate-500">
+                                        <span>🗓️ {detail.date} : 数量 {detail.quantity}{detail.unit} × ¥{detail.price.toLocaleString()}</span>
+                                        <span>¥{detail.total.toLocaleString()}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
