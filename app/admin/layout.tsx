@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "管理画面 | 株式会社大和",
+  title: "管理画面",
   icons: {
     icon: "/kanri.jpg",
     apple: "/kanri.jpg",
