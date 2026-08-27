@@ -175,11 +175,21 @@ export default function Home() {
              <label className="text-base font-bold text-slate-950 block mb-2">【現場名】</label>
              <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
                <option value="">現場を選択してください</option>
-               {(settings.locations || []).map((l:any)=>(
-                 <option key={typeof l === 'string' ? l : l.name} value={typeof l === 'string' ? l : l.name}>
-                   {typeof l === 'string' ? l : l.name}
-                 </option>
-               ))}
+               {(settings.locations || [])
+                 .filter((l: any) => {
+                   if (typeof l === 'object' && l !== null) {
+                     return !l.isFinished;
+                   }
+                   return true;
+                 })
+                 .map((l: any) => {
+                   const locName = typeof l === 'string' ? l : l.name;
+                   return (
+                     <option key={locName} value={locName}>
+                       {locName}
+                     </option>
+                   );
+                 })}
              </select>
            </div>
 
