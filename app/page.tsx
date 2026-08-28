@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [settings, setSettings] = useState<any>({});
-  
-  // 今日の日付を yyyy-mm-dd 形式で初期値に設定（type="date"用）
+
   const [date, setDate] = useState(() => {
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -16,41 +15,37 @@ export default function Home() {
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
-  
+  // ② 職種ごとの人数を保持するステート
+  const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
+
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
-  // リース欄の分類
   const [leaseHeavy, setLeaseHeavy] = useState<string[]>([]);
   const [leaseAttach, setLeaseAttach] = useState<string[]>([]);
   const [leaseOther, setLeaseOther] = useState<string[]>([]);
 
-  // 各セクションの開閉状態を管理するステート
   const [isOpenHeavy, setIsOpenHeavy] = useState(false);
   const [isOpenAttach, setIsOpenAttach] = useState(false);
   const [isOpenOther, setIsOpenOther] = useState(false);
 
-  // 🏢 南大阪建機（MOK）からのリース：リストにない機械の自由追加用ステート
   const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
-
-  // 📦 その他（MOK以外からのリース）：「リース会社名を入力」「重機・機械名」「個数」
   const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
 
-  // 自社保有（大和の重機・車両）
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
-  
+
   const [fuel, setFuel] = useState('');
-  const [regularPrice, setRegularPrice] = useState(''); // ①レギュラー購入分(円)
+  const [regularPrice, setRegularPrice] = useState('');
   const [etcPrice, setEtcPrice] = useState('');
   const [parkingPrice, setParkingPrice] = useState('');
-  
+
   const [otherItem, setOtherItem] = useState('');
   const [otherPrice, setOtherPrice] = useState('');
-  
+
   const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
-  
+
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
@@ -71,14 +66,15 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         date, location, manager, workers: selectedWorkers, 
+        jobTypes: jobTypesCount, // ② 職種の人数を送信
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
-        machines: leaseHeavy, // 互換用
-        mokCustomMachines, // MOK自由追加機械
-        otherLeases,        // 変更後のその他リース
+        machines: leaseHeavy,
+        mokCustomMachines,
+        otherLeases,         
         ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
         fuel: fuel || '0', 
-        regularPrice: regularPrice || '0', // ①レギュラー購入分
+        regularPrice: regularPrice || '0',
         etcPrice: etcPrice || '0', 
         parkingPrice: parkingPrice || '0',
         otherItem, otherPrice: otherPrice || '0',
@@ -86,8 +82,9 @@ export default function Home() {
         createdAt: new Date().toISOString()
       })
     });
-    
+
     setSelectedWorkers([]); 
+    setJobTypesCount({});
     setSubcontractors([]);
     setLeaseHeavy([]);
     setLeaseAttach([]);
@@ -118,13 +115,13 @@ export default function Home() {
 
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
-      
+
       {/* ヘッダー */}
       <div className="bg-[#1e293b] text-white p-6 rounded-2xl text-center shadow-md">
         <h1 className="text-2xl font-black">📱 現場日報入力</h1>
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
       </div>
-      
+
       {/* 送信完了ポップアップ */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -132,7 +129,7 @@ export default function Home() {
             <div className="text-5xl">🎉</div>
             <h2 className="text-xl font-black text-slate-950">送信が完了しました</h2>
             <p className="text-base text-slate-800">続けて別の報告を入力しますか？</p>
-            
+
             <div className="flex gap-3 pt-2">
               <button 
                 type="button" 
@@ -154,11 +151,11 @@ export default function Home() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        
+
         {/* 1. 日付と現場の選択 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
            <div className="font-black text-lg text-orange-600 border-b pb-3">📍 1. 日付と現場の選択</div>
-           
+
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
              <div className="w-full border-2 rounded-2xl bg-white overflow-hidden box-border">
@@ -215,12 +212,37 @@ export default function Home() {
              ))}
            </div>
 
+           {/* ② 日報報告画面の「作業員」の下に、マスタ登録をした職種と人数を入力する枠を表示 */}
+           {(settings.jobTypes || []).length > 0 && (
+             <div className="border-t pt-5 space-y-3">
+               <span className="font-bold text-base text-slate-950 block">🏷️ 職種ごとの稼働人数入力</span>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                 {(settings.jobTypes || []).map((j: any) => (
+                   <div key={j.name} className="p-3 bg-slate-50 border-2 rounded-2xl flex items-center justify-between gap-3">
+                     <span className="font-bold text-sm text-slate-800">{j.name}</span>
+                     <div className="flex items-center gap-1.5">
+                       <input 
+                         type="number" 
+                         min="0"
+                         placeholder="0"
+                         className="w-24 p-2.5 border-2 rounded-xl text-center font-bold text-base bg-white"
+                         value={jobTypesCount[j.name] || ''}
+                         onChange={e => setJobTypesCount({ ...jobTypesCount, [j.name]: e.target.value })}
+                       />
+                       <span className="text-sm font-bold text-slate-600">人</span>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+
            <div className="border-t pt-5 space-y-4">
              <div className="flex justify-between items-center">
                <span className="font-bold text-base text-slate-950">👤 外注・派遣作業員</span>
                <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
              </div>
-             
+
              {subcontractors.map((sub, index) => {
                const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
 
@@ -270,7 +292,6 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
            </div>
 
-           {/* 🚛 自社保有（重機・車両） */}
            <div className="space-y-4 bg-emerald-50/70 p-5 rounded-3xl border-2 border-emerald-200">
              <div className="text-sm font-black text-emerald-950 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
                🚛 自社保有（重機・車両）
@@ -297,13 +318,11 @@ export default function Home() {
              </div>
            </div>
 
-           {/* ■ 南大阪建機（MOK）リース */}
            <div className="space-y-4 bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200">
              <div className="text-sm font-black text-blue-950 bg-blue-200 px-4 py-2 rounded-xl inline-block">
                🏢 南大阪建機（MOK）からのリース
              </div>
 
-             {/* 重機を選択ボタン */}
              <div className="space-y-1">
                <button 
                  type="button" 
@@ -324,7 +343,6 @@ export default function Home() {
                )}
              </div>
 
-             {/* アタッチメントを選択ボタン */}
              <div className="space-y-1 pt-2">
                <button 
                  type="button" 
@@ -345,7 +363,6 @@ export default function Home() {
                )}
              </div>
 
-             {/* その他の機械・機器を選択ボタン */}
              <div className="space-y-1 pt-2">
                <button 
                  type="button" 
@@ -366,7 +383,6 @@ export default function Home() {
                )}
              </div>
 
-             {/* 🏢 リストにない機械を自由に追加できる機能 */}
              <div className="pt-3 border-t border-blue-200 space-y-3">
                <div className="flex justify-between items-center gap-3">
                  <span className="text-sm md:text-base font-black text-blue-950">リストにない機械の追加</span>
@@ -377,7 +393,7 @@ export default function Home() {
                    <input type="text" placeholder="機械名を入力" value={cm.name} onChange={e=>{
                      const updated = [...mokCustomMachines]; updated[index].name = e.target.value; setMokCustomMachines(updated);
                    }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-                   
+
                    <div className="grid grid-cols-2 gap-2 items-center">
                      <input type="number" placeholder="個数" value={cm.count} onChange={e=>{
                        const updated = [...mokCustomMachines]; updated[index].count = e.target.value; setMokCustomMachines(updated);
@@ -389,7 +405,6 @@ export default function Home() {
              </div>
            </div>
 
-           {/* ■ その他（MOK以外からのリース） */}
            <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
              <div className="flex justify-between items-start gap-3">
                <div className="text-base md:text-lg font-black text-amber-950 bg-amber-200 px-4 py-2.5 rounded-xl leading-relaxed">
@@ -403,11 +418,11 @@ export default function Home() {
                  <input type="text" placeholder="リース会社名を入力" value={ol.company} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].company = e.target.value; setOtherLeases(updated);
                  }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-                 
+
                  <input type="text" placeholder="重機・機械名" value={ol.name} onChange={e=>{
                    const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
                  }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-                 
+
                  <div className="grid grid-cols-2 gap-2 items-center">
                    <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
                      const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
@@ -425,13 +440,12 @@ export default function Home() {
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">⛽ 4. 燃料・経費</span>
            </div>
-           
+
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【軽油 (L)】</label>
              <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
 
-           {/* ① レギュラー 購入分(円) の追加枠 */}
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【レギュラー 購入分 (円)】</label>
              <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
@@ -454,7 +468,7 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600">🗑️ 5. 処分場への搬出</span>
              <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
-           
+
            {disposals.length === 0 && (
              <p className="text-sm font-bold text-slate-400 text-center py-3">「追加する」ボタンを押して選択してください</p>
            )}
@@ -500,7 +514,7 @@ export default function Home() {
                      </div>
                    </div>
                  )}
-                 
+
                  <div className="flex items-end gap-3 pt-2">
                    <div className="flex-1 min-w-0">
                      <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
