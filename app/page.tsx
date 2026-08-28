@@ -15,11 +15,11 @@ export default function Home() {
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
-  // ② 職種ごとの人数を保持するステート
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
 
+  // 通常（南大阪建機等）のリース
   const [leaseHeavy, setLeaseHeavy] = useState<string[]>([]);
   const [leaseAttach, setLeaseAttach] = useState<string[]>([]);
   const [leaseOther, setLeaseOther] = useState<string[]>([]);
@@ -27,6 +27,15 @@ export default function Home() {
   const [isOpenHeavy, setIsOpenHeavy] = useState(false);
   const [isOpenAttach, setIsOpenAttach] = useState(false);
   const [isOpenOther, setIsOpenOther] = useState(false);
+
+  // 👇 【追加】石川県出張用のリース選択ステート
+  const [isOpenIshikawa, setIsOpenIshikawa] = useState(false);
+  const [ishikawaLeaseHeavy, setIshikawaLeaseHeavy] = useState<string[]>([]);
+  const [ishikawaLeaseAttach, setIshikawaLeaseAttach] = useState<string[]>([]);
+  const [ishikawaLeaseOther, setIshikawaLeaseOther] = useState<string[]>([]);
+  const [isOpenIshikawaHeavy, setIsOpenIshikawaHeavy] = useState(false);
+  const [isOpenIshikawaAttach, setIsOpenIshikawaAttach] = useState(false);
+  const [isOpenIshikawaOther, setIsOpenIshikawaOther] = useState(false);
 
   const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
   const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
@@ -66,9 +75,11 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         date, location, manager, workers: selectedWorkers, 
-        jobTypes: jobTypesCount, // ② 職種の人数を送信
+        jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
+        // 石川県用リースの送信データ追加
+        ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther,
         machines: leaseHeavy,
         mokCustomMachines,
         otherLeases,         
@@ -89,6 +100,9 @@ export default function Home() {
     setLeaseHeavy([]);
     setLeaseAttach([]);
     setLeaseOther([]);
+    setIshikawaLeaseHeavy([]);
+    setIshikawaLeaseAttach([]);
+    setIshikawaLeaseOther([]);
     setMokCustomMachines([]);
     setOtherLeases([]);
     setSelectedOwnMachines([]); 
@@ -212,7 +226,6 @@ export default function Home() {
              ))}
            </div>
 
-           {/* ② 日報報告画面の「作業員」の下に、マスタ登録をした職種と人数を入力する枠を表示 */}
            {(settings.jobTypes || []).length > 0 && (
              <div className="border-t pt-5 space-y-3">
                <span className="font-bold text-base text-slate-950 block">🏷️ 職種ごとの稼働人数入力</span>
@@ -292,6 +305,7 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
            </div>
 
+           {/* 自社保有 */}
            <div className="space-y-4 bg-emerald-50/70 p-5 rounded-3xl border-2 border-emerald-200">
              <div className="text-sm font-black text-emerald-950 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
                🚛 自社保有（重機・車両）
@@ -318,6 +332,7 @@ export default function Home() {
              </div>
            </div>
 
+           {/* 南大阪建機リース */}
            <div className="space-y-4 bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200">
              <div className="text-sm font-black text-blue-950 bg-blue-200 px-4 py-2 rounded-xl inline-block">
                🏢 南大阪建機（MOK）からのリース
@@ -382,55 +397,73 @@ export default function Home() {
                  </div>
                )}
              </div>
-
-             <div className="pt-3 border-t border-blue-200 space-y-3">
-               <div className="flex justify-between items-center gap-3">
-                 <span className="text-sm md:text-base font-black text-blue-950">リストにない機械の追加</span>
-                 <button type="button" onClick={() => setMokCustomMachines([...mokCustomMachines, {name: '', count: ''}])} className="bg-blue-600 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-blue-700 transition shrink-0">＋ 追加</button>
-               </div>
-               {mokCustomMachines.map((cm, index) => (
-                 <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-blue-300 shadow-xs">
-                   <input type="text" placeholder="機械名を入力" value={cm.name} onChange={e=>{
-                     const updated = [...mokCustomMachines]; updated[index].name = e.target.value; setMokCustomMachines(updated);
-                   }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-
-                   <div className="grid grid-cols-2 gap-2 items-center">
-                     <input type="number" placeholder="個数" value={cm.count} onChange={e=>{
-                       const updated = [...mokCustomMachines]; updated[index].count = e.target.value; setMokCustomMachines(updated);
-                     }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-                     <button type="button" onClick={() => setMokCustomMachines(mokCustomMachines.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
-                   </div>
-                 </div>
-               ))}
-             </div>
            </div>
 
-           <div className="space-y-3 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
-             <div className="flex justify-between items-start gap-3">
-               <div className="text-base md:text-lg font-black text-amber-950 bg-amber-200 px-4 py-2.5 rounded-xl leading-relaxed">
-                 📦 その他<br />
-                 <span className="text-xs md:text-sm font-bold">（MOK以外からのリース）</span>
-               </div>
-               <button type="button" onClick={() => setOtherLeases([...otherLeases, {company: '', name: '', count: ''}])} className="bg-emerald-600 text-white text-sm md:text-base px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition shrink-0">＋ 追加</button>
-             </div>
-             {otherLeases.map((ol, index) => (
-               <div key={index} className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border-2 border-amber-300 shadow-xs">
-                 <input type="text" placeholder="リース会社名を入力" value={ol.company} onChange={e=>{
-                   const updated = [...otherLeases]; updated[index].company = e.target.value; setOtherLeases(updated);
-                 }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
+           {/* 👇 【追加】石川県出張用リース選択セクション */}
+           <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200">
+             <button
+               type="button"
+               onClick={() => setIsOpenIshikawa(!isOpenIshikawa)}
+               className="w-full text-left p-4 bg-indigo-600 text-white rounded-2xl font-black text-lg flex justify-between items-center shadow-md hover:bg-indigo-700 transition"
+             >
+               <span>🗾 石川県出張用リース機器</span>
+               <span className="text-sm">{isOpenIshikawa ? '▲ 閉じる' : '▼ 開く'}</span>
+             </button>
 
-                 <input type="text" placeholder="重機・機械名" value={ol.name} onChange={e=>{
-                   const updated = [...otherLeases]; updated[index].name = e.target.value; setOtherLeases(updated);
-                 }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
+             {isOpenIshikawa && (
+               <div className="space-y-3 pt-2 animate-fadeIn">
+                 {/* 石川・重機 */}
+                 <div>
+                   <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                     <span>【（石川県）重機を選択】</span>
+                     {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseHeavy.length}選定中</span>}
+                     <span>{isOpenIshikawaHeavy ? '▲' : '▼'}</span>
+                   </button>
+                   {isOpenIshikawaHeavy && (
+                     <div className="grid grid-cols-2 gap-2 pt-2">
+                       {(settings.ishikawaLeaseHeavy || []).map((m:any) => (
+                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
+                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                       ))}
+                     </div>
+                   )}
+                 </div>
 
-                 <div className="grid grid-cols-2 gap-2 items-center">
-                   <input type="number" placeholder="個数" value={ol.count} onChange={e=>{
-                     const updated = [...otherLeases]; updated[index].count = e.target.value; setOtherLeases(updated);
-                   }} className="w-full max-w-full min-w-0 p-3 border-2 rounded-xl font-bold text-base bg-white text-slate-950 box-border block" />
-                   <button type="button" onClick={() => setOtherLeases(otherLeases.filter((_,i)=>i!==index))} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition text-center">削除</button>
+                 {/* 石川・アタッチメント */}
+                 <div>
+                   <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                     <span>【（石川県）アタッチメントを選択】</span>
+                     {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseAttach.length}選定中</span>}
+                     <span>{isOpenIshikawaAttach ? '▲' : '▼'}</span>
+                   </button>
+                   {isOpenIshikawaAttach && (
+                     <div className="grid grid-cols-2 gap-2 pt-2">
+                       {(settings.ishikawaLeaseAttach || []).map((m:any) => (
+                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
+                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                       ))}
+                     </div>
+                   )}
+                 </div>
+
+                 {/* 石川・その他機械 */}
+                 <div>
+                   <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                     <span>【（石川県）その他機械・機器を選択】</span>
+                     {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseOther.length}選定中</span>}
+                     <span>{isOpenIshikawaOther ? '▲' : '▼'}</span>
+                   </button>
+                   {isOpenIshikawaOther && (
+                     <div className="grid grid-cols-2 gap-2 pt-2">
+                       {(settings.ishikawaLeaseOther || []).map((m:any) => (
+                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
+                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                       ))}
+                     </div>
+                   )}
                  </div>
                </div>
-             ))}
+             )}
            </div>
 
         </div>
