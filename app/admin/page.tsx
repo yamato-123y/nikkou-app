@@ -1,3 +1,4 @@
+```tsx
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -71,7 +72,7 @@ export default function AdminPage() {
       }
     } catch (e) { 
       console.error(e); 
-    } font-medium: false; finally {
+    } finally {
       setIsLoading(false);
     }
   };
@@ -2306,3 +2307,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+```
