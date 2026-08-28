@@ -1099,16 +1099,16 @@ export default function AdminPage() {
                 { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
                 { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
                 { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
-                { title: "🗾 （石川県）重機＆日額単価", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy" },
-                { title: "🗾 （石川県）アタッチメント＆日額単価", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach" },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther" },
+                { title: "🗾 （石川県）重機＆日額単価", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true },
+                { title: "🗾 （石川県）アタッチメント＆日額単価", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true },
+                { title: "🗾 （石川県）その他機械・機器＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
-                <div key={idx} className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200/90 space-y-4 flex flex-col justify-between shadow-xs">
+                <div key={idx} className={`p-4 md:p-6 rounded-2xl border space-y-4 flex flex-col justify-between shadow-xs ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200/90'}`}>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center gap-2">
-                      <h3 className="font-bold text-base md:text-lg text-orange-600 tracking-wider truncate">{sec.title}</h3>
+                      <h3 className={`font-bold text-base md:text-lg tracking-wider truncate ${sec.isIshikawa ? 'text-indigo-700' : 'text-orange-600'}`}>{sec.title}</h3>
                       <button 
                         onClick={() => saveMaster(sec.key)} 
                         className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm px-3.5 py-2 rounded-xl font-bold shadow-sm transition shrink-0"
@@ -1741,8 +1741,8 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🗾 石川県出張用リース機器</h3>
+              <div className="bg-indigo-50/60 p-5 md:p-6 rounded-3xl border border-indigo-200 space-y-4">
+                <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-wider">🗾 石川県出張用リース機器</h3>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）重機を選択】</label>
@@ -1750,7 +1750,7 @@ export default function AdminPage() {
                     {(settings.ishikawaHeavy || []).map((m: any) => {
                       const checked = (editingReport.ishikawaHeavy || []).includes(m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
                             const current = editingReport.ishikawaHeavy || [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
@@ -1769,7 +1769,7 @@ export default function AdminPage() {
                     {(settings.ishikawaAttach || []).map((m: any) => {
                       const checked = (editingReport.ishikawaAttach || []).includes(m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
                             const current = editingReport.ishikawaAttach || [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
@@ -1788,7 +1788,7 @@ export default function AdminPage() {
                     {(settings.ishikawaOther || []).map((m: any) => {
                       const checked = (editingReport.ishikawaOther || []).includes(m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
                             const current = editingReport.ishikawaOther || [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
@@ -1902,8 +1902,8 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
               <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
-              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-blue-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
             <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
