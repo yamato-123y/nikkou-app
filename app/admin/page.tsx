@@ -71,7 +71,7 @@ export default function AdminPage() {
       }
     } catch (e) { 
       console.error(e); 
-    } finally {
+    } font-medium: false; finally {
       setIsLoading(false);
     }
   };
@@ -355,6 +355,9 @@ export default function AdminPage() {
     (r.leaseHeavy || []).forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.leaseOther || []).forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
+    (r.ishikawaHeavy || []).forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    (r.ishikawaAttach || []).forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
+    (r.ishikawaOther || []).forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
     let otherLeaseC = 0;
     (r.otherLeases || []).forEach((ol: any) => {
@@ -614,7 +617,7 @@ export default function AdminPage() {
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
       Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
+      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ishikawaHeavy || []), ...(r.ishikawaAttach || []), ...(r.ishikawaOther || []), ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
       (r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
       (r.ownMachines || []).join('/'),
       (r.vehicles || []).join('/'), 
@@ -1096,6 +1099,9 @@ export default function AdminPage() {
                 { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
                 { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
                 { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+                { title: "🗾 （石川県）重機＆日額単価", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy" },
+                { title: "🗾 （石川県）アタッチメント＆日額単価", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach" },
+                { title: "🗾 （石川県）その他機械・機器＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther" },
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
@@ -1306,6 +1312,9 @@ export default function AdminPage() {
                                 ...(r.leaseHeavy || []), 
                                 ...(r.leaseAttach || []), 
                                 ...(r.leaseOther || []), 
+                                ...(r.ishikawaHeavy || []), 
+                                ...(r.ishikawaAttach || []), 
+                                ...(r.ishikawaOther || []), 
                                 ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
                                 ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
                                 ...(r.ownMachines || []), 
@@ -1724,6 +1733,67 @@ export default function AdminPage() {
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, leaseOther: updated });
                           }} className="rounded text-blue-600 w-4 h-4" />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🗾 石川県出張用リース機器</h3>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）重機を選択】</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                    {(settings.ishikawaHeavy || []).map((m: any) => {
+                      const checked = (editingReport.ishikawaHeavy || []).includes(m.name);
+                      return (
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                          <input type="checkbox" checked={checked} onChange={e => {
+                            const current = editingReport.ishikawaHeavy || [];
+                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
+                            setEditingReport({ ...editingReport, ishikawaHeavy: updated });
+                          }} className="rounded text-indigo-600 w-4 h-4" />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメントを選択】</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                    {(settings.ishikawaAttach || []).map((m: any) => {
+                      const checked = (editingReport.ishikawaAttach || []).includes(m.name);
+                      return (
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                          <input type="checkbox" checked={checked} onChange={e => {
+                            const current = editingReport.ishikawaAttach || [];
+                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
+                            setEditingReport({ ...editingReport, ishikawaAttach: updated });
+                          }} className="rounded text-indigo-600 w-4 h-4" />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器を選択】</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                    {(settings.ishikawaOther || []).map((m: any) => {
+                      const checked = (editingReport.ishikawaOther || []).includes(m.name);
+                      return (
+                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200'}`}>
+                          <input type="checkbox" checked={checked} onChange={e => {
+                            const current = editingReport.ishikawaOther || [];
+                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
+                            setEditingReport({ ...editingReport, ishikawaOther: updated });
+                          }} className="rounded text-indigo-600 w-4 h-4" />
                           <span className="truncate">{m.name}</span>
                         </label>
                       );
