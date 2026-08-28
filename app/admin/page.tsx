@@ -811,7 +811,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 text-xs md:text-sm gap-1 bg-white p-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-center">
-                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()}</span></div>
+                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
@@ -846,7 +846,7 @@ export default function AdminPage() {
                     <td className="py-5 px-4 align-middle">
                       <span className="font-bold text-xl break-all leading-snug text-blue-600">{loc.name}</span>
                     </td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()}</td>
+                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></td>
                     <td className="py-5 px-4 text-slate-800 font-bold align-middle">{c.days} 日</td>
                     <td className="py-5 px-4 text-slate-900 font-bold align-middle">¥{c.total.toLocaleString()}</td>
                     <td className={`py-5 px-4 font-bold text-2xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
@@ -903,7 +903,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 text-xs md:text-sm gap-1 bg-white p-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-center">
-                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()}</span></div>
+                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
@@ -941,7 +941,7 @@ export default function AdminPage() {
                         <span className="bg-slate-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-2xs shrink-0">📁 完了済</span>
                       </div>
                     </td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()}</td>
+                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></td>
                     <td className="py-5 px-4 text-slate-800 font-bold align-middle">{c.days} 日</td>
                     <td className="py-5 px-4 text-slate-900 font-bold align-middle">¥{c.total.toLocaleString()}</td>
                     <td className={`py-5 px-4 font-bold text-2xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
@@ -1509,6 +1509,116 @@ export default function AdminPage() {
                 })}
               </div>
 
+              {/* 追加：処分（disposals）の編集セクション */}
+              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🗑️ 処分場・搬出データ</h3>
+                  <button type="button" onClick={() => setEditingReport({...editingReport, disposals: [...(editingReport.disposals || []), {location: '', item: '', quantity: '', unit: 't'}]})} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 処分項目を追加</button>
+                </div>
+                {(editingReport.disposals || []).map((disp: any, dIdx: number) => {
+                  const uniqueDispLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
+                  const availableDispItems = (settings.disposalLocations || []).filter((d:any) => d.location === disp.location);
+                  return (
+                    <div key={dIdx} className="p-4 border-2 rounded-2xl bg-white space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">処分場名</label>
+                          <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.location} onChange={e => {
+                            const updated = [...(editingReport.disposals || [])];
+                            updated[dIdx] = { ...updated[dIdx], location: e.target.value, item: '' };
+                            setEditingReport({ ...editingReport, disposals: updated });
+                          }}>
+                            <option value="">処分場を選択...</option>
+                            {uniqueDispLocations.map((loc:any)=><option key={loc} value={loc}>{loc}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
+                          <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.item} onChange={e => {
+                            const updated = [...(editingReport.disposals || [])];
+                            const selectedItemObj = availableDispItems.find((d:any) => d.item === e.target.value);
+                            updated[dIdx] = { ...updated[dIdx], item: e.target.value, unit: selectedItemObj?.unit || 't' };
+                            setEditingReport({ ...editingReport, disposals: updated });
+                          }}>
+                            <option value="">品目を応援...</option>
+                            {availableDispItems.map((d:any, idx:number)=><option key={idx} value={d.item}>{d.item} ({d.unit})</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({disp.unit || 't'})</label>
+                          <input type="number" step="0.01" placeholder="0" className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.quantity} onChange={e => {
+                            const updated = [...(editingReport.disposals || [])];
+                            updated[dIdx] = { ...updated[dIdx], quantity: e.target.value };
+                            setEditingReport({ ...editingReport, disposals: updated });
+                          }}/>
+                        </div>
+                        <button type="button" onClick={() => {
+                          const updated = (editingReport.disposals || []).filter((_:any, i:number)=>i!==dIdx);
+                          setEditingReport({ ...editingReport, disposals: updated });
+                        }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 追加：スクラップ（scraps）の編集セクション */}
+              <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">♻️ スクラップ搬出データ</h3>
+                  <button type="button" onClick={() => setEditingReport({...editingReport, scraps: [...(editingReport.scraps || []), {location: '', item: '', quantity: '', unit: 'kg'}]})} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ スクラップ項目を追加</button>
+                </div>
+                {(editingReport.scraps || []).map((sc: any, scIdx: number) => {
+                  const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
+                  const availableScrapItems = (settings.scrapLocations || []).filter((s:any) => s.location === sc.location);
+                  return (
+                    <div key={scIdx} className="p-4 border-2 rounded-2xl bg-white space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">スクラップ場名</label>
+                          <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.location} onChange={e => {
+                            const updated = [...(editingReport.scraps || [])];
+                            updated[scIdx] = { ...updated[scIdx], location: e.target.value, item: '' };
+                            setEditingReport({ ...editingReport, scraps: updated });
+                          }}>
+                            <option value="">スクラップ場を選択...</option>
+                            {uniqueScrapLocations.map((loc:any)=><option key={loc} value={loc}>{loc}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
+                          <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.item} onChange={e => {
+                            const updated = [...(editingReport.scraps || [])];
+                            const selectedItemObj = availableScrapItems.find((s:any) => s.item === e.target.value);
+                            updated[scIdx] = { ...updated[scIdx], item: e.target.value, unit: selectedItemObj?.unit || 'kg' };
+                            setEditingReport({ ...editingReport, scraps: updated });
+                          }}>
+                            <option value="">品目を選択...</option>
+                            {availableScrapItems.map((s:any, idx:number)=><option key={idx} value={s.item}>{s.item} ({s.unit})</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                          <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({sc.unit || 'kg'})</label>
+                          <input type="number" step="0.01" placeholder="0" className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.quantity} onChange={e => {
+                            const updated = [...(editingReport.scraps || [])];
+                            updated[scIdx] = { ...updated[scIdx], quantity: e.target.value };
+                            setEditingReport({ ...editingReport, scraps: updated });
+                          }}/>
+                        </div>
+                        <button type="button" onClick={() => {
+                          const updated = (editingReport.scraps || []).filter((_:any, i:number)=>i!==scIdx);
+                          setEditingReport({ ...editingReport, scraps: updated });
+                        }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🚛 自社保有（重機・車両）</h3>
                 <div className="space-y-3">
@@ -1672,11 +1782,9 @@ export default function AdminPage() {
           <div className="bg-white rounded-3xl w-full max-w-6xl p-5 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 md:space-y-8 shadow-2xl border border-slate-100">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
               <div className="flex flex-col items-start gap-3">
-                {/* 変更：閉じるボタンを元CSV出力ボタンの位置・デザインへ移動 */}
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div>
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
-                  {/* 変更：「原価・収支および内訳明細」の右側にコンパクトなCSV出力ボタンを配置 */}
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
@@ -1696,7 +1804,7 @@ export default function AdminPage() {
                     📉 スクラップ売却額を差引しない場合（純粋な粗利）
                   </div>
                   <div className="text-xs md:text-sm text-slate-400 mt-1">
-                    （請負金額 ¥{modalData.contractPrice.toLocaleString()} - 合計経費 ¥{modalData.total.toLocaleString()}）
+                    （請負金額 ¥{modalData.contractPrice.toLocaleString()} 税抜 - 合計経費 ¥{modalData.total.toLocaleString()}）
                   </div>
                 </div>
                 <div className={`text-2xl md:text-4xl font-bold ${modalData.profitWithoutScrap >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
@@ -1720,7 +1828,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
-              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
+              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-emerald-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
               <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-blue-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
