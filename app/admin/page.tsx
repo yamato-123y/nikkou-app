@@ -686,7 +686,6 @@ export default function AdminPage() {
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
   
-  // ① 稼働中の現場と完了済の現場を分離
   const activeLocList = locList.filter((l:any) => !l.isFinished);
   const finishedLocList = locList.filter((l:any) => l.isFinished);
 
@@ -746,7 +745,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ① 稼働中の現場サマリー */}
+      {/* 稼働中の現場サマリー */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5">
         <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 稼働中の現場 一覧</h2>
 
@@ -777,9 +776,6 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
-                  {authRole === 'admin' && (
-                    <button onClick={() => downloadLocationCSV(loc.name)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap">📥 CSV</button>
-                  )}
                 </div>
               </div>
             );
@@ -793,13 +789,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[28%]">現場名</th>
-                <th className="py-4 px-4 w-[12%]">請負金額</th>
-                <th className="py-4 px-4 w-[10%]">稼働日数</th>
-                <th className="py-4 px-4 w-[12%]">合計経費</th>
-                <th className="py-4 px-4 w-[18%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[10%] text-center">ステータス</th>
-                <th className="py-4 px-4 w-[10%] text-center">アクション</th>
+                <th className="py-4 px-4 w-[32%]">現場名</th>
+                <th className="py-4 px-4 w-[13%]">請負金額</th>
+                <th className="py-4 px-4 w-[11%]">稼働日数</th>
+                <th className="py-4 px-4 w-[13%]">合計経費</th>
+                <th className="py-4 px-4 w-[17%]">粗利（売却益込）</th>
+                <th className="py-4 px-4 w-[14%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -817,24 +812,15 @@ export default function AdminPage() {
                       ¥{c.profit.toLocaleString()}
                     </td>
                     <td className="py-5 px-4 text-center align-middle">
-                      {authRole !== 'viewer' ? (
-                        <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-300 shadow-2xs transition">
-                          現場完了
-                        </button>
-                      ) : (
-                        <span className="text-slate-500 text-base font-bold">進行中</span>
-                      )}
-                    </td>
-                    <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
-                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
-                          詳細分析 →
-                        </button>
-                        {authRole === 'admin' && (
-                          <button onClick={() => downloadLocationCSV(loc.name)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-3 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap" title="CSV出力">
-                            📥 CSV
+                        {authRole !== 'viewer' && (
+                          <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 shadow-2xs transition">
+                            現場完了
                           </button>
                         )}
+                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
+                          詳細分析 →
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -842,7 +828,7 @@ export default function AdminPage() {
               })}
               {activeLocList.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-slate-400 text-base">稼働中の現場はありません</td>
+                  <td colSpan={6} className="text-center py-6 text-slate-400 text-base">稼働中の現場はありません</td>
                 </tr>
               )}
             </tbody>
@@ -850,7 +836,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ① 「完了済の現場」枠を新しく作成 */}
+      {/* 完了済の現場 一覧 */}
       <div className="bg-slate-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5">
         <h2 className="text-xl md:text-2xl font-bold text-slate-700">📁 完了済の現場 一覧</h2>
 
@@ -882,9 +868,6 @@ export default function AdminPage() {
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
-                  {authRole === 'admin' && (
-                    <button onClick={() => downloadLocationCSV(loc.name)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap">📥 CSV</button>
-                  )}
                 </div>
               </div>
             );
@@ -898,13 +881,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-300 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[28%]">現場名</th>
-                <th className="py-4 px-4 w-[12%]">請負金額</th>
-                <th className="py-4 px-4 w-[10%]">稼働日数</th>
-                <th className="py-4 px-4 w-[12%]">合計経費</th>
-                <th className="py-4 px-4 w-[18%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[10%] text-center">ステータス</th>
-                <th className="py-4 px-4 w-[10%] text-center">アクション</th>
+                <th className="py-4 px-4 w-[32%]">現場名</th>
+                <th className="py-4 px-4 w-[13%]">請負金額</th>
+                <th className="py-4 px-4 w-[11%]">稼働日数</th>
+                <th className="py-4 px-4 w-[13%]">合計経費</th>
+                <th className="py-4 px-4 w-[17%]">粗利（売却益込）</th>
+                <th className="py-4 px-4 w-[14%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-lg font-medium">
@@ -925,20 +907,13 @@ export default function AdminPage() {
                       ¥{c.profit.toLocaleString()}
                     </td>
                     <td className="py-5 px-4 text-center align-middle">
-                      {authRole !== 'viewer' && (
-                        <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
-                      )}
-                    </td>
-                    <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
-                        <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
+                        {authRole !== 'viewer' && (
+                          <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                        )}
+                        <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
-                        {authRole === 'admin' && (
-                          <button onClick={() => downloadLocationCSV(loc.name)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-3 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap" title="CSV出力">
-                            📥 CSV
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -946,7 +921,7 @@ export default function AdminPage() {
               })}
               {finishedLocList.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-6 text-slate-400 text-base">完了済みの現場はありません</td>
+                  <td colSpan={6} className="text-center py-6 text-slate-400 text-base">完了済みの現場はありません</td>
                 </tr>
               )}
             </tbody>
@@ -954,7 +929,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 📅 出勤確認表 */}
+      {/* 出勤確認表 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
         <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
           <div>
@@ -1054,7 +1029,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* ⚙️ マスタ登録・単価設定エリア（管理者のみ） */}
+      {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
@@ -1076,7 +1051,6 @@ export default function AdminPage() {
                 { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額"], type: "locations" },
                 { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
                 { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
-                // ② マスタに「職種」を追加
                 { title: "🏷️ 職種一覧", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
                 { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
                 { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
@@ -1223,7 +1197,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📥 送信された日報一覧 (③ 日報の内容全てを表示) */}
+      {/* 送信された日報一覧 */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
@@ -1271,7 +1245,6 @@ export default function AdminPage() {
                               <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
                             </div>
 
-                            {/* ② 職種ごとの人数表示 */}
                             {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
                               <div className="text-sm text-indigo-800 font-bold">
                                 🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
@@ -1297,7 +1270,6 @@ export default function AdminPage() {
                               ].join(', ') || '-'}
                             </div>
 
-                            {/* ③ ③ 燃料・経費等も含めた全項目の表示 */}
                             <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                               <div>軽油: <b>{r.fuel || 0} L</b></div>
                               <div>レギュラー: <b>¥{Number(r.regularPrice || 0).toLocaleString()}</b></div>
@@ -1348,7 +1320,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ✏️ 日報編集モーダル */}
+      {/* 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
@@ -1372,7 +1344,6 @@ export default function AdminPage() {
 
             <div className="space-y-6">
 
-              {/* 📍 日付と現場の選択 */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">📍 日付と現場の選択</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1396,7 +1367,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 👥 作業員 */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">👥 作業員</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -1421,7 +1391,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ② 編集モーダル内での職種人数設定 */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🏷️ 職種ごとの人数</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1446,7 +1415,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 👤 外注・派遣作業員 */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">👤 外注・派遣作業員</h3>
@@ -1500,7 +1468,6 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* 🚛 自社保有（重機・車両） */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🚛 自社保有（重機・車両）</h3>
                 <div className="space-y-3">
@@ -1551,7 +1518,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 🏢 南大阪建機（MOK）からのリース */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🏢 南大阪建機（MOK）からのリース</h3>
 
@@ -1613,7 +1579,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ⛽ 燃料・経費 */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">⛽ 燃料・経費</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1640,7 +1605,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 📝 作業内容メモ */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">📝 作業内容メモ</h3>
                 <textarea rows={3} value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-sm bg-white font-medium shadow-2xs leading-relaxed" placeholder="本日の作業内容や特記事項を入力..." />
@@ -1661,7 +1625,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🔍 現場詳細モーダル (④外注費枠新設、⑥CSVボタンは管理者のみポップアップ内に表示) */}
+      {/* 現場詳細モーダル */}
       {modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-8 z-40 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-6xl p-5 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 md:space-y-8 shadow-2xl border border-slate-100">
@@ -1673,9 +1637,10 @@ export default function AdminPage() {
                   <p className="text-sm md:text-base text-slate-500 mt-0.5">原価・収支および内訳明細</p>
                 </div>
               </div>
-              {/* ⑥ 管理・編集モード画面の「CSV出力ボタンは各現場の詳細ポップアップ内にだけ表示 (閲覧専用では非表示)」 */}
+              
+              {/* CSV出力ボタン（ポップアップ内・見分けやすい緑系の目立つデザインに変更） */}
               {authRole === 'admin' && (
-                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base transition shadow-sm flex items-center gap-2">
+                <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-3 rounded-xl font-bold text-sm md:text-base transition shadow-md flex items-center gap-2">
                   📥 この現場のCSV出力
                 </button>
               )}
@@ -1730,7 +1695,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ④ 各現場の詳細に「外注費」の枠を新しくつくり表示 */}
             <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-lg text-orange-900">👥 外注費 詳細・計算内訳</h3>
@@ -1766,7 +1730,6 @@ export default function AdminPage() {
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
               </div>
 
-              {/* ⛽ 月ごとの軽油単価設定エリア */}
               <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
                 <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
                 <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代(軽油)」に自動反映されます。</p>
@@ -1785,7 +1748,7 @@ export default function AdminPage() {
                               type="number" 
                               value={currentPrice} 
                               onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
-                              readOnly={authRole === 'viewer'} // ⑤閲覧専用モード制限
+                              readOnly={authRole === 'viewer'}
                               placeholder="例: 145"
                               className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
                             />
@@ -1817,7 +1780,6 @@ export default function AdminPage() {
                     <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                       <div className="flex justify-between items-center">
                         <span className={`text-base md:text-lg font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-700'}`}>{item.label}</span>
-                        {/* ⑤ 閲覧専用モードでは数字を入力・変更できないようにする（管理者のみ編集可能） */}
                         {authRole === 'admin' && (
                           <button
                             type="button"
@@ -1855,7 +1817,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🗑️ 処分費詳細モーダル */}
+      {/* 処分費詳細モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-3xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -1902,7 +1864,7 @@ export default function AdminPage() {
                             type="number"
                             value={currentLocOverrideVal}
                             onChange={e => handleDisposalOverrideChange(modalLocation, disposalName, e.target.value)}
-                            readOnly={authRole === 'viewer'} // ⑤閲覧専用モード制限
+                            readOnly={authRole === 'viewer'}
                             className={`w-36 p-2.5 border border-orange-300 rounded-xl text-right font-bold text-slate-900 text-lg shadow-2xs ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
                             placeholder={`¥${calculatedLocSubtotal.toLocaleString()}`}
                           />
@@ -1928,7 +1890,6 @@ export default function AdminPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-xs font-bold text-slate-700">品目金額: ¥</span>
-                                      {/* ⑤ 閲覧専用モードでは readOnly を付与して入力・変更できないようにする */}
                                       <input 
                                         type="number"
                                         value={currentItemOverride}
@@ -1972,7 +1933,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ♻️ スクラップ詳細モーダル */}
+      {/* スクラップ詳細モーダル */}
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 z-50 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-5 md:p-8 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
@@ -2008,7 +1969,6 @@ export default function AdminPage() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-sm font-bold text-emerald-900">仕切り書金額: ¥</span>
-                          {/* ⑤ 閲覧専用モードでは readOnly を付与して入力・変更できないようにする */}
                           <input 
                             type="number"
                             value={currentOverrideVal}
