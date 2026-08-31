@@ -1,3 +1,7 @@
+現場名のマスタ登録項目に、「請負先」と「開始日」を入力する枠を設置したい。
+
+入力した「請負先」と「開始日」は詳細分析内に表示させたい。
+
 'use client';
 import { useState, useEffect } from 'react';
 
