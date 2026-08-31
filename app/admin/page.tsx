@@ -2047,7 +2047,12 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
               <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div>
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200">
+                <div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div>
+                <div className={`text-xl md:text-3xl font-bold mt-1.5 ${modalData.profit >= 0 ? 'text-blue-900' : 'text-rose-600'}`}>
+                  ¥{modalData.profit.toLocaleString()}
+                </div>
+              </div>
             </div>
           </div>
         </div>
