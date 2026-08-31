@@ -1427,7 +1427,7 @@ export default function AdminPage() {
                                 )}
                                 {(r.scraps || []).length > 0 && (
                                   <div className="text-sm text-emerald-800 font-bold">
-                                    ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                    ♻️ スクラップ: {(r.scraps || []).length > 0 && (r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                                   </div>
                                 )}
                               </div>
