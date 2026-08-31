@@ -1,7 +1,3 @@
-現場名のマスタ登録項目に、「請負先」と「開始日」を入力する枠を設置したい。
-
-入力した「請負先」と「開始日」は詳細分析内に表示させたい。
-
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -173,9 +169,9 @@ export default function AdminPage() {
       const name = typeof l === 'string' ? l : l.name;
       if (name === locName) {
         const isFinished = typeof l === 'object' ? l.isFinished : false;
-        return typeof l === 'string' ? { name: l, price: 0, isFinished: !isFinished } : { ...l, isFinished: !isFinished };
+        return typeof l === 'string' ? { name: l, price: 0, client: '', startDate: '', isFinished: !isFinished } : { ...l, isFinished: !isFinished };
       }
-      return typeof l === 'string' ? { name: l, price: 0, isFinished: false } : l;
+      return typeof l === 'string' ? { name: l, price: 0, client: '', startDate: '', isFinished: false } : l;
     });
 
     const newData = { ...settings, locations: currentLocs };
@@ -587,6 +583,8 @@ export default function AdminPage() {
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
+    const client = matchedLocObj?.client || '';
+    const startDate = matchedLocObj?.startDate || '';
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
 
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
@@ -610,7 +608,9 @@ export default function AdminPage() {
       scrapTotal,
       aggregatedScrapBreakdown,
       total: sumOverrideCost, 
-      contractPrice: baseContractPrice, 
+      contractPrice: baseContractPrice,
+      client,
+      startDate,
       isFinished,
       profit, 
       profitWithoutScrap, 
@@ -794,7 +794,7 @@ export default function AdminPage() {
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
   const filteredReports = reports.filter(r => !filterLocation || (r.location && (r.location.includes(filterLocation) || (filterLocation.includes('旧河北') && r.location.includes('旧河北')))));
-  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
+  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, client: '', startDate: '', isFinished: false} : { client: '', startDate: '', price: 0, isFinished: false, ...l });
   
   const activeLocList = locList.filter((l:any) => !l.isFinished);
   const finishedLocList = locList.filter((l:any) => l.isFinished);
@@ -1159,7 +1159,7 @@ export default function AdminPage() {
           {showAdminSection && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
               {[
-                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
+                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice', 'lClient', 'lStartDate'], placeholders: ["新しい現場名", "請負金額（税抜）", "請負先を入力", "開始日を入力"], type: "locations", isLocation: true },
                 { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
                 { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
                 { title: "🏷️ 職種一覧", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
@@ -1219,6 +1219,16 @@ export default function AdminPage() {
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      </div>
+                    ) : sec.isLocation ? (
+                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="text" placeholder={sec.placeholders[2]} value={form[sec.addForm[2]] || ''} className="p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[2]]: e.target.value})} />
+                          <input type="date" placeholder={sec.placeholders[3]} value={form[sec.addForm[3]] || ''} className="p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[3]]: e.target.value})} />
+                        </div>
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, client: form[sec.addForm[2]] || '', startDate: form[sec.addForm[3]] || '', isFinished: false}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : (
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
@@ -1286,6 +1296,14 @@ export default function AdminPage() {
                               </div>
                               <div className="pt-1">
                                 <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位 (例: kg, t)" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                              </div>
+                            </div>
+                          ) : sec.isLocation ? (
+                            <div className="space-y-2">
+                              <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="現場名" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="text" value={item.client || ''} onChange={(e)=>updateItemField(sec.key, idx, 'client', e.target.value)} placeholder="請負先" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                                <input type="date" value={item.startDate || ''} onChange={(e)=>updateItemField(sec.key, idx, 'startDate', e.target.value)} placeholder="開始日" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                               </div>
                             </div>
                           ) : sec.isNoPrice ? (
@@ -1927,6 +1945,15 @@ export default function AdminPage() {
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div>
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
+                  
+                  {/* 請負先と開始日の表示 */}
+                  {(modalData.client || modalData.startDate) && (
+                    <div className="flex items-center gap-4 mt-2 text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-xl inline-flex">
+                      {modalData.client && <span>🏢 請負先: <span className="text-blue-600">{modalData.client}</span></span>}
+                      {modalData.startDate && <span>📅 開始日: <span className="text-slate-900">{modalData.startDate}</span></span>}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
