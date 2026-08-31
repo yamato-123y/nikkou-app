@@ -475,8 +475,7 @@ export default function AdminPage() {
         '岸和田市別所町3丁目20-4解体工事'
       ]
     };
-    return aliases[currentLoc] || [currentLoc];
-  };
+
     return aliases[currentLoc] || [currentLoc];
   };
 
