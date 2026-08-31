@@ -28,7 +28,7 @@ export default function Home() {
   const [isOpenAttach, setIsOpenAttach] = useState(false);
   const [isOpenOther, setIsOpenOther] = useState(false);
 
-  // 👇 【追加】石川県出張用のリース選択ステート
+  // 石川県出張用のリース選択ステート（正しいマスタキー: ishikawaHeavy, ishikawaAttach, ishikawaOther に連動）
   const [isOpenIshikawa, setIsOpenIshikawa] = useState(false);
   const [ishikawaLeaseHeavy, setIshikawaLeaseHeavy] = useState<string[]>([]);
   const [ishikawaLeaseAttach, setIshikawaLeaseAttach] = useState<string[]>([]);
@@ -78,7 +78,10 @@ export default function Home() {
         jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
-        // 石川県用リースの送信データ追加
+        // 石川県用リースの送信データ（管理・編集側のマスタ構造に合わせて修正）
+        ishikawaHeavy,
+        ishikawaAttach: ishikawaLeaseAttach,
+        ishikawaOther: ishikawaLeaseOther,
         ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther,
         machines: leaseHeavy,
         mokCustomMachines,
@@ -399,7 +402,7 @@ export default function Home() {
              </div>
            </div>
 
-           {/* 👇 【追加】石川県出張用リース選択セクション */}
+           {/* 石川県出張用リース選択セクション（管理・編集側のマスタ情報: ishikawaHeavy, ishikawaAttach, ishikawaOther に完全連動） */}
            <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200">
              <button
                type="button"
@@ -421,7 +424,7 @@ export default function Home() {
                    </button>
                    {isOpenIshikawaHeavy && (
                      <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaLeaseHeavy || []).map((m:any) => (
+                       {(settings.ishikawaHeavy || []).map((m:any) => (
                          <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
                          className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                        ))}
@@ -438,7 +441,7 @@ export default function Home() {
                    </button>
                    {isOpenIshikawaAttach && (
                      <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaLeaseAttach || []).map((m:any) => (
+                       {(settings.ishikawaAttach || []).map((m:any) => (
                          <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
                          className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                        ))}
@@ -455,7 +458,7 @@ export default function Home() {
                    </button>
                    {isOpenIshikawaOther && (
                      <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaLeaseOther || []).map((m:any) => (
+                       {(settings.ishikawaOther || []).map((m:any) => (
                          <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
                          className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
                        ))}
