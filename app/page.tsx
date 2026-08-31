@@ -28,7 +28,7 @@ export default function Home() {
   const [isOpenAttach, setIsOpenAttach] = useState(false);
   const [isOpenOther, setIsOpenOther] = useState(false);
 
-  // 石川県出張用のリース選択ステート（正しいマスタキー: ishikawaHeavy, ishikawaAttach, ishikawaOther に連動）
+  // 石川県出張用のリース選択ステート
   const [isOpenIshikawa, setIsOpenIshikawa] = useState(false);
   const [ishikawaLeaseHeavy, setIshikawaLeaseHeavy] = useState<string[]>([]);
   const [ishikawaLeaseAttach, setIshikawaLeaseAttach] = useState<string[]>([]);
@@ -55,6 +55,8 @@ export default function Home() {
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
 
+  // モーダル管理用ステート
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
@@ -68,8 +70,24 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
+  const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!location) {
+      alert('現場名を選択してください。');
+      return;
+    }
+    if (!manager) {
+      alert('職長を選択してください。');
+      return;
+    }
+    setShowConfirmModal(true);
+  };
+
+  // 確認モーダル内での「この内容で送信する」ボタン
+  const handleConfirmedSubmit = async () => {
+    setShowConfirmModal(false);
+
     await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -78,8 +96,7 @@ export default function Home() {
         jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
-        // 石川県用リースの送信データ（管理・編集側のマスタ構造に合わせて修正）
-        ishikawaHeavy,
+        ishikawaHeavy: ishikawaLeaseHeavy,
         ishikawaAttach: ishikawaLeaseAttach,
         ishikawaOther: ishikawaLeaseOther,
         ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther,
@@ -139,6 +156,77 @@ export default function Home() {
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
       </div>
 
+      {/* 送信内容確認ポップアップ（新規追加） */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-4 border my-auto max-h-[90vh] flex flex-col">
+            <div className="text-center">
+              <div className="text-4xl mb-2">📋</div>
+              <h2 className="text-xl font-black text-slate-950">日報内容の確認</h2>
+              <p className="text-xs text-slate-500 mt-1">以下の内容で送信します。よろしいですか？</p>
+            </div>
+
+            {/* 確認項目リスト */}
+            <div className="bg-slate-50 p-4 rounded-2xl border space-y-3 text-sm overflow-y-auto flex-1">
+              <div>
+                <span className="font-bold text-slate-500 block text-xs">日付 / 現場 / 職長</span>
+                <span className="font-black text-slate-950">{date} / {location} ({manager})</span>
+              </div>
+
+              <div>
+                <span className="font-bold text-slate-500 block text-xs">作業員 ({selectedWorkers.length}名)</span>
+                <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
+              </div>
+
+              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || ishikawaLeaseHeavy.length > 0 || selectedOwnMachines.length > 0) && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
+                  <span className="font-bold text-slate-800">
+                    {[...selectedOwnMachines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaLeaseHeavy, ...ishikawaLeaseAttach, ...ishikawaLeaseOther].join(', ')}
+                  </span>
+                </div>
+              )}
+
+              {(fuel || regularPrice || etcPrice || parkingPrice) && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">燃料・経費</span>
+                  <span className="font-bold text-slate-800">
+                    {fuel ? `軽油:${fuel}L ` : ''}
+                    {regularPrice ? `レギュラー:${regularPrice}円 ` : ''}
+                    {etcPrice ? `ETC:${etcPrice}円 ` : ''}
+                    {parkingPrice ? `駐車場:${parkingPrice}円` : ''}
+                  </span>
+                </div>
+              )}
+
+              {description && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">作業内容</span>
+                  <p className="font-bold text-slate-800 whitespace-pre-wrap line-clamp-3">{description}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={() => setShowConfirmModal(false)} 
+                className="flex-1 bg-slate-200 text-slate-900 py-3.5 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
+              >
+                修正する
+              </button>
+              <button 
+                type="button" 
+                onClick={handleConfirmedSubmit} 
+                className="flex-1 bg-[#E56312] text-white py-3.5 rounded-2xl font-bold text-base shadow hover:bg-orange-700 transition"
+              >
+                この内容で送信
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 送信完了ポップアップ */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -167,7 +255,7 @@ export default function Home() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handlePreSubmit} className="space-y-6">
 
         {/* 1. 日付と現場の選択 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
@@ -402,7 +490,7 @@ export default function Home() {
              </div>
            </div>
 
-           {/* 石川県出張用リース選択セクション（管理・編集側のマスタ情報: ishikawaHeavy, ishikawaAttach, ishikawaOther に完全連動） */}
+           {/* 石川県出張用リース選択セクション */}
            <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200">
              <button
                type="button"
@@ -415,7 +503,6 @@ export default function Home() {
 
              {isOpenIshikawa && (
                <div className="space-y-3 pt-2 animate-fadeIn">
-                 {/* 石川・重機 */}
                  <div>
                    <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                      <span>【（石川県）重機を選択】</span>
@@ -432,7 +519,6 @@ export default function Home() {
                    )}
                  </div>
 
-                 {/* 石川・アタッチメント */}
                  <div>
                    <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                      <span>【（石川県）アタッチメントを選択】</span>
@@ -449,7 +535,6 @@ export default function Home() {
                    )}
                  </div>
 
-                 {/* 石川・その他機械 */}
                  <div>
                    <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                      <span>【（石川県）その他機械・機器を選択】</span>
