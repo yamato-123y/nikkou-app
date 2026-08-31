@@ -1,3 +1,4 @@
+```tsx
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -23,10 +24,6 @@ export default function AdminPage() {
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
-  
-  // リース詳細表示の開閉状態を管理するステート
-  const [showLeaseDetailModal, setShowLeaseDetailModal] = useState(false);
-
   const [costOverrides, setCostOverrides] = useState<any>({});
   const [disposalOverrides, setDisposalOverrides] = useState<any>({});
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
@@ -169,9 +166,9 @@ export default function AdminPage() {
       const name = typeof l === 'string' ? l : l.name;
       if (name === locName) {
         const isFinished = typeof l === 'object' ? l.isFinished : false;
-        return typeof l === 'string' ? { name: l, price: 0, client: '', startDate: '', isFinished: !isFinished } : { ...l, isFinished: !isFinished };
+        return typeof l === 'string' ? { name: l, price: 0, isFinished: !isFinished } : { ...l, isFinished: !isFinished };
       }
-      return typeof l === 'string' ? { name: l, price: 0, client: '', startDate: '', isFinished: false } : l;
+      return typeof l === 'string' ? { name: l, price: 0, isFinished: false } : l;
     });
 
     const newData = { ...settings, locations: currentLocs };
@@ -480,10 +477,7 @@ export default function AdminPage() {
 
   const calculateCosts = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
-    const locMapped = reports.filter(r => {
-      if (!r.location) return false;
-      return targetNames.some(name => r.location === name || r.location.includes(name) || name.includes(r.location));
-    });
+    const locMapped = reports.filter(r => targetNames.includes(r.location));
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
 
@@ -609,8 +603,6 @@ export default function AdminPage() {
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
-    const client = matchedLocObj?.client || '';
-    const startDate = matchedLocObj?.startDate || '';
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
 
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
@@ -634,9 +626,7 @@ export default function AdminPage() {
       scrapTotal,
       aggregatedScrapBreakdown,
       total: sumOverrideCost, 
-      contractPrice: baseContractPrice,
-      client,
-      startDate,
+      contractPrice: baseContractPrice, 
       isFinished,
       profit, 
       profitWithoutScrap, 
@@ -644,77 +634,9 @@ export default function AdminPage() {
     };
   };
 
-  const calculateSpecialLeaseMonthlyBreakdown = (locName: string) => {
-    const targetNames = getTargetLocationNames(locName);
-    const locMapped = reports.filter(r => {
-      if (!r.location) return false;
-      return targetNames.some(name => r.location === name || r.location.includes(name) || name.includes(r.location));
-    });
-    const monthlyMap: { 
-      [ym: string]: { 
-        mokHeavy: number, mokAttach: number, mokOther: number, 
-        hisayasuHeavy: number, hisayasuAttach: number, hisayasuOther: number 
-      } 
-    } = {};
-
-    locMapped.forEach(r => {
-      const rDateNorm = (r.date || '').replace(/\//g, '-');
-      const parts = rDateNorm.split('-');
-      if (parts.length < 2) return;
-      const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-
-      if (!monthlyMap[ym]) {
-        monthlyMap[ym] = { mokHeavy: 0, mokAttach: 0, mokOther: 0, hisayasuHeavy: 0, hisayasuAttach: 0, hisayasuOther: 0 };
-      }
-
-      let mHeavy = 0, mAttach = 0, mOther = 0;
-      (r.leaseHeavy || []).forEach((m: string) => mHeavy += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
-      (r.leaseAttach || []).forEach((m: string) => mAttach += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
-      (r.leaseOther || []).forEach((m: string) => mOther += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-      (r.mokCustomMachines || []).forEach((m: any) => {
-        const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
-        const unitP = matched?.price || 0;
-        mOther += (Number(m.count || 0) * unitP);
-      });
-
-      let hHeavy = 0, hAttach = 0, hOther = 0;
-      (r.ishikawaHeavy || []).forEach((m: string) => hHeavy += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
-      (r.ishikawaAttach || []).forEach((m: string) => hAttach += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
-      (r.ishikawaOther || []).forEach((m: string) => hOther += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-
-      monthlyMap[ym].mokHeavy += mHeavy;
-      monthlyMap[ym].mokAttach += mAttach;
-      monthlyMap[ym].mokOther += mOther;
-      monthlyMap[ym].hisayasuHeavy += hHeavy;
-      monthlyMap[ym].hisayasuAttach += hAttach;
-      monthlyMap[ym].hisayasuOther += hOther;
-    });
-
-    const allYms = Object.keys(monthlyMap).sort();
-    return allYms.map(ym => {
-      const data = monthlyMap[ym];
-      const mokTotal = data.mokHeavy + data.mokAttach + data.mokOther;
-      const hisayasuTotal = data.hisayasuHeavy + data.hisayasuAttach + data.hisayasuOther;
-      return {
-        ym,
-        mokTotal,
-        mokHeavy: data.mokHeavy,
-        mokAttach: data.mokAttach,
-        mokOther: data.mokOther,
-        hisayasuTotal,
-        hisayasuHeavy: data.hisayasuHeavy,
-        hisayasuAttach: data.hisayasuAttach,
-        hisayasuOther: data.hisayasuOther
-      };
-    });
-  };
-
   const downloadLocationCSV = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
-    const locReports = reports.filter(r => {
-      if (!r.location) return false;
-      return targetNames.some(name => r.location === name || r.location.includes(name) || name.includes(r.location));
-    });
+    const locReports = reports.filter(r => targetNames.includes(r.location));
     const headers = ["日付", "現場名", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
@@ -827,12 +749,8 @@ export default function AdminPage() {
   }
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
-  const filteredReports = reports.filter(r => {
-    if (!filterLocation) return true;
-    if (!r.location) return false;
-    return r.location.includes(filterLocation) || (filterLocation.includes('旧河北') && r.location.includes('旧河北'));
-  });
-  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, client: '', startDate: '', isFinished: false} : { client: '', startDate: '', price: 0, isFinished: false, ...l });
+  const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
+  const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
   
   const activeLocList = locList.filter((l:any) => !l.isFinished);
   const finishedLocList = locList.filter((l:any) => l.isFinished);
@@ -848,7 +766,7 @@ export default function AdminPage() {
     reports
       .filter(r => {
         const targetNames = getTargetLocationNames(modalLocation);
-        return r.location && targetNames.some(name => r.location === name || r.location.includes(name) || name.includes(r.location));
+        return targetNames.includes(r.location);
       })
       .map(r => {
         const norm = (r.date || '').replace(/\//g, '-');
@@ -1200,7 +1118,7 @@ export default function AdminPage() {
           {showAdminSection && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
               {[
-                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice', 'lClient', 'lStartDate'], placeholders: ["新しい現場名", "請負金額（税抜）", "請負先を入力", "開始日を入力"], type: "locations", isLocation: true },
+                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
                 { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
                 { title: "🏷️ 職種一覧", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
@@ -1260,16 +1178,6 @@ export default function AdminPage() {
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.isLocation ? (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input type="text" placeholder={sec.placeholders[2]} value={form[sec.addForm[2]] || ''} className="p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[2]]: e.target.value})} />
-                          <input type="date" placeholder={sec.placeholders[3]} value={form[sec.addForm[3]] || ''} className="p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[3]]: e.target.value})} />
-                        </div>
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, client: form[sec.addForm[2]] || '', startDate: form[sec.addForm[3]] || '', isFinished: false}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : (
                       <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
@@ -1339,14 +1247,6 @@ export default function AdminPage() {
                                 <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位 (例: kg, t)" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                               </div>
                             </div>
-                          ) : sec.isLocation ? (
-                            <div className="space-y-2">
-                              <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="現場名" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              <div className="grid grid-cols-2 gap-2">
-                                <input type="text" value={item.client || ''} onChange={(e)=>updateItemField(sec.key, idx, 'client', e.target.value)} placeholder="請負先" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                                <input type="date" value={item.startDate || ''} onChange={(e)=>updateItemField(sec.key, idx, 'startDate', e.target.value)} placeholder="開始日" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              </div>
-                            </div>
                           ) : sec.isNoPrice ? (
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           ) : (
@@ -1355,13 +1255,13 @@ export default function AdminPage() {
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
                             <div className="flex items-center justify-end gap-1.5 pt-1">
-                              <span className="text-slate-500 font-bold text-sm">¥</span>
-                              <div className="relative w-32">
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
-                                {sec.key === 'locations' && (
-                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
-                                )}
-                              </div>
+                                <span className="text-slate-500 font-bold text-sm">¥</span>
+                                <div className="relative w-32">
+                                    <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
+                                    {sec.key === 'locations' && (
+                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
+                                    )}
+                                </div>
                             </div>
                           )}
                         </div>
@@ -1389,15 +1289,9 @@ export default function AdminPage() {
         </div>
 
         <div className="space-y-6">
-          {locList.filter(loc => {
-            if (!filterLocation) return true;
-            return loc.name.includes(filterLocation) || (filterLocation.includes('旧河北') && loc.name.includes('旧河北'));
-          }).map(loc => {
+          {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
             const targetNames = getTargetLocationNames(loc.name);
-            const locReports = reports.filter(r => {
-              if (!r.location) return false;
-              return targetNames.some(name => r.location === name || r.location.includes(name) || name.includes(r.location));
-            });
+            const locReports = filteredReports.filter(r => targetNames.includes(r.location));
             if (locReports.length === 0) return null;
 
             const isReportOpen = reportSectionOpen[loc.name] || false;
@@ -1475,7 +1369,7 @@ export default function AdminPage() {
                                 )}
                                 {(r.scraps || []).length > 0 && (
                                   <div className="text-sm text-emerald-800 font-bold">
-                                    ♻️ スクラップ: {(r.scraps || []).length > 0 && (r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                    ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                                   </div>
                                 )}
                               </div>
@@ -1652,7 +1546,7 @@ export default function AdminPage() {
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
                     </div>
-                  );
+                );
                 })}
               </div>
 
@@ -1881,7 +1775,7 @@ export default function AdminPage() {
                 <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-wider">🗾 石川県出張用リース機器</h3>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">【（石川県）重機を選択】</label>
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaHeavy || []).map((m: any) => {
                       const checked = (editingReport.ishikawaHeavy || []).includes(m.name);
@@ -1900,7 +1794,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメントを選択】</label>
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaAttach || []).map((m: any) => {
                       const checked = (editingReport.ishikawaAttach || []).includes(m.name);
@@ -1919,7 +1813,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器を選択】</label>
+                  <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaOther || []).map((m: any) => {
                       const checked = (editingReport.ishikawaOther || []).includes(m.name);
@@ -1993,15 +1887,6 @@ export default function AdminPage() {
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div>
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
-                  
-                  {/* 請負先と開始日の表示 */}
-                  {(modalData.client || modalData.startDate) && (
-                    <div className="flex items-center gap-4 mt-2 text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-4 py-2 rounded-xl inline-flex">
-                      {modalData.client && <span>🏢 請負先: <span className="text-blue-600">{modalData.client}</span></span>}
-                      {modalData.startDate && <span>📅 開始日: <span className="text-slate-900">{modalData.startDate}</span></span>}
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
@@ -2047,164 +1932,415 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
               <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200">
-                <div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div>
-                <div className={`text-xl md:text-3xl font-bold mt-1.5 ${modalData.profit >= 0 ? 'text-blue-900' : 'text-rose-600'}`}>
-                  ¥{modalData.profit.toLocaleString()}
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-blue-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
+            </div>
+
+            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
+              <div className="flex justify-between items-center flex-wrap gap-3">
+                <span className="text-emerald-900 font-bold text-base md:text-xl">♻️ スクラップ売却計</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-emerald-800 text-2xl md:text-3xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                  <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
+                    🔍 内訳・金額入力
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* 原価内訳リストカード群 */}
-            <div className="space-y-4 pt-4 border-t border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900">📦 コスト・経費の内訳と調整</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                
-                {/* 労務費 */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">👤 労務費（自社メンバー）</span>
-                    {authRole === 'admin' && (
-                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'labor')} className="text-xs text-blue-600 underline font-medium">
-                        {editingCostFields[modalLocation]?.labor ? '完了' : '金額調整'}
-                      </button>
-                    )}
-                  </div>
-                  {editingCostFields[modalLocation]?.labor ? (
-                    <input 
-                      type="number" 
-                      value={costOverrides[modalLocation]?.labor !== undefined ? costOverrides[modalLocation].labor : modalData.laborCost}
-                      onChange={e => handleCostOverrideChange(modalLocation, 'labor', e.target.value)}
-                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-slate-900">¥{modalData.laborCost.toLocaleString()}</div>
-                  )}
-                </div>
-
-                {/* 外注費 */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">🏢 外注費計</span>
-                    {authRole === 'admin' && (
-                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'sub')} className="text-xs text-blue-600 underline font-medium">
-                        {editingCostFields[modalLocation]?.sub ? '完了' : '金額調整'}
-                      </button>
-                    )}
-                  </div>
-                  {editingCostFields[modalLocation]?.sub ? (
-                    <input 
-                      type="number" 
-                      value={costOverrides[modalLocation]?.sub !== undefined ? costOverrides[modalLocation].sub : modalData.subCostTotal}
-                      onChange={e => handleCostOverrideChange(modalLocation, 'sub', e.target.value)}
-                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-slate-900">¥{modalData.subCostTotal.toLocaleString()}</div>
-                  )}
-                </div>
-
-                {/* リース代 */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">🚜 リース代計</span>
-                    {authRole === 'admin' && (
-                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'lease')} className="text-xs text-blue-600 underline font-medium">
-                        {editingCostFields[modalLocation]?.lease ? '完了' : '金額調整'}
-                      </button>
-                    )}
-                  </div>
-                  {editingCostFields[modalLocation]?.lease ? (
-                    <input 
-                      type="number" 
-                      value={costOverrides[modalLocation]?.lease !== undefined ? costOverrides[modalLocation].lease : modalData.leaseCost}
-                      onChange={e => handleCostOverrideChange(modalLocation, 'lease', e.target.value)}
-                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-slate-900">¥{modalData.leaseCost.toLocaleString()}</div>
-                  )}
-                </div>
-
-                {/* 処分費 */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">🗑️ 処分費計</span>
-                    {authRole === 'admin' && (
-                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'disposal')} className="text-xs text-blue-600 underline font-medium">
-                        {editingCostFields[modalLocation]?.disposal ? '完了' : '金額調整'}
-                      </button>
-                    )}
-                  </div>
-                  {editingCostFields[modalLocation]?.disposal ? (
-                    <input 
-                      type="number" 
-                      value={costOverrides[modalLocation]?.disposal !== undefined ? costOverrides[modalLocation].disposal : modalData.disposalCost}
-                      onChange={e => handleCostOverrideChange(modalLocation, 'disposal', e.target.value)}
-                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-slate-900">¥{modalData.disposalCost.toLocaleString()}</div>
-                  )}
-                </div>
-
-                {/* 燃料費 */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">⛽ 燃料費（軽油）</span>
-                    {authRole === 'admin' && (
-                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'fuel')} className="text-xs text-blue-600 underline font-medium">
-                        {editingCostFields[modalLocation]?.fuel ? '完了' : '金額調整'}
-                      </button>
-                    )}
-                  </div>
-                  {editingCostFields[modalLocation]?.fuel ? (
-                    <input 
-                      type="number" 
-                      value={costOverrides[modalLocation]?.fuel !== undefined ? costOverrides[modalLocation].fuel : modalData.fuelCost}
-                      onChange={e => handleCostOverrideChange(modalLocation, 'fuel', e.target.value)}
-                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-slate-900">¥{modalData.fuelCost.toLocaleString()}</div>
-                  )}
-                </div>
-
-                {/* 諸経費（レギュラー・ETC等） */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-700">🚗 諸経費（ETC・駐車場など）</span>
-                  </div>
-                  <div className="text-xl font-bold text-slate-900">
-                    ¥{(modalData.regularCost + modalData.etcCost + modalData.parkingCost + modalData.otherCost).toLocaleString()}
-                  </div>
-                </div>
-
+            {/* 外注費 詳細・計算内訳 ＋ 手動一括請負追加フォーム */}
+            <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-lg text-orange-900">👥 外注費 詳細・計算内訳</h3>
+                <span className="text-sm font-bold text-orange-800 bg-orange-100 px-3 py-1 rounded-xl">外注費合計: ¥{modalData.subCostTotal.toLocaleString()}</span>
               </div>
-            </div>
 
-            {/* この現場の日報データ一覧 */}
-            <div className="space-y-4 pt-4 border-t border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900">📋 この現場の日報履歴 ({modalData.days}日分)</h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {modalData.reportsWithIndex.map((r: any, idx: number) => (
-                  <div key={r.id || idx} className="bg-slate-50 p-3 rounded-xl border flex justify-between items-center text-sm font-medium">
-                    <div>
-                      <span className="font-bold mr-3">📅 {r.date}</span>
-                      <span className="text-slate-600">職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+              {authRole === 'admin' && (
+                <div className="bg-white p-4 rounded-xl border border-orange-300 space-y-3 shadow-2xs">
+                  <div className="text-sm font-bold text-orange-900">＋ 一括請負・外注費の直接追加</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="会社名 (例: 〇〇工業)" 
+                      value={customSubForm[modalLocation]?.company || ''} 
+                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), company: e.target.value } })} 
+                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="作業内容 (例: 解体一式)" 
+                      value={customSubForm[modalLocation]?.task || ''} 
+                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), task: e.target.value } })} 
+                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="金額 (例: 1000000)" 
+                      value={customSubForm[modalLocation]?.price || ''} 
+                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), price: e.target.value } })} 
+                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => handleAddCustomSubcontractor(modalLocation)} 
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-xs transition"
+                  >
+                    この外注費を追加する
+                  </button>
+                </div>
+              )}
+
+              {(customSubcontractors[modalLocation] || []).length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
+                  {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
+                    <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
+                      <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">¥{Number(cs.price).toLocaleString()}</span></span>
+                      {authRole === 'admin' && (
+                        <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
+                      )}
                     </div>
-                    {r.workDescription && (
-                      <div className="text-slate-500 truncate max-w-xs">{r.workDescription}</div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
+                {reports.filter(r => {
+                  const targetNames = getTargetLocationNames(modalLocation);
+                  return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
+                }).length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
+                ) : (
+                  reports.filter(r => {
+                    const targetNames = getTargetLocationNames(modalLocation);
+                    return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
+                  }).map((r, idx) => (
+                    <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
+                      <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
+                      {(r.subcontractors || []).map((sub: any, sIdx: number) => {
+                        const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
+                        const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
+                        const subTotalCalc = Number(sub.count || 0) * unitP;
+                        return (
+                          <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
+                            <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 ¥{unitP.toLocaleString()}</span>
+                            <span className="font-bold text-orange-700">¥{subTotalCalc.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
+            <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+              <div className="flex justify-between items-center flex-wrap gap-3">
+                <h3 className="font-bold text-lg md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
+                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
+              </div>
+
+              <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
+                <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
+                <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代(軽油)」に自動反映されます。</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                  {modalReportYearMonths.length === 0 ? (
+                    <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
+                  ) : (
+                    modalReportYearMonths.map(ym => {
+                      const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
+                      return (
+                        <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
+                          <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-slate-500 font-bold">¥</span>
+                            <input 
+                              type="number" 
+                              value={currentPrice} 
+                              onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
+                              readOnly={authRole === 'viewer'}
+                              placeholder="例: 145"
+                              className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
+              {[
+                { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
+                { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
+                { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost },
+                { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
+                { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
+                { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
+                { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
+                { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
+                { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost },
+                { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
+                { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
+                { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
+              ].map((item) => {
+                const isEditing = editingCostFields[modalLocation]?.[item.key];
+                return (
+                  <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                    <div className="flex justify-between items-center">
+                      <span className={`text-base md:text-lg font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-700'}`}>{item.label}</span>
+                      {authRole === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline font-bold"
+                        >
+                          {isEditing ? '完了' : '手動上書き'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-baseline justify-between">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1 w-full">
+                          <span className="text-slate-500 font-bold">¥</span>
+                          <input
+                            type="number"
+                            value={costOverrides[modalLocation]?.[item.key] ?? ''}
+                            onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+                            placeholder="上書き金額"
+                            className="w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-xl md:text-2xl font-bold text-slate-900">
+                          ¥{Number(item.val || 0).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
+
+      {/* 処分費内訳モーダル */}
+      {showDisposalModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗑️ 処分費の内訳明細 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">処分場・品目ごとの数量および小計を確認できます</p>
+              </div>
+              <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-6">
+              {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedDisposalBreakdown).map(([locKey, locObj]) => {
+                  const isOpen = disposalDetailsOpen[locKey] || false;
+                  return (
+                    <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                      <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg md:text-xl text-blue-700">🏢 {locKey}</h4>
+                          <div className="text-sm font-bold text-slate-700">
+                            小計: <span className="text-orange-600 text-lg">¥{locObj.total.toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {authRole === 'admin' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-600">手動上書き(合計):</span>
+                              <input
+                                type="number"
+                                value={disposalOverrides[modalLocation]?.[locKey] ?? ''}
+                                onChange={(e) => handleDisposalOverrideChange(modalLocation, locKey, e.target.value)}
+                                placeholder="金額"
+                                className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                              />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [locKey]: !isOpen })}
+                            className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-2xs transition"
+                          >
+                            {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {Object.entries(locObj.items).map(([itemKey, itemData]) => {
+                          const subKey = `${locKey}__${itemKey}`;
+                          return (
+                            <div key={itemKey} className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                              <div className="flex justify-between items-center flex-wrap gap-3">
+                                <div>
+                                  <span className="font-bold text-base text-slate-800">{itemKey}</span>
+                                  <div className="text-xs text-slate-500 font-medium mt-0.5">
+                                    数量: <b className="text-slate-800">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
+                                  </div>
+                                </div>
+                                {authRole === 'admin' && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-slate-600">品目別上書き:</span>
+                                    <input
+                                      type="number"
+                                      value={disposalOverrides[modalLocation]?.[subKey] ?? ''}
+                                      onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
+                                      placeholder="金額"
+                                      className="w-28 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {isOpen && (
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2 pt-3">
+                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧</div>
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                            {Object.values(locObj.items).flatMap(it => it.details).map((det, dIdx) => (
+                              <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                <span>🗓️ {det.date} / <b>{det.item}</b></span>
+                                <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b>¥{det.total.toLocaleString()}</b></span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* スクラップ売却内訳モーダル */}
+      {showScrapModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却内訳・金額入力 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">スクラップの搬出数量と売却額（またはトータル金額）を設定します</p>
+              </div>
+              <button onClick={() => setShowScrapModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 space-y-4">
+                <div className="flex justify-between items-center flex-wrap gap-3">
+                  <div>
+                    <h4 className="font-bold text-lg text-emerald-900">💰 スクラップ売却額 合計手動設定</h4>
+                    <p className="text-xs text-emerald-700 mt-0.5">ここに金額を入力すると、下の個別明細の合計に関わらずこの金額が最終粗利に加算されます。</p>
+                  </div>
+                  {authRole === 'admin' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-emerald-800">¥</span>
+                      <input
+                        type="number"
+                        value={scrapOverrides[modalLocation]?.total ?? ''}
+                        onChange={(e) => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
+                        placeholder="例: 150000"
+                        className="w-40 p-2.5 border border-emerald-400 rounded-xl text-right font-bold text-base bg-white text-emerald-900 shadow-2xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-base text-slate-800">📦 搬出されたスクラップ一覧</h4>
+                {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                  <p className="text-base text-slate-500 text-center py-6">この現場のスクラップ搬出データはありません</p>
+                ) : (
+                  Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
+                    const isOpen = scrapDetailsOpen[key] || false;
+                    const itemOvVal = scrapOverrides[modalLocation]?.[key] ?? '';
+                    return (
+                      <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                          <div>
+                            <h5 className="font-bold text-lg text-slate-800">♻️ {key}</h5>
+                            <div className="text-sm font-bold text-slate-600 mt-1">
+                              総数量: <b className="text-slate-900">{data.quantity.toLocaleString()}</b>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {authRole === 'admin' && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-600">金額上書き:</span>
+                                <input
+                                  type="number"
+                                  value={itemOvVal}
+                                  onChange={(e) => handleScrapOverrideChange(modalLocation, key, e.target.value)}
+                                  placeholder="金額"
+                                  className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                                />
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setScrapDetailsOpen({ ...scrapDetailsOpen, [key]: !isOpen })}
+                              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-2xs transition"
+                            >
+                              {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isOpen && (
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 搬出日別明細</div>
+                            <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                              {data.details.map((det, dIdx) => (
+                                <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                  <span>🗓️ {det.date} / <b>{det.item}</b></span>
+                                  <span><b>{det.quantity} {det.unit}</b></span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
+```
