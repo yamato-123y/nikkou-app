@@ -457,7 +457,7 @@ export default function AdminPage() {
   };
 
   const calculateCosts = (locName: string) => {
-    const locMapped = reports.filter(r => r.location === locName);
+    const locMapped = reports.filter(r => r.location === locName || (r.location && r.location.includes('旧河北') && locName.includes('旧河北')));
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
 
@@ -616,7 +616,7 @@ export default function AdminPage() {
 
   // 特定の現場専用：月ごとに MOK（重機、アタッチメント、その他）とヒサヤス（重機、アタッチメント、その他）の内訳付き合計を算出するヘルパー
   const calculateSpecialLeaseMonthlyBreakdown = (locName: string) => {
-    const locMapped = reports.filter(r => r.location === locName);
+    const locMapped = reports.filter(r => r.location === locName || (r.location && r.location.includes('旧河北') && locName.includes('旧河北')));
     const monthlyMap: { 
       [ym: string]: { 
         mokHeavy: number, mokAttach: number, mokOther: number, 
@@ -679,7 +679,7 @@ export default function AdminPage() {
   };
 
   const downloadLocationCSV = (locName: string) => {
-    const locReports = reports.filter(r => r.location === locName);
+    const locReports = reports.filter(r => r.location === locName || (r.location && r.location.includes('旧河北') && locName.includes('旧河北')));
     const headers = ["日付", "現場名", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
       r.date, r.location, r.manager, (r.workers || []).join('/'), 
@@ -792,7 +792,7 @@ export default function AdminPage() {
   }
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
-  const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
+  const filteredReports = reports.filter(r => !filterLocation || (r.location && (r.location.includes(filterLocation) || (filterLocation.includes('旧河北') && r.location.includes('旧河北')))));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
   
   const activeLocList = locList.filter((l:any) => !l.isFinished);
@@ -807,7 +807,7 @@ export default function AdminPage() {
 
   const modalReportYearMonths = modalLocation ? Array.from(new Set(
     reports
-      .filter(r => r.location === modalLocation)
+      .filter(r => r.location === modalLocation || (r.location && r.location.includes('旧河北') && modalLocation.includes('旧河北')))
       .map(r => {
         const norm = (r.date || '').replace(/\//g, '-');
         const parts = norm.split('-');
@@ -979,8 +979,8 @@ export default function AdminPage() {
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
-              </div>
-            );
+            </div>
+          );
           })}
           {finishedLocList.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-4">完了済みの現場はありません</p>
@@ -1106,37 +1106,37 @@ export default function AdminPage() {
                               const isManager = r.manager === staff;
                               const isWorker = (r.workers || []).includes(staff);
                               return isManager || isWorker;
-                            });
+                          });
 
-                            const hasEntry = matchedReports.length > 0;
-                            const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+                          const hasEntry = matchedReports.length > 0;
+                          const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
 
-                            return (
-                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
-                                {hasEntry ? (
-                                  <div 
-                                    title={`${dateStr}: ${locNames}`}
-                                    className="w-8 h-8 mx-auto bg-emerald-100 text-emerald-800 rounded-lg flex items-center justify-center font-bold text-sm shadow-2xs cursor-help"
-                                  >
-                                    ◯
-                                  </div>
-                                ) : (
-                                  <div className="w-8 h-8 mx-auto bg-slate-100 text-slate-400 rounded-lg flex items-center justify-center text-xs font-bold">
-                                    -
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+                          return (
+                            <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                              {hasEntry ? (
+                                <div 
+                                  title={`${dateStr}: ${locNames}`}
+                                  className="w-8 h-8 mx-auto bg-emerald-100 text-emerald-800 rounded-lg flex items-center justify-center font-bold text-sm shadow-2xs cursor-help"
+                                >
+                                  ◯
+                              </div>
+                              ) : (
+                                <div className="w-8 h-8 mx-auto bg-slate-100 text-slate-400 rounded-lg flex items-center justify-center text-xs font-bold">
+                                  -
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
       </div>
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
@@ -1295,14 +1295,14 @@ export default function AdminPage() {
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
                             <div className="flex items-center justify-end gap-1.5 pt-1">
-                                <span className="text-slate-500 font-bold text-sm">¥</span>
-                                <div className="relative w-32">
-                                    <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
-                                    {sec.key === 'locations' && (
-                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
-                                    )}
-                                </div>
+                              <span className="text-slate-500 font-bold text-sm">¥</span>
+                              <div className="relative w-32">
+                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
+                                {sec.key === 'locations' && (
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
+                              )}
                             </div>
+                          </div>
                           )}
                         </div>
                       ))
@@ -1329,8 +1329,8 @@ export default function AdminPage() {
         </div>
 
         <div className="space-y-6">
-          {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
-            const locReports = filteredReports.filter(r => r.location === loc.name);
+          {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation) || (filterLocation.includes('旧河北') && loc.name.includes('旧河北'))).map(loc => {
+            const locReports = filteredReports.filter(r => r.location === loc.name || (r.location && r.location.includes('旧河北') && loc.name.includes('旧河北')));
             if (locReports.length === 0) return null;
 
             const isReportOpen = reportSectionOpen[loc.name] || false;
@@ -2046,10 +2046,10 @@ export default function AdminPage() {
 
               <div className="space-y-2">
                 <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
-                {reports.filter(r => r.location === modalLocation && (r.subcontractors || []).length > 0).length === 0 ? (
+                {reports.filter(r => (r.location === modalLocation || (r.location && r.location.includes('旧河北') && modalLocation.includes('旧河北'))) && (r.subcontractors || []).length > 0).length === 0 ? (
                   <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
                 ) : (
-                  reports.filter(r => r.location === modalLocation && (r.subcontractors || []).length > 0).map((r, idx) => (
+                  reports.filter(r => (r.location === modalLocation || (r.location && r.location.includes('旧河北') && modalLocation.includes('旧河北'))) && (r.subcontractors || []).length > 0).map((r, idx) => (
                     <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
                       <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
                       {(r.subcontractors || []).map((sub: any, sIdx: number) => {
@@ -2122,7 +2122,7 @@ export default function AdminPage() {
                 { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
               ].map((item) => {
                 const isEditing = editingCostFields[modalLocation]?.[item.key];
-                const isTargetLocation = modalLocation === '【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)';
+                const isTargetLocation = modalLocation.includes('旧河北');
                 const isLeaseItem = item.key === 'lease';
 
                 return (
@@ -2191,7 +2191,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* リース詳細内訳モーダル（【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県) 専用） */}
+      {/* リース詳細内訳モーダル（旧河北クリーンセンター等解体工事 専用） */}
       {showLeaseDetailModal && modalLocation && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
@@ -2459,26 +2459,4 @@ export default function AdminPage() {
                               {data.details.map((det, dIdx) => (
                                 <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                                   <span>🗓️ {det.date} / <b>{det.item}</b></span>
-                                  <span><b>{det.quantity} {det.unit}</b></span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
+                                  <span><b>{det.quantity} {det.I seem to be encountering an error. Can I try something else for you?
