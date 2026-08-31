@@ -610,6 +610,47 @@ export default function AdminPage() {
     };
   };
 
+  // 対象現場専用：月ごとの MOKリース / ヒサヤスリース の合計を算出するヘルパー
+  const calculateSpecialLeaseMonthlyBreakdown = (locName: string) => {
+    const locMapped = reports.filter(r => r.location === locName);
+    const mokMonthly: { [ym: string]: number } = {};
+    const hisayasuMonthly: { [ym: string]: number } = {};
+
+    locMapped.forEach(r => {
+      const rDateNorm = (r.date || '').replace(/\//g, '-');
+      const parts = rDateNorm.split('-');
+      if (parts.length < 2) return;
+      const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+
+      // MOKリース計算（leaseHeavy, leaseAttach, leaseOther, mokCustomMachines など）
+      let mokCost = 0;
+      (r.leaseHeavy || []).forEach((m: string) => mokCost += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
+      (r.leaseAttach || []).forEach((m: string) => mokCost += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
+      (r.leaseOther || []).forEach((m: string) => mokCost += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
+      (r.mokCustomMachines || []).forEach((m: any) => {
+        const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
+        const unitP = matched?.price || 0;
+        mokCost += (Number(m.count || 0) * unitP);
+      });
+
+      // ヒサヤスリース計算（石川県用機器: ishikawaHeavy, ishikawaAttach, ishikawaOther など）
+      let hisayasuCost = 0;
+      (r.ishikawaHeavy || []).forEach((m: string) => hisayasuCost += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
+      (r.ishikawaAttach || []).forEach((m: string) => hisayasuCost += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
+      (r.ishikawaOther || []).forEach((m: string) => hisayasuCost += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
+
+      mokMonthly[ym] = (mokMonthly[ym] || 0) + mokCost;
+      hisayasuMonthly[ym] = (hisayasuMonthly[ym] || 0) + hisayasuCost;
+    });
+
+    const allYms = Array.from(new Set([...Object.keys(mokMonthly), ...Object.keys(hisayasuMonthly)])).sort();
+    return allYms.map(ym => ({
+      ym,
+      mok: mokMonthly[ym] || 0,
+      hisayasu: hisayasuMonthly[ym] || 0
+    }));
+  };
+
   const downloadLocationCSV = (locName: string) => {
     const locReports = reports.filter(r => r.location === locName);
     const headers = ["日付", "現場名", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
@@ -1902,8 +1943,8 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
               <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
               <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-blue-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
-              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-amber-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
             <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
@@ -2053,6 +2094,9 @@ export default function AdminPage() {
                 { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
               ].map((item) => {
                 const isEditing = editingCostFields[modalLocation]?.[item.key];
+                const isTargetLocation = modalLocation === '【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)';
+                const isLeaseItem = item.key === 'lease';
+
                 return (
                   <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
@@ -2081,8 +2125,33 @@ export default function AdminPage() {
                           />
                         </div>
                       ) : (
-                        <div className="text-xl md:text-2xl font-bold text-slate-900">
-                          ¥{Number(item.val || 0).toLocaleString()}
+                        <div className="w-full space-y-1">
+                          <div className="text-xl md:text-2xl font-bold text-slate-900">
+                            ¥{Number(item.val || 0).toLocaleString()}
+                          </div>
+
+                          {/* 特定の現場「【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)」のリース合計カード内に、MOK / ヒサヤスの月別内訳を表示 */}
+                          {isTargetLocation && isLeaseItem && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5 text-xs font-medium text-slate-600">
+                              <div className="font-bold text-slate-700">【月別内訳】</div>
+                              {calculateSpecialLeaseMonthlyBreakdown(modalLocation).map(({ ym, mok, hisayasu }) => (
+                                <div key={ym} className="bg-slate-50 p-2 rounded-xl flex flex-col gap-0.5 border border-slate-200">
+                                  <div className="font-bold text-slate-800">{ym}</div>
+                                  <div className="flex justify-between">
+                                    <span>・MOKリース:</span>
+                                    <span className="font-bold text-slate-900">¥{mok.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>・ヒサヤスリース:</span>
+                                    <span className="font-bold text-slate-900">¥{hisayasu.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              ))}
+                              {calculateSpecialLeaseMonthlyBreakdown(modalLocation).length === 0 && (
+                                <div className="text-slate-400 text-center py-1">リースデータなし</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
