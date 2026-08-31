@@ -452,7 +452,7 @@ export default function AdminPage() {
     return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
- const getTargetLocationNames = (currentLoc: string) => {
+  const getTargetLocationNames = (currentLoc: string) => {
     const aliases: { [key: string]: string[] } = {
       '旧河北郡市クリーンセンター等解体工事(石川県)': [
         '【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)',
@@ -475,7 +475,6 @@ export default function AdminPage() {
         '岸和田市別所町3丁目20-4解体工事'
       ]
     };
-
     return aliases[currentLoc] || [currentLoc];
   };
 
@@ -2346,5 +2345,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-```
