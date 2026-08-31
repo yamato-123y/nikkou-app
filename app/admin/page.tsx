@@ -2054,6 +2054,154 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+
+            {/* 原価内訳リストカード群 */}
+            <div className="space-y-4 pt-4 border-t border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900">📦 コスト・経費の内訳と調整</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                {/* 労務費 */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">👤 労務費（自社メンバー）</span>
+                    {authRole === 'admin' && (
+                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'labor')} className="text-xs text-blue-600 underline font-medium">
+                        {editingCostFields[modalLocation]?.labor ? '完了' : '金額調整'}
+                      </button>
+                    )}
+                  </div>
+                  {editingCostFields[modalLocation]?.labor ? (
+                    <input 
+                      type="number" 
+                      value={costOverrides[modalLocation]?.labor !== undefined ? costOverrides[modalLocation].labor : modalData.laborCost}
+                      onChange={e => handleCostOverrideChange(modalLocation, 'labor', e.target.value)}
+                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-slate-900">¥{modalData.laborCost.toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* 外注費 */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">🏢 外注費計</span>
+                    {authRole === 'admin' && (
+                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'sub')} className="text-xs text-blue-600 underline font-medium">
+                        {editingCostFields[modalLocation]?.sub ? '完了' : '金額調整'}
+                      </button>
+                    )}
+                  </div>
+                  {editingCostFields[modalLocation]?.sub ? (
+                    <input 
+                      type="number" 
+                      value={costOverrides[modalLocation]?.sub !== undefined ? costOverrides[modalLocation].sub : modalData.subCostTotal}
+                      onChange={e => handleCostOverrideChange(modalLocation, 'sub', e.target.value)}
+                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-slate-900">¥{modalData.subCostTotal.toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* リース代 */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">🚜 リース代計</span>
+                    {authRole === 'admin' && (
+                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'lease')} className="text-xs text-blue-600 underline font-medium">
+                        {editingCostFields[modalLocation]?.lease ? '完了' : '金額調整'}
+                      </button>
+                    )}
+                  </div>
+                  {editingCostFields[modalLocation]?.lease ? (
+                    <input 
+                      type="number" 
+                      value={costOverrides[modalLocation]?.lease !== undefined ? costOverrides[modalLocation].lease : modalData.leaseCost}
+                      onChange={e => handleCostOverrideChange(modalLocation, 'lease', e.target.value)}
+                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-slate-900">¥{modalData.leaseCost.toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* 処分費 */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">🗑️ 処分費計</span>
+                    {authRole === 'admin' && (
+                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'disposal')} className="text-xs text-blue-600 underline font-medium">
+                        {editingCostFields[modalLocation]?.disposal ? '完了' : '金額調整'}
+                      </button>
+                    )}
+                  </div>
+                  {editingCostFields[modalLocation]?.disposal ? (
+                    <input 
+                      type="number" 
+                      value={costOverrides[modalLocation]?.disposal !== undefined ? costOverrides[modalLocation].disposal : modalData.disposalCost}
+                      onChange={e => handleCostOverrideChange(modalLocation, 'disposal', e.target.value)}
+                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-slate-900">¥{modalData.disposalCost.toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* 燃料費 */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">⛽ 燃料費（軽油）</span>
+                    {authRole === 'admin' && (
+                      <button onClick={() => toggleCostFieldEdit(modalLocation, 'fuel')} className="text-xs text-blue-600 underline font-medium">
+                        {editingCostFields[modalLocation]?.fuel ? '完了' : '金額調整'}
+                      </button>
+                    )}
+                  </div>
+                  {editingCostFields[modalLocation]?.fuel ? (
+                    <input 
+                      type="number" 
+                      value={costOverrides[modalLocation]?.fuel !== undefined ? costOverrides[modalLocation].fuel : modalData.fuelCost}
+                      onChange={e => handleCostOverrideChange(modalLocation, 'fuel', e.target.value)}
+                      className="w-full p-2 border rounded-xl text-right font-bold bg-white"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-slate-900">¥{modalData.fuelCost.toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* 諸経費（レギュラー・ETC等） */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-700">🚗 諸経費（ETC・駐車場など）</span>
+                  </div>
+                  <div className="text-xl font-bold text-slate-900">
+                    ¥{(modalData.regularCost + modalData.etcCost + modalData.parkingCost + modalData.otherCost).toLocaleString()}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* この現場の日報データ一覧 */}
+            <div className="space-y-4 pt-4 border-t border-slate-200">
+              <h3 className="text-lg font-bold text-slate-900">📋 この現場の日報履歴 ({modalData.days}日分)</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {modalData.reportsWithIndex.map((r: any, idx: number) => (
+                  <div key={r.id || idx} className="bg-slate-50 p-3 rounded-xl border flex justify-between items-center text-sm font-medium">
+                    <div>
+                      <span className="font-bold mr-3">📅 {r.date}</span>
+                      <span className="text-slate-600">職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                    </div>
+                    {r.workDescription && (
+                      <div className="text-slate-500 truncate max-w-xs">{r.workDescription}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
