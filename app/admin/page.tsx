@@ -1089,54 +1089,54 @@ export default function AdminPage() {
                           </th>
                         );
                       })}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {allStaffNames.map(staff => {
-                      return (
-                        <tr key={staff} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap text-base">
-                            👤 {staff}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allStaffNames.map(staff => {
+                    return (
+                      <tr key={staff} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white z-10 shadow-xs whitespace-nowrap text-base">
+                          👤 {staff}
+                        </td>
+                        {calendarDays.map(dateStr => {
+                          const matchedReports = reports.filter(r => {
+                            const rDateNormalized = normalizeDateStr(r.date);
+                            if (rDateNormalized !== dateStr) return false;
+                            const isManager = r.manager === staff;
+                            const isWorker = (r.workers || []).includes(staff);
+                            return isManager || isWorker;
+                        });
+
+                        const hasEntry = matchedReports.length > 0;
+                        const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
+
+                        return (
+                          <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                            {hasEntry ? (
+                              <div 
+                                title={`${dateStr}: ${locNames}`}
+                                className="w-8 h-8 mx-auto bg-emerald-100 text-emerald-800 rounded-lg flex items-center justify-center font-bold text-sm shadow-2xs cursor-help"
+                              >
+                                ◯
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 mx-auto bg-slate-100 text-slate-400 rounded-lg flex items-center justify-center text-xs font-bold">
+                                -
+                              </div>
+                            )}
                           </td>
-                          {calendarDays.map(dateStr => {
-                            const matchedReports = reports.filter(r => {
-                              const rDateNormalized = normalizeDateStr(r.date);
-                              if (rDateNormalized !== dateStr) return false;
-                              const isManager = r.manager === staff;
-                              const isWorker = (r.workers || []).includes(staff);
-                              return isManager || isWorker;
-                            });
-
-                            const hasEntry = matchedReports.length > 0;
-                            const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
-
-                            return (
-                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
-                                {hasEntry ? (
-                                  <div 
-                                    title={`${dateStr}: ${locNames}`}
-                                    className="w-8 h-8 mx-auto bg-emerald-100 text-emerald-800 rounded-lg flex items-center justify-center font-bold text-sm shadow-2xs cursor-help"
-                                  >
-                                    ◯
-                                  </div>
-                                ) : (
-                                  <div className="w-8 h-8 mx-auto bg-slate-100 text-slate-400 rounded-lg flex items-center justify-center text-xs font-bold">
-                                    -
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+    </div>
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
@@ -1298,7 +1298,7 @@ export default function AdminPage() {
                                 <div className="relative w-32">
                                     <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
                                     {sec.key === 'locations' && (
-                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
+                                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
                                     )}
                                 </div>
                             </div>
@@ -1584,7 +1584,7 @@ export default function AdminPage() {
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
                     </div>
-                );
+                  );
                 })}
               </div>
 
@@ -2128,7 +2128,7 @@ export default function AdminPage() {
                   <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
                       <span className={`text-base md:text-lg font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-700'}`}>{item.label}</span>
-                      
+                       
                       {/* 対象現場かつリース合計のときのみ「詳細表示」ボタンを配置 */}
                       {isTargetLocation && isLeaseItem ? (
                         <div className="flex items-center gap-2">
