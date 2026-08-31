@@ -38,6 +38,8 @@ export default function Home() {
   const [isOpenIshikawaOther, setIsOpenIshikawaOther] = useState(false);
 
   const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
+  
+  // ★ 南大阪建機等のその他の自由入力リース（ご要望の項目を復元）
   const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
 
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
@@ -156,7 +158,7 @@ export default function Home() {
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
       </div>
 
-      {/* 送信内容確認ポップアップ（新規追加） */}
+      {/* 送信内容確認ポップアップ */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-4 border my-auto max-h-[90vh] flex flex-col">
@@ -178,11 +180,20 @@ export default function Home() {
                 <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
               </div>
 
-              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || ishikawaLeaseHeavy.length > 0 || selectedOwnMachines.length > 0) && (
+              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || ishikawaLeaseHeavy.length > 0 || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
                   <span className="font-bold text-slate-800">
-                    {[...selectedOwnMachines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaLeaseHeavy, ...ishikawaLeaseAttach, ...ishikawaLeaseOther].join(', ')}
+                    {[
+                      ...selectedOwnMachines, 
+                      ...leaseHeavy, 
+                      ...leaseAttach, 
+                      ...leaseOther, 
+                      ...ishikawaLeaseHeavy, 
+                      ...ishikawaLeaseAttach, 
+                      ...ishikawaLeaseOther,
+                      ...otherLeases.map(o => `${o.name}(${o.count})`)
+                    ].join(', ')}
                   </span>
                 </div>
               )}
@@ -488,6 +499,65 @@ export default function Home() {
                  </div>
                )}
              </div>
+
+             {/* ★ 南大阪建機その他の機械（自由入力：リース内容と個数）の復元部分 */}
+             <div className="border-t border-blue-200 pt-4 space-y-3">
+               <div className="flex justify-between items-center">
+                 <span className="font-bold text-sm text-blue-950">📦 その他の機械（自由入力）</span>
+                 <button 
+                   type="button" 
+                   onClick={() => setOtherLeases([...otherLeases, {company: '南大阪建機', name: '', count: ''}])} 
+                   className="bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition"
+                 >
+                   ＋ 追加する
+                 </button>
+               </div>
+
+               {otherLeases.map((ol, index) => (
+                 <div key={index} className="p-3 border-2 border-blue-200 rounded-2xl bg-white space-y-2">
+                   <div className="grid grid-cols-3 gap-2">
+                     <div className="col-span-2">
+                       <label className="text-xs font-bold text-slate-700 block mb-1">リース内容（品名）</label>
+                       <input 
+                         type="text" 
+                         placeholder="例: 発電機" 
+                         className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                         value={ol.name} 
+                         onChange={(e) => {
+                           const updated = [...otherLeases];
+                           updated[index].name = e.target.value;
+                           setOtherLeases(updated);
+                         }}
+                       />
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-slate-700 block mb-1">個数</label>
+                       <input 
+                         type="number" 
+                         placeholder="0" 
+                         className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                         value={ol.count} 
+                         onChange={(e) => {
+                           const updated = [...otherLeases];
+                           updated[index].count = e.target.value;
+                           setOtherLeases(updated);
+                         }}
+                       />
+                     </div>
+                   </div>
+                   <div className="text-right">
+                     <button 
+                       type="button" 
+                       onClick={() => setOtherLeases(otherLeases.filter((_, i) => i !== index))} 
+                       className="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-200 transition"
+                     >
+                       削除
+                     </button>
+                   </div>
+                 </div>
+               ))}
+             </div>
+
            </div>
 
            {/* 石川県出張用リース選択セクション */}
