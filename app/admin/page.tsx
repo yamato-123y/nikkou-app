@@ -452,25 +452,21 @@ export default function AdminPage() {
     return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
-  const getTargetLocationNames = (currentLoc: string) => {
+ const getTargetLocationNames = (currentLoc: string) => {
     const aliases: { [key: string]: string[] } = {
       '旧河北郡市クリーンセンター等解体工事(石川県)': [
-        '【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)',
         '【エスアールケイ】2026.7.7～ 旧河北郡市クリーンセンター等解体工事(石川県)',
         '旧河北郡市クリーンセンター等解体工事(石川県)'
       ],
       '美加の台地区施設一体型小中教育推進校整備工事': [
         '【ドリームクエスト】2026.07.21～ 美加の台地区施設一体型小中教育推進校整備工事',
-        '【ドリームクエスト】2026.07.21～ 美加の台地区施設一体型小中教育推進校整備工事',
         '美加の台地区施設一体型小中教育推進校整備工事'
       ],
       '和歌山下津港海岸(海南地区)船尾南護岸(第2工区)機側操作室解体工事': [
         '【昇和】2026.08.20～ 和歌山下津港海岸(海南地区)船尾南護岸(第2工区)機側操作室解体工事',
-        '【昇和】2026.08.20～ 和歌山下津港海岸(海南地区)船尾南護岸(第2工区)機側操作室解体工事',
         '和歌山下津港海岸(海南地区)船尾南護岸(第2工区)機側操作室解体工事'
       ],
       '岸和田市別所町3丁目20-4解体工事': [
-        '【四ツ葉】2026.06.26～07.07 岸和田市別所町3丁目20-4解体工事',
         '【四ツ葉】2026.06.26～07.07 岸和田市別所町3丁目20-4解体工事',
         '岸和田市別所町3丁目20-4解体工事'
       ]
