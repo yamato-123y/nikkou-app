@@ -90,6 +90,9 @@ export default function Home() {
   const handleConfirmedSubmit = async () => {
     setShowConfirmModal(false);
 
+    // 職長が徳本以外の場合、石川県の選択状態をクリアして送信データに含める
+    const isIshikawaActive = manager === '徳本';
+
     await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,10 +101,12 @@ export default function Home() {
         jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
-        ishikawaHeavy: ishikawaLeaseHeavy,
-        ishikawaAttach: ishikawaLeaseAttach,
-        ishikawaOther: ishikawaLeaseOther,
-        ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther,
+        ishikawaHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+        ishikawaAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+        ishikawaOther: isIshikawaActive ? ishikawaLeaseOther : [],
+        ishikawaLeaseHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+        ishikawaLeaseAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+        ishikawaLeaseOther: isIshikawaActive ? ishikawaLeaseOther : [],
         machines: leaseHeavy,
         mokCustomMachines,
         otherLeases,         
@@ -180,7 +185,7 @@ export default function Home() {
                 <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
               </div>
 
-              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || ishikawaLeaseHeavy.length > 0 || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
+              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && ishikawaLeaseHeavy.length > 0) || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
                   <span className="font-bold text-slate-800">
@@ -189,9 +194,11 @@ export default function Home() {
                       ...leaseHeavy, 
                       ...leaseAttach, 
                       ...leaseOther, 
-                      ...ishikawaLeaseHeavy, 
-                      ...ishikawaLeaseAttach, 
-                      ...ishikawaLeaseOther,
+                      ...(manager === '徳本' ? [
+                        ...ishikawaLeaseHeavy, 
+                        ...ishikawaLeaseAttach, 
+                        ...ishikawaLeaseOther
+                      ] : []),
                       ...otherLeases.map(o => `${o.name}(${o.count})`)
                     ].join(', ')}
                   </span>
@@ -308,7 +315,21 @@ export default function Home() {
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
-             <select value={manager} onChange={e=>setManager(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
+             <select 
+               value={manager} 
+               onChange={e => {
+                 const newManager = e.target.value;
+                 setManager(newManager);
+                 // 職長が「徳本」以外に変更された場合、石川県の選択状態をリセットする
+                 if (newManager !== '徳本') {
+                   setIshikawaLeaseHeavy([]);
+                   setIshikawaLeaseAttach([]);
+                   setIshikawaLeaseOther([]);
+                   setIsOpenIshikawa(false);
+                 }
+               }} 
+               className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
+             >
                <option value="">職長を選択してください</option>
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
@@ -560,69 +581,71 @@ export default function Home() {
 
            </div>
 
-           {/* 石川県出張用リース選択セクション */}
-           <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200">
-             <button
-               type="button"
-               onClick={() => setIsOpenIshikawa(!isOpenIshikawa)}
-               className="w-full text-left p-4 bg-indigo-600 text-white rounded-2xl font-black text-lg flex justify-between items-center shadow-md hover:bg-indigo-700 transition"
-             >
-               <span>🗾 石川県出張用リース機器</span>
-               <span className="text-sm">{isOpenIshikawa ? '▲ 閉じる' : '▼ 開く'}</span>
-             </button>
+           {/* 石川県出張用リース選択セクション（職長が「徳本」の場合のみ表示） */}
+           {manager === '徳本' && (
+             <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200 animate-fadeIn">
+               <button
+                 type="button"
+                 onClick={() => setIsOpenIshikawa(!isOpenIshikawa)}
+                 className="w-full text-left p-4 bg-indigo-600 text-white rounded-2xl font-black text-lg flex justify-between items-center shadow-md hover:bg-indigo-700 transition"
+               >
+                 <span>🗾 石川県出張用リース機器</span>
+                 <span className="text-sm">{isOpenIshikawa ? '▲ 閉じる' : '▼ 開く'}</span>
+               </button>
 
-             {isOpenIshikawa && (
-               <div className="space-y-3 pt-2 animate-fadeIn">
-                 <div>
-                   <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
-                     <span>【（石川県）重機を選択】</span>
-                     {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseHeavy.length}選定中</span>}
-                     <span>{isOpenIshikawaHeavy ? '▲' : '▼'}</span>
-                   </button>
-                   {isOpenIshikawaHeavy && (
-                     <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaHeavy || []).map((m:any) => (
-                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
-                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                       ))}
-                     </div>
-                   )}
-                 </div>
+               {isOpenIshikawa && (
+                 <div className="space-y-3 pt-2 animate-fadeIn">
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）重機を選択】</span>
+                       {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseHeavy.length}選定中</span>}
+                       <span>{isOpenIshikawaHeavy ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaHeavy && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaHeavy || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
 
-                 <div>
-                   <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
-                     <span>【（石川県）アタッチメントを選択】</span>
-                     {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseAttach.length}選定中</span>}
-                     <span>{isOpenIshikawaAttach ? '▲' : '▼'}</span>
-                   </button>
-                   {isOpenIshikawaAttach && (
-                     <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaAttach || []).map((m:any) => (
-                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
-                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                       ))}
-                     </div>
-                   )}
-                 </div>
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）アタッチメントを選択】</span>
+                       {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseAttach.length}選定中</span>}
+                       <span>{isOpenIshikawaAttach ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaAttach && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaAttach || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
 
-                 <div>
-                   <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
-                     <span>【（石川県）その他機械・機器を選択】</span>
-                     {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseOther.length}選定中</span>}
-                     <span>{isOpenIshikawaOther ? '▲' : '▼'}</span>
-                   </button>
-                   {isOpenIshikawaOther && (
-                     <div className="grid grid-cols-2 gap-2 pt-2">
-                       {(settings.ishikawaOther || []).map((m:any) => (
-                         <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
-                         className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                       ))}
-                     </div>
-                   )}
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）その他機械・機器を選択】</span>
+                       {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseOther.length}選定中</span>}
+                       <span>{isOpenIshikawaOther ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaOther && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaOther || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
                  </div>
-               </div>
-             )}
-           </div>
+               )}
+             </div>
+           )}
 
         </div>
 
