@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
+  const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
@@ -470,6 +471,18 @@ export default function AdminPage() {
     (r.ishikawaAttach || []).forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.ishikawaOther || []).forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
+    // 石川県リースとMOKリースの内訳計算用（旧河北現場専用の個別詳細用）
+    let ishikawaLeaseDetail = 0;
+    (r.ishikawaHeavy || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    (r.ishikawaAttach || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
+    (r.ishikawaOther || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
+
+    let mokLeaseDetail = 0;
+    (r.machines || []).forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseHeavy || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseAttach || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
+    (r.leaseOther || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
+
     let otherLeaseC = 0;
     (r.otherLeases || []).forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
@@ -560,7 +573,7 @@ export default function AdminPage() {
     const pC = Number(r.parkingPrice || 0);
     const oC = Number(r.otherPrice || 0);
 
-    return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
+    return { lCost, subCost, leaseC, otherLeaseC, ishikawaLeaseDetail, mokLeaseDetail, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
   const getTargetLocationNames = (currentLoc: string) => {
@@ -590,7 +603,7 @@ export default function AdminPage() {
   const calculateCosts = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locMapped = reports.filter(r => targetNames.includes(r.location));
-    let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
+    let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcIshikawaLease = 0, calcMokLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
 
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
@@ -602,6 +615,8 @@ export default function AdminPage() {
       calcSub += dc.subCost; 
       calcLease += dc.leaseC; 
       calcOtherLease += dc.otherLeaseC;
+      calcIshikawaLease += dc.ishikawaLeaseDetail;
+      calcMokLease += dc.mokLeaseDetail;
       calcOwnMachine += dc.ownMachineC;
       calcVehicle += dc.vehicleC;
       calcDispCalc += dc.dispC;
@@ -726,6 +741,8 @@ export default function AdminPage() {
       subCostTotal, 
       leaseCost, 
       otherLeaseCost,
+      calcIshikawaLease,
+      calcMokLease,
       ownMachineCost,
       vehicleCost,
       disposalCost, 
@@ -2231,7 +2248,6 @@ export default function AdminPage() {
             <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <h3 className="font-bold text-lg md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
-                {/* ③ 下側の「🔍 処分費の内訳を確認」ボタンは削除済み */}
               </div>
 
               <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
@@ -2269,7 +2285,7 @@ export default function AdminPage() {
               {[
                 { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
                 { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
-                { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost },
+                { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
                 { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
                 { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                 { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
@@ -2285,15 +2301,26 @@ export default function AdminPage() {
                   <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
                       <span className={`text-base md:text-lg font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-700'}`}>{item.label}</span>
-                      {authRole === 'admin' && (
-                        <button
-                          type="button"
-                          onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
-                          className="text-xs text-blue-600 hover:text-blue-800 underline font-bold"
-                        >
-                          {isEditing ? '完了' : '手動上書き'}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {item.isIshikawaSpecial && (
+                          <button
+                            type="button"
+                            onClick={() => setShowIshikawaLeaseModal(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition"
+                          >
+                            詳細
+                          </button>
+                        )}
+                        {authRole === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline font-bold"
+                          >
+                            {isEditing ? '完了' : '手動上書き'}
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-baseline justify-between">
@@ -2317,6 +2344,48 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 旧河北（石川県）専用 リース詳細内訳ポップアップ */}
+      {showIshikawaLeaseModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-indigo-900">🗾 石川県出張用リース / MOKリース内訳</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">「旧河北郡市クリーンセンター等解体工事(石川県)」のリース内訳</p>
+              </div>
+              <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-200 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-indigo-900 text-base md:text-lg">🗾 石川県出張用リース (月ごとのリース ＋ その他)</span>
+                  <span className="font-bold text-indigo-900 text-xl">¥{modalData.calcIshikawaLease.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-indigo-700">※石川県専用重機・アタッチメント・その他機器の日報集計額</p>
+              </div>
+
+              <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-blue-900 text-base md:text-lg">🏢 MOK（南大阪建機）グループ (月ごとのリース ＋ その他)</span>
+                  <span className="font-bold text-blue-900 text-xl">¥{modalData.calcMokLease.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-blue-700">※通常のMOK重機・アタッチメント・その他機器の日報集計額</p>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-base font-bold">
+                <span>合計リース額</span>
+                <span className="text-xl text-slate-900">¥{(modalData.calcIshikawaLease + modalData.calcMokLease).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
