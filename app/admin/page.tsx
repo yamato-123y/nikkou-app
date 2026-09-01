@@ -31,6 +31,9 @@ export default function AdminPage() {
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
+  // ② 外注費エリアの折り畳み用ステート
+  const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
+
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
@@ -78,7 +81,6 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
-          // ※ disposalFiles はサーバーからロードせず、オンメモリのみで管理します
         }
       }
     } catch (e) {  
@@ -825,7 +827,6 @@ export default function AdminPage() {
     };
 
     setDisposalFiles(updatedDisposalFiles);
-    // ※ サーバーへのPOST処理は行いません（サーバー容量を圧迫しないため）
   };
 
   const handleDisposalFileRemove = (locKey: string, fileIdx: number) => {
@@ -2101,115 +2102,136 @@ export default function AdminPage() {
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
-            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col gap-3 shadow-2xs">
-              <div className="flex justify-between items-center flex-wrap gap-3">
-                <span className="text-emerald-900 font-bold text-base md:text-xl">♻️ スクラップ売却計</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-emerald-800 text-2xl md:text-3xl">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
-                  <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
-                    🔍 内訳・金額入力
-                  </button>
-                </div>
+            {/* ④ スクラップ枠とは完全に独立した「処分費」専用枠を設置 */}
+            <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex justify-between items-center shadow-2xs">
+              <div className="flex items-center gap-2 font-bold text-orange-900 text-base md:text-xl">
+                <span>🗑️ 処分費</span>
               </div>
-              <div className="pt-2 border-t border-emerald-200/60 flex justify-end">
-                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-5 py-2.5 rounded-xl font-bold shadow-xs transition flex items-center gap-1.5">
+              <div className="flex items-center gap-3">
+                <span className="text-xl md:text-2xl font-bold text-orange-800">¥{modalData.disposalCost.toLocaleString()}</span>
+                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
                   🔍 処分費の内訳を確認
                 </button>
               </div>
             </div>
 
-            {/* 外注費 詳細・計算内訳 ＋ 手動一括請負追加フォーム */}
+            {/* スクラップ売却計（緑枠：スクラップのみに分離） */}
+            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex justify-between items-center shadow-2xs">
+              <div className="flex items-center gap-2 font-bold text-emerald-900 text-base md:text-xl">
+                <span>♻️ スクラップ売却計</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xl md:text-2xl font-bold text-emerald-800">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
+                  🔍 内訳・金額入力
+                </button>
+              </div>
+            </div>
+
+            {/* ② 外注費 詳細・計算内訳（折り畳み式） */}
             <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-bold text-lg text-orange-900">👥 外注費 詳細・計算内訳</h3>
+              <div 
+                className="flex justify-between items-center cursor-pointer select-none"
+                onClick={() => setSubcontractorSectionOpen(!subcontractorSectionOpen)}
+              >
+                <div className="flex items-center gap-2 font-bold text-lg text-orange-900">
+                  <span>👥 外注費 詳細・計算内訳</span>
+                  <span className="text-xs text-orange-700 bg-orange-100 px-2 py-0.5 rounded">
+                    {subcontractorSectionOpen ? '▲ 閉じる' : '▼ 開く'}
+                  </span>
+                </div>
                 <span className="text-sm font-bold text-orange-800 bg-orange-100 px-3 py-1 rounded-xl">外注費合計: ¥{modalData.subCostTotal.toLocaleString()}</span>
               </div>
 
-              {authRole === 'admin' && (
-                <div className="bg-white p-4 rounded-xl border border-orange-300 space-y-3 shadow-2xs">
-                  <div className="text-sm font-bold text-orange-900">＋ 一括請負・外注費の直接追加</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="会社名 (例: 〇〇工業)" 
-                      value={customSubForm[modalLocation]?.company || ''} 
-                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), company: e.target.value } })} 
-                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="作業内容 (例: 解体一式)" 
-                      value={customSubForm[modalLocation]?.task || ''} 
-                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), task: e.target.value } })} 
-                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="金額 (例: 1000000)" 
-                      value={customSubForm[modalLocation]?.price || ''} 
-                      onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), price: e.target.value } })} 
-                      className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                    />
+              {subcontractorSectionOpen && (
+                <div className="space-y-4 pt-3 border-t border-orange-200 animate-fadeIn">
+                  {authRole === 'admin' && (
+                    <div className="bg-white p-4 rounded-xl border border-orange-300 space-y-3 shadow-2xs">
+                      <div className="text-sm font-bold text-orange-900">＋ 一括請負・外注費の直接追加</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input 
+                          type="text" 
+                          placeholder="会社名 (例: 〇〇工業)" 
+                          value={customSubForm[modalLocation]?.company || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), company: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="作業内容 (例: 解体一式)" 
+                          value={customSubForm[modalLocation]?.task || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), task: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="金額 (例: 1000000)" 
+                          value={customSubForm[modalLocation]?.price || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), price: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => handleAddCustomSubcontractor(modalLocation)} 
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-xs transition"
+                      >
+                        この外注費を追加する
+                      </button>
+                    </div>
+                  )}
+
+                  {(customSubcontractors[modalLocation] || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
+                      {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
+                        <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
+                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">¥{Number(cs.price).toLocaleString()}</span></span>
+                          {authRole === 'admin' && (
+                            <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
+                    {reports.filter(r => {
+                      const targetNames = getTargetLocationNames(modalLocation);
+                      return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
+                    }).length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
+                    ) : (
+                      reports.filter(r => {
+                        const targetNames = getTargetLocationNames(modalLocation);
+                        return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
+                      }).map((r, idx) => (
+                        <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
+                          <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
+                          {(r.subcontractors || []).map((sub: any, sIdx: number) => {
+                            const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
+                            const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
+                            const subTotalCalc = Number(sub.count || 0) * unitP;
+                            return (
+                              <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
+                                <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 ¥{unitP.toLocaleString()}</span>
+                                <span className="font-bold text-orange-700">¥{subTotalCalc.toLocaleString()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={() => handleAddCustomSubcontractor(modalLocation)} 
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-xs transition"
-                  >
-                    この外注費を追加する
-                  </button>
                 </div>
               )}
-
-              {(customSubcontractors[modalLocation] || []).length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
-                  {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
-                    <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
-                      <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">¥{Number(cs.price).toLocaleString()}</span></span>
-                      {authRole === 'admin' && (
-                        <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
-                {reports.filter(r => {
-                  const targetNames = getTargetLocationNames(modalLocation);
-                  return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
-                }).length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
-                ) : (
-                  reports.filter(r => {
-                    const targetNames = getTargetLocationNames(modalLocation);
-                    return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
-                  }).map((r, idx) => (
-                    <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
-                      <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
-                      {(r.subcontractors || []).map((sub: any, sIdx: number) => {
-                        const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
-                        const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
-                        const subTotalCalc = Number(sub.count || 0) * unitP;
-                        return (
-                          <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
-                            <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 ¥{unitP.toLocaleString()}</span>
-                            <span className="font-bold text-orange-700">¥{subTotalCalc.toLocaleString()}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
 
             <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-3">
                 <h3 className="font-bold text-lg md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
-                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
+                {/* ③ 下側の「🔍 処分費の内訳を確認」ボタンは削除済み */}
               </div>
 
               <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
@@ -2312,10 +2334,9 @@ export default function AdminPage() {
               <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
-            {/* 💡 期間・キーワード・処分場ごとの絞り込みコントロール */}
+            {/* ① 期間・キーワード・処分場ごとの絞り込みコントロール（確実に機能するよう修復） */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
               <div className="flex flex-col md:flex-row gap-2 flex-1 w-full">
-                {/* 🏢 処分場ごとのセレクトボックス絞り込み */}
                 <select
                   value={disposalSiteFilter}
                   onChange={e => setDisposalSiteFilter(e.target.value)}
@@ -2386,8 +2407,6 @@ export default function AdminPage() {
                     }
 
                     const reportTotalQty = Object.values(locObj.items).reduce((acc, it) => acc + it.quantity, 0);
-
-                    // 💡 オンメモリで保持されているファイル一覧
                     const siteFiles = disposalFiles[modalLocation]?.[locKey]?.files || [];
 
                     return (
