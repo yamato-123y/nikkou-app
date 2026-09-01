@@ -9,6 +9,7 @@ export default function AdminPage() {
 
   const [reports, setReports] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
+  const [originalSettings, setOriginalSettings] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const [modalLocation, setModalLocation] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export default function AdminPage() {
         const sData = await resS.json();
         if (sData && Object.keys(sData).length > 0) {
           setSettings(sData);
+          setOriginalSettings(JSON.parse(JSON.stringify(sData)));
           if (sData.costOverrides) setCostOverrides(sData.costOverrides);
           if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
@@ -69,8 +71,8 @@ export default function AdminPage() {
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
         }
       }
-    } catch (e) { 
-      console.error(e); 
+    } catch (e) {  
+      console.error(e);  
     } finally {
       setIsLoading(false);
     }
@@ -100,20 +102,117 @@ export default function AdminPage() {
     }
     try {
       const targetList = customList !== undefined ? customList : settings[key];
-      const newData = { ...settings, [key]: targetList };
+      
+      const oldList = originalSettings[key] || [];
+      const newList = targetList || [];
+      const locationUpdates: { oldName: string; newName: string }[] = [];
+      const subUpdates: { oldComp: string; oldTask: string; newComp: string; newTask: string }[] = [];
 
+      if (key === 'locations') {
+        newList.forEach((newItem: any, idx: number) => {
+          const oldItem = oldList[idx];
+          const oldName = typeof oldItem === 'string' ? oldItem : oldItem?.name;
+          const newName = typeof newItem === 'string' ? newItem : newItem?.name;
+          if (oldName && newName && oldName !== newName) {
+            locationUpdates.push({ oldName, newName });
+          }
+        });
+      } else if (key === 'subcontractors') {
+        newList.forEach((newItem: any, idx: number) => {
+          const oldItem = oldList[idx];
+          if (oldItem && newItem) {
+            if (oldItem.company !== newItem.company || oldItem.task !== newItem.task) {
+              subUpdates.push({
+                oldComp: oldItem.company,
+                oldTask: oldItem.task,
+                newComp: newItem.company,
+                newTask: newItem.task
+              });
+            }
+          }
+        });
+      }
+
+      const newData = { ...settings, [key]: targetList };
       const res = await fetch('/api/settings', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(newData) 
       });
 
-      if (res.ok) {
-        setSettings(newData);
-        alert('保存しました！');
-      } else {
+      if (!res.ok) {
         alert('保存に失敗しました。');
+        return;
       }
+
+      if (locationUpdates.length > 0 || subUpdates.length > 0) {
+        let hasChanges = false;
+        const updatedReports = reports.map(r => {
+          let reportChanged = false;
+          let newR = { ...r };
+
+          locationUpdates.forEach(u => {
+            if (newR.location === u.oldName) {
+              newR.location = u.newName;
+              reportChanged = true;
+            }
+            if (newR.disposals) {
+              newR.disposals = newR.disposals.map((d: any) => {
+                if (d.location === u.oldName) {
+                  reportChanged = true;
+                  return { ...d, location: u.newName };
+                }
+                return d;
+              });
+            }
+            if (newR.scraps) {
+              newR.scraps = newR.scraps.map((sc: any) => {
+                if (sc.location === u.oldName) {
+                  reportChanged = true;
+                  return { ...sc, location: u.newName };
+                }
+                return sc;
+              });
+            }
+          });
+
+          subUpdates.forEach(su => {
+            if (newR.subcontractors) {
+              newR.subcontractors = newR.subcontractors.map((sub: any) => {
+                if (sub.company === su.oldComp && sub.task === su.oldTask) {
+                  reportChanged = true;
+                  return { ...sub, company: su.newComp, task: su.newTask };
+                }
+                return sub;
+              });
+            }
+          });
+
+          if (reportChanged) {
+            hasChanges = true;
+            return newR;
+          }
+          return r;
+        });
+
+        if (hasChanges) {
+          for (const r of updatedReports) {
+            const targetId = r.id || r._id;
+            if (targetId) {
+              await fetch('/api/reports', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...r, id: targetId })
+              });
+            }
+          }
+        }
+      }
+
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      alert('保存しました！過去の日報の名称も自動で更新されました。');
+      fetchData();
     } catch (e) {
       console.error(e);
       alert('通信エラーが発生しました。');
@@ -452,8 +551,7 @@ export default function AdminPage() {
     return { lCost, subCost, leaseC, otherLeaseC, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
   };
 
-const getTargetLocationNames = (currentLoc: string) => {
-    // 1. 新しい現場名ごとに、判定するための「キーワード（部分文字列）」を定義します
+  const getTargetLocationNames = (currentLoc: string) => {
     const keywordRules: { [key: string]: string } = {
       '旧河北郡市クリーンセンター等解体工事(石川県)': '旧河北郡市クリーンセンター',
       '美加の台地区施設一体型小中教育推進校整備工事': '美加の台地区施設',
@@ -463,11 +561,9 @@ const getTargetLocationNames = (currentLoc: string) => {
 
     const keyword = keywordRules[currentLoc];
     if (!keyword) {
-      // ルールに該当しない通常の現場名の場合はそのまま返す
       return [currentLoc];
     }
 
-    // reports（全日報データ）の中から、現場名にそのキーワードが含まれているものをすべて抽出する
     const matchedLocations = Array.from(
       new Set(
         reports
@@ -476,7 +572,6 @@ const getTargetLocationNames = (currentLoc: string) => {
       )
     );
 
-    // 見つかった場合はそれらをすべて返し、なければ現在の名前を返す
     return matchedLocations.length > 0 ? matchedLocations : [currentLoc];
   };
 
