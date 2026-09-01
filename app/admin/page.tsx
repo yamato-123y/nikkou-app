@@ -32,20 +32,17 @@ export default function AdminPage() {
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
-  // ② 外注費エリアの折り畳み用ステート
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
 
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
 
-  // 処分費の内訳明細の期間・キーワード・処分場ごとの絞り込み用ステート
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
   const [disposalStartDate, setDisposalStartDate] = useState('');
   const [disposalEndDate, setDisposalEndDate] = useState('');
   const [disposalSiteFilter, setDisposalSiteFilter] = useState('');
 
-  // 🗑️ 【修正】サーバーに保存せず、ブラウザ内（オンメモリ）のみで一時保持する処分場ファイル用ステート
   const [disposalFiles, setDisposalFiles] = useState<any>({});
 
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
@@ -734,6 +731,10 @@ export default function AdminPage() {
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
     const profit = profitWithoutScrap + scrapTotal;
 
+    // 請負先や開始日などの付加情報を取得（紐づくレポートから抽出）
+    const clients = Array.from(new Set(locMapped.map((r: any) => r.client).filter(Boolean)));
+    const startDates = Array.from(new Set(locMapped.map((r: any) => r.startDate).filter(Boolean))).sort();
+
     return { 
       days: locMapped.length, 
       laborCost, 
@@ -758,7 +759,9 @@ export default function AdminPage() {
       isFinished,
       profit, 
       profitWithoutScrap, 
-      reportsWithIndex: locMapped 
+      reportsWithIndex: locMapped,
+      clientStr: clients.join(', ') || '未設定',
+      startDateStr: startDates[0] || '未設定'
     };
   };
 
@@ -1622,7 +1625,6 @@ export default function AdminPage() {
                       {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
                     </select>
                   </div>
-                  {/* 👇 【追加】請負先の入力欄 */}
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">請負先</label>
                     <input 
@@ -1633,7 +1635,6 @@ export default function AdminPage() {
                       className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" 
                     />
                   </div>
-                  {/* 👇 【追加】開始日の入力欄 */}
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">開始日</label>
                     <input 
@@ -2091,7 +2092,18 @@ export default function AdminPage() {
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div>
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  
+                  {/* 👇 【追加】ご指定の位置（詳細分析の下）に「請負先」と「開始日」を表示 */}
+                  <div className="flex items-center gap-4 mt-2 flex-wrap">
+                    <span className="text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
+                      🏢 請負先: <span className="text-blue-600">{modalData.clientStr}</span>
+                    </span>
+                    <span className="text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
+                      ⏱ 開始日: <span className="text-slate-900">{modalData.startDateStr}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
                       <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-2xs flex items-center gap-1">
@@ -2140,7 +2152,6 @@ export default function AdminPage() {
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
-            {/* ④ スクラップ枠とは完全に独立した「処分費」専用枠を設置 */}
             <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex justify-between items-center shadow-2xs">
               <div className="flex items-center gap-2 font-bold text-orange-900 text-base md:text-xl">
                 <span>🗑️ 処分費</span>
@@ -2153,7 +2164,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* スクラップ売却計（緑枠：スクラップのみに分離） */}
             <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex justify-between items-center shadow-2xs">
               <div className="flex items-center gap-2 font-bold text-emerald-900 text-base md:text-xl">
                 <span>♻️ スクラップ売却計</span>
@@ -2166,7 +2176,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ② 外注費 詳細・計算内訳（折り畳み式） */}
             <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
               <div 
                 className="flex justify-between items-center cursor-pointer select-none"
@@ -2424,7 +2433,6 @@ export default function AdminPage() {
               <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
-            {/* ① 期間・キーワード・処分場ごとの絞り込みコントロール（確実に機能するよう修復） */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
               <div className="flex flex-col md:flex-row gap-2 flex-1 w-full">
                 <select
@@ -2532,7 +2540,6 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        {/* 🗑️ 請求書・ファイルのアップロード・貼り付け・照合エリア（オンメモリ版） */}
                         <div className="bg-white p-4 rounded-2xl border border-orange-200 space-y-3">
                           <div className="flex justify-between items-center flex-wrap gap-2">
                             <div className="text-xs md:text-sm font-bold text-orange-900 flex items-center gap-1.5">
