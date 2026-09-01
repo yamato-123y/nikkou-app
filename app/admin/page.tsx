@@ -731,7 +731,6 @@ export default function AdminPage() {
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
     const profit = profitWithoutScrap + scrapTotal;
 
-    // 請負先や開始日などの付加情報を取得（紐づくレポートから抽出）
     const clients = Array.from(new Set(locMapped.map((r: any) => r.client).filter(Boolean)));
     const startDates = Array.from(new Set(locMapped.map((r: any) => r.startDate).filter(Boolean))).sort();
 
@@ -760,8 +759,8 @@ export default function AdminPage() {
       profit, 
       profitWithoutScrap, 
       reportsWithIndex: locMapped,
-      clientStr: clients.join(', ') || '未設定',
-      startDateStr: startDates[0] || '未設定'
+      clientStr: clients.join(', ') || '',
+      startDateStr: startDates[0] || ''
     };
   };
 
@@ -2088,22 +2087,81 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-8 z-40 animate-fadeIn">
           <div className="bg-white rounded-3xl w-full max-w-6xl p-5 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 md:space-y-8 shadow-2xl border border-slate-100">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
-              <div className="flex flex-col items-start gap-3">
+              <div className="flex flex-col items-start gap-3 w-full">
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
-                <div>
+                <div className="w-full">
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
                   
-                  {/* 👇 【追加】ご指定の位置（詳細分析の下）に「請負先」と「開始日」を表示 */}
-                  <div className="flex items-center gap-4 mt-2 flex-wrap">
-                    <span className="text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
-                      🏢 請負先: <span className="text-blue-600">{modalData.clientStr}</span>
-                    </span>
-                    <span className="text-sm md:text-base font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
-                      ⏱ 開始日: <span className="text-slate-900">{modalData.startDateStr}</span>
-                    </span>
+                  {/* 👇 【修正】「請負先」と「開始日」の入力・変更枠に変更 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">🏢 請負先（入力枠）</label>
+                      <input 
+                        type="text" 
+                        value={modalData.clientStr} 
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          const targetNames = getTargetLocationNames(modalLocation);
+                          const updatedReports = reports.map(r => {
+                            if (targetNames.includes(r.location)) {
+                              return { ...r, client: val };
+                            }
+                            return r;
+                          });
+                          setReports(updatedReports);
+                          for (const r of updatedReports) {
+                            if (targetNames.includes(r.location)) {
+                              const targetId = r.id || r._id;
+                              if (targetId) {
+                                await fetch('/api/reports', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ ...r, id: targetId })
+                                });
+                              }
+                            }
+                          }
+                        }}
+                        readOnly={authRole === 'viewer'}
+                        placeholder="例: 〇〇建設" 
+                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">⏱ 開始日（入力枠）</label>
+                      <input 
+                        type="date" 
+                        value={modalData.startDateStr} 
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          const targetNames = getTargetLocationNames(modalLocation);
+                          const updatedReports = reports.map(r => {
+                            if (targetNames.includes(r.location)) {
+                              return { ...r, startDate: val };
+                            }
+                            return r;
+                          });
+                          setReports(updatedReports);
+                          for (const r of updatedReports) {
+                            if (targetNames.includes(r.location)) {
+                              const targetId = r.id || r._id;
+                              if (targetId) {
+                                await fetch('/api/reports', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ ...r, id: targetId })
+                                });
+                              }
+                            }
+                          }
+                        }}
+                        readOnly={authRole === 'viewer'}
+                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                  <div className="flex items-center gap-3 mt-3 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
                       <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-2xs flex items-center gap-1">
