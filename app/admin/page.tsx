@@ -22,6 +22,12 @@ export default function AdminPage() {
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
 
+  // 追加：月別処分一覧ポップアップ用のステート
+  const [showMonthlyDisposalModal, setShowMonthlyDisposalModal] = useState(false);
+  const [monthlyDisposalTargetLoc, setMonthlyDisposalTargetLoc] = useState<string | null>(null);
+  // 請求書照合用：クリックされた行のIDやキーを保持して状態（チェック済み）を管理
+  const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
+
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
@@ -810,6 +816,75 @@ export default function AdminPage() {
     return cleaned;
   };
 
+  // ---------------------------------------------------------------------------
+  // 追加ヘルパー：処分ごとの明細を抽出して月別に整理し、日付順でソートする関数
+  // ---------------------------------------------------------------------------
+  const getMonthlyDisposalGroupedData = (locName: string) => {
+    const targetNames = getTargetLocationNames(locName);
+    const locReports = reports.filter(r => targetNames.includes(r.location));
+
+    // { "〇〇処分場": { "2026-07": [ {date: "7/1", location: "〇〇", item: "コンガラ", quantity: 1.5, unit: "t"}, ... ] } }
+    const result: { [disposalSite: string]: { [yearMonth: string]: Array<{ date: string; rawDate: string; locationName: string; item: string; quantity: number; unit: string; rowKey: string }> } } = {};
+
+    locReports.forEach(r => {
+      const reportDate = r.date || '';
+      // 日付の正規化やパース (例: "2026/7/1" または "7/1" から年月を抽出)
+      const norm = reportDate.replace(/\//g, '-');
+      const parts = norm.split('-');
+      
+      let yearMonth = '';
+      let formattedDate = reportDate;
+
+      if (parts.length === 3) {
+        yearMonth = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        formattedDate = `${Number(parts[1])}/${Number(parts[2])}`; // "7/1" のような形式に整形
+      } else if (parts.length === 2) {
+        // 年がない場合のフォールバック（現在の年などを使用）
+        const currentYear = new Date().getFullYear();
+        yearMonth = `${currentYear}-${parts[0].padStart(2, '0')}`;
+        formattedDate = `${Number(parts[0])}/${Number(parts[1])}`;
+      } else {
+        yearMonth = '2026-07'; // デフォルト
+      }
+
+      (r.disposals || []).forEach((d: any, dIdx: number) => {
+        const dLoc = d.location || '〇〇処分場';
+        const dItem = d.item || '品目未指定';
+        const dQty = Number(d.quantity || 0);
+        const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === dLoc && s.item === dItem);
+        const dUnit = d.unit || masterRecord?.unit || 't';
+
+        const rowKey = `${dLoc}_${yearMonth}_${reportDate}_${dItem}_${dIdx}`;
+
+        if (!result[dLoc]) {
+          result[dLoc] = {};
+        }
+        if (!result[dLoc][yearMonth]) {
+          result[dLoc][yearMonth] = [];
+        }
+
+        result[dLoc][yearMonth].push({
+          date: formattedDate,
+          rawDate: reportDate,
+          locationName: r.location || '',
+          item: dItem,
+          quantity: dQty,
+          unit: dUnit,
+          rowKey
+        });
+      });
+    });
+
+    // 日付順にソート
+    Object.keys(result).forEach(dLoc => {
+      Object.keys(result[dLoc]).forEach(ym => {
+        result[dLoc][ym].sort((a, b) => a.rawDate.localeCompare(b.rawDate, 'ja', { numeric: true }));
+      });
+    });
+
+    return result;
+  };
+
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
       <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
@@ -972,8 +1047,15 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  {/* 追加：月別処分一覧ボタン（スマホ表示） */}
+                  <button 
+                    onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
+                  >
+                    📦 月別処分一覧 →
+                  </button>
+                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
               </div>
             );
@@ -987,12 +1069,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[32%]">現場名</th>
-                <th className="py-4 px-4 w-[13%]">請負金額</th>
-                <th className="py-4 px-4 w-[11%]">稼働日数</th>
-                <th className="py-4 px-4 w-[13%]">合計経費</th>
-                <th className="py-4 px-4 w-[17%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[14%] text-center">ステータス / アクション</th>
+                <th className="py-4 px-4 w-[30%]">現場名</th>
+                <th className="py-4 px-4 w-[12%]">請負金額</th>
+                <th className="py-4 px-4 w-[10%]">稼働日数</th>
+                <th className="py-4 px-4 w-[12%]">合計経費</th>
+                <th className="py-4 px-4 w-[16%]">粗利（売却益込）</th>
+                <th className="py-4 px-4 w-[20%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -1016,6 +1098,13 @@ export default function AdminPage() {
                             現場完了
                           </button>
                         )}
+                        {/* 追加：月別処分一覧ボタン（指示位置：詳細分析の左側） */}
+                        <button 
+                          onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
+                          className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap"
+                        >
+                          月別処分一覧 →
+                        </button>
                         <button onClick={() => setModalLocation(loc.name)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
@@ -1064,8 +1153,14 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  <button 
+                    onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
+                  >
+                    📦 月別処分一覧 →
+                  </button>
+                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
               </div>
             );
@@ -1079,12 +1174,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-300 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[32%]">現場名</th>
-                <th className="py-4 px-4 w-[13%]">請負金額</th>
-                <th className="py-4 px-4 w-[11%]">稼働日数</th>
-                <th className="py-4 px-4 w-[13%]">合計経費</th>
-                <th className="py-4 px-4 w-[17%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[14%] text-center">ステータス / アクション</th>
+                <th className="py-4 px-4 w-[30%]">現場名</th>
+                <th className="py-4 px-4 w-[12%]">請負金額</th>
+                <th className="py-4 px-4 w-[10%]">稼働日数</th>
+                <th className="py-4 px-4 w-[12%]">合計経費</th>
+                <th className="py-4 px-4 w-[16%]">粗利（売却益込）</th>
+                <th className="py-4 px-4 w-[20%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-lg font-medium">
@@ -1109,6 +1204,12 @@ export default function AdminPage() {
                         {authRole !== 'viewer' && (
                           <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
                         )}
+                        <button 
+                          onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
+                          className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap"
+                        >
+                          月別処分一覧 →
+                        </button>
                         <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
@@ -1531,6 +1632,101 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* ------------------------------------------------------------------------- */}
+      {/* 追加：月別処分一覧 ポップアップモダール                                   */}
+      {/* ------------------------------------------------------------------------- */}
+      {showMonthlyDisposalModal && monthlyDisposalTargetLoc && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧 ({monthlyDisposalTargetLoc})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">請求書と照らし合わせながら確認できます（項目をクリックすると色が変わります）</p>
+              </div>
+              <button onClick={() => setShowMonthlyDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-6">
+              {(() => {
+                const groupedData = getMonthlyDisposalGroupedData(monthlyDisposalTargetLoc);
+                const disposalSites = Object.keys(groupedData);
+
+                if (disposalSites.length === 0) {
+                  return <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>;
+                }
+
+                return disposalSites.map(dSite => {
+                  const monthsData = groupedData[dSite];
+                  return (
+                    <div key={dSite} className="space-y-4">
+                      {Object.entries(monthsData).map(([ym, items]) => {
+                        // 年月文字列を "2026/7/1～7/31" のような形式にする計算
+                        const [y, m] = ym.split('-');
+                        const lastDay = new Date(Number(y), Number(m), 0).getDate();
+                        const dateRangeStr = `${y}/${Number(m)}/1～${Number(m)}/${lastDay}`;
+
+                        return (
+                          <div key={ym} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3 shadow-2xs">
+                            {/* 指定されたタイトル形式 */}
+                            <div className="font-bold text-lg text-slate-900 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+                              {dSite} {dateRangeStr}
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-sm md:text-base">
+                                <thead>
+                                  <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100/80">
+                                    <th className="py-2.5 px-3 w-[20%]">日付</th>
+                                    <th className="py-2.5 px-3 w-[35%]">現場名</th>
+                                    <th className="py-2.5 px-3 w-[25%]">品目</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">数量</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 font-medium">
+                                  {items.map((it) => {
+                                    const isChecked = !!checkedDisposalRows[it.rowKey];
+                                    return (
+                                      <tr 
+                                        key={it.rowKey} 
+                                        onClick={() => {
+                                          setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }));
+                                        }}
+                                        className={`cursor-pointer transition select-none ${
+                                          isChecked 
+                                            ? 'bg-emerald-100/70 text-emerald-900 line-through' 
+                                            : 'hover:bg-white bg-white/60 text-slate-800'
+                                        }`}
+                                        title="クリックしてチェック状態を切り替え"
+                                      >
+                                        <td className="py-3 px-3 font-bold">{it.date}</td>
+                                        <td className="py-3 px-3">{it.locationName}</td>
+                                        <td className="py-3 px-3">{it.item}</td>
+                                        <td className="py-3 px-3 text-right font-bold">{it.quantity}{it.unit}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="text-xs text-slate-400 text-right">
+                              💡 行をクリックすると色が変わります（請求書照合用）
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
