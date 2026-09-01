@@ -35,10 +35,11 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
 
-  // 処分費の内訳明細の期間・キーワード絞り込み用ステート
+  // 処分費の内訳明細の期間・キーワード・処分場ごとの絞り込み用ステート
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
   const [disposalStartDate, setDisposalStartDate] = useState('');
   const [disposalEndDate, setDisposalEndDate] = useState('');
+  const [disposalSiteFilter, setDisposalSiteFilter] = useState(''); // 🏢 処分場ごとの絞り込み用ステート
 
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
@@ -2051,7 +2052,6 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              {/* ご要望にお応えし、スクラップ売却計の下に「処分費の内訳を確認」ボタンを配置しました */}
               <div className="pt-2 border-t border-emerald-200/60 flex justify-end">
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-5 py-2.5 rounded-xl font-bold shadow-xs transition flex items-center gap-1.5">
                   🔍 処分費の内訳を確認
@@ -2253,9 +2253,21 @@ export default function AdminPage() {
               <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
-            {/* 💡 期間・キーワード絞り込みコントロール */}
+            {/* 💡 期間・キーワード・処分場ごとの絞り込みコントロール */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
-              <div className="flex-1 w-full">
+              <div className="flex flex-col md:flex-row gap-2 flex-1 w-full">
+                {/* 🏢 処分場ごとのセレクトボックス絞り込み */}
+                <select
+                  value={disposalSiteFilter}
+                  onChange={e => setDisposalSiteFilter(e.target.value)}
+                  className="p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+                >
+                  <option value="">🏢 すべての処分場</option>
+                  {Object.keys(modalData.aggregatedDisposalBreakdown).map(locKey => (
+                    <option key={locKey} value={locKey}>{locKey}</option>
+                  ))}
+                </select>
+
                 <input 
                   type="text"
                   placeholder="🔍 品目名やキーワードで絞り込み..."
@@ -2264,6 +2276,7 @@ export default function AdminPage() {
                   className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
                 />
               </div>
+
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-bold text-slate-600">期間:</span>
@@ -2281,9 +2294,9 @@ export default function AdminPage() {
                     className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
                   />
                 </div>
-                {(disposalFilterQuery || disposalStartDate || disposalEndDate) && (
+                {(disposalFilterQuery || disposalStartDate || disposalEndDate || disposalSiteFilter) && (
                   <button 
-                    onClick={() => { setDisposalFilterQuery(''); setDisposalStartDate(''); setDisposalEndDate(''); }}
+                    onClick={() => { setDisposalFilterQuery(''); setDisposalStartDate(''); setDisposalEndDate(''); setDisposalSiteFilter(''); }}
                     className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition"
                   >
                     リセット
@@ -2296,106 +2309,105 @@ export default function AdminPage() {
               {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                 <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>
               ) : (
-                Object.entries(modalData.aggregatedDisposalBreakdown).map(([locKey, locObj]) => {
-                  const isOpen = disposalDetailsOpen[locKey] || false;
+                Object.entries(modalData.aggregatedDisposalBreakdown)
+                  .filter(([locKey]) => !disposalSiteFilter || locKey === disposalSiteFilter) // 🏢 処分場ごとの絞り込み適用
+                  .map(([locKey, locObj]) => {
+                    const isOpen = disposalDetailsOpen[locKey] || false;
 
-                  // 絞り込み条件の適用
-                  const filteredDetails = Object.values(locObj.items).flatMap(it => it.details).filter(det => {
-                    const matchQuery = !disposalFilterQuery || det.item.toLowerCase().includes(disposalFilterQuery.toLowerCase());
-                    const normDetDate = normalizeDateStr(det.date);
-                    const matchStart = !disposalStartDate || normDetDate >= disposalStartDate;
-                    const matchEnd = !disposalEndDate || normDetDate <= disposalEndDate;
-                    return matchQuery && matchStart && matchEnd;
-                  });
+                    const filteredDetails = Object.values(locObj.items).flatMap(it => it.details).filter(det => {
+                      const matchQuery = !disposalFilterQuery || det.item.toLowerCase().includes(disposalFilterQuery.toLowerCase());
+                      const normDetDate = normalizeDateStr(det.date);
+                      const matchStart = !disposalStartDate || normDetDate >= disposalStartDate;
+                      const matchEnd = !disposalEndDate || normDetDate <= disposalEndDate;
+                      return matchQuery && matchStart && matchEnd;
+                    });
 
-                  if ((disposalFilterQuery || disposalStartDate || disposalEndDate) && filteredDetails.length === 0) {
-                    return null;
-                  }
+                    if ((disposalFilterQuery || disposalStartDate || disposalEndDate) && filteredDetails.length === 0) {
+                      return null;
+                    }
 
-                  return (
-                    <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
-                      <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-lg md:text-xl text-blue-700">🏢 {locKey}</h4>
-                          <div className="text-sm font-bold text-slate-700">
-                            小計: <span className="text-orange-600 text-lg">¥{locObj.total.toLocaleString()}</span>
+                    return (
+                      <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-lg md:text-xl text-blue-700">🏢 {locKey}</h4>
+                            <div className="text-sm font-bold text-slate-700">
+                              小計: <span className="text-orange-600 text-lg">¥{locObj.total.toLocaleString()}</span>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                          {authRole === 'admin' && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-slate-600">手動上書き(合計):</span>
-                              <input
-                                type="number"
-                                value={disposalOverrides[modalLocation]?.[locKey] ?? ''}
-                                onChange={(e) => handleDisposalOverrideChange(modalLocation, locKey, e.target.value)}
-                                placeholder="金額"
-                                className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
-                              />
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [locKey]: !isOpen })}
-                            className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-2xs transition"
-                          >
-                            {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        {Object.entries(locObj.items).map(([itemKey, itemData]) => {
-                          const subKey = `${locKey}__${itemKey}`;
-                          return (
-                            <div key={itemKey} className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-                              <div className="flex justify-between items-center flex-wrap gap-3">
-                                <div>
-                                  {/* 💡 文字サイズを大きく拡大 (text-lg md:text-xl font-bold) */}
-                                  <span className="font-bold text-lg md:text-xl text-slate-900">{itemKey}</span>
-                                  {/* 💡 数量・単価・計算結果の表示も大きく拡大 (text-base md:text-lg) */}
-                                  <div className="text-base md:text-lg text-slate-600 font-semibold mt-1">
-                                    数量: <b className="text-slate-900">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
-                                  </div>
-                                </div>
-                                {authRole === 'admin' && (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-600">品目別上書き:</span>
-                                    <input
-                                      type="number"
-                                      value={disposalOverrides[modalLocation]?.[subKey] ?? ''}
-                                      onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
-                                      placeholder="金額"
-                                      className="w-28 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
-                                    />
-                                  </div>
-                                )}
+                          <div className="flex items-center gap-3">
+                            {authRole === 'admin' && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-600">手動上書き(合計):</span>
+                                <input
+                                  type="number"
+                                  value={disposalOverrides[modalLocation]?.[locKey] ?? ''}
+                                  onChange={(e) => handleDisposalOverrideChange(modalLocation, locKey, e.target.value)}
+                                  placeholder="金額"
+                                  className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                                />
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {isOpen && (
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2 pt-3">
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧 (絞り込み結果: {filteredDetails.length}件)</div>
-                          <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                            {filteredDetails.map((det, dIdx) => (
-                              <div key={dIdx} className="flex justify-between items-center text-sm md:text-base bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
-                                <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
-                                <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b className="text-orange-600">¥{det.total.toLocaleString()}</b></span>
-                              </div>
-                            ))}
-                            {filteredDetails.length === 0 && (
-                              <p className="text-sm text-slate-400 text-center py-2">該当する日別明細はありません</p>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [locKey]: !isOpen })}
+                              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-2xs transition"
+                            >
+                              {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
+                            </button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })
+
+                        <div className="space-y-3">
+                          {Object.entries(locObj.items).map(([itemKey, itemData]) => {
+                            const subKey = `${locKey}__${itemKey}`;
+                            return (
+                              <div key={itemKey} className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                                <div className="flex justify-between items-center flex-wrap gap-3">
+                                  <div>
+                                    <span className="font-bold text-lg md:text-xl text-slate-900">{itemKey}</span>
+                                    <div className="text-base md:text-lg text-slate-600 font-semibold mt-1">
+                                      数量: <b className="text-slate-900">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
+                                    </div>
+                                  </div>
+                                  {authRole === 'admin' && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-600">品目別上書き:</span>
+                                      <input
+                                        type="number"
+                                        value={disposalOverrides[modalLocation]?.[subKey] ?? ''}
+                                        onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
+                                        placeholder="金額"
+                                        className="w-28 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {isOpen && (
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2 pt-3">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧 (絞り込み結果: {filteredDetails.length}件)</div>
+                            <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                              {filteredDetails.map((det, dIdx) => (
+                                <div key={dIdx} className="flex justify-between items-center text-sm md:text-base bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
+                                  <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
+                                  <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b className="text-orange-600">¥{det.total.toLocaleString()}</b></span>
+                                </div>
+                              ))}
+                              {filteredDetails.length === 0 && (
+                                <p className="text-sm text-slate-400 text-center py-2">該当する日別明細はありません</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
               )}
             </div>
 
