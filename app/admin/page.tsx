@@ -471,7 +471,6 @@ export default function AdminPage() {
     (r.ishikawaAttach || []).forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.ishikawaOther || []).forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
-    // 石川県リースとMOKリースの内訳計算用（旧河北現場専用の個別詳細用）
     let ishikawaLeaseDetail = 0;
     (r.ishikawaHeavy || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
     (r.ishikawaAttach || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
@@ -766,9 +765,9 @@ export default function AdminPage() {
   const downloadLocationCSV = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
-    const headers = ["日付", "現場名", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => [
-      r.date, r.location, r.manager, (r.workers || []).join('/'), 
+      r.date, r.location, r.client || '', r.startDate || '', r.manager, (r.workers || []).join('/'), 
       Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
       (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
       [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ishikawaHeavy || []), ...(r.ishikawaAttach || []), ...(r.ishikawaOther || []), ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
@@ -811,7 +810,6 @@ export default function AdminPage() {
     return cleaned;
   };
 
-  // 🗑️ 【修正】ファイルデータはサーバーに保存せず、ブラウザ内ステート（オンメモリ）のみに保持して照合する
   const handleDisposalFileUpload = async (locKey: string, files: FileList | File[]) => {
     if (authRole === 'viewer') return;
     const fileArray = Array.from(files);
@@ -1504,6 +1502,8 @@ export default function AdminPage() {
                           <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-3 flex-wrap">
                               <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
+                              {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
+                              {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
                               <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
                             </div>
 
@@ -1611,7 +1611,7 @@ export default function AdminPage() {
 
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">📍 日付と現場の選択</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">日付</label>
                     <input type="text" value={editingReport.date || ''} onChange={e=>setEditingReport({...editingReport, date: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" />
@@ -1621,6 +1621,27 @@ export default function AdminPage() {
                     <select value={editingReport.location || ''} onChange={e=>setEditingReport({...editingReport, location: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-blue-600 shadow-2xs">
                       {locList.map((l:any)=><option key={l.name} value={l.name}>{l.name}</option>)}
                     </select>
+                  </div>
+                  {/* 👇 【追加】請負先の入力欄 */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">請負先</label>
+                    <input 
+                      type="text" 
+                      placeholder="例: 〇〇建設" 
+                      value={editingReport.client || ''} 
+                      onChange={e => setEditingReport({...editingReport, client: e.target.value})} 
+                      className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" 
+                    />
+                  </div>
+                  {/* 👇 【追加】開始日の入力欄 */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">開始日</label>
+                    <input 
+                      type="date" 
+                      value={editingReport.startDate || ''} 
+                      onChange={e => setEditingReport({...editingReport, startDate: e.target.value})} 
+                      className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" 
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">職長</label>
@@ -1729,7 +1750,7 @@ export default function AdminPage() {
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
                     </div>
-                );
+                  );
                 })}
               </div>
 
