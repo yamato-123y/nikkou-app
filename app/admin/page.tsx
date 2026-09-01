@@ -2092,10 +2092,10 @@ export default function AdminPage() {
                 <div className="w-full">
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
                   
-                  {/* 👇 【修正】「請負先」と「開始日」の入力・変更枠に変更 */}
+                  {/* 👇 【修正】ラベルの文字サイズを大きくしました (text-sm md:text-base font-bold) */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div>
-                      <label className="text-xs font-bold text-slate-600 block mb-1">🏢 請負先（入力枠）</label>
+                      <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">🏢 請負先</label>
                       <input 
                         type="text" 
                         value={modalData.clientStr} 
@@ -2124,11 +2124,11 @@ export default function AdminPage() {
                         }}
                         readOnly={authRole === 'viewer'}
                         placeholder="例: 〇〇建設" 
-                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-600 block mb-1">⏱ 開始日（入力枠）</label>
+                      <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">⏱ 開始日</label>
                       <input 
                         type="date" 
                         value={modalData.startDateStr} 
@@ -2156,7 +2156,7 @@ export default function AdminPage() {
                           }
                         }}
                         readOnly={authRole === 'viewer'}
-                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                       />
                     </div>
                   </div>
