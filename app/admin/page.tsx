@@ -35,6 +35,11 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
 
+  // 処分費の内訳明細の期間・キーワード絞り込み用ステート
+  const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
+  const [disposalStartDate, setDisposalStartDate] = useState('');
+  const [disposalEndDate, setDisposalEndDate] = useState('');
+
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -2046,6 +2051,12 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
+              {/* ご要望にお応えし、スクラップ売却計の下に「処分費の内訳を確認」ボタンを配置しました */}
+              <div className="pt-2 border-t border-emerald-200/60 flex justify-end">
+                <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-5 py-2.5 rounded-xl font-bold shadow-xs transition flex items-center gap-1.5">
+                  🔍 処分費の内訳を確認
+                </button>
+              </div>
             </div>
 
             {/* 外注費 詳細・計算内訳 ＋ 手動一括請負追加フォーム */}
@@ -2242,12 +2253,65 @@ export default function AdminPage() {
               <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
+            {/* 💡 期間・キーワード絞り込みコントロール */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
+              <div className="flex-1 w-full">
+                <input 
+                  type="text"
+                  placeholder="🔍 品目名やキーワードで絞り込み..."
+                  value={disposalFilterQuery}
+                  onChange={e => setDisposalFilterQuery(e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-600">期間:</span>
+                  <input 
+                    type="date"
+                    value={disposalStartDate}
+                    onChange={e => setDisposalStartDate(e.target.value)}
+                    className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                  />
+                  <span>〜</span>
+                  <input 
+                    type="date"
+                    value={disposalEndDate}
+                    onChange={e => setDisposalEndDate(e.target.value)}
+                    className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                  />
+                </div>
+                {(disposalFilterQuery || disposalStartDate || disposalEndDate) && (
+                  <button 
+                    onClick={() => { setDisposalFilterQuery(''); setDisposalStartDate(''); setDisposalEndDate(''); }}
+                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition"
+                  >
+                    リセット
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-6">
               {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
                 <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>
               ) : (
                 Object.entries(modalData.aggregatedDisposalBreakdown).map(([locKey, locObj]) => {
                   const isOpen = disposalDetailsOpen[locKey] || false;
+
+                  // 絞り込み条件の適用
+                  const filteredDetails = Object.values(locObj.items).flatMap(it => it.details).filter(det => {
+                    const matchQuery = !disposalFilterQuery || det.item.toLowerCase().includes(disposalFilterQuery.toLowerCase());
+                    const normDetDate = normalizeDateStr(det.date);
+                    const matchStart = !disposalStartDate || normDetDate >= disposalStartDate;
+                    const matchEnd = !disposalEndDate || normDetDate <= disposalEndDate;
+                    return matchQuery && matchStart && matchEnd;
+                  });
+
+                  if ((disposalFilterQuery || disposalStartDate || disposalEndDate) && filteredDetails.length === 0) {
+                    return null;
+                  }
+
                   return (
                     <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
                       <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
@@ -2288,9 +2352,11 @@ export default function AdminPage() {
                             <div key={itemKey} className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
                               <div className="flex justify-between items-center flex-wrap gap-3">
                                 <div>
-                                  <span className="font-bold text-base text-slate-800">{itemKey}</span>
-                                  <div className="text-xs text-slate-500 font-medium mt-0.5">
-                                    数量: <b className="text-slate-800">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
+                                  {/* 💡 文字サイズを大きく拡大 (text-lg md:text-xl font-bold) */}
+                                  <span className="font-bold text-lg md:text-xl text-slate-900">{itemKey}</span>
+                                  {/* 💡 数量・単価・計算結果の表示も大きく拡大 (text-base md:text-lg) */}
+                                  <div className="text-base md:text-lg text-slate-600 font-semibold mt-1">
+                                    数量: <b className="text-slate-900">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
                                   </div>
                                 </div>
                                 {authRole === 'admin' && (
@@ -2313,14 +2379,17 @@ export default function AdminPage() {
 
                       {isOpen && (
                         <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2 pt-3">
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧</div>
+                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧 (絞り込み結果: {filteredDetails.length}件)</div>
                           <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                            {Object.values(locObj.items).flatMap(it => it.details).map((det, dIdx) => (
-                              <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                <span>🗓️ {det.date} / <b>{det.item}</b></span>
-                                <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b>¥{det.total.toLocaleString()}</b></span>
+                            {filteredDetails.map((det, dIdx) => (
+                              <div key={dIdx} className="flex justify-between items-center text-sm md:text-base bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
+                                <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
+                                <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b className="text-orange-600">¥{det.total.toLocaleString()}</b></span>
                               </div>
                             ))}
+                            {filteredDetails.length === 0 && (
+                              <p className="text-sm text-slate-400 text-center py-2">該当する日別明細はありません</p>
+                            )}
                           </div>
                         </div>
                       )}
