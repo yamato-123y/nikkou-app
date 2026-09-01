@@ -22,10 +22,9 @@ export default function AdminPage() {
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
 
-  // 追加：月別処分一覧ポップアップ用のステート
-  const [showMonthlyDisposalModal, setShowMonthlyDisposalModal] = useState(false);
-  const [monthlyDisposalTargetLoc, setMonthlyDisposalTargetLoc] = useState<string | null>(null);
-  // 請求書照合用：クリックされた行のIDやキーを保持して状態（チェック済み）を管理
+  // 追加：全処分を対象とした月別処分一覧ポップアップ用のステート
+  const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
+  // 請求書照合用：クリックされた行のキーを保持して状態（チェック済み）を管理
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
@@ -817,18 +816,14 @@ export default function AdminPage() {
   };
 
   // ---------------------------------------------------------------------------
-  // 追加ヘルパー：処分ごとの明細を抽出して月別に整理し、日付順でソートする関数
+  // 全体の処分データを処分場別・月別にまとめ、日付順にソートする関数
   // ---------------------------------------------------------------------------
-  const getMonthlyDisposalGroupedData = (locName: string) => {
-    const targetNames = getTargetLocationNames(locName);
-    const locReports = reports.filter(r => targetNames.includes(r.location));
-
-    // { "〇〇処分場": { "2026-07": [ {date: "7/1", location: "〇〇", item: "コンガラ", quantity: 1.5, unit: "t"}, ... ] } }
+  const getAllMonthlyDisposalGroupedData = () => {
+    // { "〇〇処分場": { "2026-07": [ {date: "7/1", rawDate: "2026/7/1", locationName: "〇〇", item: "コンガラ", quantity: 1.5, unit: "t", rowKey: "..." }, ... ] } }
     const result: { [disposalSite: string]: { [yearMonth: string]: Array<{ date: string; rawDate: string; locationName: string; item: string; quantity: number; unit: string; rowKey: string }> } } = {};
 
-    locReports.forEach(r => {
+    reports.forEach(r => {
       const reportDate = r.date || '';
-      // 日付の正規化やパース (例: "2026/7/1" または "7/1" から年月を抽出)
       const norm = reportDate.replace(/\//g, '-');
       const parts = norm.split('-');
       
@@ -837,14 +832,13 @@ export default function AdminPage() {
 
       if (parts.length === 3) {
         yearMonth = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-        formattedDate = `${Number(parts[1])}/${Number(parts[2])}`; // "7/1" のような形式に整形
+        formattedDate = `${Number(parts[1])}/${Number(parts[2])}`; // "7/1"
       } else if (parts.length === 2) {
-        // 年がない場合のフォールバック（現在の年などを使用）
         const currentYear = new Date().getFullYear();
         yearMonth = `${currentYear}-${parts[0].padStart(2, '0')}`;
         formattedDate = `${Number(parts[0])}/${Number(parts[1])}`;
       } else {
-        yearMonth = '2026-07'; // デフォルト
+        yearMonth = '2026-07';
       }
 
       (r.disposals || []).forEach((d: any, dIdx: number) => {
@@ -854,7 +848,7 @@ export default function AdminPage() {
         const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === dLoc && s.item === dItem);
         const dUnit = d.unit || masterRecord?.unit || 't';
 
-        const rowKey = `${dLoc}_${yearMonth}_${reportDate}_${dItem}_${dIdx}`;
+        const rowKey = `${dLoc}_${yearMonth}_${reportDate}_${dItem}_${dIdx}_${r.location}`;
 
         if (!result[dLoc]) {
           result[dLoc] = {};
@@ -998,11 +992,14 @@ export default function AdminPage() {
             <span className={`text-xs md:text-sm px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-orange-100 text-orange-700'}`}>
               {authRole === 'admin' ? '👑 管理者モード' : '👑 社長モード'}
             </span>
-
           </div>
           <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
-        <div className="flex w-full md:w-auto gap-2">
+        <div className="flex w-full md:w-auto gap-2 flex-wrap items-center">
+          {/* 追加：全現場対応の月別処分一覧ボタン */}
+          <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+            📦 月別処分一覧
+          </button>
           <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5">
             🔄 最新の状態にする
           </button>
@@ -1047,15 +1044,8 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1 flex-wrap">
-                  {/* 追加：月別処分一覧ボタン（スマホ表示） */}
-                  <button 
-                    onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
-                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
-                  >
-                    📦 月別処分一覧 →
-                  </button>
-                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
               </div>
             );
@@ -1069,12 +1059,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[30%]">現場名</th>
+                <th className="py-4 px-4 w-[35%]">現場名</th>
                 <th className="py-4 px-4 w-[12%]">請負金額</th>
                 <th className="py-4 px-4 w-[10%]">稼働日数</th>
                 <th className="py-4 px-4 w-[12%]">合計経費</th>
                 <th className="py-4 px-4 w-[16%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[20%] text-center">ステータス / アクション</th>
+                <th className="py-4 px-4 w-[15%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -1098,13 +1088,6 @@ export default function AdminPage() {
                             現場完了
                           </button>
                         )}
-                        {/* 追加：月別処分一覧ボタン（指示位置：詳細分析の左側） */}
-                        <button 
-                          onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
-                          className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap"
-                        >
-                          月別処分一覧 →
-                        </button>
                         <button onClick={() => setModalLocation(loc.name)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
@@ -1153,14 +1136,8 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1 flex-wrap">
-                  <button 
-                    onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
-                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
-                  >
-                    📦 月別処分一覧 →
-                  </button>
-                  <button onClick={() => setModalLocation(loc.name)} className="flex-1 bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
               </div>
             );
@@ -1174,12 +1151,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-300 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[30%]">現場名</th>
+                <th className="py-4 px-4 w-[35%]">現場名</th>
                 <th className="py-4 px-4 w-[12%]">請負金額</th>
                 <th className="py-4 px-4 w-[10%]">稼働日数</th>
                 <th className="py-4 px-4 w-[12%]">合計経費</th>
                 <th className="py-4 px-4 w-[16%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[20%] text-center">ステータス / アクション</th>
+                <th className="py-4 px-4 w-[15%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-lg font-medium">
@@ -1204,12 +1181,6 @@ export default function AdminPage() {
                         {authRole !== 'viewer' && (
                           <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
                         )}
-                        <button 
-                          onClick={() => { setMonthlyDisposalTargetLoc(loc.name); setShowMonthlyDisposalModal(true); }} 
-                          className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap"
-                        >
-                          月別処分一覧 →
-                        </button>
                         <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
                         </button>
@@ -1634,26 +1605,26 @@ export default function AdminPage() {
       </div>
 
       {/* ------------------------------------------------------------------------- */}
-      {/* 追加：月別処分一覧 ポップアップモダール                                   */}
+      {/* 全処分対象：月別処分一覧 ポップアップモダール                                   */}
       {/* ------------------------------------------------------------------------- */}
-      {showMonthlyDisposalModal && monthlyDisposalTargetLoc && (
+      {showAllMonthlyDisposalModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧 ({monthlyDisposalTargetLoc})</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
                 <p className="text-xs md:text-sm text-slate-500 mt-0.5">請求書と照らし合わせながら確認できます（項目をクリックすると色が変わります）</p>
               </div>
-              <button onClick={() => setShowMonthlyDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
             <div className="space-y-6">
               {(() => {
-                const groupedData = getMonthlyDisposalGroupedData(monthlyDisposalTargetLoc);
+                const groupedData = getAllMonthlyDisposalGroupedData();
                 const disposalSites = Object.keys(groupedData);
 
                 if (disposalSites.length === 0) {
-                  return <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>;
+                  return <p className="text-base text-slate-500 text-center py-8">処分データはありません</p>;
                 }
 
                 return disposalSites.map(dSite => {
@@ -1661,14 +1632,12 @@ export default function AdminPage() {
                   return (
                     <div key={dSite} className="space-y-4">
                       {Object.entries(monthsData).map(([ym, items]) => {
-                        // 年月文字列を "2026/7/1～7/31" のような形式にする計算
                         const [y, m] = ym.split('-');
                         const lastDay = new Date(Number(y), Number(m), 0).getDate();
                         const dateRangeStr = `${y}/${Number(m)}/1～${Number(m)}/${lastDay}`;
 
                         return (
                           <div key={ym} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3 shadow-2xs">
-                            {/* 指定されたタイトル形式 */}
                             <div className="font-bold text-lg text-slate-900 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
                               {dSite} {dateRangeStr}
                             </div>
@@ -1722,7 +1691,7 @@ export default function AdminPage() {
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button onClick={() => setShowMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
