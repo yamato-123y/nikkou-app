@@ -43,8 +43,6 @@ export default function AdminPage() {
   const [disposalEndDate, setDisposalEndDate] = useState('');
   const [disposalSiteFilter, setDisposalSiteFilter] = useState('');
 
-  const [disposalFiles, setDisposalFiles] = useState<any>({});
-
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -810,59 +808,6 @@ export default function AdminPage() {
       return `${y}-${m}-${d}`;
     }
     return cleaned;
-  };
-
-  const handleDisposalFileUpload = async (locKey: string, files: FileList | File[]) => {
-    if (authRole === 'viewer') return;
-    const fileArray = Array.from(files);
-    const newFilesData = [...(disposalFiles[modalLocation]?.[locKey]?.files || [])];
-
-    for (const file of fileArray) {
-      const reader = new FileReader();
-      await new Promise((resolve) => {
-        reader.onload = (e) => {
-          newFilesData.push({
-            name: file.name,
-            type: file.type,
-            dataUrl: e.target?.result
-          });
-          resolve(null);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    const updatedDisposalFiles = {
-      ...disposalFiles,
-      [modalLocation]: {
-        ...(disposalFiles[modalLocation] || {}),
-        [locKey]: {
-          ...(disposalFiles[modalLocation]?.[locKey] || {}),
-          files: newFilesData
-        }
-      }
-    };
-
-    setDisposalFiles(updatedDisposalFiles);
-  };
-
-  const handleDisposalFileRemove = (locKey: string, fileIdx: number) => {
-    if (authRole === 'viewer') return;
-    const currentFiles = disposalFiles[modalLocation]?.[locKey]?.files || [];
-    const newFilesData = currentFiles.filter((_: any, idx: number) => idx !== fileIdx);
-
-    const updatedDisposalFiles = {
-      ...disposalFiles,
-      [modalLocation]: {
-        ...(disposalFiles[modalLocation] || {}),
-        [locKey]: {
-          ...(disposalFiles[modalLocation]?.[locKey] || {}),
-          files: newFilesData
-        }
-      }
-    };
-
-    setDisposalFiles(updatedDisposalFiles);
   };
 
   if (!isAuthed) return (
@@ -2092,7 +2037,6 @@ export default function AdminPage() {
                 <div className="w-full">
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
                   
-                  {/* 👇 【修正】ラベルの文字サイズを大きくしました (text-sm md:text-base font-bold) */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div>
                       <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">🏢 請負先</label>
@@ -2563,7 +2507,6 @@ export default function AdminPage() {
                     }
 
                     const reportTotalQty = Object.values(locObj.items).reduce((acc, it) => acc + it.quantity, 0);
-                    const siteFiles = disposalFiles[modalLocation]?.[locKey]?.files || [];
 
                     return (
                       <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
@@ -2598,87 +2541,14 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        <div className="bg-white p-4 rounded-2xl border border-orange-200 space-y-3">
-                          <div className="flex justify-between items-center flex-wrap gap-2">
-                            <div className="text-xs md:text-sm font-bold text-orange-900 flex items-center gap-1.5">
-                              <span>📎 請求書・明細書の画像／ファイル添付・貼り付けエリア（※サーバーには保存されません）</span>
-                            </div>
-                            {authRole !== 'viewer' && (
-                              <label className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold cursor-pointer transition shadow-2xs flex items-center gap-1">
-                                <span>📁 ファイル選択</span>
-                                <input 
-                                  type="file" 
-                                  multiple 
-                                  accept="image/*,application/pdf"
-                                  className="hidden"
-                                  onChange={e => e.target.files && handleDisposalFileUpload(locKey, e.target.files)}
-                                />
-                              </label>
-                            )}
+                        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between text-xs md:text-sm font-bold text-emerald-900">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🔍</span>
+                            <span>システム日報データとの突き合わせ結果:</span>
                           </div>
-
-                          {authRole !== 'viewer' && (
-                            <div 
-                              onDragOver={e => e.preventDefault()}
-                              onDrop={e => {
-                                e.preventDefault();
-                                if (e.dataTransfer.files) {
-                                  handleDisposalFileUpload(locKey, e.dataTransfer.files);
-                                }
-                              }}
-                              onPaste={e => {
-                                if (e.clipboardData.files) {
-                                  handleDisposalFileUpload(locKey, e.clipboardData.files);
-                                }
-                              }}
-                              tabIndex={0}
-                              className="border-2 border-dashed border-orange-300 bg-orange-50/50 hover:bg-orange-50 p-4 rounded-xl text-center text-xs text-orange-800 font-medium cursor-pointer transition focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                            >
-                              📌 ここにファイルを<b>ドラッグ＆ドロップ</b>、または画面を選択して <b>Ctrl + V (ペースト)</b> で画像を貼り付けできます
-                            </div>
-                          )}
-
-                          {siteFiles.length > 0 && (
-                            <div className="space-y-2 pt-2">
-                              <div className="text-xs font-bold text-slate-600">添付された明細ファイル ({siteFiles.length}件):</div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {siteFiles.map((fileObj: any, fIdx: number) => (
-                                  <div key={fIdx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 truncate">
-                                      {fileObj.type?.startsWith('image/') ? (
-                                        <img src={fileObj.dataUrl} alt={fileObj.name} className="w-10 h-10 object-cover rounded-lg border" />
-                                      ) : (
-                                        <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center text-lg">📄</div>
-                                      )}
-                                      <div className="truncate">
-                                        <div className="text-xs font-bold text-slate-800 truncate">{fileObj.name}</div>
-                                        <div className="text-[10px] text-emerald-700 font-bold">✅ 日報データと照合済み（一時保持）</div>
-                                      </div>
-                                    </div>
-                                    {authRole !== 'viewer' && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => handleDisposalFileRemove(locKey, fIdx)} 
-                                        className="text-rose-600 hover:text-rose-800 text-xs font-bold px-2 py-1 bg-rose-50 rounded-lg"
-                                      >
-                                        削除
-                                      </button>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between text-xs md:text-sm font-bold text-emerald-900">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">🔍</span>
-                              <span>システム日報データとの突き合わせ結果:</span>
-                            </div>
-                            <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
-                              差異・抜けなし（完全一致）
-                            </span>
-                          </div>
+                          <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
+                            差異・抜けなし（完全一致）
+                          </span>
                         </div>
 
                         <div className="space-y-3">
