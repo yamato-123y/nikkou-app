@@ -1,6 +1,3 @@
-ご提示いただいたコードと、金額表示を小数点以下に対応させるための置換指示（`formatAmount`関数の追加とモーダル内の置換）をすべて反映した完成版のコードになります。
-
-```tsx
 'use client';
 import { useState, useEffect } from 'react';
 
