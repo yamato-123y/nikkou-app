@@ -833,7 +833,7 @@ export default function AdminPage() {
   };
 
   const getAllMonthlyDisposalGroupedData = () => {
-    const result: { [disposalSite: string]: { [yearMonth: string]: Array<{ date: string; rawDate: string; locationName: string; item: string; quantity: number; unit: string; rowKey: string }> } } = {};
+    const result: { [disposalSite: string]: { [yearMonth: string]: Array<{ date: string; rawDate: string; locationName: string; item: string; quantity: number; unit: string; price: number; total: number; rowKey: string }> } } = {};
 
     reports.forEach(r => {
       const reportDate = r.date || '';
@@ -860,6 +860,9 @@ export default function AdminPage() {
         const dQty = Number(d.quantity || 0);
         const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === dLoc && s.item === dItem);
         const dUnit = d.unit || masterRecord?.unit || 't';
+        const masterPrice = masterRecord?.price || 0;
+        const dPrice = d.price !== undefined && d.price !== null && d.price !== '' ? Number(d.price) : masterPrice;
+        const dTotal = dQty * dPrice;
 
         const rowKey = `${dLoc}_${yearMonth}_${reportDate}_${dItem}_${dIdx}_${r.location}`;
 
@@ -877,6 +880,8 @@ export default function AdminPage() {
           item: dItem,
           quantity: dQty,
           unit: dUnit,
+          price: dPrice,
+          total: dTotal,
           rowKey
         });
       });
@@ -1616,10 +1621,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 全処分対象：月別処分一覧 ポップアップモダール */}
+      {/* 全処分対象：月別処分一覧 ポップアップモダール（幅を広げ、単価・処分費を追加） */}
       {showAllMonthlyDisposalModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-[32px] w-full max-w-6xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
@@ -1656,10 +1661,12 @@ export default function AdminPage() {
                               <table className="w-full text-left border-collapse text-sm md:text-base">
                                 <thead>
                                   <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100/80">
-                                    <th className="py-2.5 px-3 w-[20%]">日付</th>
-                                    <th className="py-2.5 px-3 w-[35%]">現場名</th>
-                                    <th className="py-2.5 px-3 w-[25%]">品目</th>
-                                    <th className="py-2.5 px-3 w-[20%] text-right">数量</th>
+                                    <th className="py-2.5 px-3 w-[15%]">日付</th>
+                                    <th className="py-2.5 px-3 w-[30%]">現場名</th>
+                                    <th className="py-2.5 px-3 w-[20%]">品目</th>
+                                    <th className="py-2.5 px-3 w-[15%] text-right">数量</th>
+                                    <th className="py-2.5 px-3 w-[10%] text-right">単価</th>
+                                    <th className="py-2.5 px-3 w-[10%] text-right">処分費</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 font-medium">
@@ -1682,6 +1689,8 @@ export default function AdminPage() {
                                         <td className="py-3 px-3">{it.locationName}</td>
                                         <td className="py-3 px-3">{it.item}</td>
                                         <td className="py-3 px-3 text-right font-bold">{it.quantity}{it.unit}</td>
+                                        <td className="py-3 px-3 text-right">{formatAmount(it.price)}</td>
+                                        <td className="py-3 px-3 text-right font-bold text-orange-600">{formatAmount(it.total)}</td>
                                       </tr>
                                     );
                                   })}
