@@ -1,10 +1,3 @@
-エラーの原因は、コードの最後の部分にバッククォート3つ（```）が含まれてしまっていることによる構文エラー（Syntax Error）です。
-
-画像のエラーログにも `./app/admin/page.ts:2882:1` 付近に ` ` （バッククォート）が紛れ込んでいることが示されています。
-
-以下の修正済みのコードをそのままコピーして `app/admin/page.ts` に貼り付けてください。
-
-```tsx
 'use client';
 import { useState, useEffect } from 'react';
 
