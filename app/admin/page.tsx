@@ -1,5 +1,25 @@
+ご提示いただいたコードと、金額表示を小数点以下に対応させるための置換指示（`formatAmount`関数の追加とモーダル内の置換）をすべて反映した完成版のコードになります。
+
+```tsx
 'use client';
 import { useState, useEffect } from 'react';
+
+const formatAmount = (num: number | string, includeYen = true) => {
+  const val = Number(num) || 0;
+  const parts = val.toLocaleString('ja-JP', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).split('.');
+  const integerPart = parts[0];
+  const decimalPart = parts[1];
+
+  return (
+    <span>
+      {includeYen && '¥'}
+      {integerPart}
+      {decimalPart !== undefined && (
+        <span className="text-slate-400 font-normal">.{decimalPart}</span>
+      )}
+    </span>
+  );
+};
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
@@ -1030,14 +1050,14 @@ export default function AdminPage() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className={`text-sm px-3 py-1 rounded-xl font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                      粗利（売却益込）: ¥{c.profit.toLocaleString()}
+                      粗利（売却益込）: {formatAmount(c.profit)}
                     </span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 text-xs md:text-sm gap-1 bg-white p-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-center">
-                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
+                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
-                  <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
+                  <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
@@ -1070,11 +1090,11 @@ export default function AdminPage() {
                     <td className="py-5 px-4 align-middle">
                       <span className="font-bold text-xl break-all leading-snug text-blue-600">{loc.name}</span>
                     </td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></td>
+                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></td>
                     <td className="py-5 px-4 text-slate-800 font-bold align-middle">{c.days} 日</td>
-                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">¥{c.total.toLocaleString()}</td>
+                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">{formatAmount(c.total)}</td>
                     <td className={`py-5 px-4 font-bold text-2xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                      ¥{c.profit.toLocaleString()}
+                      {formatAmount(c.profit)}
                     </td>
                     <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
@@ -1122,14 +1142,14 @@ export default function AdminPage() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className={`text-sm px-3 py-1 rounded-xl font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                      粗利（売却益込）: ¥{c.profit.toLocaleString()}
+                      粗利（売却益込）: {formatAmount(c.profit)}
                     </span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 text-xs md:text-sm gap-1 bg-white p-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-center">
-                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
+                  <div>請負<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
-                  <div>経費<span className="text-slate-900 font-bold block text-base mt-1">¥{c.total.toLocaleString()}</span></div>
+                  <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
@@ -1165,11 +1185,11 @@ export default function AdminPage() {
                         <span className="bg-slate-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-2xs shrink-0">📁 完了済</span>
                       </div>
                     </td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">¥{c.contractPrice.toLocaleString()} <span className="text-xs font-normal text-slate-500">税抜</span></td>
+                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></td>
                     <td className="py-5 px-4 text-slate-800 font-bold align-middle">{c.days} 日</td>
-                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">¥{c.total.toLocaleString()}</td>
+                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">{formatAmount(c.total)}</td>
                     <td className={`py-5 px-4 font-bold text-2xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                      ¥{c.profit.toLocaleString()}
+                      {formatAmount(c.profit)}
                     </td>
                     <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
@@ -1551,10 +1571,10 @@ export default function AdminPage() {
 
                             <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                               <div>軽油: <b>{r.fuel || 0} L</b></div>
-                              <div>レギュラー: <b>¥{Number(r.regularPrice || 0).toLocaleString()}</b></div>
-                              <div>ETC: <b>¥{Number(r.etcPrice || 0).toLocaleString()}</b></div>
-                              <div>駐車場代: <b>¥{Number(r.parkingPrice || 0).toLocaleString()}</b></div>
-                              {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>¥{Number(r.otherPrice || 0).toLocaleString()}</b></div>}
+                              <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                              <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
+                              <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
+                              {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
                             </div>
 
                             {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
@@ -2282,11 +2302,11 @@ export default function AdminPage() {
                     📉 スクラップ売却額を差引しない場合（純粋な粗利）
                   </div>
                   <div className="text-xs md:text-sm text-slate-400 mt-1">
-                    （請負金額 ¥{modalData.contractPrice.toLocaleString()} 税抜 - 合計経費 ¥{modalData.total.toLocaleString()}）
+                    （請負金額 {formatAmount(modalData.contractPrice)} 税抜 - 合計経費 {formatAmount(modalData.total)}）
                   </div>
                 </div>
                 <div className={`text-2xl md:text-4xl font-bold ${modalData.profitWithoutScrap >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
-                  ¥{modalData.profitWithoutScrap.toLocaleString()}
+                  {formatAmount(modalData.profitWithoutScrap)}
                 </div>
               </div>
 
@@ -2296,19 +2316,19 @@ export default function AdminPage() {
                     📈 スクラップ売却額を差引した後（売却益込・最終粗利）
                   </div>
                   <div className="text-xs md:text-sm text-emerald-600 mt-1">
-                    （純粋な粗利 ＋ スクラップ売却計 +¥{modalData.scrapTotal.toLocaleString()}）
+                    （純粋な粗利 ＋ スクラップ売却計 +{formatAmount(modalData.scrapTotal)}）
                   </div>
                 </div>
                 <div className={`text-2xl md:text-4xl font-bold ${modalData.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                  ¥{modalData.profit.toLocaleString()}
+                  {formatAmount(modalData.profit)}
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
-              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">¥{modalData.contractPrice.toLocaleString()}</div></div>
-              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">¥{modalData.total.toLocaleString()}</div></div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">¥{modalData.profit.toLocaleString()}</div></div>
+              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
+              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">{formatAmount(modalData.total)}</div></div>
+              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">{formatAmount(modalData.profit)}</div></div>
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
@@ -2317,7 +2337,7 @@ export default function AdminPage() {
                 <span>🗑️ 処分費</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xl md:text-2xl font-bold text-orange-800">¥{modalData.disposalCost.toLocaleString()}</span>
+                <span className="text-xl md:text-2xl font-bold text-orange-800">{formatAmount(modalData.disposalCost)}</span>
                 <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
                   🔍 処分費の内訳を確認
                 </button>
@@ -2329,7 +2349,7 @@ export default function AdminPage() {
                 <span>♻️ スクラップ売却計</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xl md:text-2xl font-bold text-emerald-800">+ ¥{modalData.scrapTotal.toLocaleString()}</span>
+                <span className="text-xl md:text-2xl font-bold text-emerald-800">+ {formatAmount(modalData.scrapTotal)}</span>
                 <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
                   🔍 内訳・金額入力
                 </button>
@@ -2347,7 +2367,7 @@ export default function AdminPage() {
                     {subcontractorSectionOpen ? '▲ 閉じる' : '▼ 開く'}
                   </span>
                 </div>
-                <span className="text-sm font-bold text-orange-800 bg-orange-100 px-3 py-1 rounded-xl">外注費合計: ¥{modalData.subCostTotal.toLocaleString()}</span>
+                <span className="text-sm font-bold text-orange-800 bg-orange-100 px-3 py-1 rounded-xl">外注費合計: {formatAmount(modalData.subCostTotal)}</span>
               </div>
 
               {subcontractorSectionOpen && (
@@ -2393,7 +2413,7 @@ export default function AdminPage() {
                       <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
                       {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
                         <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
-                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">¥{Number(cs.price).toLocaleString()}</span></span>
+                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">{formatAmount(Number(cs.price))}</span></span>
                           {authRole === 'admin' && (
                             <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
                           )}
@@ -2422,8 +2442,8 @@ export default function AdminPage() {
                             const subTotalCalc = Number(sub.count || 0) * unitP;
                             return (
                               <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
-                                <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 ¥{unitP.toLocaleString()}</span>
-                                <span className="font-bold text-orange-700">¥{subTotalCalc.toLocaleString()}</span>
+                                <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 {formatAmount(unitP)}</span>
+                                <span className="font-bold text-orange-700">{formatAmount(subTotalCalc)}</span>
                               </div>
                             );
                           })}
@@ -2527,7 +2547,7 @@ export default function AdminPage() {
                         </div>
                       ) : (
                         <div className="text-xl md:text-2xl font-bold text-slate-900">
-                          ¥{Number(item.val || 0).toLocaleString()}
+                          {formatAmount(item.val || 0)}
                         </div>
                       )}
                     </div>
@@ -2555,7 +2575,7 @@ export default function AdminPage() {
               <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-indigo-900 text-base md:text-lg">🗾 石川県出張用リース (月ごとのリース ＋ その他)</span>
-                  <span className="font-bold text-indigo-900 text-xl">¥{modalData.calcIshikawaLease.toLocaleString()}</span>
+                  <span className="font-bold text-indigo-900 text-xl">{formatAmount(modalData.calcIshikawaLease)}</span>
                 </div>
                 <p className="text-xs text-indigo-700">※石川県専用重機・アタッチメント・その他機器の日報集計額</p>
               </div>
@@ -2563,14 +2583,14 @@ export default function AdminPage() {
               <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-blue-900 text-base md:text-lg">🏢 MOK（南大阪建機）グループ (月ごとのリース ＋ その他)</span>
-                  <span className="font-bold text-blue-900 text-xl">¥{modalData.calcMokLease.toLocaleString()}</span>
+                  <span className="font-bold text-blue-900 text-xl">{formatAmount(modalData.calcMokLease)}</span>
                 </div>
                 <p className="text-xs text-blue-700">※通常のMOK重機・アタッチメント・その他機器の日報集計額</p>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-base font-bold">
                 <span>合計リース額</span>
-                <span className="text-xl text-slate-900">¥{(modalData.calcIshikawaLease + modalData.calcMokLease).toLocaleString()}</span>
+                <span className="text-xl text-slate-900">{formatAmount(modalData.calcIshikawaLease + modalData.calcMokLease)}</span>
               </div>
             </div>
 
@@ -2672,7 +2692,7 @@ export default function AdminPage() {
                           <div className="space-y-1">
                             <h4 className="font-bold text-lg md:text-xl text-blue-700">🏢 {locKey}</h4>
                             <div className="text-sm font-bold text-slate-700">
-                              日報データ集計（システム内）: <span className="text-orange-600 text-lg">¥{locObj.total.toLocaleString()}</span> (計 {reportTotalQty}t 等)
+                              日報データ集計（システム内）: <span className="text-orange-600 text-lg">{formatAmount(locObj.total)}</span> (計 {reportTotalQty}t 等)
                             </div>
                           </div>
 
@@ -2718,7 +2738,7 @@ export default function AdminPage() {
                                   <div>
                                     <span className="font-bold text-lg md:text-xl text-slate-900">{itemKey}</span>
                                     <div className="text-base md:text-lg text-slate-600 font-semibold mt-1">
-                                      数量: <b className="text-slate-900">{itemData.quantity} {itemData.unit}</b> × 単価 ¥{itemData.price.toLocaleString()} = <b className="text-orange-600">¥{itemData.total.toLocaleString()}</b>
+                                      数量: <b className="text-slate-900">{itemData.quantity} {itemData.unit}</b> × 単価 {formatAmount(itemData.price)} = <b className="text-orange-600">{formatAmount(itemData.total)}</b>
                                     </div>
                                   </div>
                                   {authRole === 'admin' && (
@@ -2746,7 +2766,7 @@ export default function AdminPage() {
                               {filteredDetails.map((det, dIdx) => (
                                 <div key={dIdx} className="flex justify-between items-center text-sm md:text-base bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
                                   <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
-                                  <span>{det.quantity} {det.unit} × ¥{det.price.toLocaleString()} = <b className="text-orange-600">¥{det.total.toLocaleString()}</b></span>
+                                  <span>{det.quantity} {det.unit} × {formatAmount(det.price)} = <b className="text-orange-600">{formatAmount(det.total)}</b></span>
                                 </div>
                               ))}
                               {filteredDetails.length === 0 && (
@@ -2873,3 +2893,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+```
