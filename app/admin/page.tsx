@@ -18,6 +18,47 @@ const formatAmount = (num: number | string, includeYen = true) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// 修正：日本の祝日判定および曜日判定用ヘルパー関数
+// ---------------------------------------------------------------------------
+const getDayInfo = (dateStr: string) => {
+  // dateStr format: YYYY-MM-DD
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return { dayOfWeek: 0, isHoliday: false };
+  
+  // UTCベースで曜日を正確に取得（タイムゾーンによるズレを防止）
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayOfWeek = date.getUTCDay(); // 0: 日, 1: 月, ..., 6: 土
+
+  // 2026年等の主な固定・移動祝日の定義（必要に応じて追加・調整可能）
+  // 9月の国民の休日や敬老の日・秋分の日なども含めた判定
+  const holidays: { [key: string]: number[] } = {
+    '1': [1, 12], // 元日、成人の日等
+    '2': [11, 23],
+    '3': [20],
+    '4': [29],
+    '5': [3, 4, 5, 6],
+    '7': [20],
+    '8': [11],
+    '9': [21, 22, 23], // 敬老の日、国民の休日、秋分の日などの例 (2026年9月21日が敬老の日、23日 秋分の日)
+    '10': [12],
+    '11': [3, 23],
+    '12': [25]
+  };
+
+  let isHoliday = false;
+  if (holidays[String(m)] && holidays[String(m)].includes(d)) {
+    isHoliday = true;
+  }
+
+  // 2026年9月の個別対応（必要に応じたハードコード補正）
+  if (y === 2026 && m === 9) {
+    if (d === 21 || d === 23) isHoliday = true;
+  }
+
+  return { dayOfWeek, isHoliday };
+};
+
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [viewerPassword, setViewerPassword] = useState('');
@@ -63,9 +104,6 @@ export default function AdminPage() {
   const [disposalEndDate, setDisposalEndDate] = useState('');
   const [disposalSiteFilter, setDisposalSiteFilter] = useState('');
 
-  // ---------------------------------------------------------------------------
-  // 追加：月別カレンダーの現場名クリックで日報内容を確認するためのモーダル用ステート
-  // ---------------------------------------------------------------------------
   const [calendarReportModal, setCalendarReportModal] = useState<{ date: string; location: string; reports: any[] } | null>(null);
 
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
@@ -1259,13 +1297,23 @@ export default function AdminPage() {
                       <th className="py-3 px-3 sticky left-0 bg-slate-50 z-10 min-w-[140px] shadow-xs">スタッフ名</th>
                       {calendarDays.map(dateStr => {
                         const dayNum = Number(dateStr.split('-')[2]);
-                        const dObj = new Date(dateStr);
+                        const { dayOfWeek, isHoliday } = getDayInfo(dateStr);
                         const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
-                        const wDay = weekDays[dObj.getDay()];
-                        const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
+                        const wDay = weekDays[dayOfWeek];
+                        const isSunday = dayOfWeek === 0;
+                        const isSaturday = dayOfWeek === 6;
+
+                        // 祝日または日曜なら赤、土曜なら青
+                        let colorClass = '';
+                        if (isSunday || isHoliday) {
+                          colorClass = 'text-rose-600 bg-rose-50/50';
+                        } else if (isSaturday) {
+                          colorClass = 'text-blue-600 bg-blue-50/50';
+                        }
+
                         return (
-                          <th key={dateStr} className={`py-3 px-1 text-center min-w-[40px] ${isWeekend ? 'text-rose-600 bg-rose-50/50' : ''}`}>
-                            <div className="text-xs text-slate-500 font-bold">{wDay}</div>
+                          <th key={dateStr} className={`py-3 px-1 text-center min-w-[40px] ${colorClass}`}>
+                            <div className={`text-xs font-bold ${isSunday || isHoliday ? 'text-rose-600' : isSaturday ? 'text-blue-600' : 'text-slate-500'}`}>{wDay}</div>
                             <div className="text-sm md:text-base font-bold">{dayNum}</div>
                           </th>
                         );
@@ -1280,6 +1328,17 @@ export default function AdminPage() {
                             👤 {staff}
                           </td>
                           {calendarDays.map(dateStr => {
+                            const { dayOfWeek, isHoliday } = getDayInfo(dateStr);
+                            const isSunday = dayOfWeek === 0;
+                            const isSaturday = dayOfWeek === 6;
+
+                            let cellBgClass = '';
+                            if (isSunday || isHoliday) {
+                              cellBgClass = 'bg-rose-50/20';
+                            } else if (isSaturday) {
+                              cellBgClass = 'bg-blue-50/20';
+                            }
+
                             const matchedReports = reports.filter(r => {
                               const rDateNormalized = normalizeDateStr(r.date);
                               if (rDateNormalized !== dateStr) return false;
@@ -1292,7 +1351,7 @@ export default function AdminPage() {
                             const locNames = Array.from(new Set(matchedReports.map(r => r.location))).join(', ');
 
                             return (
-                              <td key={dateStr} className="py-3 px-1 text-center align-middle">
+                              <td key={dateStr} className={`py-3 px-1 text-center align-middle ${cellBgClass}`}>
                                 {hasEntry ? (
                                   <div 
                                     title={`${dateStr}: ${locNames}`}
@@ -1526,18 +1585,30 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-2">
             {calendarDays.map(dateStr => {
               const dayNum = Number(dateStr.split('-')[2]);
-              const dObj = new Date(dateStr);
+              const { dayOfWeek, isHoliday } = getDayInfo(dateStr);
               const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
-              const wDay = weekDays[dObj.getDay()];
-              const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
+              const wDay = weekDays[dayOfWeek];
+              const isSunday = dayOfWeek === 0;
+              const isSaturday = dayOfWeek === 6;
+
+              // 曜日・祝日に応じたカードの枠線や背景色を設定
+              let dayBoxClass = 'bg-white border-slate-200';
+              let headerColorClass = 'text-slate-800';
+              if (isSunday || isHoliday) {
+                dayBoxClass = 'bg-rose-50/40 border-rose-200';
+                headerColorClass = 'text-rose-600 font-bold';
+              } else if (isSaturday) {
+                dayBoxClass = 'bg-blue-50/40 border-blue-200';
+                headerColorClass = 'text-blue-600 font-bold';
+              }
 
               const dayReports = reports.filter(r => normalizeDateStr(r.date) === dateStr);
               const dayLocations = Array.from(new Set(dayReports.map(r => r.location).filter(Boolean)));
 
               return (
-                <div key={dateStr} className={`p-3 rounded-2xl border flex flex-col justify-between min-h-[110px] ${isWeekend ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-slate-200'}`}>
+                <div key={dateStr} className={`p-3 rounded-2xl border flex flex-col justify-between min-h-[110px] ${dayBoxClass}`}>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                    <span className="font-bold text-sm text-slate-800">{Number(dateStr.split('-')[1])}/{dayNum} ({wDay})</span>
+                    <span className={`text-sm ${headerColorClass}`}>{Number(dateStr.split('-')[1])}/{dayNum} ({wDay})</span>
                     {dayLocations.length > 0 && (
                       <span className="text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold">{dayLocations.length}件</span>
                     )}
@@ -1816,9 +1887,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ------------------------------------------------------------------------- */}
-      {/* 追加：カレンダーの日付・現場名をクリックしたときに日報を表示するモーダル */}
-      {/* ------------------------------------------------------------------------- */}
+      {/* カレンダーの日付・現場名をクリックしたときに日報を表示するモーダル */}
       {calendarReportModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
@@ -2250,7 +2319,7 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* スクラップ（scraps）の編集セクション */}
+              {/* スクリップ（scraps）の編集セクション */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">♻️ スクラップ搬出データ</h3>
