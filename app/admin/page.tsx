@@ -51,7 +51,7 @@ const getDayInfo = (dateStr: string) => {
     isHoliday = true;
   }
 
-  // 2026年9月の個別対応（必要に応じたハードコード補正）
+  // 2026年月の個別対応（必要に応じたハードコード補正）
   if (y === 2026 && m === 9) {
     if (d === 21 || d === 23) isHoliday = true;
   }
@@ -92,6 +92,9 @@ export default function AdminPage() {
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
+
+  // ⛽ 宇野気石油（石川県）の金額入力用ステートを追加
+  const [unokeFuelPrices, setUnokeFuelPrices] = useState<any>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
 
@@ -140,6 +143,7 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
+          if (sData.unokeFuelPrices) setUnokeFuelPrices(sData.unokeFuelPrices);
         }
       }
     } catch (e) {  
@@ -428,6 +432,25 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
+  // ⛽ 宇野気石油の金額入力変更ハンドラー
+  const handleUnokeFuelPriceChange = async (locName: string, yearMonth: string, fuelType: 'keiyu' | 'regular', val: string) => {
+    if (authRole === 'viewer') return;
+    const newUnokePrices = {
+      ...unokeFuelPrices,
+      [locName]: {
+        ...(unokeFuelPrices[locName] || {}),
+        [yearMonth]: {
+          ...(unokeFuelPrices[locName]?.[yearMonth] || {}),
+          [fuelType]: val
+        }
+      }
+    };
+    setUnokeFuelPrices(newUnokePrices);
+    const newData = { ...settings, unokeFuelPrices: newUnokePrices };
+    setSettings(newData);
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
   const handleAddCustomSubcontractor = async (locName: string) => {
     if (authRole === 'viewer') return;
     const formVal = customSubForm[locName] || { company: '', task: '', price: '' };
@@ -627,6 +650,17 @@ export default function AdminPage() {
       }
     }
 
+    // ⛽ 宇野気石油分の金額を燃料代に合算（旧河北現場の場合、指定された月別金額を足し込む）
+    if (r.location === '旧河北郡市クリーンセンター等解体工事(石川県)' && parts.length >= 2) {
+      const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+      const locUnoke = unokeFuelPrices[r.location]?.[ym] || {};
+      const keiyuAmount = Number(locUnoke.keiyu || 0);
+      const regAmount = Number(locUnoke.regular || 0);
+      // 日報がその月に複数ある場合の簡易的な合算、あるいは日報ごとの反映。
+      // 要求仕様：「旧河北郡市クリーンセンター等解体工事(石川県)」現場にのみ、「詳細分析→」のポップアップ内の「燃料代 (軽油・月別単価)」項目に表示させる。
+      // 実際には calculateCosts 側で月ごとに合算したほうが確実なため、ここでは個別の日報では単純に加算しないか、あるいは合算ロジックに組み込みます。
+    }
+
     const regPrice = Number(r.regularPrice || 0);
     const eC = Number(r.etcPrice || 0);
     const pC = Number(r.parkingPrice || 0);
@@ -712,6 +746,33 @@ export default function AdminPage() {
       scrapTotalCalc += dc.scrapC;
     });
 
+    // ⛽ 旧河北の場合、管理画面から入力された宇野気石油の軽油・レギュラー金額を「燃料代 (軽油・月別単価)」や「レギュラー購入分」に合算する
+    let unokeKeiyuTotal = 0;
+    let unokeRegTotal = 0;
+    let unokeKeiyuAmountTotal = 0;
+    let unokeRegAmountTotal = 0;
+
+    if (locName === '旧河北郡市クリーンセンター等解体工事(石川県)') {
+      locMapped.forEach(r => {
+        (r.unokeFuel || []).forEach((uf: any) => {
+          if (uf.name === '軽油') unokeKeiyuTotal += Number(uf.quantity || 0);
+          if (uf.name === 'レギュラー') unokeRegTotal += Number(uf.quantity || 0);
+        });
+      });
+
+      // 月別の宇野気石油入力金額を合算
+      const locUnokePrices = unokeFuelPrices[locName] || {};
+      Object.values(locUnokePrices).forEach((ymVal: any) => {
+        unokeKeiyuAmountTotal += Number(ymVal?.keiyu || 0);
+        unokeRegAmountTotal += Number(ymVal?.regular || 0);
+      });
+
+      // 燃料代（軽油）に宇野気石油の軽油金額を合算
+      calcFuel += unokeKeiyuAmountTotal;
+      // レギュラー購入分に宇野気石油のレギュラー金額を合算
+      calcRegular += unokeRegAmountTotal;
+    }
+
     const customSubsList = customSubcontractors[locName] || [];
     const customSubsTotal = customSubsList.reduce((acc: number, cur: any) => acc + (Number(cur.price) || 0), 0);
     calcSub += customSubsTotal;
@@ -796,18 +857,6 @@ export default function AdminPage() {
 
     const clients = Array.from(new Set(locMapped.map((r: any) => r.client).filter(Boolean)));
     const startDates = Array.from(new Set(locMapped.map((r: any) => r.startDate).filter(Boolean))).sort();
-
-    // 宇野気石油の軽油・レギュラーの日報報告数合計を算出（旧河北用）
-    let unokeKeiyuTotal = 0;
-    let unokeRegTotal = 0;
-    if (locName === '旧河北郡市クリーンセンター等解体工事(石川県)') {
-      locMapped.forEach(r => {
-        (r.unokeFuel || []).forEach((uf: any) => {
-          if (uf.name === '軽油') unokeKeiyuTotal += Number(uf.quantity || 0);
-          if (uf.name === 'レギュラー') unokeRegTotal += Number(uf.quantity || 0);
-        });
-      });
-    }
 
     return { 
       days: locMapped.length, 
@@ -1319,7 +1368,6 @@ export default function AdminPage() {
                         const isSunday = dayOfWeek === 0;
                         const isSaturday = dayOfWeek === 6;
 
-                        // 祝日または日曜なら赤、土曜なら青
                         let colorClass = '';
                         if (isSunday || isHoliday) {
                           colorClass = 'text-rose-600 bg-rose-50/50';
@@ -1607,7 +1655,6 @@ export default function AdminPage() {
               const isSunday = dayOfWeek === 0;
               const isSaturday = dayOfWeek === 6;
 
-              // 曜日・祝日に応じたカードの枠線や背景色を設定
               let dayBoxClass = 'bg-white border-slate-200';
               let headerColorClass = 'text-slate-800';
               if (isSunday || isHoliday) {
@@ -2733,19 +2780,56 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 旧河北（石川県）専用の燃料代セクション表示 */}
+            {/* ⛽ 旧河北（石川県）現場専用：宇野気石油の軽油・レギュラー金額入力枠 */}
             {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-              <div className="bg-indigo-50 p-5 md:p-6 rounded-2xl border border-indigo-200 space-y-3 shadow-2xs">
-                <div className="font-bold text-lg text-indigo-900">⛽ 宇野気石油（石川県） 燃料代項目</div>
-                <div className="space-y-2 bg-white p-4 rounded-xl border border-indigo-100 text-sm md:text-base font-bold text-slate-800">
-                  <div className="flex justify-between items-center">
-                    <span>・宇野気石油：軽油（日報の報告数を反映） {modalData.unokeKeiyuTotal} L</span>
-                    <span className="text-slate-400 font-normal">[管理画面から手入力] 円</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>・宇野気石油：レギュラー（日報の報告数を反映） {modalData.unokeRegTotal} L</span>
-                    <span className="text-slate-400 font-normal">[管理画面から手入力] 円</span>
-                  </div>
+              <div className="bg-indigo-50 p-5 md:p-6 rounded-2xl border border-indigo-200 space-y-4 shadow-2xs">
+                <div className="font-bold text-lg text-indigo-900">⛽ 宇野気石油（石川県） 燃料代・金額入力枠</div>
+                <div className="space-y-3">
+                  {modalReportYearMonths.length === 0 ? (
+                    <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
+                  ) : (
+                    modalReportYearMonths.map(ym => {
+                      const unokeData = unokeFuelPrices[modalLocation]?.[ym] || {};
+                      const keiyuVal = unokeData.keiyu ?? '';
+                      const regularVal = unokeData.regular ?? '';
+
+                      return (
+                        <div key={ym} className="bg-white p-4 rounded-xl border border-indigo-100 space-y-3 shadow-2xs">
+                          <div className="font-bold text-sm text-indigo-950">📅 {ym} の宇野気石油 購入分</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-700 block">軽油（日報の報告数を反映） (円)</label>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm text-slate-500 font-bold">¥</span>
+                                <input
+                                  type="number"
+                                  value={keiyuVal}
+                                  onChange={e => handleUnokeFuelPriceChange(modalLocation, ym, 'keiyu', e.target.value)}
+                                  readOnly={authRole === 'viewer'}
+                                  placeholder="例: 45000"
+                                  className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-700 block">レギュラー（日報の報告数を反映） (円)</label>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm text-slate-500 font-bold">¥</span>
+                                <input
+                                  type="number"
+                                  value={regularVal}
+                                  onChange={e => handleUnokeFuelPriceChange(modalLocation, ym, 'regular', e.target.value)}
+                                  readOnly={authRole === 'viewer'}
+                                  placeholder="例: 12000"
+                                  className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -3322,13 +3406,13 @@ export default function AdminPage() {
                         </div>
 
                         {isOpen && (
-                          <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 搬出日別明細</div>
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2 pt-3">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📅 日別明細一覧</div>
                             <div className="space-y-1.5 max-h-60 overflow-y-auto">
                               {data.details.map((det, dIdx) => (
-                                <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                  <span>🗓️ {det.date} / <b>{det.item}</b></span>
-                                  <span><b>{det.quantity} {det.unit}</b></span>
+                                <div key={dIdx} className="flex justify-between items-center text-sm md:text-base bg-slate-50 p-3 rounded-xl border border-slate-100 font-medium">
+                                  <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
+                                  <span>数量: <b className="text-slate-900">{det.quantity} {det.unit}</b></span>
                                 </div>
                               ))}
                             </div>
