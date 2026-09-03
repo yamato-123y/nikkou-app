@@ -22,29 +22,42 @@ const formatAmount = (num: number | string, includeYen = true) => {
 // 修正：日本の祝日判定および曜日判定用ヘルパー関数
 // ---------------------------------------------------------------------------
 const getDayInfo = (dateStr: string) => {
-  // dateStr format: YYYY-MM-DD
-  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!dateStr || typeof dateStr !== 'string') return { dayOfWeek: 0, isHoliday: false };
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return { dayOfWeek: 0, isHoliday: false };
+  
+  const [y, m, d] = parts.map(Number);
   if (!y || !m || !d) return { dayOfWeek: 0, isHoliday: false };
   
-  // UTCベースで曜日を正確に取得（タイムゾーンによるズレを防止）
   const date = new Date(Date.UTC(y, m - 1, d));
-  const dayOfWeek = date.getUTCDay(); // 0: 日, 1: 月, ..., 6: 土
+  const dayOfWeek = date.getUTCDay();
 
-  // 2026年等の主な固定・移動祝日の定義（必要に応じて追加・調整可能）
-  // 9月の国民の休日や敬老の日・秋分の日なども含めた判定
   const holidays: { [key: string]: number[] } = {
-    '1': [1, 12], // 元日、成人の日等
+    '1': [1, 12],
     '2': [11, 23],
     '3': [20],
     '4': [29],
     '5': [3, 4, 5, 6],
     '7': [20],
     '8': [11],
-    '9': [21, 22, 23], // 敬老の日、国民の休日、秋分の日などの例 (2026年9月21日が敬老の日、23日 秋分の日)
+    '9': [21, 22, 23],
     '10': [12],
     '11': [3, 23],
     '12': [25]
   };
+
+  let isHoliday = false;
+  const monthKey = String(m);
+  if (holidays[monthKey] && holidays[monthKey].includes(d)) {
+    isHoliday = true;
+  }
+
+  if (y === 2026 && m === 9) {
+    if (d === 21 || d === 23) isHoliday = true;
+  }
+
+  return { dayOfWeek, isHoliday };
+};
 
   let isHoliday = false;
   if (holidays[String(m)] && holidays[String(m)].includes(d)) {
