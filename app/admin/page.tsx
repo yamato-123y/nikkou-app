@@ -18,9 +18,6 @@ const formatAmount = (num: number | string, includeYen = true) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// 修正：日本の祝日判定および曜日判定用ヘルパー関数（重複を削除して一本化）
-// ---------------------------------------------------------------------------
 const getDayInfo = (dateStr: string) => {
   if (!dateStr || typeof dateStr !== 'string') return { dayOfWeek: 0, isHoliday: false };
   const parts = dateStr.split('-');
@@ -92,8 +89,6 @@ export default function AdminPage() {
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
-
-  // ⛽ 宇野気石油（石川県）の金額入力用ステートを追加
   const [unokeFuelPrices, setUnokeFuelPrices] = useState<any>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
@@ -231,7 +226,7 @@ export default function AdminPage() {
               newR.location = u.newName;
               reportChanged = true;
             }
-            if (newR.disposals) {
+            if (Array.isArray(newR.disposals)) {
               newR.disposals = newR.disposals.map((d: any) => {
                 if (d.location === u.oldName) {
                   reportChanged = true;
@@ -240,7 +235,7 @@ export default function AdminPage() {
                 return d;
               });
             }
-            if (newR.scraps) {
+            if (Array.isArray(newR.scraps)) {
               newR.scraps = newR.scraps.map((sc: any) => {
                 if (sc.location === u.oldName) {
                   reportChanged = true;
@@ -252,7 +247,7 @@ export default function AdminPage() {
           });
 
           subUpdates.forEach(su => {
-            if (newR.subcontractors) {
+            if (Array.isArray(newR.subcontractors)) {
               newR.subcontractors = newR.subcontractors.map((sub: any) => {
                 if (sub.company === su.oldComp && sub.task === su.oldTask) {
                   reportChanged = true;
@@ -432,7 +427,6 @@ export default function AdminPage() {
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
 
-  // ⛽ 宇野気石油の金額入力変更ハンドラー
   const handleUnokeFuelPriceChange = async (locName: string, yearMonth: string, fuelType: 'keiyu' | 'regular', val: string) => {
     if (authRole === 'viewer') return;
     const newUnokePrices = {
@@ -532,10 +526,12 @@ export default function AdminPage() {
 
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
-    (r.workers || []).forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
+    const workers = Array.isArray(r.workers) ? r.workers : [];
+    workers.forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
 
     let subCost = 0;
-    (r.subcontractors || []).forEach((sub: any) => {
+    const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+    subcontractors.forEach((sub: any) => {
       const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
       const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' 
         ? Number(sub.price) 
@@ -544,47 +540,59 @@ export default function AdminPage() {
     });
 
     let leaseC = 0;
-    (r.machines || []).forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseHeavy || []).forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseAttach || []).forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseOther || []).forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ishikawaHeavy || []).forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ishikawaAttach || []).forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ishikawaOther || []).forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-    // 宇野気石油の軽油・レギュラー（数量のみ入力のため単価計算への影響なし）
-    (r.unokeFuel || []).forEach((m: string) => leaseC += 0);
+    const machines = Array.isArray(r.machines) ? r.machines : [];
+    const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+    const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+    const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+    const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+    const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+    const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+
+    machines.forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
+    leaseHeavy.forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    leaseAttach.forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
+    leaseOther.forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaHeavy.forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaAttach.forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaOther.forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
     let ishikawaLeaseDetail = 0;
-    (r.ishikawaHeavy || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ishikawaAttach || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
-    (r.ishikawaOther || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaHeavy.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaAttach.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaOther.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
     let mokLeaseDetail = 0;
-    (r.machines || []).forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseHeavy || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseAttach || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
-    (r.leaseOther || []).forEach((m: string) => mokLeaseDetail += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
+    machines.forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
+    leaseHeavy.forEach((m: string) => mokLeaseDetail += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
+    leaseAttach.forEach((m: string) => mokLeaseDetail += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
+    leaseOther.forEach((m: string) => mokLeaseDetail += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
 
     let otherLeaseC = 0;
-    (r.otherLeases || []).forEach((ol: any) => {
+    const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+    const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+
+    otherLeases.forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
     });
-    (r.mokCustomMachines || []).forEach((m: any) => {
+    mokCustomMachines.forEach((m: any) => {
       const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
       const unitP = matched?.price || 0;
       otherLeaseC += (Number(m.count || 0) * unitP);
     });
 
     let ownMachineC = 0;
-    (r.ownMachines || []).forEach((m: string) => ownMachineC += ((settings.companyMachines || []).find((x:any) => x.name === m)?.price || 0));
+    const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
+    ownMachines.forEach((m: string) => ownMachineC += ((settings.companyMachines || []).find((x:any) => x.name === m)?.price || 0));
 
     let vehicleC = 0;
-    (r.vehicles || []).forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
+    const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
+    vehicles.forEach((v: string) => vehicleC += ((settings.vehicles || []).find((x:any) => x.name === v)?.price || 0));
 
     let dispC = 0;
     const disposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
 
-    (r.disposals || []).forEach((d: any) => {
+    const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+    disposals.forEach((d: any) => {
       const locName = d.location || 'その他処分場';
       const itemName = d.item || '品目未指定';
       const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === locName && s.item === itemName);
@@ -618,7 +626,8 @@ export default function AdminPage() {
 
     let scrapC = 0;
     const scrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
-    (r.scraps || []).forEach((sc: any) => {
+    const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+    scraps.forEach((sc: any) => {
       const matchedMaster = (settings.scrapLocations || []).find((s: any) => s.location === sc.location && s.item === sc.item);
       const unitStr = sc.unit || matchedMaster?.unit || 't';
       const subT = 0; 
@@ -742,7 +751,8 @@ export default function AdminPage() {
 
     if (locName === '旧河北郡市クリーンセンター等解体工事(石川県)') {
       locMapped.forEach(r => {
-        (r.unokeFuel || []).forEach((uf: any) => {
+        const unokeFuel = Array.isArray(r.unokeFuel) ? r.unokeFuel : [];
+        unokeFuel.forEach((uf: any) => {
           if (uf.name === '軽油') unokeKeiyuTotal += Number(uf.quantity || 0);
           if (uf.name === 'レギュラー') unokeRegTotal += Number(uf.quantity || 0);
         });
@@ -879,17 +889,33 @@ export default function AdminPage() {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
     const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
-    const rows = locReports.map(r => [
-      r.date, r.location, r.client || '', r.startDate || '', r.manager, (r.workers || []).join('/'), 
-      Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
-      (r.subcontractors || []).map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-      [...(r.machines || []), ...(r.leaseHeavy || []), ...(r.leaseAttach || []), ...(r.leaseOther || []), ...(r.ishikawaHeavy || []), ...(r.ishikawaAttach || []), ...(r.ishikawaOther || []), ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
-      (r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
-      (r.ownMachines || []).join('/'),
-      (r.vehicles || []).join('/'), 
-      r.fuel || 0, r.regularPrice || 0, r.etcPrice || 0, r.parkingPrice || 0,
-      r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
-    ]);
+    const rows = locReports.map(r => {
+      const workers = Array.isArray(r.workers) ? r.workers : [];
+      const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+      const machines = Array.isArray(r.machines) ? r.machines : [];
+      const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+      const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+      const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+      const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+      const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+      const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+      const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+      const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+      const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
+      const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
+
+      return [
+        r.date, r.location, r.client || '', r.startDate || '', r.manager, workers.join('/'), 
+        Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
+        subcontractors.map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
+        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
+        otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
+        ownMachines.join('/'),
+        vehicles.join('/'), 
+        r.fuel || 0, r.regularPrice || 0, r.etcPrice || 0, r.parkingPrice || 0,
+        r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
+      ];
+    });
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${locName}_日報データ.csv`; link.click();
@@ -945,7 +971,8 @@ export default function AdminPage() {
         yearMonth = '2026-07';
       }
 
-      (r.disposals || []).forEach((d: any, dIdx: number) => {
+      const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+      disposals.forEach((d: any, dIdx: number) => {
         const dLoc = d.location || '〇〇処分場';
         const dItem = d.item || '品目未指定';
         const dQty = Number(d.quantity || 0);
@@ -1100,7 +1127,6 @@ export default function AdminPage() {
             <span className={`text-xs md:text-sm px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-orange-100 text-orange-700'}`}>
               {authRole === 'admin' ? '👑 管理者モード' : '👑 社長モード'}
             </span>
-
           </div>
           <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
@@ -1392,7 +1418,8 @@ export default function AdminPage() {
                               const rDateNormalized = normalizeDateStr(r.date);
                               if (rDateNormalized !== dateStr) return false;
                               const isManager = r.manager === staff;
-                              const isWorker = (r.workers || []).includes(staff);
+                              const workers = Array.isArray(r.workers) ? r.workers : [];
+                              const isWorker = workers.includes(staff);
                               return isManager || isWorker;
                             });
 
@@ -1726,6 +1753,23 @@ export default function AdminPage() {
                     <div className="space-y-3 animate-fadeIn pt-1">
                       {sortedLocReports.map((r, i) => {
                         const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                        const workers = Array.isArray(r.workers) ? r.workers : [];
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        const machines = Array.isArray(r.machines) ? r.machines : [];
+                        const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+                        const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+                        const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+                        const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+                        const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+                        const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                        const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+                        const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+                        const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
+                        const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
+                        const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+                        const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+                        const unokeFuel = Array.isArray(r.unokeFuel) ? r.unokeFuel : [];
+
                         return (
                           <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
                             <div className="space-y-2 flex-1">
@@ -1733,7 +1777,7 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                                 {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
-                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                               </div>
 
                               {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
@@ -1742,25 +1786,25 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              {(r.subcontractors || []).length > 0 && (
+                              {subcontractors.length > 0 && (
                                 <div className="text-sm text-orange-800 font-bold">
-                                  外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                                  外注: {subcontractors.map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
                                 </div>
                               )}
 
                               <div className="text-sm text-slate-700 font-medium">
                                 重機・車両: {[
-                                  ...(r.machines || []), 
-                                  ...(r.leaseHeavy || []), 
-                                  ...(r.leaseAttach || []), 
-                                  ...(r.leaseOther || []), 
-                                  ...(r.ishikawaHeavy || []), 
-                                  ...(r.ishikawaAttach || []), 
-                                  ...(r.ishikawaOther || []), 
-                                  ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
-                                  ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                                  ...(r.ownMachines || []), 
-                                  ...(r.vehicles || [])
+                                  ...machines, 
+                                  ...leaseHeavy, 
+                                  ...leaseAttach, 
+                                  ...leaseOther, 
+                                  ...ishikawaHeavy, 
+                                  ...ishikawaAttach, 
+                                  ...ishikawaOther, 
+                                  ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
+                                  ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                                  ...ownMachines, 
+                                  ...vehicles
                                 ].join(', ') || '-'}
                               </div>
 
@@ -1770,23 +1814,23 @@ export default function AdminPage() {
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
-                                {(r.unokeFuel || []).length > 0 && (
+                                {unokeFuel.length > 0 && (
                                   <div className="col-span-full text-indigo-800">
-                                    宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                                    宇野気石油: {unokeFuel.map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
                                   </div>
                                 )}
                               </div>
 
-                              {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                              {(disposals.length > 0 || scraps.length > 0) && (
                                 <div className="flex flex-col gap-1 pt-0.5">
-                                  {(r.disposals || []).length > 0 && (
+                                  {disposals.length > 0 && (
                                     <div className="text-sm text-amber-800 font-bold">
-                                      🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                                      🗑️ 処分: {disposals.map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
                                     </div>
                                   )}
-                                  {(r.scraps || []).length > 0 && (
+                                  {scraps.length > 0 && (
                                     <div className="text-sm text-emerald-800 font-bold">
-                                      ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                      ♻️ スクラップ: {scraps.map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                                     </div>
                                   )}
                                 </div>
@@ -1854,6 +1898,23 @@ export default function AdminPage() {
                     <div className="space-y-3 animate-fadeIn pt-1">
                       {sortedLocReports.map((r, i) => {
                         const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                        const workers = Array.isArray(r.workers) ? r.workers : [];
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        const machines = Array.isArray(r.machines) ? r.machines : [];
+                        const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+                        const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+                        const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+                        const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+                        const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+                        const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                        const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+                        const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+                        const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
+                        const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
+                        const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+                        const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+                        const unokeFuel = Array.isArray(r.unokeFuel) ? r.unokeFuel : [];
+
                         return (
                           <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
                             <div className="space-y-2 flex-1">
@@ -1861,7 +1922,7 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                                 {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
-                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                               </div>
 
                               {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
@@ -1870,25 +1931,25 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              {(r.subcontractors || []).length > 0 && (
+                              {subcontractors.length > 0 && (
                                 <div className="text-sm text-orange-800 font-bold">
-                                  外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                                  外注: {subcontractors.map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
                                 </div>
                               )}
 
                               <div className="text-sm text-slate-700 font-medium">
                                 重機・車両: {[
-                                  ...(r.machines || []), 
-                                  ...(r.leaseHeavy || []), 
-                                  ...(r.leaseAttach || []), 
-                                  ...(r.leaseOther || []), 
-                                  ...(r.ishikawaHeavy || []), 
-                                  ...(r.ishikawaAttach || []), 
-                                  ...(r.ishikawaOther || []), 
-                                  ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
-                                  ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                                  ...(r.ownMachines || []), 
-                                  ...(r.vehicles || [])
+                                  ...machines, 
+                                  ...leaseHeavy, 
+                                  ...leaseAttach, 
+                                  ...leaseOther, 
+                                  ...ishikawaHeavy, 
+                                  ...ishikawaAttach, 
+                                  ...ishikawaOther, 
+                                  ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
+                                  ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                                  ...ownMachines, 
+                                  ...vehicles
                                 ].join(', ') || '-'}
                               </div>
 
@@ -1898,23 +1959,23 @@ export default function AdminPage() {
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
-                                {(r.unokeFuel || []).length > 0 && (
+                                {unokeFuel.length > 0 && (
                                   <div className="col-span-full text-indigo-800">
-                                    宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                                    宇野気石油: {unokeFuel.map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
                                   </div>
                                 )}
                               </div>
 
-                              {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                              {(disposals.length > 0 || scraps.length > 0) && (
                                 <div className="flex flex-col gap-1 pt-0.5">
-                                  {(r.disposals || []).length > 0 && (
+                                  {disposals.length > 0 && (
                                     <div className="text-sm text-amber-800 font-bold">
-                                      🗑️ 処分: {(r.disposals || []).length > 0 ? (r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ') : ''}
+                                      🗑️ 処分: {disposals.map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
                                     </div>
                                   )}
-                                  {(r.scraps || []).length > 0 && (
+                                  {scraps.length > 0 && (
                                     <div className="text-sm text-emerald-800 font-bold">
-                                      ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                      ♻️ スクラップ: {scraps.map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                                     </div>
                                   )}
                                 </div>
@@ -1970,13 +2031,30 @@ export default function AdminPage() {
               ) : (
                 calendarReportModal.reports.map((r, i) => {
                   const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                  const workers = Array.isArray(r.workers) ? r.workers : [];
+                  const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                  const machines = Array.isArray(r.machines) ? r.machines : [];
+                  const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+                  const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+                  const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+                  const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+                  const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+                  const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                  const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+                  const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+                  const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
+                  const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
+                  const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+                  const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+                  const unokeFuel = Array.isArray(r.unokeFuel) ? r.unokeFuel : [];
+
                   return (
                     <div key={r.id || r._id || i} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
                         {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                         {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
-                        <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                        <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                       </div>
 
                       {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
@@ -1985,25 +2063,25 @@ export default function AdminPage() {
                         </div>
                       )}
 
-                      {(r.subcontractors || []).length > 0 && (
+                      {subcontractors.length > 0 && (
                         <div className="text-sm text-orange-800 font-bold">
-                          外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                          外注: {subcontractors.map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
                         </div>
                       )}
 
                       <div className="text-sm text-slate-700 font-medium">
                         重機・車両: {[
-                          ...(r.machines || []), 
-                          ...(r.leaseHeavy || []), 
-                          ...(r.leaseAttach || []), 
-                          ...(r.leaseOther || []), 
-                          ...(r.ishikawaHeavy || []), 
-                          ...(r.ishikawaAttach || []), 
-                          ...(r.ishikawaOther || []), 
-                          ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
-                          ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                          ...(r.ownMachines || []), 
-                          ...(r.vehicles || [])
+                          ...machines, 
+                          ...leaseHeavy, 
+                          ...leaseAttach, 
+                          ...leaseOther, 
+                          ...ishikawaHeavy, 
+                          ...ishikawaAttach, 
+                          ...ishikawaOther, 
+                          ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
+                          ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                          ...ownMachines, 
+                          ...vehicles
                         ].join(', ') || '-'}
                       </div>
 
@@ -2013,23 +2091,23 @@ export default function AdminPage() {
                         <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                         <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                         {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
-                        {(r.unokeFuel || []).length > 0 && (
+                        {unokeFuel.length > 0 && (
                           <div className="col-span-full text-indigo-800">
-                            宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                            宇野気石油: {unokeFuel.map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
                           </div>
                         )}
                       </div>
 
-                      {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                      {(disposals.length > 0 || scraps.length > 0) && (
                         <div className="flex flex-col gap-1 pt-0.5">
-                          {(r.disposals || []).length > 0 && (
+                          {disposals.length > 0 && (
                             <div className="text-sm text-amber-800 font-bold">
-                              🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                              🗑️ 処分: {disposals.map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
                             </div>
                           )}
-                          {(r.scraps || []).length > 0 && (
+                          {scraps.length > 0 && (
                             <div className="text-sm text-emerald-800 font-bold">
-                              ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                              ♻️ スクラップ: {scraps.map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
                             </div>
                           )}
                         </div>
@@ -2230,14 +2308,15 @@ export default function AdminPage() {
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">👥 作業員</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                   {(settings.workers || []).map((w: any) => {
-                    const checked = (editingReport.workers || []).includes(w.name);
+                    const workers = Array.isArray(editingReport.workers) ? editingReport.workers : [];
+                    const checked = workers.includes(w.name);
                     return (
                       <label key={w.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold' : 'bg-white border-slate-200'}`}>
                         <input 
                           type="checkbox" 
                           checked={checked} 
                           onChange={e => {
-                            const current = editingReport.workers || [];
+                            const current = Array.isArray(editingReport.workers) ? editingReport.workers : [];
                             const updated = e.target.checked ? [...current, w.name] : current.filter((x: string) => x !== w.name);
                             setEditingReport({ ...editingReport, workers: updated });
                           }}
@@ -2277,9 +2356,12 @@ export default function AdminPage() {
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">👤 外注・派遣作業員</h3>
-                  <button type="button" onClick={() => setEditingReport({...editingReport, subcontractors: [...(editingReport.subcontractors || []), {company: '', task: '', count: ''}]})} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+                  <button type="button" onClick={() => {
+                    const subs = Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : [];
+                    setEditingReport({...editingReport, subcontractors: [...subs, {company: '', task: '', count: ''}]});
+                  }} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
                 </div>
-                {(editingReport.subcontractors || []).map((sub: any, sIdx: number) => {
+                {(Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : []).map((sub: any, sIdx: number) => {
                   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
                   const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
                   return (
@@ -2288,7 +2370,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">外注会社名</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sub.company} onChange={e => {
-                            const updated = [...(editingReport.subcontractors || [])];
+                            const updated = [...(Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : [])];
                             updated[sIdx] = { ...updated[sIdx], company: e.target.value, task: '' };
                             setEditingReport({ ...editingReport, subcontractors: updated });
                           }}>
@@ -2299,7 +2381,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">作業内容</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sub.task} onChange={e => {
-                            const updated = [...(editingReport.subcontractors || [])];
+                            const updated = [...(Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : [])];
                             updated[sIdx] = { ...updated[sIdx], task: e.target.value };
                             setEditingReport({ ...editingReport, subcontractors: updated });
                           }}>
@@ -2312,13 +2394,13 @@ export default function AdminPage() {
                         <div className="flex-1">
                           <label className="text-xs font-bold text-slate-700 block mb-1">人数</label>
                           <input type="number" placeholder="0" className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sub.count} onChange={e => {
-                            const updated = [...(editingReport.subcontractors || [])];
+                            const updated = [...(Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : [])];
                             updated[sIdx] = { ...updated[sIdx], count: e.target.value };
                             setEditingReport({ ...editingReport, subcontractors: updated });
                           }}/>
                         </div>
                         <button type="button" onClick={() => {
-                          const updated = (editingReport.subcontractors || []).filter((_:any, i:number)=>i!==sIdx);
+                          const updated = (Array.isArray(editingReport.subcontractors) ? editingReport.subcontractors : []).filter((_:any, i:number)=>i!==sIdx);
                           setEditingReport({ ...editingReport, subcontractors: updated });
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
@@ -2331,9 +2413,12 @@ export default function AdminPage() {
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🗑️ 処分場・搬出データ</h3>
-                  <button type="button" onClick={() => setEditingReport({...editingReport, disposals: [...(editingReport.disposals || []), {location: '', item: '', quantity: '', unit: 't'}]})} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 処分項目を追加</button>
+                  <button type="button" onClick={() => {
+                    const disposals = Array.isArray(editingReport.disposals) ? editingReport.disposals : [];
+                    setEditingReport({...editingReport, disposals: [...disposals, {location: '', item: '', quantity: '', unit: 't'}]});
+                  }} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 処分項目を追加</button>
                 </div>
-                {(editingReport.disposals || []).map((disp: any, dIdx: number) => {
+                {(Array.isArray(editingReport.disposals) ? editingReport.disposals : []).map((disp: any, dIdx: number) => {
                   const uniqueDispLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
                   const availableDispItems = (settings.disposalLocations || []).filter((d:any) => d.location === disp.location);
                   return (
@@ -2342,7 +2427,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">処分場名</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.location} onChange={e => {
-                            const updated = [...(editingReport.disposals || [])];
+                            const updated = [...(Array.isArray(editingReport.disposals) ? editingReport.disposals : [])];
                             updated[dIdx] = { ...updated[dIdx], location: e.target.value, item: '' };
                             setEditingReport({ ...editingReport, disposals: updated });
                           }}>
@@ -2353,7 +2438,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.item} onChange={e => {
-                            const updated = [...(editingReport.disposals || [])];
+                            const updated = [...(Array.isArray(editingReport.disposals) ? editingReport.disposals : [])];
                             const selectedItemObj = availableDispItems.find((d:any) => d.item === e.target.value);
                             updated[dIdx] = { ...updated[dIdx], item: e.target.value, unit: selectedItemObj?.unit || 't' };
                             setEditingReport({ ...editingReport, disposals: updated });
@@ -2367,13 +2452,13 @@ export default function AdminPage() {
                         <div className="flex-1">
                           <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({disp.unit || 't'})</label>
                           <input type="number" step="0.01" placeholder="0" className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={disp.quantity} onChange={e => {
-                            const updated = [...(editingReport.disposals || [])];
+                            const updated = [...(Array.isArray(editingReport.disposals) ? editingReport.disposals : [])];
                             updated[dIdx] = { ...updated[dIdx], quantity: e.target.value };
                             setEditingReport({ ...editingReport, disposals: updated });
                           }}/>
                         </div>
                         <button type="button" onClick={() => {
-                          const updated = (editingReport.disposals || []).filter((_:any, i:number)=>i!==dIdx);
+                          const updated = (Array.isArray(editingReport.disposals) ? editingReport.disposals : []).filter((_:any, i:number)=>i!==dIdx);
                           setEditingReport({ ...editingReport, disposals: updated });
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
@@ -2386,9 +2471,12 @@ export default function AdminPage() {
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">♻️ スクラップ搬出データ</h3>
-                  <button type="button" onClick={() => setEditingReport({...editingReport, scraps: [...(editingReport.scraps || []), {location: '', item: '', quantity: '', unit: 'kg'}]})} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ スクラップ項目を追加</button>
+                  <button type="button" onClick={() => {
+                    const scraps = Array.isArray(editingReport.scraps) ? editingReport.scraps : [];
+                    setEditingReport({...editingReport, scraps: [...scraps, {location: '', item: '', quantity: '', unit: 'kg'}]});
+                  }} className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ スクラップ項目を追加</button>
                 </div>
-                {(editingReport.scraps || []).map((sc: any, scIdx: number) => {
+                {(Array.isArray(editingReport.scraps) ? editingReport.scraps : []).map((sc: any, scIdx: number) => {
                   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
                   const availableScrapItems = (settings.scrapLocations || []).filter((s:any) => s.location === sc.location);
                   return (
@@ -2397,7 +2485,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">スクラップ場名</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.location} onChange={e => {
-                            const updated = [...(editingReport.scraps || [])];
+                            const updated = [...(Array.isArray(editingReport.scraps) ? editingReport.scraps : [])];
                             updated[scIdx] = { ...updated[scIdx], location: e.target.value, item: '' };
                             setEditingReport({ ...editingReport, scraps: updated });
                           }}>
@@ -2408,7 +2496,7 @@ export default function AdminPage() {
                         <div>
                           <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
                           <select className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.item} onChange={e => {
-                            const updated = [...(editingReport.scraps || [])];
+                            const updated = [...(Array.isArray(editingReport.scraps) ? editingReport.scraps : [])];
                             const selectedItemObj = availableScrapItems.find((s:any) => s.item === e.target.value);
                             updated[scIdx] = { ...updated[scIdx], item: e.target.value, unit: selectedItemObj?.unit || 'kg' };
                             setEditingReport({ ...editingReport, scraps: updated });
@@ -2422,13 +2510,13 @@ export default function AdminPage() {
                         <div className="flex-1">
                           <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({sc.unit || 'kg'})</label>
                           <input type="number" step="0.01" placeholder="0" className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" value={sc.quantity} onChange={e => {
-                            const updated = [...(editingReport.scraps || [])];
+                            const updated = [...(Array.isArray(editingReport.scraps) ? editingReport.scraps : [])];
                             updated[scIdx] = { ...updated[scIdx], quantity: e.target.value };
                             setEditingReport({ ...editingReport, scraps: updated });
                           }}/>
                         </div>
                         <button type="button" onClick={() => {
-                          const updated = (editingReport.scraps || []).filter((_:any, i:number)=>i!==scIdx);
+                          const updated = (Array.isArray(editingReport.scraps) ? editingReport.scraps : []).filter((_:any, i:number)=>i!==scIdx);
                           setEditingReport({ ...editingReport, scraps: updated });
                         }} className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs">削除</button>
                       </div>
@@ -2443,14 +2531,15 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【自社重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.companyMachines || []).map((cm: any) => {
-                      const checked = (editingReport.ownMachines || []).includes(cm.name);
+                      const ownMachines = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
+                      const checked = ownMachines.includes(cm.name);
                       return (
                         <label key={cm.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
                           <input 
                             type="checkbox" 
                             checked={checked} 
                             onChange={e => {
-                              const current = editingReport.ownMachines || [];
+                              const current = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
                               const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
                               setEditingReport({ ...editingReport, ownMachines: updated });
                             }}
@@ -2466,14 +2555,15 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【自社車両（乗用車・トラック）】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.vehicles || []).map((v: any) => {
-                      const checked = (editingReport.vehicles || []).includes(v.name);
+                      const vehicles = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
+                      const checked = vehicles.includes(v.name);
                       return (
                         <label key={v.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
                           <input 
                             type="checkbox" 
                             checked={checked} 
                             onChange={e => {
-                              const current = editingReport.vehicles || [];
+                              const current = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
                               const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
                               setEditingReport({ ...editingReport, vehicles: updated });
                             }}
@@ -2494,11 +2584,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseHeavy || []).map((m: any) => {
-                      const checked = (editingReport.leaseHeavy || []).includes(m.name);
+                      const leaseHeavy = Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [];
+                      const checked = leaseHeavy.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.leaseHeavy || [];
+                            const current = Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, leaseHeavy: updated });
                           }} className="rounded text-blue-600 w-4 h-4" />
@@ -2513,11 +2604,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseAttach || []).map((m: any) => {
-                      const checked = (editingReport.leaseAttach || []).includes(m.name);
+                      const leaseAttach = Array.isArray(editingReport.leaseAttach) ? editingReport.leaseAttach : [];
+                      const checked = leaseAttach.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.leaseAttach || [];
+                            const current = Array.isArray(editingReport.leaseAttach) ? editingReport.leaseAttach : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, leaseAttach: updated });
                           }} className="rounded text-blue-600 w-4 h-4" />
@@ -2532,11 +2624,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【その他の機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseOther || []).map((m: any) => {
-                      const checked = (editingReport.leaseOther || []).includes(m.name);
+                      const leaseOther = Array.isArray(editingReport.leaseOther) ? editingReport.leaseOther : [];
+                      const checked = leaseOther.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.leaseOther || [];
+                            const current = Array.isArray(editingReport.leaseOther) ? editingReport.leaseOther : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, leaseOther: updated });
                           }} className="rounded text-blue-600 w-4 h-4" />
@@ -2555,11 +2648,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaHeavy || []).map((m: any) => {
-                      const checked = (editingReport.ishikawaHeavy || []).includes(m.name);
+                      const ishikawaHeavy = Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [];
+                      const checked = ishikawaHeavy.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.ishikawaHeavy || [];
+                            const current = Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, ishikawaHeavy: updated });
                           }} className="rounded text-indigo-600 w-4 h-4" />
@@ -2574,11 +2668,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaAttach || []).map((m: any) => {
-                      const checked = (editingReport.ishikawaAttach || []).includes(m.name);
+                      const ishikawaAttach = Array.isArray(editingReport.ishikawaAttach) ? editingReport.ishikawaAttach : [];
+                      const checked = ishikawaAttach.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.ishikawaAttach || [];
+                            const current = Array.isArray(editingReport.ishikawaAttach) ? editingReport.ishikawaAttach : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, ishikawaAttach: updated });
                           }} className="rounded text-indigo-600 w-4 h-4" />
@@ -2593,11 +2688,12 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaOther || []).map((m: any) => {
-                      const checked = (editingReport.ishikawaOther || []).includes(m.name);
+                      const ishikawaOther = Array.isArray(editingReport.ishikawaOther) ? editingReport.ishikawaOther : [];
+                      const checked = ishikawaOther.includes(m.name);
                       return (
                         <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
                           <input type="checkbox" checked={checked} onChange={e => {
-                            const current = editingReport.ishikawaOther || [];
+                            const current = Array.isArray(editingReport.ishikawaOther) ? editingReport.ishikawaOther : [];
                             const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
                             setEditingReport({ ...editingReport, ishikawaOther: updated });
                           }} className="rounded text-indigo-600 w-4 h-4" />
@@ -2632,17 +2728,17 @@ export default function AdminPage() {
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 (円)</label>
                     <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
-                  {(editingReport.unokeFuel || []).length > 0 && (
+                  {(Array.isArray(editingReport.unokeFuel) ? editingReport.unokeFuel : []).length > 0 && (
                     <div className="col-span-full space-y-2">
                       <label className="text-xs font-bold text-slate-600 block">宇野気石油（石川県）</label>
-                      {(editingReport.unokeFuel || []).map((uf: any, ufIdx: number) => (
+                      {(Array.isArray(editingReport.unokeFuel) ? editingReport.unokeFuel : []).map((uf: any, ufIdx: number) => (
                         <div key={ufIdx} className="flex items-center gap-2">
                           <span className="text-sm font-bold">{uf.name} (L):</span>
                           <input
                             type="number"
                             value={uf.quantity || 0}
                             onChange={e => {
-                              const updated = [...(editingReport.unokeFuel || [])];
+                              const updated = [...(Array.isArray(editingReport.unokeFuel) ? editingReport.unokeFuel : [])];
                               updated[ufIdx] = { ...updated[ufIdx], quantity: e.target.value };
                               setEditingReport({ ...editingReport, unokeFuel: updated });
                             }}
@@ -2950,36 +3046,40 @@ export default function AdminPage() {
                     <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
                     {reports.filter(r => {
                       const targetNames = getTargetLocationNames(modalLocation);
-                      return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
+                      const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                      return targetNames.includes(r.location) && subcontractors.length > 0;
                     }).length === 0 ? (
                       <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
                     ) : (
                       reports.filter(r => {
                         const targetNames = getTargetLocationNames(modalLocation);
-                        return targetNames.includes(r.location) && (r.subcontractors || []).length > 0;
-                      }).map((r, idx) => (
-                        <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
-                          <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
-                          {(r.subcontractors || []).map((sub: any, sIdx: number) => {
-                            const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
-                            const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
-                            const subTotalCalc = Number(sub.count || 0) * unitP;
-                            return (
-                              <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
-                                <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 {formatAmount(unitP)}</span>
-                                <span className="font-bold text-orange-700">{formatAmount(subTotalCalc)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        return targetNames.includes(r.location) && subcontractors.length > 0;
+                      }).map((r, idx) => {
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        return (
+                          <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
+                            <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
+                            {subcontractors.map((sub: any, sIdx: number) => {
+                              const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
+                              const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
+                              const subTotalCalc = Number(sub.count || 0) * unitP;
+                              return (
+                                <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
+                                  <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 {formatAmount(unitP)}</span>
+                                  <span className="font-bold text-orange-700">{formatAmount(subTotalCalc)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* 石川県現場の場合は通常の「月別1Lあたりの軽油単価設定」を非表示にし、代わりに宇野気石油等の専用見出しや情報を整理 */}
             {modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' && (
               <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
                 <div className="flex justify-between items-center flex-wrap gap-3">
@@ -3090,7 +3190,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 旧河北（石川県）専用 リース詳細内訳ポップアップ */}
+      {/* 石川県現場専用 リース詳細内訳ポップアップ */}
       {showIshikawaLeaseModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-2xl p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100">
