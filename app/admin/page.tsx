@@ -1732,7 +1732,7 @@ export default function AdminPage() {
 
                         return (
                           <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
-                            <div className="space-y-2 flex-1">
+                            <div className="space-y-2.5 flex-1 w-full">
                               <div className="flex items-center gap-3 flex-wrap">
                                 <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
@@ -1752,21 +1752,24 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              <div className="text-sm text-slate-700 font-medium">
-                                重機・車両: {[
-                                  ...machines, 
-                                  ...leaseHeavy, 
-                                  ...leaseAttach, 
-                                  ...leaseOther, 
-                                  ...ishikawaHeavy, 
-                                  ...ishikawaAttach, 
-                                  ...ishikawaOther, 
-                                  ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
-                                  ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                                  ...r.otherMachines ? [r.otherMachines] : [],
-                                  ...ownMachines, 
-                                  ...vehicles
-                                ].join(', ') || '-'}
+                              {/* 重機・車両の内訳をカテゴリごとに見やすく整理 */}
+                              <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
+                                {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
+                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
+                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
+                                {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
+                                {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
+                                {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                  <span className="text-slate-400">なし</span>
+                                )}
                               </div>
 
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
@@ -1872,7 +1875,7 @@ export default function AdminPage() {
 
                         return (
                           <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
-                            <div className="space-y-2 flex-1">
+                            <div className="space-y-2.5 flex-1 w-full">
                               <div className="flex items-center gap-3 flex-wrap">
                                 <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
@@ -1892,21 +1895,24 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              <div className="text-sm text-slate-700 font-medium">
-                                重機・車両: {[
-                                  ...machines, 
-                                  ...leaseHeavy, 
-                                  ...leaseAttach, 
-                                  ...leaseOther, 
-                                  ...ishikawaHeavy, 
-                                  ...ishikawaAttach, 
-                                  ...ishikawaOther, 
-                                  ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
-                                  ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                                  ...r.otherMachines ? [r.otherMachines] : [],
-                                  ...ownMachines, 
-                                  ...vehicles
-                                ].join(', ') || '-'}
+                              {/* 重機・車両の内訳をカテゴリごとに見やすく整理 */}
+                              <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
+                                {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
+                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
+                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
+                                {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
+                                {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
+                                {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                  <span className="text-slate-400">なし</span>
+                                )}
                               </div>
 
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
@@ -2019,21 +2025,20 @@ export default function AdminPage() {
                         </div>
                       )}
 
-                      <div className="text-sm text-slate-700 font-medium">
-                        重機・車両: {[
-                          ...machines, 
-                          ...leaseHeavy, 
-                          ...leaseAttach, 
-                          ...leaseOther, 
-                          ...ishikawaHeavy, 
-                          ...ishikawaAttach, 
-                          ...ishikawaOther, 
-                          ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`),
-                          ...otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                          ...r.otherMachines ? [r.otherMachines] : [],
-                          ...ownMachines, 
-                          ...vehicles
-                        ].join(', ') || '-'}
+                      <div className="text-sm text-slate-700 font-medium space-y-1 bg-white p-3 rounded-xl border">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
+                        {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
+                        {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
+                        {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                        {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                        {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
+                        {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
+                        {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                        {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                        {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
+                        {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
+                        {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
+                        {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
                       </div>
 
                       <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border">
