@@ -1,3 +1,9 @@
+送信された日報一覧の内容に「📦 その他の機械（自由入力）」の項目が表示されていない。
+一覧で出る内容は「入力された日報の内容すべて」を表示させるようにしたい。
+
+下記のコードをは現在のadminのコードをです。
+下記のコードをまるごと貼りかえられるコードを頂戴。
+
 'use client';
 import { useState, useEffect } from 'react';
 
@@ -3511,3 +3517,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
