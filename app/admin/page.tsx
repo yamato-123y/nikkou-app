@@ -2876,10 +2876,10 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ⛽ 旧河北（石川県）現場専用：宇野気石油の軽油・レギュラー金額入力枠 */}
+            {/* ⛽ 旧河北（石川県）現場専用：宇野気石油の軽油・レギュラー日報由来リットル数表示＆金額入力枠 */}
             {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
               <div className="bg-indigo-50 p-5 md:p-6 rounded-2xl border border-indigo-200 space-y-4 shadow-2xs">
-                <div className="font-bold text-lg text-indigo-900">⛽ 宇野気石油（石川県） 燃料代・金額入力枠</div>
+                <div className="font-bold text-lg text-indigo-900">⛽ 宇野気石油（石川県） 燃料代・金額入力</div>
                 <div className="space-y-3">
                   {modalReportYearMonths.length === 0 ? (
                     <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
@@ -2894,7 +2894,7 @@ export default function AdminPage() {
                           <div className="font-bold text-sm text-indigo-950">📅 {ym} の宇野気石油 購入分</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                              <label className="text-xs font-bold text-slate-700 block">軽油（日報の報告数を反映） (円)</label>
+                              <label className="text-xs font-bold text-slate-700 block">軽油（報告数: {modalData.unokeKeiyuTotal} L）</label>
                               <div className="flex items-center gap-1">
                                 <span className="text-sm text-slate-500 font-bold">¥</span>
                                 <input
@@ -2902,13 +2902,13 @@ export default function AdminPage() {
                                   value={keiyuVal}
                                   onChange={e => handleUnokeFuelPriceChange(modalLocation, ym, 'keiyu', e.target.value)}
                                   readOnly={authRole === 'viewer'}
-                                  placeholder="例: 45000"
+                                  placeholder="金額を入力"
                                   className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
                                 />
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs font-bold text-slate-700 block">レギュラー（日報の報告数を反映） (円)</label>
+                              <label className="text-xs font-bold text-slate-700 block">レギュラー（報告数: {modalData.unokeRegTotal} L）</label>
                               <div className="flex items-center gap-1">
                                 <span className="text-sm text-slate-500 font-bold">¥</span>
                                 <input
@@ -2916,7 +2916,7 @@ export default function AdminPage() {
                                   value={regularVal}
                                   onChange={e => handleUnokeFuelPriceChange(modalLocation, ym, 'regular', e.target.value)}
                                   readOnly={authRole === 'viewer'}
-                                  placeholder="例: 12000"
+                                  placeholder="金額を入力"
                                   className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
                                 />
                               </div>
@@ -3358,12 +3358,71 @@ export default function AdminPage() {
                             <button
                               type="button"
                               onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [locKey]: !isOpen })}
-                              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-2xs transition"
+                              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl text-xs md:text-sm font-bold transition shadow-2xs"
                             >
                               {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
                             </button>
                           </div>
                         </div>
+
+                        {isOpen && (
+                          <div className="space-y-3 pt-2 animate-fadeIn">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600 font-bold bg-white">
+                                    <th className="py-2.5 px-3 w-[20%]">品目</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">合計数量</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">単価</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">小計</th>
+                                    {authRole === 'admin' && <th className="py-2.5 px-3 w-[20%] text-right">個別上書き</th>}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white/60 font-medium">
+                                  {Object.entries(locObj.items).map(([itemKey, itemData]) => {
+                                    const subKey = `${locKey}__${itemKey}`;
+                                    const itemOverrideVal = disposalOverrides[modalLocation]?.[subKey] ?? '';
+                                    return (
+                                      <tr key={itemKey}>
+                                        <td className="py-3 px-3 font-bold text-slate-800">{itemKey}</td>
+                                        <td className="py-3 px-3 text-right font-bold">{itemData.quantity} {itemData.unit}</td>
+                                        <td className="py-3 px-3 text-right">{formatAmount(itemData.price)}</td>
+                                        <td className="py-3 px-3 text-right font-bold text-orange-600">{formatAmount(itemData.total)}</td>
+                                        {authRole === 'admin' && (
+                                          <td className="py-3 px-3 text-right">
+                                            <input
+                                              type="number"
+                                              value={itemOverrideVal}
+                                              onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
+                                              placeholder="金額"
+                                              className="w-28 p-1.5 border border-slate-300 rounded-lg text-right font-bold text-xs bg-white"
+                                            />
+                                          </td>
+                                        )}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div className="space-y-1.5 pt-2">
+                              <div className="text-xs font-bold text-slate-500">🗓️ 日付ごとの搬出明細（該当件数: {filteredDetails.length}件）</div>
+                              <div className="bg-white p-3 rounded-xl border border-slate-200 max-h-48 overflow-y-auto space-y-2">
+                                {filteredDetails.length === 0 ? (
+                                  <p className="text-xs text-slate-400 text-center py-2">条件に一致する明細はありません</p>
+                                ) : (
+                                  filteredDetails.map((det, dIdx) => (
+                                    <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm font-medium border-b border-slate-100 pb-1.5 last:border-0 last:pb-0">
+                                      <span className="text-slate-700">📅 {det.date} - <b>{det.item}</b></span>
+                                      <span className="font-bold text-slate-900">{det.quantity} {det.unit} × {formatAmount(det.price)} = <span className="text-orange-600">{formatAmount(det.total)}</span></span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -3372,6 +3431,110 @@ export default function AdminPage() {
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* スクラップ売却内訳・金額入力モーダル */}
+      {showScrapModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却額の内訳・金額入力 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">スクラップ場ごとの売却金額を入力・調整できます</p>
+              </div>
+              <button onClick={() => setShowScrapModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-6">
+              {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                <div className="space-y-4">
+                  <p className="text-base text-slate-500 text-center py-4">この現場の日報ベースのスクラップデータはありません（手動でのみ金額設定可能です）</p>
+                  
+                  <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 space-y-3 shadow-2xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-emerald-900 text-lg">♻️ スクラップ売却額 合計手動設定</span>
+                      {authRole === 'admin' && (
+                        <input
+                          type="number"
+                          value={scrapOverrides[modalLocation]?.total ?? ''}
+                          onChange={(e) => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
+                          placeholder="金額を入力"
+                          className="w-40 p-2.5 border border-emerald-400 rounded-xl text-right font-bold text-base bg-white"
+                        />
+                      )}
+                    </div>
+                    <div className="text-sm font-bold text-emerald-800">
+                      現在の設定額: <span className="text-xl">{formatAmount(modalData.scrapTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 flex justify-between items-center shadow-2xs">
+                    <div>
+                      <div className="font-bold text-emerald-900 text-lg">♻️ スクラップ売却額 合計（一括上書き）</div>
+                      <p className="text-xs text-emerald-700">全体を一括で上書きすることも可能です</p>
+                    </div>
+                    {authRole === 'admin' && (
+                      <input
+                        type="number"
+                        value={scrapOverrides[modalLocation]?.total ?? ''}
+                        onChange={(e) => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
+                        placeholder="一括金額"
+                        className="w-40 p-2.5 border border-emerald-400 rounded-xl text-right font-bold text-base bg-white"
+                      />
+                    )}
+                  </div>
+
+                  {Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
+                    const itemOverrideVal = scrapOverrides[modalLocation]?.[key] ?? '';
+                    return (
+                      <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-lg text-emerald-700">♻️ {key}</h4>
+                            <div className="text-sm font-bold text-slate-700">
+                              総数量: <span className="text-slate-900">{data.quantity}kg (t等)</span>
+                            </div>
+                          </div>
+
+                          {authRole === 'admin' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-600">売却金額(円):</span>
+                              <input
+                                type="number"
+                                value={itemOverrideVal}
+                                onChange={(e) => handleScrapOverrideChange(modalLocation, key, e.target.value)}
+                                placeholder="金額"
+                                className="w-36 p-2.5 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-bold text-slate-500">🗓️ 搬出日ごとの明細 ({data.details.length}件)</div>
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 max-h-40 overflow-y-auto space-y-2">
+                            {data.details.map((det, dIdx) => (
+                              <div key={dIdx} className="flex justify-between items-center text-xs md:text-sm font-medium border-b border-slate-100 pb-1.5 last:border-0 last:pb-0">
+                                <span className="text-slate-700">📅 {det.date} - <b>{det.item}</b></span>
+                                <span className="font-bold text-slate-900">{det.quantity} {det.unit}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
