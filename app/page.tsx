@@ -39,7 +39,7 @@ export default function Home() {
 
   const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
   
-  // ★ 南大阪建機等のその他の自由入力リース（ご要望の項目を復元）
+  // ★ 南大阪建機等のその他の自由入力リース
   const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
 
   const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
@@ -49,6 +49,10 @@ export default function Home() {
   const [regularPrice, setRegularPrice] = useState('');
   const [etcPrice, setEtcPrice] = useState('');
   const [parkingPrice, setParkingPrice] = useState('');
+
+  // ★ 宇野気石油用の燃料ステート（職長が徳本の場合用）
+  const [unokeFuel, setUnokeFuel] = useState('');
+  const [unokeRegular, setUnokeRegular] = useState('');
 
   const [otherItem, setOtherItem] = useState('');
   const [otherPrice, setOtherPrice] = useState('');
@@ -90,7 +94,7 @@ export default function Home() {
   const handleConfirmedSubmit = async () => {
     setShowConfirmModal(false);
 
-    // 職長が徳本以外の場合、石川県の選択状態をクリアして送信データに含める
+    // 職長が徳本以外の場合、石川県や宇野気石油の選択状態をクリア・調整する
     const isIshikawaActive = manager === '徳本';
 
     await fetch('/api/reports', {
@@ -115,6 +119,8 @@ export default function Home() {
         regularPrice: regularPrice || '0',
         etcPrice: etcPrice || '0', 
         parkingPrice: parkingPrice || '0',
+        unokeFuel: isIshikawaActive ? (unokeFuel || '0') : '0',
+        unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description,
         createdAt: new Date().toISOString()
@@ -134,7 +140,9 @@ export default function Home() {
     setOtherLeases([]);
     setSelectedOwnMachines([]); 
     setSelectedVehicles([]);
-    setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); setOtherItem(''); setOtherPrice('');
+    setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
+    setUnokeFuel(''); setUnokeRegular('');
+    setOtherItem(''); setOtherPrice('');
     setDisposals([]); setScraps([]); setDescription('');
 
     setShowSuccessModal(true);
@@ -205,12 +213,14 @@ export default function Home() {
                 </div>
               )}
 
-              {(fuel || regularPrice || etcPrice || parkingPrice) && (
+              {(fuel || regularPrice || etcPrice || parkingPrice || (manager === '徳本' && (unokeFuel || unokeRegular))) && (
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">燃料・経費</span>
                   <span className="font-bold text-slate-800">
                     {fuel ? `軽油:${fuel}L ` : ''}
                     {regularPrice ? `レギュラー:${regularPrice}円 ` : ''}
+                    {manager === '徳本' && unokeFuel ? `宇野気石油 軽油:${unokeFuel}L ` : ''}
+                    {manager === '徳本' && unokeRegular ? `宇野気石油 レギュラー:${unokeRegular}L ` : ''}
                     {etcPrice ? `ETC:${etcPrice}円 ` : ''}
                     {parkingPrice ? `駐車場:${parkingPrice}円` : ''}
                   </span>
@@ -320,12 +330,14 @@ export default function Home() {
                onChange={e => {
                  const newManager = e.target.value;
                  setManager(newManager);
-                 // 職長が「徳本」以外に変更された場合、石川県の選択状態をリセットする
+                 // 職長が「徳本」以外に変更された場合、石川県や宇野気石油の選択状態をリセットする
                  if (newManager !== '徳本') {
                    setIshikawaLeaseHeavy([]);
                    setIshikawaLeaseAttach([]);
                    setIshikawaLeaseOther([]);
                    setIsOpenIshikawa(false);
+                   setUnokeFuel('');
+                   setUnokeRegular('');
                  }
                }} 
                className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
@@ -521,7 +533,7 @@ export default function Home() {
                )}
              </div>
 
-             {/* ★ 南大阪建機その他の機械（自由入力：リース内容と個数）の復元部分 */}
+             {/* ★ 南大阪建機その他の機械（自由入力） */}
              <div className="border-t border-blue-200 pt-4 space-y-3">
                <div className="flex justify-between items-center">
                  <span className="font-bold text-sm text-blue-950">📦 その他の機械（自由入力）</span>
@@ -664,6 +676,23 @@ export default function Home() {
              <label className="text-base font-bold text-slate-950 block mb-2">【レギュラー 購入分 (円)】</label>
              <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
            </div>
+
+           {/* ★ 職長が「徳本」の場合のみ表示する「宇野気石油」の燃料入力枠 */}
+           {manager === '徳本' && (
+             <div className="bg-indigo-50/70 p-4 rounded-2xl border-2 border-indigo-200 space-y-4 animate-fadeIn">
+               <div className="text-sm font-black text-indigo-950 bg-indigo-200 px-3 py-1.5 rounded-lg inline-block">
+                 ⛽ 宇野気石油 分
+               </div>
+               <div>
+                 <label className="text-sm font-bold text-slate-950 block mb-1">【宇野気石油 軽油 (L)】</label>
+                 <input type="number" placeholder="0" value={unokeFuel} onChange={e=>setUnokeFuel(e.target.value)} className="w-full max-w-full min-w-0 p-3.5 border-2 rounded-xl font-bold text-lg bg-white text-slate-950 box-border block" />
+               </div>
+               <div>
+                 <label className="text-sm font-bold text-slate-950 block mb-1">【宇野気石油 レギュラー (L)】</label>
+                 <input type="number" placeholder="0" value={unokeRegular} onChange={e=>setUnokeRegular(e.target.value)} className="w-full max-w-full min-w-0 p-3.5 border-2 rounded-xl font-bold text-lg bg-white text-slate-950 box-border block" />
+               </div>
+             </div>
+           )}
 
            <div>
              <label className="text-base font-bold text-slate-950 block mb-2">【高速代・ETC (円)】</label>
