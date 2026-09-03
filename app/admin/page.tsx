@@ -39,9 +39,7 @@ export default function AdminPage() {
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
 
-  // 追加：全処分を対象とした月別処分一覧ポップアップ用のステート
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
-  // 請求書照合用：クリックされた行のキーを保持して状態（チェック済み）を管理
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
@@ -1492,7 +1490,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 送信された日報一覧 */}
+      {/* 送信された日報一覧（カレンダー＆現場別リスト） */}
       <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
@@ -1505,11 +1503,75 @@ export default function AdminPage() {
           />
         </div>
 
+        {/* 現場日報カレンダー表示セクション */}
+        <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4">
+          <div className="flex justify-between items-center flex-wrap gap-3">
+            <h3 className="text-lg md:text-xl font-bold text-slate-800">📅 月別カレンダー（現場名から日報を表示）</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-700">表示月:</span>
+              <input 
+                type="month" 
+                value={calendarYearMonth} 
+                onChange={e => setCalendarYearMonth(e.target.value)}
+                className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-2">
+            {calendarDays.map(dateStr => {
+              const dayNum = Number(dateStr.split('-')[2]);
+              const dObj = new Date(dateStr);
+              const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+              const wDay = weekDays[dObj.getDay()];
+              const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
+
+              // その日の日報に紐づく現場名を取得（重複排除）
+              const dayReports = reports.filter(r => normalizeDateStr(r.date) === dateStr);
+              const dayLocations = Array.from(new Set(dayReports.map(r => r.location).filter(Boolean)));
+
+              return (
+                <div key={dateStr} className={`p-3 rounded-2xl border flex flex-col justify-between min-h-[110px] ${isWeekend ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-slate-200'}`}>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                    <span className="font-bold text-sm text-slate-800">{Number(dateStr.split('-')[1])}/{dayNum} ({wDay})</span>
+                    {dayLocations.length > 0 && (
+                      <span className="text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold">{dayLocations.length}件</span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 pt-2 overflow-y-auto max-h-24">
+                    {dayLocations.length > 0 ? (
+                      dayLocations.map((locName, lIdx) => (
+                        <button
+                          key={lIdx}
+                          onClick={() => setModalLocation(locName)}
+                          className="w-full text-left text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold p-1.5 rounded-xl border border-blue-200 truncate transition shadow-2xs"
+                          title={`${locName} の詳細分析を開く`}
+                        >
+                          🏢 {locName}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-300 text-center block py-2">-</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="space-y-6">
           {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
             const targetNames = getTargetLocationNames(loc.name);
             const locReports = filteredReports.filter(r => targetNames.includes(r.location));
             if (locReports.length === 0) return null;
+
+            // 新着順（日付・または配列上の新しい順）にソート：新しいものを上に、古いものを下に
+            const sortedLocReports = [...locReports].sort((a, b) => {
+              const dateA = normalizeDateStr(a.date || '');
+              const dateB = normalizeDateStr(b.date || '');
+              return dateB.localeCompare(dateA);
+            });
 
             const isReportOpen = reportSectionOpen[loc.name] || false;
 
@@ -1531,7 +1593,7 @@ export default function AdminPage() {
 
                 {isReportOpen && (
                   <div className="space-y-3 animate-fadeIn pt-1">
-                    {locReports.map((r, i) => {
+                    {sortedLocReports.map((r, i) => {
                       const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
                       return (
                         <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
@@ -1621,7 +1683,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 全処分対象：月別処分一覧 ポップアップモダール（幅を広げ、単価・処分費を追加） */}
+      {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-6xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
