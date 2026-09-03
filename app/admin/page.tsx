@@ -205,10 +205,10 @@ export default function AdminPage() {
       }
 
       const newData = { ...settings, [key]: targetList };
-      const res = await fetch('/api/settings', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(newData) 
+      const res = await fetch('/api/settings', {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify(newData)  
       });
 
       if (!res.ok) {
@@ -344,10 +344,10 @@ export default function AdminPage() {
     setSettings(newData);
 
     try {
-      await fetch('/api/settings', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(newData) 
+      await fetch('/api/settings', {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify(newData)  
       });
     } catch (e) {
       console.error(e);
@@ -528,6 +528,8 @@ export default function AdminPage() {
     (r.ishikawaHeavy || []).forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
     (r.ishikawaAttach || []).forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     (r.ishikawaOther || []).forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
+    // 宇野気石油の軽油・レギュラー（数量のみ入力のため単価計算への影響なし）
+    (r.unokeFuel || []).forEach((m: string) => leaseC += 0);
 
     let ishikawaLeaseDetail = 0;
     (r.ishikawaHeavy || []).forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
@@ -795,6 +797,18 @@ export default function AdminPage() {
     const clients = Array.from(new Set(locMapped.map((r: any) => r.client).filter(Boolean)));
     const startDates = Array.from(new Set(locMapped.map((r: any) => r.startDate).filter(Boolean))).sort();
 
+    // 宇野気石油の軽油・レギュラーの日報報告数合計を算出（旧河北用）
+    let unokeKeiyuTotal = 0;
+    let unokeRegTotal = 0;
+    if (locName === '旧河北郡市クリーンセンター等解体工事(石川県)') {
+      locMapped.forEach(r => {
+        (r.unokeFuel || []).forEach((uf: any) => {
+          if (uf.name === '軽油') unokeKeiyuTotal += Number(uf.quantity || 0);
+          if (uf.name === 'レギュラー') unokeRegTotal += Number(uf.quantity || 0);
+        });
+      });
+    }
+
     return { 
       days: locMapped.length, 
       laborCost, 
@@ -821,7 +835,9 @@ export default function AdminPage() {
       profitWithoutScrap, 
       reportsWithIndex: locMapped,
       clientStr: clients.join(', ') || '',
-      startDateStr: startDates[0] || ''
+      startDateStr: startDates[0] || '',
+      unokeKeiyuTotal,
+      unokeRegTotal
     };
   };
 
@@ -1722,6 +1738,11 @@ export default function AdminPage() {
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                                {(r.unokeFuel || []).length > 0 && (
+                                  <div className="col-span-full text-indigo-800">
+                                    宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                                  </div>
+                                )}
                               </div>
 
                               {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
@@ -1845,13 +1866,18 @@ export default function AdminPage() {
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                                {(r.unokeFuel || []).length > 0 && (
+                                  <div className="col-span-full text-indigo-800">
+                                    宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                                  </div>
+                                )}
                               </div>
 
                               {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
                                 <div className="flex flex-col gap-1 pt-0.5">
                                   {(r.disposals || []).length > 0 && (
                                     <div className="text-sm text-amber-800 font-bold">
-                                      🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                                      🗑️ 処分: {(r.disposals || []).length > 0 ? (r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ') : ''}
                                     </div>
                                   )}
                                   {(r.scraps || []).length > 0 && (
@@ -1955,6 +1981,11 @@ export default function AdminPage() {
                         <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                         <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                         {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                        {(r.unokeFuel || []).length > 0 && (
+                          <div className="col-span-full text-indigo-800">
+                            宇野気石油: {(r.unokeFuel || []).map((uf: any) => `${uf.name} ${uf.quantity}L`).join(' / ')}
+                          </div>
+                        )}
                       </div>
 
                       {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
@@ -2569,6 +2600,26 @@ export default function AdminPage() {
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 (円)</label>
                     <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
+                  {(editingReport.unokeFuel || []).length > 0 && (
+                    <div className="col-span-full space-y-2">
+                      <label className="text-xs font-bold text-slate-600 block">宇野気石油（石川県）</label>
+                      {(editingReport.unokeFuel || []).map((uf: any, ufIdx: number) => (
+                        <div key={ufIdx} className="flex items-center gap-2">
+                          <span className="text-sm font-bold">{uf.name} (L):</span>
+                          <input
+                            type="number"
+                            value={uf.quantity || 0}
+                            onChange={e => {
+                              const updated = [...(editingReport.unokeFuel || [])];
+                              updated[ufIdx] = { ...updated[ufIdx], quantity: e.target.value };
+                              setEditingReport({ ...editingReport, unokeFuel: updated });
+                            }}
+                            className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2681,6 +2732,23 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+
+            {/* 旧河北（石川県）専用の燃料代セクション表示 */}
+            {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
+              <div className="bg-indigo-50 p-5 md:p-6 rounded-2xl border border-indigo-200 space-y-3 shadow-2xs">
+                <div className="font-bold text-lg text-indigo-900">⛽ 宇野気石油（石川県） 燃料代項目</div>
+                <div className="space-y-2 bg-white p-4 rounded-xl border border-indigo-100 text-sm md:text-base font-bold text-slate-800">
+                  <div className="flex justify-between items-center">
+                    <span>・宇野気石油：軽油（日報の報告数を反映） {modalData.unokeKeiyuTotal} L</span>
+                    <span className="text-slate-400 font-normal">[管理画面から手入力] 円</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>・宇野気石油：レギュラー（日報の報告数を反映） {modalData.unokeRegTotal} L</span>
+                    <span className="text-slate-400 font-normal">[管理画面から手入力] 円</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-50 p-5 md:p-6 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
@@ -2842,41 +2910,44 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
-              <div className="flex justify-between items-center flex-wrap gap-3">
-                <h3 className="font-bold text-lg md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
-              </div>
+            {/* 石川県現場以外は「月別1Lあたりの軽油単価設定」を表示しないようにする条件分岐 */}
+            {modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' && (
+              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+                <div className="flex justify-between items-center flex-wrap gap-3">
+                  <h3 className="font-bold text-lg md:text-xl text-slate-900">📋 経費・収支の内訳明細</h3>
+                </div>
 
-              <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
-                <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
-                <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代(軽油)」に自動反映されます。</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
-                  {modalReportYearMonths.length === 0 ? (
-                    <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
-                  ) : (
-                    modalReportYearMonths.map(ym => {
-                      const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
-                      return (
-                        <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
-                          <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm text-slate-500 font-bold">¥</span>
-                            <input 
-                              type="number" 
-                              value={currentPrice} 
-                              onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
-                              readOnly={authRole === 'viewer'}
-                              placeholder="例: 145"
-                              className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
-                            />
+                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
+                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
+                  <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代(軽油)」に自動反映されます。</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                    {modalReportYearMonths.length === 0 ? (
+                      <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
+                    ) : (
+                      modalReportYearMonths.map(ym => {
+                        const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
+                        return (
+                          <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
+                            <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm text-slate-500 font-bold">¥</span>
+                              <input 
+                                type="number" 
+                                value={currentPrice} 
+                                onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
+                                readOnly={authRole === 'viewer'}
+                                placeholder="例: 145"
+                                className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
               {[
