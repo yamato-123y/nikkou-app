@@ -1531,7 +1531,6 @@ export default function AdminPage() {
               const wDay = weekDays[dObj.getDay()];
               const isWeekend = dObj.getDay() === 0 || dObj.getDay() === 6;
 
-              // その日の日報に紐づく現場名を取得（重複排除）
               const dayReports = reports.filter(r => normalizeDateStr(r.date) === dateStr);
               const dayLocations = Array.from(new Set(dayReports.map(r => r.location).filter(Boolean)));
 
@@ -1546,7 +1545,6 @@ export default function AdminPage() {
                   <div className="space-y-1.5 pt-2 overflow-y-auto max-h-24">
                     {dayLocations.length > 0 ? (
                       dayLocations.map((locName, lIdx) => {
-                        // 修正：現場名をクリックしたときにその日・その現場に送信された日報を表示するためのモーダルを開く
                         const matchedReportsForDayAndLoc = dayReports.filter(r => r.location === locName);
                         return (
                           <button
@@ -1569,126 +1567,252 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {locList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
-            const targetNames = getTargetLocationNames(loc.name);
-            const locReports = filteredReports.filter(r => targetNames.includes(r.location));
-            if (locReports.length === 0) return null;
+        {/* 送信された日報一覧（稼働中の現場） */}
+        <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
+          <div className="flex justify-between items-center flex-wrap gap-3">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（稼働中の現場）</h2>
+          </div>
 
-            // 新着順（日付・または配列上の新しい順）にソート：新しいものを上に、古いものを下に
-            const sortedLocReports = [...locReports].sort((a, b) => {
-              const dateA = normalizeDateStr(a.date || '');
-              const dateB = normalizeDateStr(b.date || '');
-              return dateB.localeCompare(dateA);
-            });
+          <div className="space-y-6">
+            {activeLocList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
+              const targetNames = getTargetLocationNames(loc.name);
+              const locReports = filteredReports.filter(r => targetNames.includes(r.location));
+              if (locReports.length === 0) return null;
 
-            const isReportOpen = reportSectionOpen[loc.name] || false;
+              const sortedLocReports = [...locReports].sort((a, b) => {
+                const dateA = normalizeDateStr(a.date || '');
+                const dateB = normalizeDateStr(b.date || '');
+                return dateB.localeCompare(dateA);
+              });
 
-            return (
-              <div key={loc.name} className="bg-slate-50/90 rounded-3xl border border-slate-200 p-4 md:p-6 space-y-4 shadow-xs">
-                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-xl md:text-2xl text-blue-700">🏢 {loc.name}</span>
-                    <span className="bg-slate-200 text-slate-700 text-xs md:text-sm px-3 py-1 rounded-full font-bold">{locReports.length}件の日報</span>
+              const isReportOpen = reportSectionOpen[loc.name] || false;
+
+              return (
+                <div key={loc.name} className="bg-slate-50/90 rounded-3xl border border-slate-200 p-4 md:p-6 space-y-4 shadow-xs">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xl md:text-2xl text-blue-700">🏢 {loc.name}</span>
+                      <span className="bg-slate-200 text-slate-700 text-xs md:text-sm px-3 py-1 rounded-full font-bold">{locReports.length}件の日報</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReportSectionOpen({ ...reportSectionOpen, [loc.name]: !isReportOpen })}
+                      className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-4 py-2 rounded-xl text-sm md:text-base font-bold shadow-2xs transition flex items-center gap-1.5"
+                    >
+                      {isReportOpen ? '日報を閉じる ▲' : '日報を開く ▼'}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setReportSectionOpen({ ...reportSectionOpen, [loc.name]: !isReportOpen })}
-                    className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-4 py-2 rounded-xl text-sm md:text-base font-bold shadow-2xs transition flex items-center gap-1.5"
-                  >
-                    {isReportOpen ? '日報を閉じる ▲' : '日報を開く ▼'}
-                  </button>
-                </div>
 
-                {isReportOpen && (
-                  <div className="space-y-3 animate-fadeIn pt-1">
-                    {sortedLocReports.map((r, i) => {
-                      const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
-                      return (
-                        <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
-                              {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
-                              {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
-                              <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                  {isReportOpen && (
+                    <div className="space-y-3 animate-fadeIn pt-1">
+                      {sortedLocReports.map((r, i) => {
+                        const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                        return (
+                          <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
+                                {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
+                                {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
+                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                              </div>
+
+                              {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
+                                <div className="text-sm text-indigo-800 font-bold">
+                                  🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
+                                </div>
+                              )}
+
+                              {(r.subcontractors || []).length > 0 && (
+                                <div className="text-sm text-orange-800 font-bold">
+                                  外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                                </div>
+                              )}
+
+                              <div className="text-sm text-slate-700 font-medium">
+                                重機・車両: {[
+                                  ...(r.machines || []), 
+                                  ...(r.leaseHeavy || []), 
+                                  ...(r.leaseAttach || []), 
+                                  ...(r.leaseOther || []), 
+                                  ...(r.ishikawaHeavy || []), 
+                                  ...(r.ishikawaAttach || []), 
+                                  ...(r.ishikawaOther || []), 
+                                  ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
+                                  ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                                  ...(r.ownMachines || []), 
+                                  ...(r.vehicles || [])
+                                ].join(', ') || '-'}
+                              </div>
+
+                              <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
+                                <div>軽油: <b>{r.fuel || 0} L</b></div>
+                                <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                                <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
+                                <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
+                                {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                              </div>
+
+                              {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                                <div className="flex flex-col gap-1 pt-0.5">
+                                  {(r.disposals || []).length > 0 && (
+                                    <div className="text-sm text-amber-800 font-bold">
+                                      🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                                    </div>
+                                  )}
+                                  {(r.scraps || []).length > 0 && (
+                                    <div className="text-sm text-emerald-800 font-bold">
+                                      ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {r.workDescription && (
+                                <div className="text-sm md:text-base text-slate-700 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                                  {r.workDescription}
+                                </div>
+                              )}
                             </div>
 
-                            {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
-                              <div className="text-sm text-indigo-800 font-bold">
-                                🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
-                              </div>
-                            )}
-
-                            {(r.subcontractors || []).length > 0 && (
-                              <div className="text-sm text-orange-800 font-bold">
-                                外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
-                              </div>
-                            )}
-
-                            <div className="text-sm text-slate-700 font-medium">
-                              重機・車両: {[
-                                ...(r.machines || []), 
-                                ...(r.leaseHeavy || []), 
-                                ...(r.leaseAttach || []), 
-                                ...(r.leaseOther || []), 
-                                ...(r.ishikawaHeavy || []), 
-                                ...(r.ishikawaAttach || []), 
-                                ...(r.ishikawaOther || []), 
-                                ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
-                                ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
-                                ...(r.ownMachines || []), 
-                                ...(r.vehicles || [])
-                              ].join(', ') || '-'}
-                            </div>
-
-                            <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
-                              <div>軽油: <b>{r.fuel || 0} L</b></div>
-                              <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
-                              <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
-                              <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
-                              {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
-                            </div>
-
-                            {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
-                              <div className="flex flex-col gap-1 pt-0.5">
-                                {(r.disposals || []).length > 0 && (
-                                  <div className="text-sm text-amber-800 font-bold">
-                                    🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
-                                  </div>
-                                )}
-                                {(r.scraps || []).length > 0 && (
-                                  <div className="text-sm text-emerald-800 font-bold">
-                                    ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {r.workDescription && (
-                              <div className="text-sm md:text-base text-slate-700 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200 whitespace-pre-wrap">
-                                {r.workDescription}
+                            {authRole === 'admin' && (
+                              <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                                <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
+                                <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
                               </div>
                             )}
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-                          {authRole === 'admin' && (
-                            <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
-                              <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
-                              <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+        {/* 送信された日報一覧（完了済の現場） */}
+        <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-6">
+          <h2 className="text-xl md:text-2xl font-bold text-slate-700">📁 送信された日報一覧（完了済の現場）</h2>
+          
+          <div className="space-y-6">
+            {finishedLocList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
+              const targetNames = getTargetLocationNames(loc.name);
+              const locReports = filteredReports.filter(r => targetNames.includes(r.location));
+              if (locReports.length === 0) return null;
+
+              const sortedLocReports = [...locReports].sort((a, b) => {
+                const dateA = normalizeDateStr(a.date || '');
+                const dateB = normalizeDateStr(b.date || '');
+                return dateB.localeCompare(dateA);
+              });
+
+              const isReportOpen = reportSectionOpen[loc.name] || false;
+
+              return (
+                <div key={loc.name} className="bg-slate-100 rounded-3xl border border-slate-300 p-4 md:p-6 space-y-4 shadow-xs">
+                  <div className="flex justify-between items-center border-b border-slate-300 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xl md:text-2xl text-slate-600">🏢 {loc.name}</span>
+                      <span className="bg-slate-600 text-white text-xs md:text-sm px-3 py-1 rounded-full font-bold">📁 完了済 ({locReports.length}件)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReportSectionOpen({ ...reportSectionOpen, [loc.name]: !isReportOpen })}
+                      className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-4 py-2 rounded-xl text-sm md:text-base font-bold shadow-2xs transition flex items-center gap-1.5"
+                    >
+                      {isReportOpen ? '日報を閉じる ▲' : '日報を開く ▼'}
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
-          {filteredReports.length === 0 && (
-            <p className="text-base text-slate-400 text-center py-6">日報データはありません</p>
-          )}
+
+                  {isReportOpen && (
+                    <div className="space-y-3 animate-fadeIn pt-1">
+                      {sortedLocReports.map((r, i) => {
+                        const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                        return (
+                          <div key={r.id || r._id || i} className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
+                                {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
+                                {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
+                                <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                              </div>
+
+                              {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
+                                <div className="text-sm text-indigo-800 font-bold">
+                                  🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
+                                </div>
+                              )}
+
+                              {(r.subcontractors || []).length > 0 && (
+                                <div className="text-sm text-orange-800 font-bold">
+                                  外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                                </div>
+                              )}
+
+                              <div className="text-sm text-slate-700 font-medium">
+                                重機・車両: {[
+                                  ...(r.machines || []), 
+                                  ...(r.leaseHeavy || []), 
+                                  ...(r.leaseAttach || []), 
+                                  ...(r.leaseOther || []), 
+                                  ...(r.ishikawaHeavy || []), 
+                                  ...(r.ishikawaAttach || []), 
+                                  ...(r.ishikawaOther || []), 
+                                  ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
+                                  ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                                  ...(r.ownMachines || []), 
+                                  ...(r.vehicles || [])
+                                ].join(', ') || '-'}
+                              </div>
+
+                              <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
+                                <div>軽油: <b>{r.fuel || 0} L</b></div>
+                                <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                                <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
+                                <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
+                                {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                              </div>
+
+                              {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                                <div className="flex flex-col gap-1 pt-0.5">
+                                  {(r.disposals || []).length > 0 && (
+                                    <div className="text-sm text-amber-800 font-bold">
+                                      🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                                    </div>
+                                  )}
+                                  {(r.scraps || []).length > 0 && (
+                                    <div className="text-sm text-emerald-800 font-bold">
+                                      ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {r.workDescription && (
+                                <div className="text-sm md:text-base text-slate-700 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                                  {r.workDescription}
+                                </div>
+                              )}
+                            </div>
+
+                            {authRole === 'admin' && (
+                              <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                                <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
+                                <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
