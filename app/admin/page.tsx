@@ -3335,13 +3335,13 @@ export default function AdminPage() {
               <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 flex justify-between items-center">
                 <div>
                   <div className="font-bold text-emerald-900 text-lg">スクラップ売却額 合計</div>
-                  <div className="text-xs text-emerald-700">（手動上書き入力がない場合は日報からの自動計算値になります）</div>
+                  <div className="text-xs text-emerald-700 mt-0.5">※設定した金額は最終利益（粗利）にプラスされます</div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-emerald-800">+ {formatAmount(modalData.scrapTotal)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-emerald-800">+ {formatAmount(modalData.scrapTotal)}</span>
                   {authRole === 'admin' && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-600">一括上書き:</span>
+                    <div className="flex items-center gap-1.5 ml-4">
+                      <span className="text-xs font-bold text-slate-600">合計手動上書き:</span>
                       <input
                         type="number"
                         value={scrapOverrides[modalLocation]?.total ?? ''}
@@ -3355,44 +3355,48 @@ export default function AdminPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="text-base font-bold text-slate-800">📋 品目・スクラップ場ごとの内訳明細</div>
                 {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-6">スクラップの搬出データはありません</p>
+                  <p className="text-base text-slate-500 text-center py-8">この現場のスクラップデータはありません</p>
                 ) : (
-                  Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => (
-                    <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-                      <div className="flex justify-between items-center flex-wrap gap-3">
-                        <div>
-                          <h4 className="font-bold text-lg text-slate-900">{key}</h4>
-                          <div className="text-sm font-semibold text-slate-600 mt-0.5">
-                            総搬出量: <b className="text-slate-900">{data.quantity}kg (または t)</b>
+                  Object.entries(modalData.aggregatedScrapBreakdown).map(([scrapKey, data]) => {
+                    const scOverrideVal = scrapOverrides[modalLocation]?.[scrapKey] ?? '';
+                    return (
+                      <div key={scrapKey} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-3">
+                          <div>
+                            <h4 className="font-bold text-lg text-slate-950">♻️ {scrapKey}</h4>
+                            <p className="text-sm font-bold text-slate-700 mt-0.5">
+                              総搬出量: <span className="text-emerald-700">{data.quantity} kg (またはt)</span>
+                            </p>
+                          </div>
+                          {authRole === 'admin' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-600">品目別金額上書き:</span>
+                              <input
+                                type="number"
+                                value={scOverrideVal}
+                                onChange={(e) => handleScrapOverrideChange(modalLocation, scrapKey, e.target.value)}
+                                placeholder="売却額"
+                                className="w-32 p-2.5 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                          <div className="text-xs font-bold text-slate-500 uppercase">📅 搬出日別明細 ({data.details.length}件)</div>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                            {data.details.map((det, dIdx) => (
+                              <div key={dIdx} className="flex justify-between items-center text-sm bg-slate-50 p-2.5 rounded-lg font-medium">
+                                <span>🗓️ {det.date} / <b>{det.item}</b></span>
+                                <span className="font-bold text-slate-800">{det.quantity} {det.unit}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        {authRole === 'admin' && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-600">この項目を上書き(円):</span>
-                            <input
-                              type="number"
-                              value={scrapOverrides[modalLocation]?.[key] ?? ''}
-                              onChange={(e) => handleScrapOverrideChange(modalLocation, key, e.target.value)}
-                              placeholder="金額"
-                              className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
-                            />
-                          </div>
-                        )}
                       </div>
-
-                      <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-1.5 max-h-40 overflow-y-auto">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">日別明細</div>
-                        {data.details.map((det, dIdx) => (
-                          <div key={dIdx} className="flex justify-between items-center text-sm font-medium text-slate-700 bg-slate-50 p-2 rounded-lg">
-                            <span>🗓️ {det.date} / <b className="text-slate-900">{det.item}</b></span>
-                            <span className="font-bold text-emerald-700">{det.quantity} {det.unit}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
