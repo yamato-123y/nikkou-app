@@ -63,6 +63,11 @@ export default function AdminPage() {
   const [disposalEndDate, setDisposalEndDate] = useState('');
   const [disposalSiteFilter, setDisposalSiteFilter] = useState('');
 
+  // ---------------------------------------------------------------------------
+  // 追加：月別カレンダーの現場名クリックで日報内容を確認するためのモーダル用ステート
+  // ---------------------------------------------------------------------------
+  const [calendarReportModal, setCalendarReportModal] = useState<{ date: string; location: string; reports: any[] } | null>(null);
+
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1540,16 +1545,20 @@ export default function AdminPage() {
                   </div>
                   <div className="space-y-1.5 pt-2 overflow-y-auto max-h-24">
                     {dayLocations.length > 0 ? (
-                      dayLocations.map((locName, lIdx) => (
-                        <button
-                          key={lIdx}
-                          onClick={() => setModalLocation(locName)}
-                          className="w-full text-left text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold p-1.5 rounded-xl border border-blue-200 truncate transition shadow-2xs"
-                          title={`${locName} の詳細分析を開く`}
-                        >
-                          🏢 {locName}
-                        </button>
-                      ))
+                      dayLocations.map((locName, lIdx) => {
+                        // 修正：現場名をクリックしたときにその日・その現場に送信された日報を表示するためのモーダルを開く
+                        const matchedReportsForDayAndLoc = dayReports.filter(r => r.location === locName);
+                        return (
+                          <button
+                            key={lIdx}
+                            onClick={() => setCalendarReportModal({ date: dateStr, location: locName, reports: matchedReportsForDayAndLoc })}
+                            className="w-full text-left text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold p-1.5 rounded-xl border border-blue-200 truncate transition shadow-2xs"
+                            title={`${dateStr} の ${locName} の日報を表示`}
+                          >
+                            🏢 {locName}
+                          </button>
+                        );
+                      })
                     ) : (
                       <span className="text-xs text-slate-300 text-center block py-2">-</span>
                     )}
@@ -1682,6 +1691,123 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* ------------------------------------------------------------------------- */}
+      {/* 追加：カレンダーの日付・現場名をクリックしたときに日報を表示するモーダル */}
+      {/* ------------------------------------------------------------------------- */}
+      {calendarReportModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">
+                  📅 日報確認：{calendarReportModal.date} - {calendarReportModal.location}
+                </h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">指定された日時に送信された日報内容です</p>
+              </div>
+              <button 
+                onClick={() => setCalendarReportModal(null)} 
+                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {calendarReportModal.reports.length === 0 ? (
+                <p className="text-base text-slate-500 text-center py-8">該当する日報データはありません</p>
+              ) : (
+                calendarReportModal.reports.map((r, i) => {
+                  const originalIndex = reports.findIndex(item => (item.id && item.id === r.id) || (item._id && item._id === r._id) || item === r);
+                  return (
+                    <div key={r.id || r._id || i} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
+                        {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
+                        {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
+                        <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {(r.workers || []).join(', ') || '-'}</span>
+                      </div>
+
+                      {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
+                        <div className="text-sm text-indigo-800 font-bold">
+                          🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
+                        </div>
+                      )}
+
+                      {(r.subcontractors || []).length > 0 && (
+                        <div className="text-sm text-orange-800 font-bold">
+                          外注: {(r.subcontractors || []).map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
+                        </div>
+                      )}
+
+                      <div className="text-sm text-slate-700 font-medium">
+                        重機・車両: {[
+                          ...(r.machines || []), 
+                          ...(r.leaseHeavy || []), 
+                          ...(r.leaseAttach || []), 
+                          ...(r.leaseOther || []), 
+                          ...(r.ishikawaHeavy || []), 
+                          ...(r.ishikawaAttach || []), 
+                          ...(r.ishikawaOther || []), 
+                          ...(r.mokCustomMachines || []).map((m:any)=>`${m.name}(${m.count}個)`),
+                          ...(r.otherLeases || []).map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`),
+                          ...(r.ownMachines || []), 
+                          ...(r.vehicles || [])
+                        ].join(', ') || '-'}
+                      </div>
+
+                      <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border">
+                        <div>軽油: <b>{r.fuel || 0} L</b></div>
+                        <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                        <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
+                        <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
+                        {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
+                      </div>
+
+                      {((r.disposals || []).length > 0 || (r.scraps || []).length > 0) && (
+                        <div className="flex flex-col gap-1 pt-0.5">
+                          {(r.disposals || []).length > 0 && (
+                            <div className="text-sm text-amber-800 font-bold">
+                              🗑️ 処分: {(r.disposals || []).map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                            </div>
+                          )}
+                          {(r.scraps || []).length > 0 && (
+                            <div className="text-sm text-emerald-800 font-bold">
+                              ♻️ スクラップ: {(r.scraps || []).map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {r.workDescription && (
+                        <div className="text-sm md:text-base text-slate-700 font-medium bg-white p-3.5 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                          {r.workDescription}
+                        </div>
+                      )}
+
+                      {authRole === 'admin' && (
+                        <div className="flex gap-2 pt-2">
+                          <button onClick={() => { setCalendarReportModal(null); setEditingReport({ ...r }); }} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
+                          <button onClick={() => { handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i); setCalendarReportModal(null); }} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setCalendarReportModal(null)} 
+                className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && (
