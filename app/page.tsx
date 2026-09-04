@@ -37,6 +37,9 @@ export default function Home() {
   const [isOpenIshikawaAttach, setIsOpenIshikawaAttach] = useState(false);
   const [isOpenIshikawaOther, setIsOpenIshikawaOther] = useState(false);
 
+  // ★ 石川県用のその他の自由入力リース
+  const [ishikawaCustomMachines, setIshikawaCustomMachines] = useState<{name: string, count: string}[]>([]);
+
   const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
   
   // ★ 南大阪建機等のその他の自由入力リース
@@ -111,6 +114,7 @@ export default function Home() {
         ishikawaLeaseHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
         ishikawaLeaseAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
         ishikawaLeaseOther: isIshikawaActive ? ishikawaLeaseOther : [],
+        ishikawaCustomMachines: isIshikawaActive ? ishikawaCustomMachines : [],
         machines: leaseHeavy,
         mokCustomMachines,
         otherLeases,         
@@ -136,6 +140,7 @@ export default function Home() {
     setIshikawaLeaseHeavy([]);
     setIshikawaLeaseAttach([]);
     setIshikawaLeaseOther([]);
+    setIshikawaCustomMachines([]);
     setMokCustomMachines([]);
     setOtherLeases([]);
     setSelectedOwnMachines([]); 
@@ -193,7 +198,7 @@ export default function Home() {
                 <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
               </div>
 
-              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && ishikawaLeaseHeavy.length > 0) || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
+              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && (ishikawaLeaseHeavy.length > 0 || ishikawaCustomMachines.length > 0)) || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
                   <span className="font-bold text-slate-800">
@@ -205,7 +210,8 @@ export default function Home() {
                       ...(manager === '徳本' ? [
                         ...ishikawaLeaseHeavy, 
                         ...ishikawaLeaseAttach, 
-                        ...ishikawaLeaseOther
+                        ...ishikawaLeaseOther,
+                        ...ishikawaCustomMachines.map(o => `${o.name}(${o.count})`)
                       ] : []),
                       ...otherLeases.map(o => `${o.name}(${o.count})`)
                     ].join(', ')}
@@ -335,6 +341,7 @@ export default function Home() {
                    setIshikawaLeaseHeavy([]);
                    setIshikawaLeaseAttach([]);
                    setIshikawaLeaseOther([]);
+                   setIshikawaCustomMachines([]);
                    setIsOpenIshikawa(false);
                    setUnokeFuel('');
                    setUnokeRegular('');
@@ -654,6 +661,65 @@ export default function Home() {
                        </div>
                      )}
                    </div>
+
+                   {/* ★ 石川県用その他の機械（自由入力） */}
+                   <div className="border-t border-indigo-200 pt-4 space-y-3">
+                     <div className="flex justify-between items-center">
+                       <span className="font-bold text-sm text-indigo-950">📦 その他の機械（自由入力）</span>
+                       <button 
+                         type="button" 
+                         onClick={() => setIshikawaCustomMachines([...ishikawaCustomMachines, {name: '', count: ''}])} 
+                         className="bg-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow hover:bg-indigo-700 transition"
+                       >
+                         ＋ 追加する
+                       </button>
+                     </div>
+
+                     {ishikawaCustomMachines.map((ic, index) => (
+                       <div key={index} className="p-3 border-2 border-indigo-200 rounded-2xl bg-white space-y-2">
+                         <div className="grid grid-cols-3 gap-2">
+                           <div className="col-span-2">
+                             <label className="text-xs font-bold text-slate-700 block mb-1">リース内容（品名）</label>
+                             <input 
+                               type="text" 
+                               placeholder="例: 発電機" 
+                               className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                               value={ic.name} 
+                               onChange={(e) => {
+                                 const updated = [...ishikawaCustomMachines];
+                                 updated[index].name = e.target.value;
+                                 setIshikawaCustomMachines(updated);
+                               }}
+                             />
+                           </div>
+                           <div>
+                             <label className="text-xs font-bold text-slate-700 block mb-1">個数</label>
+                             <input 
+                               type="number" 
+                               placeholder="0" 
+                               className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                               value={ic.count} 
+                               onChange={(e) => {
+                                 const updated = [...ishikawaCustomMachines];
+                                 updated[index].count = e.target.value;
+                                 setIshikawaCustomMachines(updated);
+                               }}
+                             />
+                           </div>
+                         </div>
+                         <div className="text-right">
+                           <button 
+                             type="button" 
+                             onClick={() => setIshikawaCustomMachines(ishikawaCustomMachines.filter((_, i) => i !== index))} 
+                             className="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-200 transition"
+                           >
+                             削除
+                           </button>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+
                  </div>
                )}
              </div>
