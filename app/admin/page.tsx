@@ -527,65 +527,35 @@ export default function AdminPage() {
     const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
     const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
     const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-    const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
-    const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
 
     machines.forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
     leaseHeavy.forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
     leaseAttach.forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
     leaseOther.forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-    
-    // 修正: Ishikawaリース内訳に ishikawaCustomMachines（リスト以外の機械・機器）を含める
     ishikawaHeavy.forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaAttach.forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaOther.forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaCustomMachines.forEach((m: any) => {
-      const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === m.name) || (settings.ishikawaOther || []).find((x:any) => x.name === m.name);
-      const unitP = matched?.price || 0;
-      leaseC += (Number(m.count || 0) * unitP);
-    });
-
-    // 修正: 自由入力の ishikawaCustomMachines も MOKリース側（非石川県現場またはMOK用としての扱い、あるいは共通の計算として）にも適切に反映させるため、mokCustomMachines と同様に otherLeaseC 等に含めるか、または専用ロジックに加える。
-    // 指示：「石川県出張用リース機器項目内の、『📦 リスト以外の機械（自由入力）』に入力された情報は、管理画面の旧河北郡市クリーンセンター等解体工事(石川県)『🗾 石川県出張用リース / MOKリース内訳』および『🗾 石川県出張用リース (月ごとのリース ＋ その他)』に表示させたい。金額は管理画面で入力します。」
-    // 管理画面で金額を入力するため、ここでの自動計算対象にするか、あるいは専用のリース内訳計算に組み込む。
-    // ishikawaLeaseDetail と mokLeaseDetail にも ishikawaCustomMachines を含める形にします。
 
     let ishikawaLeaseDetail = 0;
     ishikawaHeavy.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaAttach.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaOther.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaCustomMachines.forEach((m: any) => {
-      const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === m.name) || (settings.ishikawaOther || []).find((x:any) => x.name === m.name);
-      const unitP = matched?.price || 0;
-      ishikawaLeaseDetail += (Number(m.count || 0) * unitP);
-    });
 
     let mokLeaseDetail = 0;
     machines.forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
     leaseHeavy.forEach((m: string) => mokLeaseDetail += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
     leaseAttach.forEach((m: string) => mokLeaseDetail += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
     leaseOther.forEach((m: string) => mokLeaseDetail += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-    // mokCustomMachines も含める
-    mokCustomMachines.forEach((m: any) => {
-      const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
-      const unitP = matched?.price || 0;
-      mokLeaseDetail += (Number(m.count || 0) * unitP);
-    });
 
     let otherLeaseC = 0;
     const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+    const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
 
     otherLeases.forEach((ol: any) => {
       otherLeaseC += Number(ol.price || 0);
     });
     mokCustomMachines.forEach((m: any) => {
       const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
-      const unitP = matched?.price || 0;
-      otherLeaseC += (Number(m.count || 0) * unitP);
-    });
-    // 石川県の自由入力機械も金額が設定されている場合はここに寄与
-    ishikawaCustomMachines.forEach((m: any) => {
-      const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === m.name) || (settings.ishikawaOther || []).find((x:any) => x.name === m.name);
       const unitP = matched?.price || 0;
       otherLeaseC += (Number(m.count || 0) * unitP);
     });
@@ -889,7 +859,6 @@ export default function AdminPage() {
       const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
       const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
       const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-      const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
       const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
       const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
       const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -899,7 +868,7 @@ export default function AdminPage() {
         r.date, r.location, r.client || '', r.startDate || '', r.manager, workers.join('/'), 
         Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
         subcontractors.map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`), ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
+        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
         otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
         ownMachines.join('/'),
         vehicles.join('/'), 
@@ -1754,7 +1723,6 @@ export default function AdminPage() {
                         const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                         const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                         const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-                        const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                         const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                         const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                         const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -1794,13 +1762,12 @@ export default function AdminPage() {
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                                {ishikawaCustomMachines.length > 0 && <div>🗾📦 <b>リスト以外の機械・機器（石川）:</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
-                                {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器（自由入力）:</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && ishikawaCustomMachines.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
                                   <span className="text-slate-400">なし</span>
                                 )}
                               </div>
@@ -1899,7 +1866,6 @@ export default function AdminPage() {
                         const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                         const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                         const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-                        const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                         const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                         const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                         const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -1939,13 +1905,12 @@ export default function AdminPage() {
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                                {ishikawaCustomMachines.length > 0 && <div>🗾📦 <b>リスト以外の機械・機器（石川）:</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
-                                {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器（自由入力）:</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && ishikawaCustomMachines.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
                                   <span className="text-slate-400">なし</span>
                                 )}
                               </div>
@@ -2032,7 +1997,6 @@ export default function AdminPage() {
                   const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                   const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                   const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-                  const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                   const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                   const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                   const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -2070,8 +2034,7 @@ export default function AdminPage() {
                         {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                         {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                         {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                        {ishikawaCustomMachines.length > 0 && <div>🗾📦 <b>リスト以外の機械・機器（石川）:</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
-                        {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器（自由入力）:</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                        {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                         {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                         {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                         {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
@@ -2628,50 +2591,8 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 📦 リスト以外の機械・機器（自由入力） - 複数追加可能セクション */}
-                <div className="space-y-3 pt-2 border-t border-slate-200">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold text-slate-700 block">📦 リスト以外の機械・機器（自由入力）</label>
-                    <button type="button" onClick={() => {
-                      const list = Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : [];
-                      setEditingReport({ ...editingReport, mokCustomMachines: [...list, { name: '', count: '1' }] });
-                    }} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-blue-700 transition">＋ 追加</button>
-                  </div>
-                  {(Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : []).map((cm: any, cmIdx: number) => (
-                    <div key={cmIdx} className="flex gap-2 items-center bg-white p-3 rounded-xl border">
-                      <input 
-                        type="text" 
-                        placeholder="機械・機器名 (例: 発電機など)" 
-                        value={cm.name || ''} 
-                        onChange={e => {
-                          const list = [...(editingReport.mokCustomMachines || [])];
-                          list[cmIdx] = { ...list[cmIdx], name: e.target.value };
-                          setEditingReport({ ...editingReport, mokCustomMachines: list });
-                        }}
-                        className="flex-1 p-2 border rounded-xl text-sm font-bold bg-slate-50"
-                      />
-                      <input 
-                        type="number" 
-                        min="1"
-                        placeholder="数量" 
-                        value={cm.count || '1'} 
-                        onChange={e => {
-                          const list = [...(editingReport.mokCustomMachines || [])];
-                          list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                          setEditingReport({ ...editingReport, mokCustomMachines: list });
-                        }}
-                        className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-slate-50"
-                      />
-                      <button type="button" onClick={() => {
-                        const list = (editingReport.mokCustomMachines || []).filter((_:any, i:number) => i !== cmIdx);
-                        setEditingReport({ ...editingReport, mokCustomMachines: list });
-                      }} className="bg-red-100 text-red-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
-                    </div>
-                  ))}
-                </div>
-
                 <div className="space-y-2 pt-2">
-                  <label className="text-xs font-bold text-slate-700 block">【📦 旧：その他の機械（自由入力）】</label>
+                  <label className="text-xs font-bold text-slate-700 block">【📦 その他の機械（自由入力）】</label>
                   <input 
                     type="text" 
                     placeholder="例: 発電機、水中ポンプなど" 
@@ -2743,48 +2664,6 @@ export default function AdminPage() {
                       );
                     })}
                   </div>
-                </div>
-
-                {/* 📦 リスト以外の機械・機器（自由入力） - 石川県出張用リース内追加 */}
-                <div className="space-y-3 pt-2 border-t border-indigo-200">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold text-indigo-900 block">📦 リスト以外の機械・機器（自由入力）</label>
-                    <button type="button" onClick={() => {
-                      const list = Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [];
-                      setEditingReport({ ...editingReport, ishikawaCustomMachines: [...list, { name: '', count: '1' }] });
-                    }} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-indigo-700 transition">＋ 追加</button>
-                  </div>
-                  {(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : []).map((cm: any, cmIdx: number) => (
-                    <div key={cmIdx} className="flex gap-2 items-center bg-white p-3 rounded-xl border border-indigo-200">
-                      <input 
-                        type="text" 
-                        placeholder="機械・機器名 (例: 発電機など)" 
-                        value={cm.name || ''} 
-                        onChange={e => {
-                          const list = [...(editingReport.ishikawaCustomMachines || [])];
-                          list[cmIdx] = { ...list[cmIdx], name: e.target.value };
-                          setEditingReport({ ...editingReport, ishikawaCustomMachines: list });
-                        }}
-                        className="flex-1 p-2 border rounded-xl text-sm font-bold bg-slate-50"
-                      />
-                      <input 
-                        type="number" 
-                        min="1"
-                        placeholder="数量" 
-                        value={cm.count || '1'} 
-                        onChange={e => {
-                          const list = [...(editingReport.ishikawaCustomMachines || [])];
-                          list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                          setEditingReport({ ...editingReport, ishikawaCustomMachines: list });
-                        }}
-                        className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-slate-50"
-                      />
-                      <button type="button" onClick={() => {
-                        const list = (editingReport.ishikawaCustomMachines || []).filter((_:any, i:number) => i !== cmIdx);
-                        setEditingReport({ ...editingReport, ishikawaCustomMachines: list });
-                      }} className="bg-red-100 text-red-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
-                    </div>
-                  ))}
                 </div>
               </div>
 
@@ -3244,16 +3123,13 @@ export default function AdminPage() {
                             type="number"
                             value={costOverrides[modalLocation]?.[item.key] ?? ''}
                             onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                            placeholder="手動金額"
-                            className="w-full p-2.5 border border-blue-400 rounded-xl font-bold text-right bg-blue-50/50 text-lg"
+                            placeholder="上書き金額"
+                            className="w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base"
                           />
                         </div>
                       ) : (
                         <div className="text-xl md:text-2xl font-bold text-slate-900">
-                          {formatAmount(item.val)}
-                          {costOverrides[modalLocation]?.[item.key] !== undefined && costOverrides[modalLocation]?.[item.key] !== '' && (
-                            <span className="text-xs text-blue-600 ml-1.5 font-bold">（手動上書き中）</span>
-                          )}
+                          {formatAmount(item.val || 0)}
                         </div>
                       )}
                     </div>
@@ -3265,98 +3141,301 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 🗾 石川県出張用リース / MOKリース内訳 モーダル */}
-      {showIshikawaLeaseModal && modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
+      {/* 石川県現場専用 リース詳細内訳ポップアップ */}
+      {showIshikawaLeaseModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-[32px] w-full max-w-2xl p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗾 石川県出張用リース / MOKリース内訳 (日報集計)</h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">石川県出張用リース項目に入力された重機・アタッチメント・その他機械・自由入力機械の一覧です</p>
+                <h3 className="text-xl md:text-2xl font-bold text-indigo-900">🗾 石川県出張用リース / MOKリース内訳</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">「旧河北郡市クリーンセンター等解体工事(石川県)」のリース内訳</p>
               </div>
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
             <div className="space-y-4">
-              {(() => {
-                const targetNames = getTargetLocationNames(modalLocation);
-                const locReports = reports.filter(r => targetNames.includes(r.location));
+              <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-200 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-indigo-900 text-base md:text-lg">🗾 石川県出張用リース (月ごとのリース ＋ その他)</span>
+                  <span className="font-bold text-indigo-900 text-xl">{formatAmount(modalData.calcIshikawaLease)}</span>
+                </div>
+                <p className="text-xs text-indigo-700">※石川県専用重機・アタッチメント・その他機器の日報集計額</p>
+              </div>
 
-                const machineCounts: { [name: string]: { count: number; unitPrice: number; category: string } } = {};
+              <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-blue-900 text-base md:text-lg">🏢 MOK（南大阪建機）グループ (月ごとのリース ＋ その他)</span>
+                  <span className="font-bold text-blue-900 text-xl">{formatAmount(modalData.calcMokLease)}</span>
+                </div>
+                <p className="text-xs text-blue-700">※通常のMOK重機・アタッチメント・その他機器の日報集計額</p>
+              </div>
 
-                locReports.forEach(r => {
-                  const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
-                  const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
-                  const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-                  const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
-
-                  ishikawaHeavy.forEach((m: string) => {
-                    const price = (settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0;
-                    if (!machineCounts[m]) machineCounts[m] = { count: 0, unitPrice: price, category: '重機' };
-                    machineCounts[m].count += 1;
-                  });
-
-                  ishikawaAttach.forEach((m: string) => {
-                    const price = (settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0;
-                    if (!machineCounts[m]) machineCounts[m] = { count: 0, unitPrice: price, category: 'アタッチメント' };
-                    machineCounts[m].count += 1;
-                  });
-
-                  ishikawaOther.forEach((m: string) => {
-                    const price = (settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0;
-                    if (!machineCounts[m]) machineCounts[m] = { count: 0, unitPrice: price, category: 'その他機械・機器' };
-                    machineCounts[m].count += 1;
-                  });
-
-                  ishikawaCustomMachines.forEach((m: any) => {
-                    const name = m.name || '名称不明';
-                    const qty = Number(m.count || 1);
-                    const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === name) || (settings.ishikawaOther || []).find((x:any) => x.name === name);
-                    const price = matched?.price || 0;
-                    if (!machineCounts[name]) machineCounts[name] = { count: 0, unitPrice: price, category: '自由入力（リスト以外）' };
-                    machineCounts[name].count += qty;
-                  });
-                });
-
-                const entries = Object.entries(machineCounts);
-                if (entries.length === 0) {
-                  return <p className="text-base text-slate-500 text-center py-8">集計対象のリース機器データはありません</p>;
-                }
-
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm md:text-base">
-                      <thead>
-                        <tr className="border-b border-slate-300 text-slate-700 font-bold bg-slate-100">
-                          <th className="py-3 px-3">機器名</th>
-                          <th className="py-3 px-3">カテゴリ</th>
-                          <th className="py-3 px-3 text-right">日額単価</th>
-                          <th className="py-3 px-3 text-right">延べ日数/数量</th>
-                          <th className="py-3 px-3 text-right">小計</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        {entries.map(([name, data], idx) => {
-                          const subTotal = data.count * data.unitPrice;
-                          return (
-                            <tr key={idx} className="hover:bg-slate-50">
-                              <td className="py-3 px-3 font-bold text-slate-900">{name}</td>
-                              <td className="py-3 px-3 text-slate-600">{data.category}</td>
-                              <td className="py-3 px-3 text-right">{formatAmount(data.unitPrice)}</td>
-                              <td className="py-3 px-3 text-right font-bold">{data.count}</td>
-                              <td className="py-3 px-3 text-right font-bold text-indigo-700">{formatAmount(subTotal)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center text-base font-bold">
+                <span>合計リース額</span>
+                <span className="text-xl text-slate-900">{formatAmount(modalData.calcIshikawaLease + modalData.calcMokLease)}</span>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 処分費内訳モーダル */}
+      {showDisposalModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗑️ 処分費の内訳明細 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">処分場・品目ごとの数量および小計を確認できます</p>
+              </div>
+              <button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-3 items-center justify-between">
+              <div className="flex flex-col md:flex-row gap-2 flex-1 w-full">
+                <select
+                  value={disposalSiteFilter}
+                  onChange={e => setDisposalSiteFilter(e.target.value)}
+                  className="p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+                >
+                  <option value="">🏢 すべての処分場</option>
+                  {Object.keys(modalData.aggregatedDisposalBreakdown).map(locKey => (
+                    <option key={locKey} value={locKey}>{locKey}</option>
+                  ))}
+                </select>
+
+                <input 
+                  type="text"
+                  placeholder="🔍 品目名やキーワードで絞り込み..."
+                  value={disposalFilterQuery}
+                  onChange={e => setDisposalFilterQuery(e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-600">期間:</span>
+                  <input 
+                    type="date"
+                    value={disposalStartDate}
+                    onChange={e => setDisposalStartDate(e.target.value)}
+                    className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                  />
+                  <span>〜</span>
+                  <input 
+                    type="date"
+                    value={disposalEndDate}
+                    onChange={e => setDisposalEndDate(e.target.value)}
+                    className="p-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                  />
+                </div>
+                {(disposalFilterQuery || disposalStartDate || disposalEndDate || disposalSiteFilter) && (
+                  <button 
+                    onClick={() => { setDisposalFilterQuery(''); setDisposalStartDate(''); setDisposalEndDate(''); setDisposalSiteFilter(''); }}
+                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition"
+                  >
+                    リセット
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? (
+                <p className="text-base text-slate-500 text-center py-8">この現場の処分データはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedDisposalBreakdown)
+                  .filter(([locKey]) => !disposalSiteFilter || locKey === disposalSiteFilter)
+                  .map(([locKey, locObj]) => {
+                    const isOpen = disposalDetailsOpen[locKey] || false;
+
+                    const filteredDetails = Object.values(locObj.items).flatMap(it => it.details).filter(det => {
+                      const matchQuery = !disposalFilterQuery || det.item.toLowerCase().includes(disposalFilterQuery.toLowerCase());
+                      const normDetDate = normalizeDateStr(det.date);
+                      const matchStart = !disposalStartDate || normDetDate >= disposalStartDate;
+                      const matchEnd = !disposalEndDate || normDetDate <= disposalEndDate;
+                      return matchQuery && matchStart && matchEnd;
+                    });
+
+                    if ((disposalFilterQuery || disposalStartDate || disposalEndDate) && filteredDetails.length === 0) {
+                      return null;
+                    }
+
+                    const reportTotalQty = Object.values(locObj.items).reduce((acc, it) => acc + it.quantity, 0);
+
+                    return (
+                      <div key={locKey} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-lg md:text-xl text-blue-700">🏢 {locKey}</h4>
+                            <div className="text-sm font-bold text-slate-700">
+                              日報データ集計（システム内）: <span className="text-orange-600 text-lg">{formatAmount(locObj.total)}</span> (計 {reportTotalQty}t 等)
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {authRole === 'admin' && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-600">手動上書き(合計):</span>
+                                <input
+                                  type="number"
+                                  value={disposalOverrides[modalLocation]?.[locKey] ?? ''}
+                                  onChange={(e) => handleDisposalOverrideChange(modalLocation, locKey, e.target.value)}
+                                  placeholder="金額"
+                                  className="w-32 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
+                                />
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDisposalDetailsOpen({ ...disposalDetailsOpen, [locKey]: !isOpen })}
+                              className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl text-xs md:text-sm font-bold transition shadow-2xs"
+                            >
+                              {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isOpen && (
+                          <div className="space-y-3 pt-2 animate-fadeIn">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-slate-600 font-bold bg-white">
+                                    <th className="py-2.5 px-3 w-[20%]">品目</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">合計数量</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">単価</th>
+                                    <th className="py-2.5 px-3 w-[20%] text-right">小計</th>
+                                    {authRole === 'admin' && <th className="py-2.5 px-3 w-[20%] text-right">個別上書き</th>}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white/60 font-medium">
+                                  {Object.entries(locObj.items).map(([itemKey, itemData]) => {
+                                    const subKey = `${locKey}__${itemKey}`;
+                                    const itemOverrideVal = disposalOverrides[modalLocation]?.[subKey] ?? '';
+                                    return (
+                                      <tr key={itemKey}>
+                                        <td className="py-3 px-3 font-bold text-slate-800">{itemKey}</td>
+                                        <td className="py-3 px-3 text-right font-bold">{itemData.quantity} {itemData.unit}</td>
+                                        <td className="py-3 px-3 text-right">{formatAmount(itemData.price)}</td>
+                                        <td className="py-3 px-3 text-right font-bold text-orange-600">{formatAmount(itemData.total)}</td>
+                                        {authRole === 'admin' && (
+                                          <td className="py-3 px-3 text-right">
+                                            <input
+                                              type="number"
+                                              value={itemOverrideVal}
+                                              onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
+                                              placeholder="金額"
+                                              className="w-28 p-1.5 border border-slate-300 rounded-lg text-right font-bold text-xs bg-white"
+                                            />
+                                          </td>
+                                        )}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* スクラップ売却内訳モーダル */}
+      {showScrapModal && modalLocation && modalData && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却額の内訳 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">スクラップ場ごとの数量と売却金額を入力・確認できます</p>
+              </div>
+              <button onClick={() => setShowScrapModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+            </div>
+
+            <div className="space-y-6">
+              {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                <p className="text-base text-slate-500 text-center py-8">この現場のスクラップデータはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
+                  const scOverrideVal = scrapOverrides[modalLocation]?.[key] ?? '';
+                  return (
+                    <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+                      <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
+                        <div>
+                          <h4 className="font-bold text-lg md:text-xl text-emerald-700">♻️ {key}</h4>
+                          <div className="text-sm font-bold text-slate-700 mt-1">
+                            合計数量: <span className="text-emerald-700 text-lg">{data.quantity}</span>
+                          </div>
+                        </div>
+
+                        {authRole === 'admin' && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-600">売却金額(上書き):</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-500 font-bold">¥</span>
+                              <input
+                                type="number"
+                                value={scOverrideVal}
+                                onChange={(e) => handleScrapOverrideChange(modalLocation, key, e.target.value)}
+                                placeholder="金額を入力"
+                                className="w-36 p-2.5 border border-emerald-400 rounded-xl text-right font-bold text-base bg-white"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-bold text-slate-500">内訳明細:</div>
+                        <div className="space-y-1.5">
+                          {data.details.map((det, dIdx) => (
+                            <div key={dIdx} className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center text-sm font-medium text-slate-800">
+                              <span>📅 日付: <b>{det.date}</b> ({det.item})</span>
+                              <span className="font-bold text-emerald-700">{det.quantity} {det.unit}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {authRole === 'admin' && (
+                <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 space-y-3">
+                  <div className="font-bold text-emerald-900 text-base md:text-lg">💰 スクラップ売却額 合計の手動上書き</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-600 font-bold">¥</span>
+                    <input
+                      type="number"
+                      value={scrapOverrides[modalLocation]?.total ?? ''}
+                      onChange={(e) => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
+                      placeholder="総合計の金額を入力"
+                      className="w-full p-3 border border-emerald-400 rounded-2xl text-right font-bold text-lg bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
