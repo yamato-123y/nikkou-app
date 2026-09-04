@@ -543,7 +543,7 @@ export default function Home() {
              {/* ★ 南大阪建機その他の機械（自由入力） */}
              <div className="border-t border-blue-200 pt-4 space-y-3">
                <div className="flex justify-between items-center">
-                 <span className="font-bold text-sm text-blue-950">📦 その他の機械（自由入力）</span>
+                 <span className="font-bold text-sm text-blue-950">📦 リスト以外の機械（自由入力）</span>
                  <button 
                    type="button" 
                    onClick={() => setOtherLeases([...otherLeases, {company: '南大阪建機', name: '', count: ''}])} 
@@ -665,7 +665,7 @@ export default function Home() {
                    {/* ★ 石川県用その他の機械（自由入力） */}
                    <div className="border-t border-indigo-200 pt-4 space-y-3">
                      <div className="flex justify-between items-center">
-                       <span className="font-bold text-sm text-indigo-950">📦 その他の機械（自由入力）</span>
+                       <span className="font-bold text-sm text-indigo-950">📦 リスト以外の機械（自由入力）</span>
                        <button 
                          type="button" 
                          onClick={() => setIshikawaCustomMachines([...ishikawaCustomMachines, {name: '', count: ''}])} 
