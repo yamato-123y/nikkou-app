@@ -527,6 +527,7 @@ export default function AdminPage() {
     const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
     const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
     const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+    const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
 
     machines.forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
     leaseHeavy.forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
@@ -536,10 +537,22 @@ export default function AdminPage() {
     ishikawaAttach.forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaOther.forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
 
+    // 石川県出張用リース機器の自由入力分の計算（マスタ価格があれば掛け合わせ、なければ0または自由入力価格）
+    ishikawaCustomMachines.forEach((m: any) => {
+      const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === m.name) || (settings.ishikawaOther || []).find((x:any) => x.name === m.name);
+      const unitP = matched?.price || 0;
+      leaseC += (Number(m.count || 0) * unitP);
+    });
+
     let ishikawaLeaseDetail = 0;
     ishikawaHeavy.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaAttach.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
     ishikawaOther.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
+    ishikawaCustomMachines.forEach((m: any) => {
+      const matched = (settings.ishikawaHeavy || []).find((x:any) => x.name === m.name) || (settings.ishikawaOther || []).find((x:any) => x.name === m.name);
+      const unitP = matched?.price || 0;
+      ishikawaLeaseDetail += (Number(m.count || 0) * unitP);
+    });
 
     let mokLeaseDetail = 0;
     machines.forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
@@ -676,8 +689,12 @@ export default function AdminPage() {
     const locMapped = reports.filter(r => targetNames.includes(r.location));
     let calcLabor = 0, calcSub = 0, calcLease = 0, calcOtherLease = 0, calcIshikawaLease = 0, calcMokLease = 0, calcOwnMachine = 0, calcVehicle = 0, calcDispCalc = 0;
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
-    let totalFuelLitering = 0;
-    let totalRegularLitering = 0;
+    
+    // 燃料数量の集計（石川県現場用メニュー vs 通常メニュー）
+    let totalFuelLitering = 0; // 石川県メニューからの軽油L
+    let totalRegularLitering = 0; // 石川県メニューからのレギュラーL
+    let normalFuelLitering = 0; // 通常メニューからの軽油L
+    let normalRegularPrice = 0; // 通常メニューからのレギュラー購入分(円)
 
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
@@ -693,8 +710,15 @@ export default function AdminPage() {
       calcOwnMachine += dc.ownMachineC;
       calcVehicle += dc.vehicleC;
       calcDispCalc += dc.dispC;
-      totalFuelLitering += Number(r.fuel || 0);
-      totalRegularLitering += Number(r.regularPrice || 0);
+
+      // 現場名に「石川県」が含まれる場合は、石川県用メニューからの入力と判定
+      if (r.location && r.location.includes('石川県')) {
+        totalFuelLitering += Number(r.fuel || 0);
+        totalRegularLitering += Number(r.regularPrice || 0); // 石川県メニューのレギュラーはL単位として保持
+      } else {
+        normalFuelLitering += Number(r.fuel || 0);
+        normalRegularPrice += Number(r.regularPrice || 0);
+      }
 
       Object.entries(dc.disposalBreakdown).forEach(([locKey, locData]) => {
         if (!aggregatedDisposalBreakdown[locKey]) {
@@ -841,7 +865,9 @@ export default function AdminPage() {
       clientStr: clients.join(', ') || '',
       startDateStr: startDates[0] || '',
       totalFuelLitering,
-      totalRegularLitering
+      totalRegularLitering,
+      normalFuelLitering,
+      normalRegularPrice
     };
   };
 
@@ -859,6 +885,7 @@ export default function AdminPage() {
       const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
       const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
       const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+      const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
       const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
       const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
       const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -868,7 +895,7 @@ export default function AdminPage() {
         r.date, r.location, r.client || '', r.startDate || '', r.manager, workers.join('/'), 
         Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
         subcontractors.map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
+        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`), ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
         otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
         ownMachines.join('/'),
         vehicles.join('/'), 
@@ -1443,10 +1470,12 @@ export default function AdminPage() {
                 { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
                 { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
                 { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-                { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+                // ② 通常の日報入力画面の項目名を「📦 リスト以外の機械・機器（自由入力）」に変更
+                { title: "🛠️ リース：📦 リスト以外の機械・機器（自由入力）＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
                 { title: "🗾 （石川県）重機＆日額単価", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true },
                 { title: "🗾 （石川県）アタッチメント＆日額単価", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
+                // ① 🗾石川県出張用リース機器の中に「📦 リスト以外の機械・機器（自由入力）」を追加
+                { title: "🗾 （石川県）📦 リスト以外の機械・機器（自由入力）＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
@@ -1723,6 +1752,7 @@ export default function AdminPage() {
                         const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                         const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                         const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                        const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                         const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                         const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                         const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -1762,12 +1792,13 @@ export default function AdminPage() {
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {ishikawaCustomMachines.length > 0 && <div>📦 <b>その他機械・機器(石川):</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器(自由入力)(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && ishikawaCustomMachines.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
                                   <span className="text-slate-400">なし</span>
                                 )}
                               </div>
@@ -1866,6 +1897,7 @@ export default function AdminPage() {
                         const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                         const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                         const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                        const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                         const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                         const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                         const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -1905,12 +1937,13 @@ export default function AdminPage() {
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                                {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {ishikawaCustomMachines.length > 0 && <div>📦 <b>その他機械・機器(石川):</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                                {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器(自由入力)(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
+                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && ishikawaCustomMachines.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
                                   <span className="text-slate-400">なし</span>
                                 )}
                               </div>
@@ -1997,6 +2030,7 @@ export default function AdminPage() {
                   const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                   const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                   const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                  const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                   const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                   const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                   const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -2034,7 +2068,8 @@ export default function AdminPage() {
                         {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                         {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                         {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
-                        {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                        {ishikawaCustomMachines.length > 0 && <div>📦 <b>その他機械・機器(石川):</b> {ishikawaCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
+                        {mokCustomMachines.length > 0 && <div>📦 <b>リスト以外の機械・機器(自由入力)(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                         {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                         {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                         {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
@@ -2529,6 +2564,7 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
+                {/* ② 「南大阪建機（MOK）」からのリースの項目の「📦 その他の機械（自由入力）」の文字を「📦 リスト以外の機械・機器（自由入力）」に変更 */}
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🏢 南大阪建機（MOK）からのリース</h3>
 
                 <div className="space-y-2">
@@ -2592,17 +2628,60 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-2 pt-2">
-                  <label className="text-xs font-bold text-slate-700 block">【📦 その他の機械（自由入力）】</label>
-                  <input 
-                    type="text" 
-                    placeholder="例: 発電機、水中ポンプなど" 
-                    value={editingReport.otherMachines || ''} 
-                    onChange={e => setEditingReport({ ...editingReport, otherMachines: e.target.value })} 
-                    className="w-full p-3 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" 
-                  />
+                  <label className="text-xs font-bold text-slate-700 block">【📦 リスト以外の機械・機器（自由入力）】</label>
+                  <div className="space-y-3">
+                    {(Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : []).map((m: any, mIdx: number) => (
+                      <div key={mIdx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="機械名"
+                          value={m.name || ''}
+                          onChange={e => {
+                            const updated = [...(Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : [])];
+                            updated[mIdx] = { ...updated[mIdx], name: e.target.value };
+                            setEditingReport({ ...editingReport, mokCustomMachines: updated });
+                          }}
+                          className="flex-1 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="数量"
+                          value={m.count || ''}
+                          onChange={e => {
+                            const updated = [...(Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : [])];
+                            updated[mIdx] = { ...updated[mIdx], count: e.target.value };
+                            setEditingReport({ ...editingReport, mokCustomMachines: updated });
+                          }}
+                          className="w-24 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (Array.isArray(editingReport.mokCustomMachines) ? editingReport.mokCustomMachines : []).filter((_, i) => i !== mIdx);
+                            setEditingReport({ ...editingReport, mokCustomMachines: updated });
+                          }}
+                          className="bg-rose-100 text-rose-700 px-3 py-2.5 rounded-xl font-bold text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = Array.isArray(editingReport.mokCustomMachines) ? [...editingReport.mokCustomMachines, { name: '', count: 1 }] : [{ name: '', count: 1 }];
+                        setEditingReport({ ...editingReport, mokCustomMachines: updated });
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition shadow-xs"
+                    >
+                      ＋ 追加する
+                    </button>
+                  </div>
                 </div>
               </div>
 
+              {/* ① 🗾石川県出張用リース機器の中に「📦 リスト以外の機械・機器（自由入力）」を追加した編集エリア */}
               <div className="bg-indigo-50/60 p-5 md:p-6 rounded-3xl border border-indigo-200 space-y-4">
                 <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-wider">🗾 石川県出張用リース機器</h3>
 
@@ -2663,6 +2742,59 @@ export default function AdminPage() {
                         </label>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <label className="text-xs font-bold text-slate-700 block">【📦 リスト以外の機械・機器（自由入力）】</label>
+                  <div className="space-y-3">
+                    {(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : []).map((m: any, mIdx: number) => (
+                      <div key={mIdx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="機械名"
+                          value={m.name || ''}
+                          onChange={e => {
+                            const updated = [...(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [])];
+                            updated[mIdx] = { ...updated[mIdx], name: e.target.value };
+                            setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                          }}
+                          className="flex-1 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white"
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="数量"
+                          value={m.count || ''}
+                          onChange={e => {
+                            const updated = [...(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [])];
+                            updated[mIdx] = { ...updated[mIdx], count: e.target.value };
+                            setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                          }}
+                          className="w-24 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : []).filter((_, i) => i !== mIdx);
+                            setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                          }}
+                          className="bg-rose-100 text-rose-700 px-3 py-2.5 rounded-xl font-bold text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = Array.isArray(editingReport.ishikawaCustomMachines) ? [...editingReport.ishikawaCustomMachines, { name: '', count: 1 }] : [{ name: '', count: 1 }];
+                        setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                      }}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition shadow-xs"
+                    >
+                      ＋ 追加する
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3026,11 +3158,13 @@ export default function AdminPage() {
               {[
                 { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
                 { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
-                { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
+                // ③ 「旧河北郡市クリーンセンター等解体工事(石川県)」の詳細分析内での「🗾 石川県出張用リース / MOKリース内訳」表示に対応
+                { key: 'lease', label: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? '🗾 石川県出張用リース / MOKリース内訳' : 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
                 { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
                 { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                 { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
                 { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
+                // ④ 石川県現場の場合は宇野気石油（石川県用メニューと通常メニュー）の数量を別枠で反映
                 ...(modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? [
                   { 
                     key: 'fuel', 
@@ -3045,6 +3179,18 @@ export default function AdminPage() {
                     val: costOverrides[modalLocation]?.regular ?? modalData.regularCost,
                     isCustomRegular: true,
                     litering: modalData.totalRegularLitering
+                  },
+                  {
+                    key: 'normalFuel',
+                    label: '【別枠】大阪購入分：軽油',
+                    val: modalData.normalFuelLitering,
+                    isNormalFuel: true
+                  },
+                  {
+                    key: 'normalRegular',
+                    label: '【別枠】大阪購入分：レギュラー',
+                    val: modalData.normalRegularPrice,
+                    isNormalRegular: true
                   }
                 ] : [
                   { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
@@ -3069,7 +3215,7 @@ export default function AdminPage() {
                             詳細
                           </button>
                         )}
-                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && (
+                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && !item.isNormalFuel && !item.isNormalRegular && (
                           <button
                             type="button"
                             onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
@@ -3116,6 +3262,14 @@ export default function AdminPage() {
                             />
                           </div>
                         </div>
+                      ) : item.isNormalFuel ? (
+                        <div className="text-xl md:text-2xl font-bold text-slate-700">
+                          {item.val} <span className="text-sm font-normal">L</span>
+                        </div>
+                      ) : item.isNormalRegular ? (
+                        <div className="text-xl md:text-2xl font-bold text-slate-700">
+                          {formatAmount(item.val || 0)}
+                        </div>
                       ) : isEditing ? (
                         <div className="flex items-center gap-1 w-full">
                           <span className="text-slate-500 font-bold">¥</span>
@@ -3159,7 +3313,7 @@ export default function AdminPage() {
                   <span className="font-bold text-indigo-900 text-base md:text-lg">🗾 石川県出張用リース (月ごとのリース ＋ その他)</span>
                   <span className="font-bold text-indigo-900 text-xl">{formatAmount(modalData.calcIshikawaLease)}</span>
                 </div>
-                <p className="text-xs text-indigo-700">※石川県専用重機・アタッチメント・その他機器の日報集計額</p>
+                <p className="text-xs text-indigo-700">※石川県専用重機・アタッチメント・その他機器・自由入力の日報集計額</p>
               </div>
 
               <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 space-y-2">
@@ -3306,38 +3460,24 @@ export default function AdminPage() {
                             <div className="overflow-x-auto">
                               <table className="w-full text-left border-collapse text-sm">
                                 <thead>
-                                  <tr className="border-b border-slate-200 text-slate-600 font-bold bg-white">
-                                    <th className="py-2.5 px-3 w-[20%]">品目</th>
-                                    <th className="py-2.5 px-3 w-[20%] text-right">合計数量</th>
-                                    <th className="py-2.5 px-3 w-[20%] text-right">単価</th>
-                                    <th className="py-2.5 px-3 w-[20%] text-right">小計</th>
-                                    {authRole === 'admin' && <th className="py-2.5 px-3 w-[20%] text-right">個別上書き</th>}
+                                  <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100/60">
+                                    <th className="py-2 px-3 w-[20%]">日付</th>
+                                    <th className="py-2 px-3 w-[30%]">品目</th>
+                                    <th className="py-2 px-3 w-[20%] text-right">数量</th>
+                                    <th className="py-2 px-3 w-[15%] text-right">単価</th>
+                                    <th className="py-2 px-3 w-[15%] text-right">小計</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 bg-white/60 font-medium">
-                                  {Object.entries(locObj.items).map(([itemKey, itemData]) => {
-                                    const subKey = `${locKey}__${itemKey}`;
-                                    const itemOverrideVal = disposalOverrides[modalLocation]?.[subKey] ?? '';
-                                    return (
-                                      <tr key={itemKey}>
-                                        <td className="py-3 px-3 font-bold text-slate-800">{itemKey}</td>
-                                        <td className="py-3 px-3 text-right font-bold">{itemData.quantity} {itemData.unit}</td>
-                                        <td className="py-3 px-3 text-right">{formatAmount(itemData.price)}</td>
-                                        <td className="py-3 px-3 text-right font-bold text-orange-600">{formatAmount(itemData.total)}</td>
-                                        {authRole === 'admin' && (
-                                          <td className="py-3 px-3 text-right">
-                                            <input
-                                              type="number"
-                                              value={itemOverrideVal}
-                                              onChange={(e) => handleDisposalItemOverrideChange(modalLocation, locKey, itemKey, e.target.value)}
-                                              placeholder="金額"
-                                              className="w-28 p-1.5 border border-slate-300 rounded-lg text-right font-bold text-xs bg-white"
-                                            />
-                                          </td>
-                                        )}
-                                      </tr>
-                                    );
-                                  })}
+                                <tbody className="divide-y divide-slate-200 font-medium">
+                                  {filteredDetails.map((det, dIdx) => (
+                                    <tr key={dIdx} className="hover:bg-white bg-white/50">
+                                      <td className="py-2 px-3">{det.date}</td>
+                                      <td className="py-2 px-3">{det.item}</td>
+                                      <td className="py-2 px-3 text-right">{det.quantity}{det.unit}</td>
+                                      <td className="py-2 px-3 text-right">{formatAmount(det.price)}</td>
+                                      <td className="py-2 px-3 text-right font-bold text-orange-600">{formatAmount(det.total)}</td>
+                                    </tr>
+                                  ))}
                                 </tbody>
                               </table>
                             </div>
@@ -3356,14 +3496,14 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* スクラップ売却内訳モーダル */}
+      {/* スクラップ内訳モーダル */}
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却額の内訳 ({modalLocation})</h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">スクラップ場ごとの数量と売却金額を入力・確認できます</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却計・内訳 ({modalLocation})</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">スクラップ場・品目ごとの数量および売却額を確認・入力できます</p>
               </div>
               <button onClick={() => setShowScrapModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
@@ -3373,61 +3513,82 @@ export default function AdminPage() {
                 <p className="text-base text-slate-500 text-center py-8">この現場のスクラップデータはありません</p>
               ) : (
                 Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
-                  const scOverrideVal = scrapOverrides[modalLocation]?.[key] ?? '';
+                  const isOpen = scrapDetailsOpen[key] || false;
+                  const currentOverrideVal = scrapOverrides[modalLocation]?.[key] ?? '';
+
                   return (
                     <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
                       <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-200 pb-3">
-                        <div>
+                        <div className="space-y-1">
                           <h4 className="font-bold text-lg md:text-xl text-emerald-700">♻️ {key}</h4>
-                          <div className="text-sm font-bold text-slate-700 mt-1">
-                            合計数量: <span className="text-emerald-700 text-lg">{data.quantity}</span>
+                          <div className="text-sm font-bold text-slate-700">
+                            総搬出量: <span className="text-emerald-700 text-lg">{data.quantity} kg (または t)</span>
                           </div>
                         </div>
 
-                        {authRole === 'admin' && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-600">売却金額(上書き):</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-slate-500 font-bold">¥</span>
+                        <div className="flex items-center gap-3">
+                          {authRole === 'admin' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-600">売却額(円):</span>
                               <input
                                 type="number"
-                                value={scOverrideVal}
+                                value={currentOverrideVal}
                                 onChange={(e) => handleScrapOverrideChange(modalLocation, key, e.target.value)}
                                 placeholder="金額を入力"
-                                className="w-36 p-2.5 border border-emerald-400 rounded-xl text-right font-bold text-base bg-white"
+                                className="w-36 p-2 border border-slate-300 rounded-xl text-right font-bold text-sm bg-white"
                               />
                             </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="text-xs font-bold text-slate-500">内訳明細:</div>
-                        <div className="space-y-1.5">
-                          {data.details.map((det, dIdx) => (
-                            <div key={dIdx} className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center text-sm font-medium text-slate-800">
-                              <span>📅 日付: <b>{det.date}</b> ({det.item})</span>
-                              <span className="font-bold text-emerald-700">{det.quantity} {det.unit}</span>
-                            </div>
-                          ))}
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setScrapDetailsOpen({ ...scrapDetailsOpen, [key]: !isOpen })}
+                            className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl text-xs md:text-sm font-bold transition shadow-2xs"
+                          >
+                            {isOpen ? '明細を閉じる ▲' : '明細を開く ▼'}
+                          </button>
                         </div>
                       </div>
+
+                      {isOpen && (
+                        <div className="space-y-3 pt-2 animate-fadeIn">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-sm">
+                              <thead>
+                                <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100/60">
+                                  <th className="py-2 px-3 w-[30%]">日付</th>
+                                  <th className="py-2 px-3 w-[40%]">品目</th>
+                                  <th className="py-2 px-3 w-[30%] text-right">数量</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-200 font-medium">
+                                {data.details.map((det, dIdx) => (
+                                  <tr key={dIdx} className="hover:bg-white bg-white/50">
+                                    <td className="py-2 px-3">{det.date}</td>
+                                    <td className="py-2 px-3">{det.item}</td>
+                                    <td className="py-2 px-3 text-right font-bold">{det.quantity}{det.unit}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
 
               {authRole === 'admin' && (
-                <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 space-y-3">
-                  <div className="font-bold text-emerald-900 text-base md:text-lg">💰 スクラップ売却額 合計の手動上書き</div>
+                <div className="bg-emerald-50/70 p-5 rounded-3xl border border-emerald-200 space-y-3">
+                  <div className="font-bold text-emerald-900 text-base">💰 スクラップ売却額 合計の手動上書き</div>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-600 font-bold">¥</span>
+                    <span className="text-sm font-bold text-emerald-800">¥</span>
                     <input
                       type="number"
                       value={scrapOverrides[modalLocation]?.total ?? ''}
                       onChange={(e) => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
-                      placeholder="総合計の金額を入力"
-                      className="w-full p-3 border border-emerald-400 rounded-2xl text-right font-bold text-lg bg-white"
+                      placeholder="すべてのスクラップ売却額の合計を入力"
+                      className="w-full p-3 border border-emerald-300 rounded-xl font-bold text-right bg-white text-base"
                     />
                   </div>
                 </div>
