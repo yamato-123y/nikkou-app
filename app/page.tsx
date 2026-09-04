@@ -1,830 +1,869 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-export default function ReportSubmitPage() {
-  const [reports, setReports] = useState<any[]>([]);
+export default function Home() {
   const [settings, setSettings] = useState<any>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
 
-  // 日報入力フォームの状態
-  const [form, setForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    location: '',
-    client: '',
-    startDate: '',
-    manager: '',
-    workers: [] as string[],
-    jobTypes: {} as { [key: string]: string },
-    subcontractors: [] as Array<{ company: string; task: string; count: string }>,
-    disposals: [] as Array<{ location: string; item: string; quantity: string; unit: string }>,
-    scraps: [] as Array<{ location: string; item: string; quantity: string; unit: string }>,
-    ownMachines: [] as string[],
-    vehicles: [] as string[],
-    leaseHeavy: [] as string[],
-    leaseAttach: [] as string[],
-    leaseOther: [] as string[],
-    ishikawaHeavy: [] as string[],
-    ishikawaAttach: [] as string[],
-    ishikawaOther: [] as string[],
-    ishikawaCustomMachines: [] as Array<{ name: string; count: string }>,
-    mokCustomMachines: [] as Array<{ name: string; count: string }>,
-    otherLeases: [] as Array<{ company: string; name: string; count: string }>,
-    otherMachines: '',
-    fuel: '',
-    regularPrice: '',
-    etcPrice: '',
-    parkingPrice: '',
-    otherItem: '',
-    otherPrice: '',
-    workDescription: ''
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   });
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const [resR, resS] = await Promise.all([fetch('/api/reports'), fetch('/api/settings')]);
-      if (resR.ok) {
-        const rData = await resR.json();
-        setReports(rData);
-      }
-      if (resS.ok) {
-        const sData = await resS.json();
-        if (sData && Object.keys(sData).length > 0) {
-          setSettings(sData);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [location, setLocation] = useState('');
+  const [manager, setManager] = useState('');
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
+
+  const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
+
+  // 通常（南大阪建機等）のリース
+  const [leaseHeavy, setLeaseHeavy] = useState<string[]>([]);
+  const [leaseAttach, setLeaseAttach] = useState<string[]>([]);
+  const [leaseOther, setLeaseOther] = useState<string[]>([]);
+
+  const [isOpenHeavy, setIsOpenHeavy] = useState(false);
+  const [isOpenAttach, setIsOpenAttach] = useState(false);
+  const [isOpenOther, setIsOpenOther] = useState(false);
+
+  // 石川県出張用のリース選択ステート
+  const [isOpenIshikawa, setIsOpenIshikawa] = useState(false);
+  const [ishikawaLeaseHeavy, setIshikawaLeaseHeavy] = useState<string[]>([]);
+  const [ishikawaLeaseAttach, setIshikawaLeaseAttach] = useState<string[]>([]);
+  const [ishikawaLeaseOther, setIshikawaLeaseOther] = useState<string[]>([]);
+  const [isOpenIshikawaHeavy, setIsOpenIshikawaHeavy] = useState(false);
+  const [isOpenIshikawaAttach, setIsOpenIshikawaAttach] = useState(false);
+  const [isOpenIshikawaOther, setIsOpenIshikawaOther] = useState(false);
+
+  const [mokCustomMachines, setMokCustomMachines] = useState<{name: string, count: string}[]>([]);
+  
+  // ★ 南大阪建機等のその他の自由入力リース
+  const [otherLeases, setOtherLeases] = useState<{company: string, name: string, count: string}[]>([]);
+
+  const [selectedOwnMachines, setSelectedOwnMachines] = useState<string[]>([]);
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+
+  const [fuel, setFuel] = useState('');
+  const [regularPrice, setRegularPrice] = useState('');
+  const [etcPrice, setEtcPrice] = useState('');
+  const [parkingPrice, setParkingPrice] = useState('');
+
+  // ★ 宇野気石油用の燃料ステート（職長が徳本の場合用）
+  const [unokeFuel, setUnokeFuel] = useState('');
+  const [unokeRegular, setUnokeRegular] = useState('');
+
+  const [otherItem, setOtherItem] = useState('');
+  const [otherPrice, setOtherPrice] = useState('');
+
+  const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
+  const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
+  const [description, setDescription] = useState('');
+
+  // モーダル管理用ステート
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => setSettings(data || {}))
+      .catch(err => console.error(err));
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.date || !form.location) {
-      alert('日付と現場名は必須です。');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-
-      if (res.ok) {
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 2500);
-        // フォームの一部をリセット
-        setForm(prev => ({
-          ...prev,
-          workDescription: '',
-          fuel: '',
-          regularPrice: '',
-          etcPrice: '',
-          parkingPrice: '',
-          otherPrice: '',
-          otherItem: ''
-        }));
-        fetchData();
-      } else {
-        alert('日報の送信に失敗しました。');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('通信エラーが発生しました。');
-    }
+  const toggleSelection = (list: string[], item: string, setter: Function) => {
+    setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans text-xl font-bold text-slate-600">
-        🔄 データを読み込んでいます...
-      </div>
-    );
-  }
+  // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
+  const handlePreSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!location) {
+      alert('現場名を選択してください。');
+      return;
+    }
+    if (!manager) {
+      alert('職長を選択してください。');
+      return;
+    }
+    setShowConfirmModal(true);
+  };
 
-  const locList = (settings.locations || []).map((l: any) => (typeof l === 'string' ? l : l.name));
-  const activeLocList = locList.filter((locName: string) => {
-    const matched = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
-    return typeof matched === 'object' ? !matched.isFinished : true;
-  });
+  // 確認モーダル内での「この内容で送信する」ボタン
+  const handleConfirmedSubmit = async () => {
+    setShowConfirmModal(false);
+
+    // 職長が徳本以外の場合、石川県や宇野気石油の選択状態をクリア・調整する
+    const isIshikawaActive = manager === '徳本';
+
+    await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date, location, manager, workers: selectedWorkers, 
+        jobTypes: jobTypesCount,
+        subcontractors,
+        leaseHeavy, leaseAttach, leaseOther,
+        ishikawaHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+        ishikawaAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+        ishikawaOther: isIshikawaActive ? ishikawaLeaseOther : [],
+        ishikawaLeaseHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+        ishikawaLeaseAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+        ishikawaLeaseOther: isIshikawaActive ? ishikawaLeaseOther : [],
+        machines: leaseHeavy,
+        mokCustomMachines,
+        otherLeases,         
+        ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
+        fuel: fuel || '0', 
+        regularPrice: regularPrice || '0',
+        etcPrice: etcPrice || '0', 
+        parkingPrice: parkingPrice || '0',
+        unokeFuel: isIshikawaActive ? (unokeFuel || '0') : '0',
+        unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
+        otherItem, otherPrice: otherPrice || '0',
+        disposals, scraps, workDescription: description,
+        createdAt: new Date().toISOString()
+      })
+    });
+
+    setSelectedWorkers([]); 
+    setJobTypesCount({});
+    setSubcontractors([]);
+    setLeaseHeavy([]);
+    setLeaseAttach([]);
+    setLeaseOther([]);
+    setIshikawaLeaseHeavy([]);
+    setIshikawaLeaseAttach([]);
+    setIshikawaLeaseOther([]);
+    setMokCustomMachines([]);
+    setOtherLeases([]);
+    setSelectedOwnMachines([]); 
+    setSelectedVehicles([]);
+    setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
+    setUnokeFuel(''); setUnokeRegular('');
+    setOtherItem(''); setOtherPrice('');
+    setDisposals([]); setScraps([]); setDescription('');
+
+    setShowSuccessModal(true);
+  };
+
+  const handleContinue = () => {
+    setShowSuccessModal(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFinish = () => {
+    setShowSuccessModal(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
+  const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
+  const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
 
   return (
-    <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-6 w-full max-w-4xl mx-auto font-sans text-slate-800 text-base">
+    <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
 
-      {showToast && (
-        <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce font-bold">
-          <span className="text-2xl">✨</span>
-          <span>日報を送信しました！</span>
+      {/* ヘッダー */}
+      <div className="bg-[#1e293b] text-white p-6 rounded-2xl text-center shadow-md">
+        <h1 className="text-2xl font-black">📱 現場日報入力</h1>
+        <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
+      </div>
+
+      {/* 送信内容確認ポップアップ */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-4 border my-auto max-h-[90vh] flex flex-col">
+            <div className="text-center">
+              <div className="text-4xl mb-2">📋</div>
+              <h2 className="text-xl font-black text-slate-950">日報内容の確認</h2>
+              <p className="text-xs text-slate-500 mt-1">以下の内容で送信します。よろしいですか？</p>
+            </div>
+
+            {/* 確認項目リスト */}
+            <div className="bg-slate-50 p-4 rounded-2xl border space-y-3 text-sm overflow-y-auto flex-1">
+              <div>
+                <span className="font-bold text-slate-500 block text-xs">日付 / 現場 / 職長</span>
+                <span className="font-black text-slate-950">{date} / {location} ({manager})</span>
+              </div>
+
+              <div>
+                <span className="font-bold text-slate-500 block text-xs">作業員 ({selectedWorkers.length}名)</span>
+                <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
+              </div>
+
+              {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && ishikawaLeaseHeavy.length > 0) || selectedOwnMachines.length > 0 || otherLeases.length > 0) && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
+                  <span className="font-bold text-slate-800">
+                    {[
+                      ...selectedOwnMachines, 
+                      ...leaseHeavy, 
+                      ...leaseAttach, 
+                      ...leaseOther, 
+                      ...(manager === '徳本' ? [
+                        ...ishikawaLeaseHeavy, 
+                        ...ishikawaLeaseAttach, 
+                        ...ishikawaLeaseOther
+                      ] : []),
+                      ...otherLeases.map(o => `${o.name}(${o.count})`)
+                    ].join(', ')}
+                  </span>
+                </div>
+              )}
+
+              {(fuel || regularPrice || etcPrice || parkingPrice || (manager === '徳本' && (unokeFuel || unokeRegular))) && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">燃料・経費</span>
+                  <span className="font-bold text-slate-800">
+                    {fuel ? `軽油:${fuel}L ` : ''}
+                    {regularPrice ? `レギュラー:${regularPrice}円 ` : ''}
+                    {manager === '徳本' && unokeFuel ? `宇野気石油 軽油:${unokeFuel}L ` : ''}
+                    {manager === '徳本' && unokeRegular ? `宇野気石油 レギュラー:${unokeRegular}L ` : ''}
+                    {etcPrice ? `ETC:${etcPrice}円 ` : ''}
+                    {parkingPrice ? `駐車場:${parkingPrice}円` : ''}
+                  </span>
+                </div>
+              )}
+
+              {description && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">作業内容</span>
+                  <p className="font-bold text-slate-800 whitespace-pre-wrap line-clamp-3">{description}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={() => setShowConfirmModal(false)} 
+                className="flex-1 bg-slate-200 text-slate-900 py-3.5 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
+              >
+                修正する
+              </button>
+              <button 
+                type="button" 
+                onClick={handleConfirmedSubmit} 
+                className="flex-1 bg-[#E56312] text-white py-3.5 rounded-2xl font-bold text-base shadow hover:bg-orange-700 transition"
+              >
+                この内容で送信
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-2">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">📝 現場日報 送信システム</h1>
-        <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報・入力フォーム</p>
-      </div>
+      {/* 送信完了ポップアップ */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm space-y-5 text-center border">
+            <div className="text-5xl">🎉</div>
+            <h2 className="text-xl font-black text-slate-950">送信が完了しました</h2>
+            <p className="text-base text-slate-800">続けて別の報告を入力しますか？</p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-
-        {/* 基本情報 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">📍 基本情報</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">日付</label>
-              <input 
-                type="date" 
-                value={form.date} 
-                onChange={e => setForm({ ...form, date: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white" 
-                required 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">現場名</label>
-              <select 
-                value={form.location} 
-                onChange={e => setForm({ ...form, location: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-blue-600" 
-                required
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={handleContinue} 
+                className="flex-1 bg-[#E56312] text-white py-4 rounded-2xl font-bold text-base shadow hover:bg-orange-700 transition"
               >
-                <option value="">現場を選択してください</option>
-                {activeLocList.map((loc: string) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">請負先</label>
-              <input 
-                type="text" 
-                placeholder="例: 〇〇建設" 
-                value={form.client} 
-                onChange={e => setForm({ ...form, client: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">現場開始日</label>
-              <input 
-                type="date" 
-                value={form.startDate} 
-                onChange={e => setForm({ ...form, startDate: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white" 
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-bold text-slate-600 block mb-1">職長</label>
-              <select 
-                value={form.manager} 
-                onChange={e => setForm({ ...form, manager: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white"
+                続けて報告
+              </button>
+              <button 
+                type="button" 
+                onClick={handleFinish} 
+                className="flex-1 bg-slate-200 text-slate-900 py-4 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
               >
-                <option value="">職長を選択...</option>
-                {(settings.managers || []).map((m: any) => (
-                  <option key={m.name} value={m.name}>{m.name}</option>
-                ))}
-              </select>
+                終了する
+              </button>
             </div>
           </div>
         </div>
+      )}
 
-        {/* 作業員 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">👥 作業メンバー</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-            {(settings.workers || []).map((w: any) => {
-              const checked = form.workers.includes(w.name);
-              return (
-                <label key={w.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                  <input 
-                    type="checkbox" 
-                    checked={checked} 
-                    onChange={e => {
-                      const updated = e.target.checked ? [...form.workers, w.name] : form.workers.filter(x => x !== w.name);
-                      setForm({ ...form, workers: updated });
-                    }}
-                    className="rounded text-orange-600 w-4 h-4"
-                  />
-                  <span className="truncate">{w.name}</span>
-                </label>
-              );
-            })}
-          </div>
+      <form onSubmit={handlePreSubmit} className="space-y-6">
+
+        {/* 1. 日付と現場の選択 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
+           <div className="font-black text-lg text-orange-600 border-b pb-3">📍 1. 日付と現場の選択</div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【日付】</label>
+             <div className="w-full border-2 rounded-2xl bg-white overflow-hidden box-border">
+               <input 
+                 type="date" 
+                 value={date} 
+                 onChange={e=>setDate(e.target.value)} 
+                 className="w-full p-4 font-bold text-lg bg-transparent text-slate-950 outline-none box-border block" 
+               />
+             </div>
+           </div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【現場名】</label>
+             <select value={location} onChange={e=>setLocation(e.target.value)} className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block">
+               <option value="">現場を選択してください</option>
+               {(settings.locations || [])
+                 .filter((l: any) => {
+                   if (typeof l === 'object' && l !== null) {
+                     return !l.isFinished;
+                   }
+                   return true;
+                 })
+                 .map((l: any) => {
+                   const locName = typeof l === 'string' ? l : l.name;
+                   return (
+                     <option key={locName} value={locName}>
+                       {locName}
+                     </option>
+                   );
+                 })}
+             </select>
+           </div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
+             <select 
+               value={manager} 
+               onChange={e => {
+                 const newManager = e.target.value;
+                 setManager(newManager);
+                 // 職長が「徳本」以外に変更された場合、石川県や宇野気石油の選択状態をリセットする
+                 if (newManager !== '徳本') {
+                   setIshikawaLeaseHeavy([]);
+                   setIshikawaLeaseAttach([]);
+                   setIshikawaLeaseOther([]);
+                   setIsOpenIshikawa(false);
+                   setUnokeFuel('');
+                   setUnokeRegular('');
+                 }
+               }} 
+               className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
+             >
+               <option value="">職長を選択してください</option>
+               {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
+             </select>
+           </div>
         </div>
 
-        {/* 職種人数 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">🏷️ 職種ごとの人数</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(settings.jobTypes || []).map((j: any) => (
-              <div key={j.name} className="bg-slate-50 p-3 rounded-2xl border flex items-center justify-between gap-2">
-                <span className="text-sm font-bold text-slate-700">{j.name}</span>
-                <input 
-                  type="number" 
-                  min="0"
-                  placeholder="0"
-                  value={form.jobTypes[j.name] || ''}
-                  onChange={e => {
-                    setForm({
-                      ...form,
-                      jobTypes: { ...form.jobTypes, [j.name]: e.target.value }
-                    });
-                  }}
-                  className="w-20 p-2 border rounded-xl text-center font-bold text-sm bg-white"
-                />
-              </div>
-            ))}
-          </div>
+        {/* 2. 作業員 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
+           <div className="border-b pb-3 space-y-1">
+             <span className="font-black text-lg text-orange-600 block">👥 2. 作業員（複数選択可）</span>
+             <p className="text-xs md:text-sm font-bold text-slate-500">※職長も現場で作業した場合は、ここでも選択してください。</p>
+           </div>
+           <div className="grid grid-cols-2 gap-3 pt-1">
+             {(settings.workers || []).map((w:any) => (
+               <button type="button" key={w.name} onClick={() => toggleSelection(selectedWorkers, w.name, setSelectedWorkers)}
+               className={`p-4 rounded-2xl font-bold border-2 text-lg transition ${selectedWorkers.includes(w.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-900 border-slate-300'}`}>{w.name}</button>
+             ))}
+           </div>
+
+           {(settings.jobTypes || []).length > 0 && (
+             <div className="border-t pt-5 space-y-3">
+               <span className="font-bold text-base text-slate-950 block">🏷️ 職種ごとの稼働人数入力</span>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                 {(settings.jobTypes || []).map((j: any) => (
+                   <div key={j.name} className="p-3 bg-slate-50 border-2 rounded-2xl flex items-center justify-between gap-3">
+                     <span className="font-bold text-sm text-slate-800">{j.name}</span>
+                     <div className="flex items-center gap-1.5">
+                       <input 
+                         type="number" 
+                         min="0"
+                         placeholder="0"
+                         className="w-24 p-2.5 border-2 rounded-xl text-center font-bold text-base bg-white"
+                         value={jobTypesCount[j.name] || ''}
+                         onChange={e => setJobTypesCount({ ...jobTypesCount, [j.name]: e.target.value })}
+                       />
+                       <span className="text-sm font-bold text-slate-600">人</span>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+
+           <div className="border-t pt-5 space-y-4">
+             <div className="flex justify-between items-center">
+               <span className="font-bold text-base text-slate-950">👤 外注・派遣作業員</span>
+               <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
+             </div>
+
+             {subcontractors.map((sub, index) => {
+               const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
+
+               return (
+                 <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                   <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className="text-sm font-bold text-slate-950 block mb-1">外注会社名</label>
+                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.company} onChange={(e)=>{
+                         const updated = [...subcontractors]; 
+                         updated[index].company = e.target.value; 
+                         updated[index].task = '';
+                         setSubcontractors(updated);
+                       }}>
+                         <option value="">会社を選択...</option>
+                         {uniqueCompanies.map((comp:any)=><option key={comp} value={comp}>{comp}</option>)}
+                       </select>
+                     </div>
+                     <div>
+                       <label className="text-sm font-bold text-slate-950 block mb-1">作業内容</label>
+                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.task} onChange={(e)=>{
+                         const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
+                       }}>
+                         <option value="">内容を選択...</option>
+                         {availableTasks.map((t:any, idx:number)=><option key={idx} value={t}>{t}</option>)}
+                       </select>
+                     </div>
+                   </div>
+                   <div className="flex items-end gap-3">
+                     <div className="flex-1 min-w-0">
+                       <label className="text-sm font-bold text-slate-950 block mb-1">人数</label>
+                       <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-950 box-border block" value={sub.count} onChange={(e)=>{
+                         const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
+                       }}/>
+                     </div>
+                     <button type="button" onClick={() => setSubcontractors(subcontractors.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
         </div>
 
-        {/* 外注・派遣 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-slate-900">👤 外注・派遣作業員</h2>
-            <button 
-              type="button" 
-              onClick={() => setForm({ ...form, subcontractors: [...form.subcontractors, { company: '', task: '', count: '' }] })}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition shadow-xs"
-            >
-              ＋ 外注を追加
-            </button>
-          </div>
-          {form.subcontractors.map((sub, sIdx) => {
-            const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s: any) => s.company).filter(Boolean)));
-            const availableTasks = (settings.subcontractors || []).filter((s: any) => s.company === sub.company).map((s: any) => s.task);
-            return (
-              <div key={sIdx} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">外注会社名</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sub.company} 
-                      onChange={e => {
-                        const updated = [...form.subcontractors];
-                        updated[sIdx] = { ...updated[sIdx], company: e.target.value, task: '' };
-                        setForm({ ...form, subcontractors: updated });
-                      }}
-                    >
-                      <option value="">会社を選択...</option>
-                      {uniqueCompanies.map((comp: any) => <option key={comp} value={comp}>{comp}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">作業内容</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sub.task} 
-                      onChange={e => {
-                        const updated = [...form.subcontractors];
-                        updated[sIdx] = { ...updated[sIdx], task: e.target.value };
-                        setForm({ ...form, subcontractors: updated });
-                      }}
-                    >
-                      <option value="">内容を選択...</option>
-                      {availableTasks.map((t: any, idx: number) => <option key={idx} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-700 block mb-1">人数</label>
-                    <input 
-                      type="number" 
-                      placeholder="0" 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sub.count} 
-                      onChange={e => {
-                        const updated = [...form.subcontractors];
-                        updated[sIdx] = { ...updated[sIdx], count: e.target.value };
-                        setForm({ ...form, subcontractors: updated });
-                      }}
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      const updated = form.subcontractors.filter((_, i) => i !== sIdx);
-                      setForm({ ...form, subcontractors: updated });
-                    }} 
-                    className="bg-rose-100 text-rose-700 px-3 py-2.5 rounded-xl font-bold text-xs"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        {/* 3. 重機・車両 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
+           <div className="border-b pb-3">
+             <span className="font-black text-lg text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
+           </div>
+
+           {/* 自社保有 */}
+           <div className="space-y-4 bg-emerald-50/70 p-5 rounded-3xl border-2 border-emerald-200">
+             <div className="text-sm font-black text-emerald-950 bg-emerald-200 px-4 py-2 rounded-xl inline-block">
+               🚛 自社保有（重機・車両）
+             </div>
+
+             <div className="space-y-2">
+               <label className="text-sm font-bold text-slate-950 block">【自社重機】</label>
+               <div className="grid grid-cols-2 gap-3">
+                 {(settings.companyMachines || []).map((m:any) => (
+                   <button type="button" key={m.name} onClick={() => toggleSelection(selectedOwnMachines, m.name, setSelectedOwnMachines)}
+                   className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${selectedOwnMachines.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                 ))}
+               </div>
+             </div>
+
+             <div className="space-y-2 pt-2">
+               <label className="text-sm font-bold text-slate-950 block">【自社車両（乗用車・トラック）】</label>
+               <div className="grid grid-cols-2 gap-3">
+                 {(settings.vehicles || []).map((v:any) => (
+                   <button type="button" key={v.name} onClick={() => toggleSelection(selectedVehicles, v.name, setSelectedVehicles)}
+                   className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${selectedVehicles.includes(v.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{v.name}</button>
+                 ))}
+               </div>
+             </div>
+           </div>
+
+           {/* 南大阪建機リース */}
+           <div className="space-y-4 bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200">
+             <div className="text-sm font-black text-blue-950 bg-blue-200 px-4 py-2 rounded-xl inline-block">
+               🏢 南大阪建機（MOK）からのリース
+             </div>
+
+             <div className="space-y-1">
+               <button 
+                 type="button" 
+                 onClick={() => setIsOpenHeavy(!isOpenHeavy)} 
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+               >
+                 <span>【重機を選択する】</span>
+                 {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseHeavy.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenHeavy ? '▲ 閉じる' : '▼ 開く'}</span>
+               </button>
+               {isOpenHeavy && (
+                 <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
+                   {(settings.leaseHeavy || []).map((m:any) => (
+                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseHeavy.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             <div className="space-y-1 pt-2">
+               <button 
+                 type="button" 
+                 onClick={() => setIsOpenAttach(!isOpenAttach)} 
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+               >
+                 <span>【アタッチメントを選択する】</span>
+                 {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseAttach.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenAttach ? '▲ 閉じる' : '▼ 開く'}</span>
+               </button>
+               {isOpenAttach && (
+                 <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
+                   {(settings.leaseAttach || []).map((m:any) => (
+                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseAttach.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             <div className="space-y-1 pt-2">
+               <button 
+                 type="button" 
+                 onClick={() => setIsOpenOther(!isOpenOther)} 
+                 className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
+               >
+                 <span>【その他の機械・機器を選択する】</span>
+                 {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseOther.length}選定中</span>}
+                 <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenOther ? '▲ 閉じる' : '▼ 開く'}</span>
+               </button>
+               {isOpenOther && (
+                 <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
+                   {(settings.leaseOther || []).map((m:any) => (
+                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
+                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseOther.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             {/* ★ 南大阪建機その他の機械（自由入力） */}
+             <div className="border-t border-blue-200 pt-4 space-y-3">
+               <div className="flex justify-between items-center">
+                 <span className="font-bold text-sm text-blue-950">📦 その他の機械（自由入力）</span>
+                 <button 
+                   type="button" 
+                   onClick={() => setOtherLeases([...otherLeases, {company: '南大阪建機', name: '', count: ''}])} 
+                   className="bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition"
+                 >
+                   ＋ 追加する
+                 </button>
+               </div>
+
+               {otherLeases.map((ol, index) => (
+                 <div key={index} className="p-3 border-2 border-blue-200 rounded-2xl bg-white space-y-2">
+                   <div className="grid grid-cols-3 gap-2">
+                     <div className="col-span-2">
+                       <label className="text-xs font-bold text-slate-700 block mb-1">リース内容（品名）</label>
+                       <input 
+                         type="text" 
+                         placeholder="例: 発電機" 
+                         className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                         value={ol.name} 
+                         onChange={(e) => {
+                           const updated = [...otherLeases];
+                           updated[index].name = e.target.value;
+                           setOtherLeases(updated);
+                         }}
+                       />
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-slate-700 block mb-1">個数</label>
+                       <input 
+                         type="number" 
+                         placeholder="0" 
+                         className="w-full p-2.5 rounded-xl border-2 font-bold text-sm bg-white text-slate-950" 
+                         value={ol.count} 
+                         onChange={(e) => {
+                           const updated = [...otherLeases];
+                           updated[index].count = e.target.value;
+                           setOtherLeases(updated);
+                         }}
+                       />
+                     </div>
+                   </div>
+                   <div className="text-right">
+                     <button 
+                       type="button" 
+                       onClick={() => setOtherLeases(otherLeases.filter((_, i) => i !== index))} 
+                       className="bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-bold text-xs hover:bg-red-200 transition"
+                     >
+                       削除
+                     </button>
+                   </div>
+                 </div>
+               ))}
+             </div>
+
+           </div>
+
+           {/* 石川県出張用リース選択セクション（職長が「徳本」の場合のみ表示） */}
+           {manager === '徳本' && (
+             <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200 animate-fadeIn">
+               <button
+                 type="button"
+                 onClick={() => setIsOpenIshikawa(!isOpenIshikawa)}
+                 className="w-full text-left p-4 bg-indigo-600 text-white rounded-2xl font-black text-lg flex justify-between items-center shadow-md hover:bg-indigo-700 transition"
+               >
+                 <span>🗾 石川県出張用リース機器</span>
+                 <span className="text-sm">{isOpenIshikawa ? '▲ 閉じる' : '▼ 開く'}</span>
+               </button>
+
+               {isOpenIshikawa && (
+                 <div className="space-y-3 pt-2 animate-fadeIn">
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）重機を選択】</span>
+                       {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseHeavy.length}選定中</span>}
+                       <span>{isOpenIshikawaHeavy ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaHeavy && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaHeavy || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）アタッチメントを選択】</span>
+                       {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseAttach.length}選定中</span>}
+                       <span>{isOpenIshikawaAttach ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaAttach && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaAttach || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+
+                   <div>
+                     <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
+                       <span>【（石川県）その他機械・機器を選択】</span>
+                       {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseOther.length}選定中</span>}
+                       <span>{isOpenIshikawaOther ? '▲' : '▼'}</span>
+                     </button>
+                     {isOpenIshikawaOther && (
+                       <div className="grid grid-cols-2 gap-2 pt-2">
+                         {(settings.ishikawaOther || []).map((m:any) => (
+                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
+                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               )}
+             </div>
+           )}
+
         </div>
 
-        {/* 処分データ */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-slate-900">🗑️ 処分場・搬出データ</h2>
-            <button 
-              type="button" 
-              onClick={() => setForm({ ...form, disposals: [...form.disposals, { location: '', item: '', quantity: '', unit: 't' }] })}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition shadow-xs"
-            >
-              ＋ 処分を追加
-            </button>
-          </div>
-          {form.disposals.map((disp, dIdx) => {
-            const uniqueDispLocations = Array.from(new Set((settings.disposalLocations || []).map((d: any) => d.location).filter(Boolean)));
-            const availableDispItems = (settings.disposalLocations || []).filter((d: any) => d.location === disp.location);
-            return (
-              <div key={dIdx} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">処分場名</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={disp.location} 
-                      onChange={e => {
-                        const updated = [...form.disposals];
-                        updated[dIdx] = { ...updated[dIdx], location: e.target.value, item: '' };
-                        setForm({ ...form, disposals: updated });
-                      }}
-                    >
-                      <option value="">処分場を選択...</option>
-                      {uniqueDispLocations.map((loc: any) => <option key={loc} value={loc}>{loc}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={disp.item} 
-                      onChange={e => {
-                        const updated = [...form.disposals];
-                        const selectedItemObj = availableDispItems.find((d: any) => d.item === e.target.value);
-                        updated[dIdx] = { ...updated[dIdx], item: e.target.value, unit: selectedItemObj?.unit || 't' };
-                        setForm({ ...form, disposals: updated });
-                      }}
-                    >
-                      <option value="">品目を選択...</option>
-                      {availableDispItems.map((d: any, idx: number) => <option key={idx} value={d.item}>{d.item} ({d.unit})</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({disp.unit || 't'})</label>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="0" 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={disp.quantity} 
-                      onChange={e => {
-                        const updated = [...form.disposals];
-                        updated[dIdx] = { ...updated[dIdx], quantity: e.target.value };
-                        setForm({ ...form, disposals: updated });
-                      }}
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      const updated = form.disposals.filter((_, i) => i !== dIdx);
-                      setForm({ ...form, disposals: updated });
-                    }} 
-                    className="bg-rose-100 text-rose-700 px-3 py-2.5 rounded-xl font-bold text-xs"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        {/* 4. 燃料・経費 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+           <div className="border-b pb-3">
+             <span className="font-black text-lg text-orange-600">⛽ 4. 燃料・経費</span>
+           </div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【軽油 (L)】</label>
+             <input type="number" placeholder="0" value={fuel} onChange={e=>setFuel(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
+           </div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【レギュラー 購入分 (円)】</label>
+             <input type="number" placeholder="0" value={regularPrice} onChange={e=>setRegularPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
+           </div>
+
+           {/* ★ 職長が「徳本」の場合のみ表示する「宇野気石油」の燃料入力枠 */}
+           {manager === '徳本' && (
+             <div className="bg-indigo-50/70 p-4 rounded-2xl border-2 border-indigo-200 space-y-4 animate-fadeIn">
+               <div className="text-sm font-black text-indigo-950 bg-indigo-200 px-3 py-1.5 rounded-lg inline-block">
+                 ⛽ 宇野気石油 分
+               </div>
+               <div>
+                 <label className="text-sm font-bold text-slate-950 block mb-1">【宇野気石油 軽油 (L)】</label>
+                 <input type="number" placeholder="0" value={unokeFuel} onChange={e=>setUnokeFuel(e.target.value)} className="w-full max-w-full min-w-0 p-3.5 border-2 rounded-xl font-bold text-lg bg-white text-slate-950 box-border block" />
+               </div>
+               <div>
+                 <label className="text-sm font-bold text-slate-950 block mb-1">【宇野気石油 レギュラー (L)】</label>
+                 <input type="number" placeholder="0" value={unokeRegular} onChange={e=>setUnokeRegular(e.target.value)} className="w-full max-w-full min-w-0 p-3.5 border-2 rounded-xl font-bold text-lg bg-white text-slate-950 box-border block" />
+               </div>
+             </div>
+           )}
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【高速代・ETC (円)】</label>
+             <input type="number" placeholder="0" value={etcPrice} onChange={e=>setEtcPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
+           </div>
+
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【駐車場代 (円)】</label>
+             <input type="number" placeholder="0" value={parkingPrice} onChange={e=>setParkingPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
+           </div>
         </div>
 
-        {/* スクラップデータ */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-slate-900">♻️ スクラップ搬出データ</h2>
-            <button 
-              type="button" 
-              onClick={() => setForm({ ...form, scraps: [...form.scraps, { location: '', item: '', quantity: '', unit: 'kg' }] })}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold transition shadow-xs"
-            >
-              ＋ スクラップを追加
-            </button>
-          </div>
-          {form.scraps.map((sc, scIdx) => {
-            const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s: any) => s.location).filter(Boolean)));
-            const availableScrapItems = (settings.scrapLocations || []).filter((s: any) => s.location === sc.location);
-            return (
-              <div key={scIdx} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">スクラップ場名</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sc.location} 
-                      onChange={e => {
-                        const updated = [...form.scraps];
-                        updated[scIdx] = { ...updated[scIdx], location: e.target.value, item: '' };
-                        setForm({ ...form, scraps: updated });
-                      }}
-                    >
-                      <option value="">スクラップ場を選択...</option>
-                      {uniqueScrapLocations.map((loc: any) => <option key={loc} value={loc}>{loc}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">品目</label>
-                    <select 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sc.item} 
-                      onChange={e => {
-                        const updated = [...form.scraps];
-                        const selectedItemObj = availableScrapItems.find((s: any) => s.item === e.target.value);
-                        updated[scIdx] = { ...updated[scIdx], item: e.target.value, unit: selectedItemObj?.unit || 'kg' };
-                        setForm({ ...form, scraps: updated });
-                      }}
-                    >
-                      <option value="">品目を選択...</option>
-                      {availableScrapItems.map((s: any, idx: number) => <option key={idx} value={s.item}>{s.item} ({s.unit})</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-700 block mb-1">数量 ({sc.unit || 'kg'})</label>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="0" 
-                      className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white" 
-                      value={sc.quantity} 
-                      onChange={e => {
-                        const updated = [...form.scraps];
-                        updated[scIdx] = { ...updated[scIdx], quantity: e.target.value };
-                        setForm({ ...form, scraps: updated });
-                      }}
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      const updated = form.scraps.filter((_, i) => i !== scIdx);
-                      setForm({ ...form, scraps: updated });
-                    }} 
-                    className="bg-rose-100 text-rose-700 px-3 py-2.5 rounded-xl font-bold text-xs"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        {/* 5. 処分場への搬出 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+           <div className="flex justify-between items-center border-b pb-3">
+             <span className="font-black text-lg text-orange-600">🗑️ 5. 処分場への搬出</span>
+             <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
+           </div>
+
+           {disposals.length === 0 && (
+             <p className="text-sm font-bold text-slate-400 text-center py-3">「追加する」ボタンを押して選択してください</p>
+           )}
+
+           {disposals.map((entry, index) => {
+             const availableItems = (settings.disposalLocations || []).filter((d:any) => d.location === entry.location);
+
+             return (
+               <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 <div>
+                   <label className="text-sm font-bold text-slate-950 block mb-1">① 処分場を選択</label>
+                   <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
+                     const updated = [...disposals];
+                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 't' };
+                     setDisposals(updated);
+                   }}>
+                     <option value="">処分場を選択...</option>
+                     {uniqueDisposalLocations.map((loc:any, idx:number)=><option key={idx} value={loc}>{loc}</option>)}
+                   </select>
+                 </div>
+
+                 {entry.location && (
+                   <div>
+                     <label className="text-sm font-bold text-slate-950 block mb-1">② 品目を選択</label>
+                     <div className="grid grid-cols-2 gap-2 pt-1">
+                       {availableItems.map((d:any, idx:number) => {
+                         const isSelected = entry.item === d.item;
+                         return (
+                           <button
+                             type="button"
+                             key={idx}
+                             onClick={() => {
+                               const updated = [...disposals];
+                               updated[index] = { ...updated[index], item: d.item, unit: d.unit || 't' };
+                               setDisposals(updated);
+                             }}
+                             className={`p-3 rounded-xl font-bold border-2 text-sm text-center transition ${isSelected ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-slate-900 border-slate-300'}`}
+                           >
+                             {d.item}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
+
+                 <div className="flex items-end gap-3 pt-2">
+                   <div className="flex-1 min-w-0">
+                     <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                     <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
+                       const updated = [...disposals]; updated[index].quantity = e.target.value; setDisposals(updated);
+                     }}/>
+                   </div>
+                   <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 't'}</div>
+                   <button type="button" onClick={() => setDisposals(disposals.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+                 </div>
+               </div>
+             );
+           })}
         </div>
 
-        {/* 自社重機・車両 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">🚛 自社保有（重機・車両）</h2>
-          
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【自社重機】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.companyMachines || []).map((cm: any) => {
-                const checked = form.ownMachines.includes(cm.name);
-                return (
-                  <label key={cm.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                    <input 
-                      type="checkbox" 
-                      checked={checked} 
-                      onChange={e => {
-                        const updated = e.target.checked ? [...form.ownMachines, cm.name] : form.ownMachines.filter(x => x !== cm.name);
-                        setForm({ ...form, ownMachines: updated });
-                      }}
-                      className="rounded text-emerald-600 w-4 h-4"
-                    />
-                    <span className="truncate">{cm.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+        {/* 6. スクラップの搬出 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+           <div className="flex justify-between items-center border-b pb-3">
+             <span className="font-black text-lg text-orange-600">♻️ 6. スクラップの搬出</span>
+             <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 'kg'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
+           </div>
 
-          <div className="space-y-2 pt-2">
-            <label className="text-xs font-bold text-slate-700 block">【自社車両】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.vehicles || []).map((v: any) => {
-                const checked = form.vehicles.includes(v.name);
-                return (
-                  <label key={v.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                    <input 
-                      type="checkbox" 
-                      checked={checked} 
-                      onChange={e => {
-                        const updated = e.target.checked ? [...form.vehicles, v.name] : form.vehicles.filter(x => x !== v.name);
-                        setForm({ ...form, vehicles: updated });
-                      }}
-                      className="rounded text-blue-600 w-4 h-4"
-                    />
-                    <span className="truncate">{v.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+           {scraps.length === 0 && (
+             <p className="text-sm font-bold text-slate-400 text-center py-3">「追加する」ボタンを押して選択してください</p>
+           )}
+
+           {scraps.map((entry, index) => {
+             const availableItems = (settings.scrapLocations || []).filter((s:any) => s.location === entry.location);
+
+             return (
+               <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 <div>
+                   <label className="text-sm font-bold text-slate-950 block mb-1">① スクラップ場を選択</label>
+                   <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
+                     const updated = [...scraps];
+                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 'kg' };
+                     setScraps(updated);
+                   }}>
+                     <option value="">スクラップ場を選択...</option>
+                     {uniqueScrapLocations.map((loc:any, idx:number)=><option key={idx} value={loc}>{loc}</option>)}
+                   </select>
+                 </div>
+
+                 {entry.location && (
+                   <div>
+                     <label className="text-sm font-bold text-slate-950 block mb-1">② 品目を選択</label>
+                     <div className="grid grid-cols-2 gap-2 pt-1">
+                       {availableItems.map((s:any, idx:number) => {
+                         const isSelected = entry.item === s.item;
+                         return (
+                           <button
+                             type="button"
+                             key={idx}
+                             onClick={() => {
+                               const updated = [...scraps];
+                               updated[index] = { ...updated[index], item: s.item, unit: s.unit || 'kg' };
+                               setScraps(updated);
+                             }}
+                             className={`p-3 rounded-xl font-bold border-2 text-sm text-center transition ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-900 border-slate-300'}`}
+                           >
+                             {s.item}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 )}
+
+                 <div className="flex items-end gap-3 pt-2">
+                   <div className="flex-1 min-w-0">
+                     <label className="text-sm font-bold text-slate-950 block mb-1">数量</label>
+                     <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-xl bg-white text-slate-950 box-border block" value={entry.quantity} onChange={(e)=>{
+                       const updated = [...scraps]; updated[index].quantity = e.target.value; setScraps(updated);
+                     }}/>
+                   </div>
+                   <div className="pb-3 font-black text-base text-slate-800 shrink-0">{entry.unit || 'kg'}</div>
+                   <button type="button" onClick={() => setScraps(scraps.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3.5 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
+                 </div>
+               </div>
+             );
+           })}
         </div>
 
-        {/* リース機器（MOK・南大阪建機） */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">🏢 南大阪建機（MOK）リース</h2>
-          
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【重機】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.leaseHeavy || []).map((m: any) => {
-                const checked = form.leaseHeavy.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.leaseHeavy, m.name] : form.leaseHeavy.filter(x => x !== m.name);
-                      setForm({ ...form, leaseHeavy: updated });
-                    }} className="rounded text-blue-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【アタッチメント】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.leaseAttach || []).map((m: any) => {
-                const checked = form.leaseAttach.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.leaseAttach, m.name] : form.leaseAttach.filter(x => x !== m.name);
-                      setForm({ ...form, leaseAttach: updated });
-                    }} className="rounded text-blue-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【その他の機械・機器】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.leaseOther || []).map((m: any) => {
-                const checked = form.leaseOther.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-slate-50 border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.leaseOther, m.name] : form.leaseOther.filter(x => x !== m.name);
-                      setForm({ ...form, leaseOther: updated });
-                    }} className="rounded text-blue-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* リスト以外の自由入力機械 */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-700 block">📦 リスト以外の機械・機器（自由入力）</label>
-              <button type="button" onClick={() => {
-                setForm({ ...form, mokCustomMachines: [...form.mokCustomMachines, { name: '', count: '1' }] });
-              }} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-blue-700 transition">＋ 追加</button>
-            </div>
-            {form.mokCustomMachines.map((cm, cmIdx) => (
-              <div key={cmIdx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-xl border">
-                <input 
-                  type="text" 
-                  placeholder="機械・機器名 (例: 発電機など)" 
-                  value={cm.name} 
-                  onChange={e => {
-                    const list = [...form.mokCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], name: e.target.value };
-                    setForm({ ...form, mokCustomMachines: list });
-                  }}
-                  className="flex-1 p-2 border rounded-xl text-sm font-bold bg-white"
-                />
-                <input 
-                  type="number" 
-                  min="1"
-                  placeholder="数量" 
-                  value={cm.count} 
-                  onChange={e => {
-                    const list = [...form.mokCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                    setForm({ ...form, mokCustomMachines: list });
-                  }}
-                  className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-white"
-                />
-                <button type="button" onClick={() => {
-                  const list = form.mokCustomMachines.filter((_, i) => i !== cmIdx);
-                  setForm({ ...form, mokCustomMachines: list });
-                }} className="bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
-              </div>
-            ))}
-          </div>
+        {/* その他 雑費・消耗品等 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+           <div className="font-black text-lg text-slate-950 border-b pb-3">📦 その他 雑費・消耗品等</div>
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【品名・内容】</label>
+             <input type="text" placeholder="例: コーナン" value={otherItem} onChange={e=>setOtherItem(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block" />
+           </div>
+           <div>
+             <label className="text-base font-bold text-slate-950 block mb-2">【金額 (円)】</label>
+             <input type="number" placeholder="0" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} className="w-full max-w-full min-w-0 p-4 border-2 rounded-2xl font-bold text-xl bg-white text-slate-950 box-border block" />
+           </div>
         </div>
 
-        {/* 石川県出張用リース */}
-        <div className="bg-indigo-50/60 p-6 rounded-3xl shadow-sm border border-indigo-200 space-y-4">
-          <h2 className="text-lg font-bold text-indigo-900">🗾 石川県出張用リース機器</h2>
-          
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【（石川県）重機】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.ishikawaHeavy || []).map((m: any) => {
-                const checked = form.ishikawaHeavy.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.ishikawaHeavy, m.name] : form.ishikawaHeavy.filter(x => x !== m.name);
-                      setForm({ ...form, ishikawaHeavy: updated });
-                    }} className="rounded text-indigo-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメント】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.ishikawaAttach || []).map((m: any) => {
-                const checked = form.ishikawaAttach.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.ishikawaAttach, m.name] : form.ishikawaAttach.filter(x => x !== m.name);
-                      setForm({ ...form, ishikawaAttach: updated });
-                    }} className="rounded text-indigo-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器】</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              {(settings.ishikawaOther || []).map((m: any) => {
-                const checked = form.ishikawaOther.includes(m.name);
-                return (
-                  <label key={m.name} className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                    <input type="checkbox" checked={checked} onChange={e => {
-                      const updated = e.target.checked ? [...form.ishikawaOther, m.name] : form.ishikawaOther.filter(x => x !== m.name);
-                      setForm({ ...form, ishikawaOther: updated });
-                    }} className="rounded text-indigo-600 w-4 h-4" />
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 石川用自由入力機械 */}
-          <div className="space-y-3 pt-2 border-t border-indigo-200">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-indigo-900 block">📦 リスト以外の機械・機器（自由入力）</label>
-              <button type="button" onClick={() => {
-                setForm({ ...form, ishikawaCustomMachines: [...form.ishikawaCustomMachines, { name: '', count: '1' }] });
-              }} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-indigo-700 transition">＋ 追加</button>
-            </div>
-            {form.ishikawaCustomMachines.map((cm, cmIdx) => (
-              <div key={cmIdx} className="flex gap-2 items-center bg-white p-3 rounded-xl border border-indigo-200">
-                <input 
-                  type="text" 
-                  placeholder="機械・機器名 (例: 発電機など)" 
-                  value={cm.name} 
-                  onChange={e => {
-                    const list = [...form.ishikawaCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], name: e.target.value };
-                    setForm({ ...form, ishikawaCustomMachines: list });
-                  }}
-                  className="flex-1 p-2 border rounded-xl text-sm font-bold bg-slate-50"
-                />
-                <input 
-                  type="number" 
-                  min="1"
-                  placeholder="数量" 
-                  value={cm.count} 
-                  onChange={e => {
-                    const list = [...form.ishikawaCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                    setForm({ ...form, ishikawaCustomMachines: list });
-                  }}
-                  className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-slate-50"
-                />
-                <button type="button" onClick={() => {
-                  const list = form.ishikawaCustomMachines.filter((_, i) => i !== cmIdx);
-                  setForm({ ...form, ishikawaCustomMachines: list });
-                }} className="bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
-              </div>
-            ))}
-          </div>
+        {/* 7. 本日の作業内容 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+           <div className="border-b pb-3">
+             <span className="font-black text-lg text-orange-600">📝 7. 本日の作業内容</span>
+           </div>
+           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950 box-border block" />
         </div>
 
-        {/* 燃料・経費 */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">⛽ 燃料・経費</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">軽油 (L)</label>
-              <input 
-                type="number" 
-                placeholder="0" 
-                value={form.fuel} 
-                onChange={e => setForm({ ...form, fuel: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-right" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">レギュラー購入分 (円)</label>
-              <input 
-                type="number" 
-                placeholder="0" 
-                value={form.regularPrice} 
-                onChange={e => setForm({ ...form, regularPrice: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-right" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">高速代・ETC (円)</label>
-              <input 
-                type="number" 
-                placeholder="0" 
-                value={form.etcPrice} 
-                onChange={e => setForm({ ...form, etcPrice: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-right" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">駐車場代 (円)</label>
-              <input 
-                type="number" 
-                placeholder="0" 
-                value={form.parkingPrice} 
-                onChange={e => setForm({ ...form, parkingPrice: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-right" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">雑費名</label>
-              <input 
-                type="text" 
-                placeholder="例: 文房具など" 
-                value={form.otherItem} 
-                onChange={e => setForm({ ...form, otherItem: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white" 
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">雑費金額 (円)</label>
-              <input 
-                type="number" 
-                placeholder="0" 
-                value={form.otherPrice} 
-                onChange={e => setForm({ ...form, otherPrice: e.target.value })} 
-                className="w-full p-3.5 border border-slate-300 rounded-2xl font-bold bg-slate-50 focus:bg-white text-right" 
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 作業内容メモ */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">📝 作業内容メモ</h2>
-          <textarea 
-            rows={4} 
-            value={form.workDescription} 
-            onChange={e => setForm({ ...form, workDescription: e.target.value })} 
-            className="w-full p-4 border border-slate-300 rounded-2xl font-medium bg-slate-50 focus:bg-white leading-relaxed" 
-            placeholder="本日の作業内容や特記事項を入力してください..." 
-          />
-        </div>
-
-        <button 
-          type="submit" 
-          className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-orange-500/20 transition"
-        >
-          🚀 日報を送信する
+        <button type="submit" className="w-full bg-[#E56312] text-white font-black text-2xl py-5 rounded-3xl shadow-xl hover:bg-orange-700 transition">
+          📩 日報を送信する
         </button>
 
       </form>
