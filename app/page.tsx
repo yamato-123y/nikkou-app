@@ -605,37 +605,47 @@ export default function ReportSubmitPage() {
               <label className="text-xs font-bold text-slate-700 block">📦 リスト以外の機械・機器（自由入力）</label>
               <button type="button" onClick={() => {
                 setForm({ ...form, mokCustomMachines: [...form.mokCustomMachines, { name: '', count: '1' }] });
-              }} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-blue-700 transition">＋ 追加</button>
+              }} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-blue-700 transition">＋ 追加する</button>
             </div>
             {form.mokCustomMachines.map((cm, cmIdx) => (
-              <div key={cmIdx} className="flex gap-2 items-center bg-slate-50 p-3 rounded-xl border">
-                <input 
-                  type="text" 
-                  placeholder="機械・機器名 (例: 発電機など)" 
-                  value={cm.name} 
-                  onChange={e => {
-                    const list = [...form.mokCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], name: e.target.value };
+              <div key={cmIdx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">リース内容（品名）</label>
+                    <input 
+                      type="text" 
+                      placeholder="例: 発電機" 
+                      value={cm.name} 
+                      onChange={e => {
+                        const list = [...form.mokCustomMachines];
+                        list[cmIdx] = { ...list[cmIdx], name: e.target.value };
+                        setForm({ ...form, mokCustomMachines: list });
+                      }}
+                      className="w-full p-2.5 border rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">個数</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="0" 
+                      value={cm.count} 
+                      onChange={e => {
+                        const list = [...form.mokCustomMachines];
+                        list[cmIdx] = { ...list[cmIdx], count: e.target.value };
+                        setForm({ ...form, mokCustomMachines: list });
+                      }}
+                      className="w-full p-2.5 border rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button type="button" onClick={() => {
+                    const list = form.mokCustomMachines.filter((_, i) => i !== cmIdx);
                     setForm({ ...form, mokCustomMachines: list });
-                  }}
-                  className="flex-1 p-2 border rounded-xl text-sm font-bold bg-white"
-                />
-                <input 
-                  type="number" 
-                  min="1"
-                  placeholder="数量" 
-                  value={cm.count} 
-                  onChange={e => {
-                    const list = [...form.mokCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                    setForm({ ...form, mokCustomMachines: list });
-                  }}
-                  className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-white"
-                />
-                <button type="button" onClick={() => {
-                  const list = form.mokCustomMachines.filter((_, i) => i !== cmIdx);
-                  setForm({ ...form, mokCustomMachines: list });
-                }} className="bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
+                  }} className="bg-rose-100 text-rose-700 px-4 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-200 transition">削除</button>
+                </div>
               </div>
             ))}
           </div>
@@ -704,38 +714,48 @@ export default function ReportSubmitPage() {
             <div className="flex justify-between items-center">
               <label className="text-xs font-bold text-indigo-900 block">📦 リスト以外の機械・機器（自由入力）</label>
               <button type="button" onClick={() => {
-                setForm({ ...form, ishikawaCustomMachines: [...form.ishikawaCustomMachines, { name: '', count: '1' }] });
-              }} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-indigo-700 transition">＋ 追加</button>
+                setForm({ ...form, ishikawaCustomMachines: [...form.ishikawaCustomMachines, { name: '', count: '0' }] });
+              }} className="bg-blue-600 text-white text-xs px-3.5 py-2 rounded-xl font-bold hover:bg-blue-700 transition shadow-xs">＋ 追加する</button>
             </div>
             {form.ishikawaCustomMachines.map((cm, cmIdx) => (
-              <div key={cmIdx} className="flex gap-2 items-center bg-white p-3 rounded-xl border border-indigo-200">
-                <input 
-                  type="text" 
-                  placeholder="機械・機器名 (例: 発電機など)" 
-                  value={cm.name} 
-                  onChange={e => {
-                    const list = [...form.ishikawaCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], name: e.target.value };
+              <div key={cmIdx} className="bg-white p-4 rounded-2xl border border-indigo-200 shadow-xs space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">リース内容（品名）</label>
+                    <input 
+                      type="text" 
+                      placeholder="例: 発電機" 
+                      value={cm.name} 
+                      onChange={e => {
+                        const list = [...form.ishikawaCustomMachines];
+                        list[cmIdx] = { ...list[cmIdx], name: e.target.value };
+                        setForm({ ...form, ishikawaCustomMachines: list });
+                      }}
+                      className="w-full p-2.5 border rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">個数</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="0" 
+                      value={cm.count} 
+                      onChange={e => {
+                        const list = [...form.ishikawaCustomMachines];
+                        list[cmIdx] = { ...list[cmIdx], count: e.target.value };
+                        setForm({ ...form, ishikawaCustomMachines: list });
+                      }}
+                      className="w-full p-2.5 border rounded-xl text-sm font-bold bg-slate-50"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button type="button" onClick={() => {
+                    const list = form.ishikawaCustomMachines.filter((_, i) => i !== cmIdx);
                     setForm({ ...form, ishikawaCustomMachines: list });
-                  }}
-                  className="flex-1 p-2 border rounded-xl text-sm font-bold bg-slate-50"
-                />
-                <input 
-                  type="number" 
-                  min="1"
-                  placeholder="数量" 
-                  value={cm.count} 
-                  onChange={e => {
-                    const list = [...form.ishikawaCustomMachines];
-                    list[cmIdx] = { ...list[cmIdx], count: e.target.value };
-                    setForm({ ...form, ishikawaCustomMachines: list });
-                  }}
-                  className="w-20 p-2 border rounded-xl text-center text-sm font-bold bg-slate-50"
-                />
-                <button type="button" onClick={() => {
-                  const list = form.ishikawaCustomMachines.filter((_, i) => i !== cmIdx);
-                  setForm({ ...form, ishikawaCustomMachines: list });
-                }} className="bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold">削除</button>
+                  }} className="bg-rose-100 text-rose-700 px-4 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-200 transition">削除</button>
+                </div>
               </div>
             ))}
           </div>
