@@ -678,7 +678,6 @@ export default function AdminPage() {
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     let totalFuelLitering = 0;
     let totalRegularLitering = 0;
-    let totalRegularYen = 0; // 追加：通常のレギュラー購入（円）の合計用
 
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
@@ -696,7 +695,6 @@ export default function AdminPage() {
       calcDispCalc += dc.dispC;
       totalFuelLitering += Number(r.fuel || 0);
       totalRegularLitering += Number(r.regularPrice || 0);
-      totalRegularYen += Number(r.regularYen || 0); // 追加：各日報の通常のレギュラー購入（円）を積算
 
       Object.entries(dc.disposalBreakdown).forEach(([locKey, locData]) => {
         if (!aggregatedDisposalBreakdown[locKey]) {
@@ -782,7 +780,6 @@ export default function AdminPage() {
     const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : disposalTotal;
     const fuelCost = ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel;
     const regularCost = ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular;
-    const regularYenCost = ov.regularYen !== '' && ov.regularYen !== undefined ? Number(ov.regularYen) : totalRegularYen; // 追加：通常のレギュラー購入（円）の上書き対応
     const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
@@ -805,7 +802,7 @@ export default function AdminPage() {
       }
     }
 
-    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + regularYenCost + etcCost + parkingCost + otherCost;
+    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
@@ -830,7 +827,6 @@ export default function AdminPage() {
       aggregatedDisposalBreakdown,
       fuelCost, 
       regularCost,
-      regularYenCost, // 追加
       etcCost, 
       parkingCost, 
       otherCost, 
@@ -845,15 +841,14 @@ export default function AdminPage() {
       clientStr: clients.join(', ') || '',
       startDateStr: startDates[0] || '',
       totalFuelLitering,
-      totalRegularLitering,
-      totalRegularYen // 追加
+      totalRegularLitering
     };
   };
 
   const downloadLocationCSV = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
-    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "通常の軽油（L）", "通常のレギュラー購入（円）", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => {
       const workers = Array.isArray(r.workers) ? r.workers : [];
       const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
@@ -877,7 +872,7 @@ export default function AdminPage() {
         otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
         ownMachines.join('/'),
         vehicles.join('/'), 
-        r.fuel || 0, r.regularPrice || 0, r.normalFuel || 0, r.regularYen || 0, r.etcPrice || 0, r.parkingPrice || 0,
+        r.fuel || 0, r.regularPrice || 0, r.etcPrice || 0, r.parkingPrice || 0,
         r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
       ];
     });
@@ -1780,8 +1775,6 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
-                                <div>通常の軽油: <b>{r.normalFuel || 0} L</b></div>
-                                <div>通常のレギュラー購入: <b>{formatAmount(r.regularYen || 0)}</b></div>
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -1925,8 +1918,6 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
-                                <div>通常の軽油: <b>{r.normalFuel || 0} L</b></div>
-                                <div>通常のレギュラー購入: <b>{formatAmount(r.regularYen || 0)}</b></div>
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -2053,8 +2044,6 @@ export default function AdminPage() {
                       <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border">
                         <div>軽油: <b>{r.fuel || 0} L</b></div>
                         <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
-                        <div>通常の軽油: <b>{r.normalFuel || 0} L</b></div>
-                        <div>通常のレギュラー購入: <b>{formatAmount(r.regularYen || 0)}</b></div>
                         <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                         <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                         {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -2706,14 +2695,6 @@ export default function AdminPage() {
                     </>
                   )}
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1.5">通常の軽油 (L)</label>
-                    <input type="number" value={editingReport.normalFuel || 0} onChange={e=>setEditingReport({...editingReport, normalFuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1.5">通常のレギュラー購入 (円)</label>
-                    <input type="number" value={editingReport.regularYen || 0} onChange={e=>setEditingReport({...editingReport, regularYen: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
-                  </div>
-                  <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">高速代・ETC (円)</label>
                     <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
@@ -3064,24 +3045,10 @@ export default function AdminPage() {
                     val: costOverrides[modalLocation]?.regular ?? modalData.regularCost,
                     isCustomRegular: true,
                     litering: modalData.totalRegularLitering
-                  },
-                  { 
-                    key: 'normalFuel', 
-                    label: '通常の軽油（L）', 
-                    val: modalData.totalFuelLitering // 必要に応じて表示・計算用
-                  },
-                  { 
-                    key: 'regularYen', 
-                    label: '通常のレギュラー購入（円）', 
-                    val: costOverrides[modalLocation]?.regularYen ?? modalData.regularYenCost,
-                    isCustomRegularYen: true,
-                    litering: modalData.totalRegularYen
                   }
                 ] : [
                   { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
-                  { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost },
-                  { key: 'normalFuel', label: '通常の軽油（L）', val: modalData.totalFuelLitering },
-                  { key: 'regularYen', label: '通常のレギュラー購入（円）', val: costOverrides[modalLocation]?.regularYen ?? modalData.regularYenCost, isCustomRegularYen: true, litering: modalData.totalRegularYen }
+                  { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost }
                 ]),
                 { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
                 { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
@@ -3102,7 +3069,7 @@ export default function AdminPage() {
                             詳細
                           </button>
                         )}
-                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && !item.isCustomRegularYen && (
+                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && (
                           <button
                             type="button"
                             onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
@@ -3137,20 +3104,6 @@ export default function AdminPage() {
                           <div className="text-sm font-bold text-slate-700">
                             日報入力計: <span className="text-blue-600 font-extrabold text-lg">{item.litering} L</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-slate-500 font-bold">¥</span>
-                            <input
-                              type="number"
-                              value={costOverrides[modalLocation]?.[item.key] ?? ''}
-                              onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                              placeholder="金額を入力"
-                              readOnly={authRole === 'viewer'}
-                              className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                            />
-                          </div>
-                        </div>
-                      ) : item.isCustomRegularYen ? (
-                        <div className="space-y-2">
                           <div className="flex items-center gap-1">
                             <span className="text-slate-500 font-bold">¥</span>
                             <input
@@ -3306,7 +3259,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                     );
-                })
+                  })
               )}
             </div>
 
@@ -3333,6 +3286,77 @@ export default function AdminPage() {
               <div className="bg-emerald-50 p-5 rounded-3xl border border-emerald-200 flex justify-between items-center shadow-2xs">
                 <span className="font-bold text-emerald-900 text-base md:text-lg">💰 スクラップ売却計 (反映中)</span>
                 <span className="text-2xl md:text-3xl font-bold text-emerald-700">+ {formatAmount(modalData.scrapTotal)}</span>
+              </div>
+
+              {authRole === 'admin' && (
+                <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3">
+                  <label className="text-sm font-bold text-slate-700 block">📝 スクラップ売却額の全体手動上書き (円)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      value={scrapOverrides[modalLocation]?.total ?? ''} 
+                      onChange={e => handleScrapOverrideChange(modalLocation, 'total', e.target.value)} 
+                      placeholder="金額を入力するとこちらが優先されます" 
+                      className="w-full p-3 border border-emerald-400 rounded-2xl text-lg font-bold bg-white text-slate-900 shadow-2xs" 
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-lg text-slate-800">📋 日報由来のスクラップ搬出明細</h4>
+                {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
+                  <p className="text-base text-slate-500 text-center py-6">スクラップ搬出データはありません</p>
+                ) : (
+                  Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
+                    const scOv = scrapOverrides[modalLocation] || {};
+                    const itemOverrideVal = scOv[key] !== undefined ? scOv[key] : '';
+
+                    return (
+                      <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3 shadow-2xs">
+                        <div className="flex justify-between items-center flex-wrap gap-2 bg-white p-3.5 rounded-2xl border border-slate-200">
+                          <div>
+                            <span className="font-bold text-lg text-slate-900">♻️ {key}</span>
+                            <span className="ml-3 text-sm font-bold text-emerald-700">数量合計: {data.quantity}</span>
+                          </div>
+                          {authRole === 'admin' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-600">この項目の金額:</span>
+                              <input 
+                                type="number" 
+                                value={itemOverrideVal} 
+                                onChange={e => handleScrapOverrideChange(modalLocation, key, e.target.value)} 
+                                placeholder="金額(円)" 
+                                className="w-32 p-2 border border-emerald-400 rounded-xl text-right text-sm font-bold bg-white" 
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-sm md:text-base">
+                            <thead>
+                              <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100">
+                                <th className="py-2.5 px-3">日付</th>
+                                <th className="py-2.5 px-3">品目</th>
+                                <th className="py-2.5 px-3 text-right">数量</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 font-medium bg-white">
+                              {data.details.map((det, dIdx) => (
+                                <tr key={dIdx} className="hover:bg-slate-50 transition">
+                                  <td className="py-2.5 px-3 font-bold">{det.date}</td>
+                                  <td className="py-2.5 px-3">{det.item}</td>
+                                  <td className="py-2.5 px-3 text-right font-bold">{det.quantity} {det.unit}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
