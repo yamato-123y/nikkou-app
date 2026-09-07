@@ -2260,11 +2260,11 @@ export default function AdminPage() {
             </div>
 
             {/* 月別燃料単価設定＆宇野気石油 分の単価設定 */}
-            <div className="bg-indigo-50/70 p-4 md:p-5 rounded-2xl border border-indigo-200 space-y-4">
+            <div className="bg-indigo-50/70 p-4 md:p-5 rounded-3xl border border-indigo-200 space-y-4 shadow-xs">
               <h4 className="font-bold text-sm md:text-base text-indigo-950">⛽ 月別 燃料単価の設定（経費自動計算用）</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 通常の軽油単価 */}
-                <div className="space-y-3 bg-white p-3.5 rounded-xl border border-indigo-100">
+                <div className="space-y-3 bg-white p-4 rounded-2xl border border-indigo-100 shadow-2xs">
                   <div className="text-xs font-bold text-slate-700">【通常 軽油単価 (円/L)】</div>
                   {modalReportYearMonths.length === 0 ? (
                     <p className="text-xs text-slate-400">対象月の日報データがありません</p>
@@ -2291,7 +2291,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* ★ 宇野気石油 分の単価設定 */}
-                <div className="space-y-3 bg-white p-3.5 rounded-xl border border-indigo-100">
+                <div className="space-y-3 bg-white p-4 rounded-2xl border border-indigo-100 shadow-2xs">
                   <div className="text-xs font-bold text-slate-700">【⛽ 宇野気石油 分 単価 (円/L)】</div>
                   {modalReportYearMonths.length === 0 ? (
                     <p className="text-xs text-slate-400">対象月の日報データがありません</p>
@@ -2321,28 +2321,28 @@ export default function AdminPage() {
 
             {/* 原価サマリー */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <span className="text-xs font-bold text-slate-500 block">請負金額 (税抜)</span>
                 <span className="text-xl font-bold text-slate-900 mt-1 block">{formatAmount(modalData.contractPrice)}</span>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <span className="text-xs font-bold text-slate-500 block">合計経費</span>
                 <span className="text-xl font-bold text-orange-600 mt-1 block">{formatAmount(modalData.total)}</span>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <span className="text-xs font-bold text-slate-500 block">スクラップ売却益</span>
                 <span className="text-xl font-bold text-emerald-600 mt-1 block">{formatAmount(modalData.scrapTotal)}</span>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <span className="text-xs font-bold text-slate-500 block">粗利（売却益込）</span>
                 <span className={`text-xl font-bold mt-1 block ${modalData.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatAmount(modalData.profit)}</span>
               </div>
             </div>
 
             {/* 経費詳細テーブル */}
-            <div className="space-y-3">
-              <h4 className="font-bold text-base text-slate-900">📋 経費・原価 内訳明細</h4>
-              <div className="overflow-x-auto">
+            <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4 shadow-xs">
+              <h4 className="font-bold text-base md:text-lg text-slate-900">📋 経費・原価 内訳明細</h4>
+              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-2xs">
                 <table className="w-full text-left border-collapse text-sm md:text-base">
                   <thead>
                     <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-50">
@@ -2406,9 +2406,9 @@ export default function AdminPage() {
             </div>
 
             {/* スクラップ売却益の内訳設定 */}
-            <div className="space-y-3 pt-2">
-              <h4 className="font-bold text-base text-slate-900">♻️ スクラップ売却益 の内訳設定</h4>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4 shadow-xs">
+              <h4 className="font-bold text-base md:text-lg text-slate-900">♻️ スクラップ売却益 の内訳設定</h4>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-slate-700">合計売却益 (上書き可):</span>
                   <input 
@@ -2427,7 +2427,7 @@ export default function AdminPage() {
                     Object.entries(modalData.aggregatedScrapBreakdown).map(([scKey, data]) => {
                       const itemOvVal = scrapOverrides[modalLocation]?.[scKey] ?? '';
                       return (
-                        <div key={scKey} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 text-sm">
+                        <div key={scKey} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm">
                           <div>
                             <span className="font-bold text-slate-800">{scKey}</span>
                             <span className="text-xs text-slate-500 ml-2">({data.quantity}kg)</span>
@@ -2453,9 +2453,9 @@ export default function AdminPage() {
 
             {/* 外注費（カスタム追加分）管理 */}
             {authRole === 'admin' && (
-              <div className="space-y-3 pt-2">
-                <h4 className="font-bold text-base text-slate-900">👤 追加外注費（マスタ外の追加など）</h4>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4 shadow-xs">
+                <h4 className="font-bold text-base md:text-lg text-slate-900">👤 追加外注費（マスタ外の追加など）</h4>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <input 
                       type="text" 
@@ -2493,7 +2493,7 @@ export default function AdminPage() {
                       <p className="text-xs text-slate-400">追加外注費はありません</p>
                     ) : (
                       (customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
-                        <div key={csIdx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 text-sm">
+                        <div key={csIdx} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm">
                           <div>
                             <span className="font-bold text-slate-800">{cs.company}</span>
                             <span className="text-xs text-slate-500 ml-2">({cs.task})</span>
