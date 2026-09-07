@@ -1758,7 +1758,6 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              {/* 重機・車両の内訳をカテゴリごとに見やすく整理 */}
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
@@ -1773,9 +1772,6 @@ export default function AdminPage() {
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
-                                  <span className="text-slate-400">なし</span>
-                                )}
                               </div>
 
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
@@ -1901,7 +1897,6 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              {/* 重機・車両の内訳をカテゴリごとに見やすく整理 */}
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
@@ -1916,9 +1911,6 @@ export default function AdminPage() {
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
                                 {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
                                 {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                                {machines.length === 0 && leaseHeavy.length === 0 && leaseAttach.length === 0 && leaseOther.length === 0 && ishikawaHeavy.length === 0 && ishikawaAttach.length === 0 && ishikawaOther.length === 0 && mokCustomMachines.length === 0 && otherLeases.length === 0 && !r.otherMachines && ownMachines.length === 0 && vehicles.length === 0 && (
-                                  <span className="text-slate-400">なし</span>
-                                )}
                               </div>
 
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
@@ -2576,3 +2568,19 @@ export default function AdminPage() {
                     })}
                   </div>
                 </div>
+              </div>
+
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setEditingReport(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-3.5 rounded-2xl font-bold text-base transition">キャンセル</button>
+              <button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3.5 rounded-2xl font-bold text-base shadow-lg shadow-orange-600/20 transition">変更を保存</button>
+            </div>
+
+          </form>
+        </div>
+      )}
+
+    </div>
+  );
+}
