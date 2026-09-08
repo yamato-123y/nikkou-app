@@ -85,6 +85,7 @@ export default function AdminPage() {
 
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
+  const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
@@ -129,6 +130,7 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
+          if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
         }
       }
     } catch (e) {  
@@ -402,6 +404,30 @@ export default function AdminPage() {
     const newData = { ...settings, scrapOverrides: newScrapOverrides };
     setSettings(newData);
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+  };
+
+  const handleMonthlyDisposalInvoiceChange = async (disposalSite: string, yearMonth: string, val: string) => {
+    if (authRole === 'viewer') return;
+
+    const key = `${disposalSite}__${yearMonth}`;
+    const updated = {
+      ...monthlyDisposalInvoices,
+      [key]: val
+    };
+
+    setMonthlyDisposalInvoices(updated);
+
+    const newData = {
+      ...settings,
+      monthlyDisposalInvoices: updated
+    };
+    setSettings(newData);
+
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newData)
+    });
   };
 
   const handleFuelUnitPriceChange = async (locName: string, yearMonth: string, val: string) => {
@@ -2343,9 +2369,50 @@ export default function AdminPage() {
 
                         return (
                           <div key={ym} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3 shadow-2xs">
-                            <div className="font-bold text-lg text-slate-900 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-                              {dSite} {dateRangeStr}
-                            </div>
+                            {(() => {
+                              const monthlyTotal = items.reduce((sum: number, it: any) => sum + Number(it.total || 0), 0);
+                              const invoiceKey = `${dSite}__${ym}`;
+                              const invoiceValue = monthlyDisposalInvoices[invoiceKey] ?? '';
+
+                              return (
+                                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+                                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
+                                    <div className="font-bold text-lg text-slate-900">
+                                      {dSite} {dateRangeStr}
+                                    </div>
+
+                                    <div className="min-w-[190px] rounded-xl border border-red-200 bg-red-50/40 px-3 py-2">
+                                      <div className="text-[11px] font-bold text-red-500 mb-0.5">日報データからの合計</div>
+                                      <div className="text-sm md:text-base font-extrabold text-red-600">
+                                        合計：{formatAmount(monthlyTotal)}
+                                      </div>
+                                    </div>
+
+                                    <div className="min-w-[230px] rounded-xl border border-blue-200 bg-blue-50/40 px-3 py-2">
+                                      <div className="text-[11px] font-bold text-blue-600 mb-1">
+                                        処分場からの請求書金額（税別）
+                                      </div>
+                                      {authRole === 'admin' ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-slate-500 font-bold">¥</span>
+                                          <input
+                                            type="number"
+                                            value={invoiceValue}
+                                            onChange={(e) => handleMonthlyDisposalInvoiceChange(dSite, ym, e.target.value)}
+                                            placeholder="請求書金額を入力"
+                                            className="w-full p-2 border border-blue-300 rounded-lg bg-white font-bold text-right text-sm"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm md:text-base font-extrabold text-blue-700 text-right">
+                                          {invoiceValue !== '' ? formatAmount(invoiceValue) : '未入力'}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             <div className="overflow-x-auto">
                               <table className="w-full text-left border-collapse text-sm md:text-base">
