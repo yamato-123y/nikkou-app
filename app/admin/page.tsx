@@ -488,6 +488,11 @@ export default function AdminPage() {
     if (authRole === 'viewer') return;
     const payload = {
       ...editingReport,
+      // 日報入力側で互換用に二重保持しているリース項目も編集内容に同期
+      machines: Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [],
+      ishikawaLeaseHeavy: Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [],
+      ishikawaLeaseAttach: Array.isArray(editingReport.ishikawaAttach) ? editingReport.ishikawaAttach : [],
+      ishikawaLeaseOther: Array.isArray(editingReport.ishikawaOther) ? editingReport.ishikawaOther : [],
       id: editingReport.id || editingReport._id
     };
     const res = await fetch('/api/reports', {
@@ -895,7 +900,7 @@ export default function AdminPage() {
   const downloadLocationCSV = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
-    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
+    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "宇野気石油 軽油L", "宇野気石油 レギュラーL", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
     const rows = locReports.map(r => {
       const workers = Array.isArray(r.workers) ? r.workers : [];
       const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
@@ -919,7 +924,7 @@ export default function AdminPage() {
         otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
         ownMachines.join('/'),
         vehicles.join('/'), 
-        r.fuel || 0, r.regularPrice || 0, r.etcPrice || 0, r.parkingPrice || 0,
+        r.fuel || 0, r.regularPrice || 0, r.unokeFuel || 0, r.unokeRegular || 0, r.etcPrice || 0, r.parkingPrice || 0,
         r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
       ];
     });
@@ -1820,6 +1825,12 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                                {r.location?.includes('旧河北郡市クリーンセンター') && (
+                                  <>
+                                    <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
+                                    <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
+                                  </>
+                                )}
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -1963,6 +1974,12 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border">
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                                {r.location?.includes('旧河北郡市クリーンセンター') && (
+                                  <>
+                                    <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
+                                    <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
+                                  </>
+                                )}
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                                 {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -2089,6 +2106,12 @@ export default function AdminPage() {
                       <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border">
                         <div>軽油: <b>{r.fuel || 0} L</b></div>
                         <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
+                        {r.location?.includes('旧河北郡市クリーンセンター') && (
+                          <>
+                            <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
+                            <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
+                          </>
+                        )}
                         <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                         <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
                         {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
@@ -2634,15 +2657,81 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-2">
-                  <label className="text-xs font-bold text-slate-700 block">【📦 その他の機械（自由入力）】</label>
-                  <input 
-                    type="text" 
-                    placeholder="例: 発電機、水中ポンプなど" 
-                    value={editingReport.otherMachines || ''} 
-                    onChange={e => setEditingReport({ ...editingReport, otherMachines: e.target.value })} 
-                    className="w-full p-3 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-slate-800 shadow-2xs" 
-                  />
+                <div className="space-y-3 pt-2 border-t border-blue-200">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-700 block">【📦 リスト以外の機械（自由入力）】</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : [];
+                        setEditingReport({
+                          ...editingReport,
+                          otherLeases: [...current, { company: '南大阪建機', name: '', count: '' }]
+                        });
+                      }}
+                      className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-blue-700 transition"
+                    >
+                      ＋ 追加
+                    </button>
+                  </div>
+
+                  {(Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : []).map((ol: any, idx: number) => (
+                    <div key={idx} className="p-3 border-2 border-blue-200 rounded-2xl bg-white">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">会社名</label>
+                          <input
+                            type="text"
+                            value={ol.company || ''}
+                            onChange={e => {
+                              const updated = [...(Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : [])];
+                              updated[idx] = { ...updated[idx], company: e.target.value };
+                              setEditingReport({ ...editingReport, otherLeases: updated });
+                            }}
+                            className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">リース内容（品名）</label>
+                          <input
+                            type="text"
+                            value={ol.name || ''}
+                            onChange={e => {
+                              const updated = [...(Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : [])];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setEditingReport({ ...editingReport, otherLeases: updated });
+                            }}
+                            className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white"
+                          />
+                        </div>
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="text-xs font-bold text-slate-700 block mb-1">個数</label>
+                            <input
+                              type="number"
+                              value={ol.count || ''}
+                              onChange={e => {
+                                const updated = [...(Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : [])];
+                                updated[idx] = { ...updated[idx], count: e.target.value };
+                                setEditingReport({ ...editingReport, otherLeases: updated });
+                              }}
+                              className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white text-right"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (Array.isArray(editingReport.otherLeases) ? editingReport.otherLeases : []).filter((_: any, i: number) => i !== idx);
+                              setEditingReport({ ...editingReport, otherLeases: updated });
+                            }}
+                            className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -2710,44 +2799,127 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 燃料・経費セクション（石川県現場の場合は宇野気石油分を表示） */}
+              {(
+                editingReport.location?.includes('旧河北郡市クリーンセンター') ||
+                editingReport.manager === '徳本' ||
+                (Array.isArray(editingReport.ishikawaCustomMachines) && editingReport.ishikawaCustomMachines.length > 0)
+              ) && (
+                <div className="bg-indigo-50/60 p-5 md:p-6 rounded-3xl border border-indigo-200 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-wider">📦 石川県 リスト以外の機械（自由入力）</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [];
+                        setEditingReport({
+                          ...editingReport,
+                          ishikawaCustomMachines: [...current, { name: '', count: '' }]
+                        });
+                      }}
+                      className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold shadow hover:bg-indigo-700 transition"
+                    >
+                      ＋ 追加
+                    </button>
+                  </div>
+
+                  {(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : []).map((ic: any, idx: number) => (
+                    <div key={idx} className="p-3 border-2 border-indigo-200 rounded-2xl bg-white">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                        <div className="md:col-span-2">
+                          <label className="text-xs font-bold text-slate-700 block mb-1">リース内容（品名）</label>
+                          <input
+                            type="text"
+                            value={ic.name || ''}
+                            onChange={e => {
+                              const updated = [...(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [])];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                            }}
+                            className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white"
+                          />
+                        </div>
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="text-xs font-bold text-slate-700 block mb-1">個数</label>
+                            <input
+                              type="number"
+                              value={ic.count || ''}
+                              onChange={e => {
+                                const updated = [...(Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : [])];
+                                updated[idx] = { ...updated[idx], count: e.target.value };
+                                setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                              }}
+                              className="w-full p-2.5 rounded-xl border font-bold text-sm bg-white text-right"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (Array.isArray(editingReport.ishikawaCustomMachines) ? editingReport.ishikawaCustomMachines : []).filter((_: any, i: number) => i !== idx);
+                              setEditingReport({ ...editingReport, ishikawaCustomMachines: updated });
+                            }}
+                            className="bg-red-100 text-red-700 px-3 py-2.5 rounded-xl font-bold text-xs"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 燃料・経費セクション */}
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">⛽ 燃料・経費</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {editingReport.location === '旧河北郡市クリーンセンター等解体工事(石川県)' ? (
+                  {editingReport.location?.includes('旧河北郡市クリーンセンター') ? (
                     <>
                       <div>
+                        <label className="text-xs font-bold text-slate-600 block mb-1.5">⛽ 軽油（大阪） (L)</label>
+                        <input type="number" value={editingReport.fuel ?? ''} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 block mb-1.5">⛽ レギュラー購入分（大阪） (円)</label>
+                        <input type="number" value={editingReport.regularPrice ?? ''} onChange={e=>setEditingReport({...editingReport, regularPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                      </div>
+                      <div>
                         <label className="text-xs font-bold text-slate-600 block mb-1.5">⛽ 宇野気石油 軽油 (L)</label>
-                        <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                        <input type="number" value={editingReport.unokeFuel ?? ''} onChange={e=>setEditingReport({...editingReport, unokeFuel: e.target.value})} className="w-full p-3.5 border border-indigo-300 rounded-2xl text-sm bg-indigo-50/40 font-bold text-right shadow-2xs" />
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-600 block mb-1.5">⛽ 宇野気石油 レギュラー (L)</label>
-                        <input type="number" value={editingReport.regularPrice || 0} onChange={e=>setEditingReport({...editingReport, regularPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                        <input type="number" value={editingReport.unokeRegular ?? ''} onChange={e=>setEditingReport({...editingReport, unokeRegular: e.target.value})} className="w-full p-3.5 border border-indigo-300 rounded-2xl text-sm bg-indigo-50/40 font-bold text-right shadow-2xs" />
                       </div>
                     </>
                   ) : (
                     <>
                       <div>
                         <label className="text-xs font-bold text-slate-600 block mb-1.5">軽油 (L)</label>
-                        <input type="number" value={editingReport.fuel || 0} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                        <input type="number" value={editingReport.fuel ?? ''} onChange={e=>setEditingReport({...editingReport, fuel: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-600 block mb-1.5">レギュラー購入分 (円)</label>
-                        <input type="number" value={editingReport.regularPrice || 0} onChange={e=>setEditingReport({...editingReport, regularPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                        <input type="number" value={editingReport.regularPrice ?? ''} onChange={e=>setEditingReport({...editingReport, regularPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                       </div>
                     </>
                   )}
+
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">高速代・ETC (円)</label>
-                    <input type="number" value={editingReport.etcPrice || 0} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                    <input type="number" value={editingReport.etcPrice ?? ''} onChange={e=>setEditingReport({...editingReport, etcPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">駐車場代 (円)</label>
-                    <input type="number" value={editingReport.parkingPrice || 0} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                    <input type="number" value={editingReport.parkingPrice ?? ''} onChange={e=>setEditingReport({...editingReport, parkingPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 (円)</label>
-                    <input type="number" value={editingReport.otherPrice || 0} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 品名・内容</label>
+                    <input type="text" value={editingReport.otherItem ?? ''} onChange={e=>setEditingReport({...editingReport, otherItem: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold shadow-2xs" placeholder="例: コーナン" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">その他雑費 金額 (円)</label>
+                    <input type="number" value={editingReport.otherPrice ?? ''} onChange={e=>setEditingReport({...editingReport, otherPrice: e.target.value})} className="w-full p-3.5 border border-slate-300 rounded-2xl text-sm bg-white font-bold text-right shadow-2xs" />
                   </div>
                 </div>
               </div>
