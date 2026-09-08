@@ -633,7 +633,11 @@ export default function AdminPage() {
     const rawFuelL = Number(r.fuel || 0);
     if (parts.length >= 2) {
       const ym = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-      const locFuelPrices = fuelUnitPrices[r.location] || {};
+      const fuelPriceLocationKey =
+        r.location && r.location.includes('旧河北郡市クリーンセンター')
+          ? '旧河北郡市クリーンセンター等解体工事(石川県)'
+          : r.location;
+      const locFuelPrices = fuelUnitPrices[fuelPriceLocationKey] || fuelUnitPrices[r.location] || {};
       const unitPrice = locFuelPrices[ym];
       if (unitPrice !== '' && unitPrice !== undefined) {
         fuelCost = rawFuelL * Number(unitPrice);
@@ -681,6 +685,7 @@ export default function AdminPage() {
     let totalRegularLitering = 0;
     let totalUnokeFuelLitering = 0;
     let totalUnokeRegularLitering = 0;
+    const monthlyFuelBreakdown: {[yearMonth: string]: { liters: number; unitPrice: number; total: number }} = {};
 
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
@@ -700,6 +705,16 @@ export default function AdminPage() {
       totalRegularLitering += Number(r.regularPrice || 0);
       totalUnokeFuelLitering += Number(r.unokeFuel || 0);
       totalUnokeRegularLitering += Number(r.unokeRegular || 0);
+
+      const fuelDateNorm = (r.date || '').replace(/\//g, '-');
+      const fuelDateParts = fuelDateNorm.split('-');
+      if (fuelDateParts.length >= 2) {
+        const fuelYm = `${fuelDateParts[0]}-${fuelDateParts[1].padStart(2, '0')}`;
+        if (!monthlyFuelBreakdown[fuelYm]) {
+          monthlyFuelBreakdown[fuelYm] = { liters: 0, unitPrice: 0, total: 0 };
+        }
+        monthlyFuelBreakdown[fuelYm].liters += Number(r.fuel || 0);
+      }
 
       Object.entries(dc.disposalBreakdown).forEach(([locKey, locData]) => {
         if (!aggregatedDisposalBreakdown[locKey]) {
@@ -784,8 +799,21 @@ export default function AdminPage() {
     const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
     const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : disposalTotal;
     const isIshikawaFuelSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
-    const osakaFuelCost = calcFuel;
-    const osakaRegularCost = calcRegular;
+
+    Object.keys(monthlyFuelBreakdown).forEach(ym => {
+      const rawUnitPrice = fuelUnitPrices[locName]?.[ym];
+      const unitPrice = rawUnitPrice !== '' && rawUnitPrice !== undefined ? Number(rawUnitPrice) : 0;
+      monthlyFuelBreakdown[ym].unitPrice = unitPrice;
+      monthlyFuelBreakdown[ym].total = monthlyFuelBreakdown[ym].liters * unitPrice;
+    });
+
+    const monthlyOsakaFuelCost = Object.values(monthlyFuelBreakdown)
+      .reduce((sum, item) => sum + item.total, 0);
+
+    const osakaFuelCost = isIshikawaFuelSplit ? monthlyOsakaFuelCost : calcFuel;
+    const osakaRegularCost = isIshikawaFuelSplit
+      ? (ov.osakaRegular !== '' && ov.osakaRegular !== undefined ? Number(ov.osakaRegular) : 0)
+      : calcRegular;
     const unokeFuelCost = isIshikawaFuelSplit && ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : 0;
     const unokeRegularCost = isIshikawaFuelSplit && ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : 0;
     const fuelCost = isIshikawaFuelSplit
@@ -861,7 +889,8 @@ export default function AdminPage() {
       totalFuelLitering,
       totalRegularLitering,
       totalUnokeFuelLitering,
-      totalUnokeRegularLitering
+      totalUnokeRegularLitering,
+      monthlyFuelBreakdown
     };
   };
 
@@ -2934,27 +2963,54 @@ export default function AdminPage() {
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ 燃料代（大阪）</div>
                     <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalFuelLitering} L</span>
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalFuelLitering || 0).toLocaleString('ja-JP')} L</span>
                     </div>
-                    <div className="text-xl md:text-2xl font-bold text-slate-900">
-                      {formatAmount(modalData.osakaFuelCost)}
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-slate-500">月別合計</div>
+                      {Object.entries(modalData.monthlyFuelBreakdown || {})
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([ym, item]: [string, any]) => (
+                          <div key={ym} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs md:text-sm">
+                            <div className="font-bold text-slate-700">{ym}</div>
+                            <div className="text-slate-600 mt-1">
+                              {Number(item.liters || 0).toLocaleString('ja-JP')} L × ¥{Number(item.unitPrice || 0).toLocaleString('ja-JP')}
+                            </div>
+                            <div className="font-extrabold text-slate-900 mt-1">
+                              {formatAmount(item.total || 0)}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="border-t border-slate-200 pt-3">
+                      <div className="text-xs font-bold text-slate-500 mb-1">大阪軽油 合計金額</div>
+                      <div className="text-xl md:text-2xl font-bold text-slate-900">
+                        {formatAmount(modalData.osakaFuelCost)}
+                      </div>
                     </div>
                   </div>
 
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ レギュラー購入分（大阪）</div>
                     <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{formatAmount(modalData.totalRegularLitering)}</span>
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalRegularLitering || 0).toLocaleString('ja-JP')} L</span>
                     </div>
-                    <div className="text-xl md:text-2xl font-bold text-slate-900">
-                      {formatAmount(modalData.osakaRegularCost)}
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-500 font-bold">¥</span>
+                      <input
+                        type="number"
+                        value={costOverrides[modalLocation]?.osakaRegular ?? ''}
+                        onChange={(e) => handleCostOverrideChange(modalLocation, 'osakaRegular', e.target.value)}
+                        placeholder="金額を入力"
+                        readOnly={authRole === 'viewer'}
+                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
                     </div>
                   </div>
 
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：軽油</div>
                     <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalUnokeFuelLitering} L</span>
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalUnokeFuelLitering || 0).toLocaleString('ja-JP')} L</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-slate-500 font-bold">¥</span>
@@ -2972,7 +3028,7 @@ export default function AdminPage() {
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：レギュラー</div>
                     <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalUnokeRegularLitering} L</span>
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalUnokeRegularLitering || 0).toLocaleString('ja-JP')} L</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-slate-500 font-bold">¥</span>
