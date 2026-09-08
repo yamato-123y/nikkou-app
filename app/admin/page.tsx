@@ -5762,146 +5762,6 @@ export default function AdminPage() {
 
 
 
-            {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-
-              <div className="bg-indigo-50 p-4 md:p-6 rounded-2xl border border-indigo-200 space-y-4 shadow-2xs">
-
-                <div className="flex items-center gap-2 font-bold text-indigo-900 text-base md:text-xl">
-
-                  <span>⛽ 宇野気石油（石川県）分・燃料代(大阪)・レギュラー購入分(大阪)</span>
-
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-
-                  <div className="bg-white p-4 rounded-xl border border-indigo-200 space-y-2">
-
-                    <div className="text-sm font-bold text-slate-700">⛽ 軽油（大阪府）</div>
-
-                    <div className="text-xs text-slate-500 font-medium">日報入力数: <span className="text-blue-600 font-bold">{modalData.totalFuelLitering} L</span></div>
-
-                    <div className="flex items-center gap-1">
-
-                      <span className="text-slate-500 font-bold">¥</span>
-
-                      <input
-
-                        type="number"
-
-                        value={costOverrides[modalLocation]?.fuel ?? ''}
-
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'fuel', e.target.value)}
-
-                        placeholder="金額を入力"
-
-                        readOnly={authRole === 'viewer'}
-
-                        className={`w-full p-2.5 border border-indigo-300 rounded-xl font-bold text-right bg-slate-50 text-base ${authRole === 'viewer' ? 'cursor-not-allowed' : ''}`}
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl border border-indigo-200 space-y-2">
-
-                    <div className="text-sm font-bold text-slate-700">⛽ レギュラー（大阪府）</div>
-
-                    <div className="text-xs text-slate-500 font-medium">日報入力数: <span className="text-blue-600 font-bold">{modalData.totalRegularLitering} L</span></div>
-
-                    <div className="flex items-center gap-1">
-
-                      <span className="text-slate-500 font-bold">¥</span>
-
-                      <input
-
-                        type="number"
-
-                        value={costOverrides[modalLocation]?.regular ?? ''}
-
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'regular', e.target.value)}
-
-                        placeholder="金額を入力"
-
-                        readOnly={authRole === 'viewer'}
-
-                        className={`w-full p-2.5 border border-indigo-300 rounded-xl font-bold text-right bg-slate-50 text-base ${authRole === 'viewer' ? 'cursor-not-allowed' : ''}`}
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl border border-indigo-200 space-y-2">
-
-                    <div className="text-sm font-bold text-slate-700">⛽ 宇野気石油（石川県）：軽油</div>
-
-                    <div className="text-xs text-slate-500 font-medium">日報入力数: <span className="text-blue-600 font-bold">{modalData.totalFuelLitering} L</span></div>
-
-                    <div className="flex items-center gap-1">
-
-                      <span className="text-slate-500 font-bold">¥</span>
-
-                      <input
-
-                        type="number"
-
-                        value={costOverrides[modalLocation]?.ishikawaFuel ?? ''}
-
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'ishikawaFuel', e.target.value)}
-
-                        placeholder="金額を入力"
-
-                        readOnly={authRole === 'viewer'}
-
-                        className={`w-full p-2.5 border border-indigo-300 rounded-xl font-bold text-right bg-slate-50 text-base ${authRole === 'viewer' ? 'cursor-not-allowed' : ''}`}
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl border border-indigo-200 space-y-2">
-
-                    <div className="text-sm font-bold text-slate-700">⛽ 宇野気石油（石川県）：レギュラー</div>
-
-                    <div className="text-xs text-slate-500 font-medium">日報入力数: <span className="text-blue-600 font-bold">{modalData.totalRegularLitering} L</span></div>
-
-                    <div className="flex items-center gap-1">
-
-                      <span className="text-slate-500 font-bold">¥</span>
-
-                      <input
-
-                        type="number"
-
-                        value={costOverrides[modalLocation]?.ishikawaRegular ?? ''}
-
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'ishikawaRegular', e.target.value)}
-
-                        placeholder="金額を入力"
-
-                        readOnly={authRole === 'viewer'}
-
-                        className={`w-full p-2.5 border border-indigo-300 rounded-xl font-bold text-right bg-slate-50 text-base ${authRole === 'viewer' ? 'cursor-not-allowed' : ''}`}
-
-                      />
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            )}
-
-
-
             <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
 
               <div 
@@ -6204,7 +6064,37 @@ export default function AdminPage() {
 
                 { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
 
-                ...(modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? [] : [
+                ...(modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? [
+
+                  { 
+
+                    key: 'fuel', 
+
+                    label: '⛽ 宇野気石油（石川県）：軽油', 
+
+                    val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost,
+
+                    isCustomFuel: true,
+
+                    litering: modalData.totalFuelLitering
+
+                  },
+
+                  { 
+
+                    key: 'regular', 
+
+                    label: '⛽ 宇野気石油（石川県）：レギュラー', 
+
+                    val: costOverrides[modalLocation]?.regular ?? modalData.regularCost,
+
+                    isCustomRegular: true,
+
+                    litering: modalData.totalRegularLitering
+
+                  }
+
+                ] : [
 
                   { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
 
@@ -6250,7 +6140,7 @@ export default function AdminPage() {
 
                         )}
 
-                        {authRole === 'admin' && (
+                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && (
 
                           <button
 
@@ -6276,7 +6166,75 @@ export default function AdminPage() {
 
                     <div className="flex flex-col gap-2">
 
-                      {isEditing ? (
+                      {item.isCustomFuel ? (
+
+                        <div className="space-y-2">
+
+                          <div className="text-sm font-bold text-slate-700">
+
+                            日報入力計: <span className="text-blue-600 font-extrabold text-lg">{item.litering} L</span>
+
+                          </div>
+
+                          <div className="flex items-center gap-1">
+
+                            <span className="text-slate-500 font-bold">¥</span>
+
+                            <input
+
+                              type="number"
+
+                              value={costOverrides[modalLocation]?.[item.key] ?? ''}
+
+                              onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+
+                              placeholder="金額を入力"
+
+                              readOnly={authRole === 'viewer'}
+
+                              className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+
+                            />
+
+                          </div>
+
+                        </div>
+
+                      ) : item.isCustomRegular ? (
+
+                        <div className="space-y-2">
+
+                          <div className="text-sm font-bold text-slate-700">
+
+                            日報入力計: <span className="text-blue-600 font-extrabold text-lg">{item.litering} L</span>
+
+                          </div>
+
+                          <div className="flex items-center gap-1">
+
+                            <span className="text-slate-500 font-bold">¥</span>
+
+                            <input
+
+                              type="number"
+
+                              value={costOverrides[modalLocation]?.[item.key] ?? ''}
+
+                              onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+
+                              placeholder="金額を入力"
+
+                              readOnly={authRole === 'viewer'}
+
+                              className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+
+                            />
+
+                          </div>
+
+                        </div>
+
+                      ) : isEditing ? (
 
                         <div className="flex items-center gap-1 w-full">
 
@@ -6317,6 +6275,60 @@ export default function AdminPage() {
               })}
 
             </div>
+
+
+
+            {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
+
+              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+
+                <div className="flex justify-between items-center flex-wrap gap-3">
+
+                  <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 大阪の燃料項目（参考）</h3>
+
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
+
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+
+                    <div className="flex justify-between items-center">
+
+                      <span className="text-base md:text-lg font-bold text-slate-700">燃料代 (大阪)</span>
+
+                    </div>
+
+                    <div className="text-sm font-bold text-slate-700">
+
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalFuelLitering} L</span>
+
+                    </div>
+
+                  </div>
+
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+
+                    <div className="flex justify-between items-center">
+
+                      <span className="text-base md:text-lg font-bold text-slate-700">レギュラー購入分 (大阪)</span>
+
+                    </div>
+
+                    <div className="text-sm font-bold text-slate-700">
+
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalRegularLitering} L</span>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            )}
+
+
 
           </div>
 
@@ -6562,7 +6574,7 @@ export default function AdminPage() {
 
                     );
 
-                })
+                  })
 
               )}
 
@@ -6596,9 +6608,9 @@ export default function AdminPage() {
 
               <div>
 
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却額の内訳・入力</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却の内訳・金額入力</h3>
 
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">{modalLocation} のスクラップ売却額を入力・調整します</p>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">{modalLocation} のスクラップ売却内訳と金額の設定を行います</p>
 
               </div>
 
@@ -6610,27 +6622,29 @@ export default function AdminPage() {
 
             <div className="space-y-6">
 
-              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 space-y-3">
+              <div className="bg-emerald-50 p-4 md:p-5 rounded-2xl border border-emerald-200 space-y-3">
 
-                <div className="text-sm font-bold text-emerald-900">💡 スクラップ売却計（全体の手動上書き）</div>
+                <div className="font-bold text-emerald-900 text-base md:text-lg">💰 スクラップ売却計（総合計の手動上書き）</div>
+
+                <p className="text-xs md:text-sm text-emerald-700 font-medium">金額を直接上書きして設定することも可能です。</p>
 
                 <div className="flex items-center gap-2">
 
-                  <span className="text-emerald-800 font-bold">＋ ¥</span>
+                  <span className="text-emerald-800 font-bold text-lg">+ ¥</span>
 
                   <input 
 
                     type="number" 
 
-                    value={scrapOverrides[modalLocation]?.total !== undefined ? scrapOverrides[modalLocation].total : ''} 
+                    value={scrapOverrides[modalLocation]?.total ?? modalData.scrapTotal} 
 
-                    onChange={e => handleScrapOverrideChange(modalLocation, 'total', e.target.value)} 
-
-                    placeholder="売却計を直接入力" 
+                    onChange={e => handleScrapOverrideChange(modalLocation, 'total', e.target.value)}
 
                     readOnly={authRole === 'viewer'}
 
-                    className={`w-full p-3 border border-emerald-300 rounded-xl text-lg font-bold bg-white text-emerald-900 ${authRole === 'viewer' ? 'cursor-not-allowed bg-slate-100' : ''}`}
+                    placeholder="例: 150000"
+
+                    className={`w-full max-w-xs p-3 border border-emerald-400 rounded-xl text-xl font-bold text-right bg-white ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
 
                   />
 
@@ -6642,29 +6656,33 @@ export default function AdminPage() {
 
               <div className="space-y-4">
 
-                <h4 className="font-bold text-lg text-slate-900">📋 日報由来のスクラップ搬出数量一覧</h4>
+                <h4 className="font-bold text-lg text-slate-800">📋 日報ごとのスクラップ搬出明細</h4>
 
                 {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
 
-                  <p className="text-base text-slate-500 text-center py-6">スクラップ搬出データはありません</p>
+                  <p className="text-base text-slate-500 text-center py-8">スクラップ搬出データはありません</p>
 
                 ) : (
 
                   Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
 
-                    const currentOverride = scrapOverrides[modalLocation]?.[key] !== undefined ? scrapOverrides[modalLocation][key] : '';
+                    const scOv = scrapOverrides[modalLocation] || {};
+
+                    const currentOverride = scOv[key] !== undefined ? scOv[key] : '';
+
+
 
                     return (
 
-                      <div key={key} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
 
-                        <div className="flex justify-between items-center flex-wrap gap-2">
+                        <div className="flex justify-between items-center flex-wrap gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
 
                           <div>
 
-                            <span className="font-bold text-base text-slate-800">♻️ {key}</span>
+                            <h5 className="font-bold text-lg text-slate-900">♻️ {key}</h5>
 
-                            <div className="text-sm text-emerald-700 font-bold mt-0.5">累計数量: {data.quantity}</div>
+                            <span className="text-sm font-bold text-emerald-700">合計数量: {data.quantity}</span>
 
                           </div>
 
@@ -6682,7 +6700,7 @@ export default function AdminPage() {
 
                                 onChange={e => handleScrapOverrideChange(modalLocation, key, e.target.value)} 
 
-                                placeholder="金額(円)" 
+                                placeholder="金額" 
 
                                 className="w-32 p-2 border border-emerald-400 rounded-xl text-right text-sm font-bold bg-white" 
 
@@ -6691,6 +6709,48 @@ export default function AdminPage() {
                             </div>
 
                           )}
+
+                        </div>
+
+
+
+                        <div className="overflow-x-auto">
+
+                          <table className="w-full text-left border-collapse text-sm md:text-base">
+
+                            <thead>
+
+                              <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100">
+
+                                <th className="py-2.5 px-3">日付</th>
+
+                                <th className="py-2.5 px-3">品目</th>
+
+                                <th className="py-2.5 px-3 text-right">数量</th>
+
+                              </tr>
+
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-200 font-medium">
+
+                              {data.details.map((detail, dIdx) => (
+
+                                <tr key={dIdx} className="bg-white hover:bg-slate-50 transition">
+
+                                  <td className="py-3 px-3 font-bold">{detail.date}</td>
+
+                                  <td className="py-3 px-3">{detail.item}</td>
+
+                                  <td className="py-3 px-3 text-right font-bold">{detail.quantity} {detail.unit}</td>
+
+                                </tr>
+
+                              ))}
+
+                            </tbody>
+
+                          </table>
 
                         </div>
 
