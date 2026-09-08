@@ -2900,6 +2900,36 @@ export default function AdminPage() {
                   <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 燃料内訳（大阪・石川県）</h3>
                 </div>
 
+                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
+                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
+                  <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代（大阪）」に自動反映されます。</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                    {modalReportYearMonths.length === 0 ? (
+                      <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
+                    ) : (
+                      modalReportYearMonths.map(ym => {
+                        const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
+                        return (
+                          <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
+                            <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm text-slate-500 font-bold">¥</span>
+                              <input 
+                                type="number" 
+                                value={currentPrice} 
+                                onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
+                                readOnly={authRole === 'viewer'}
+                                placeholder="例: 145"
+                                className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ 燃料代（大阪）</div>
