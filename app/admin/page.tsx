@@ -2959,7 +2959,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+                <div className="grid grid-cols-1 gap-3 md:gap-5">
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ 燃料代（大阪）</div>
                     <div className="text-sm font-bold text-slate-700">
