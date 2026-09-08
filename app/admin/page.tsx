@@ -19,6 +19,11 @@ const formatAmount = (num: number | string, includeYen = true) => {
   );
 };
 
+const getCurrentYearMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const getDayInfo = (dateStr: string) => {
   if (!dateStr || typeof dateStr !== 'string') return { dayOfWeek: 0, isHoliday: false };
   const parts = dateStr.split('-');
@@ -104,10 +109,7 @@ export default function AdminPage() {
 
   const [calendarReportModal, setCalendarReportModal] = useState<{ date: string; location: string; reports: any[] } | null>(null);
 
-  const [calendarYearMonth, setCalendarYearMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [calendarYearMonth, setCalendarYearMonth] = useState(() => getCurrentYearMonth());
 
   const fetchData = async () => {
     try {
@@ -116,17 +118,6 @@ export default function AdminPage() {
       if (resR.ok) {
         const rData = await resR.json();
         setReports(rData);
-        if (rData && rData.length > 0) {
-          const dates = rData.map((r: any) => r.date).filter(Boolean).sort();
-          const latestDate = dates[dates.length - 1];
-          if (latestDate) {
-            const normalized = latestDate.replace(/\//g, '-');
-            const parts = normalized.split('-');
-            if (parts.length >= 2) {
-              setCalendarYearMonth(`${parts[0]}-${parts[1].padStart(2, '0')}`);
-            }
-          }
-        }
       }
       if (resS.ok) {
         const sData = await resS.json();
@@ -154,7 +145,8 @@ export default function AdminPage() {
     if (targetPassword === '19770323') {
       setIsAuthed(true);
       setAuthRole(role);
-      if (role === 'admin') setShowAdminSection(true);
+      // 管理者ログイン時もマスタ設定は閉じた状態から開始
+      setShowAdminSection(false);
     } else {
       alert('パスワードが間違っています。');
     }
@@ -1364,7 +1356,12 @@ export default function AdminPage() {
               </div>
             )}
             <button 
-              onClick={() => setShowCalendarSection(!showCalendarSection)}
+              onClick={() => {
+                if (!showCalendarSection) {
+                  setCalendarYearMonth(getCurrentYearMonth());
+                }
+                setShowCalendarSection(!showCalendarSection);
+              }}
               className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 rounded-xl font-bold text-sm md:text-base transition"
             >
               {showCalendarSection ? '📅 出勤確認表を隠す ▲' : '📅 出勤確認表を開く ▼'}
