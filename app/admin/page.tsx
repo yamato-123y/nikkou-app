@@ -904,6 +904,20 @@ export default function AdminPage() {
       scrapTotalCalc += dc.scrapC;
     });
 
+    // 手動上書きや管理画面からの追加を反映する前の「日報由来の概算」を保持
+    const reportEstimateLabor = calcLabor;
+    const reportEstimateSub = calcSub;
+    const reportEstimateLease = calcLease;
+    const reportEstimateOtherLease = calcOtherLease;
+    const reportEstimateOwnMachine = calcOwnMachine;
+    const reportEstimateVehicle = calcVehicle;
+    const reportEstimateDisposal = calcDispCalc;
+    const reportEstimateFuel = calcFuel;
+    const reportEstimateRegular = calcRegular;
+    const reportEstimateEtc = calcEtc;
+    const reportEstimateParking = calcParking;
+    const reportEstimateOther = calcOther;
+
     const customSubsList = customSubcontractors[locName] || [];
     const customSubsTotal = customSubsList.reduce((acc: number, cur: any) => acc + (Number(cur.price) || 0), 0);
     calcSub += customSubsTotal;
@@ -1015,12 +1029,31 @@ export default function AdminPage() {
     }
 
     const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
+
+    // 「日報由来概算合計」は costOverrides / disposalOverrides / 管理画面手入力を含めない。
+    // 石川県案件の宇野気石油分は日報に金額が無いため、概算側では0円のまま。
+    const reportEstimatedTotal =
+      reportEstimateLabor +
+      reportEstimateSub +
+      reportEstimateLease +
+      reportEstimateOtherLease +
+      reportEstimateOwnMachine +
+      reportEstimateVehicle +
+      reportEstimateDisposal +
+      (isIshikawaFuelSplit ? osakaFuelCost : reportEstimateFuel) +
+      reportEstimateRegular +
+      reportEstimateEtc +
+      reportEstimateParking +
+      reportEstimateOther;
+
     const matchedLocObj = (settings.locations || []).find((l: any) => (typeof l === 'string' ? l : l.name) === locName);
     const baseContractPrice = matchedLocObj?.price || 0;
     const isFinished = typeof matchedLocObj === 'object' ? matchedLocObj?.isFinished || false : false;
 
     const profitWithoutScrap = baseContractPrice - sumOverrideCost;
     const profit = profitWithoutScrap + scrapTotal;
+    const reportEstimatedProfitWithoutScrap = baseContractPrice - reportEstimatedTotal;
+    const reportEstimatedProfit = reportEstimatedProfitWithoutScrap + scrapTotal;
 
     const clients = Array.from(new Set(locMapped.map((r: any) => r.client).filter(Boolean)));
     const startDates = Array.from(new Set(locMapped.map((r: any) => r.startDate).filter(Boolean))).sort();
@@ -1050,11 +1083,26 @@ export default function AdminPage() {
       otherCost, 
       scrapTotal,
       aggregatedScrapBreakdown,
-      total: sumOverrideCost, 
+      total: sumOverrideCost,
+      reportEstimatedTotal,
+      reportEstimateLabor,
+      reportEstimateSub,
+      reportEstimateLease,
+      reportEstimateOtherLease,
+      reportEstimateOwnMachine,
+      reportEstimateVehicle,
+      reportEstimateDisposal,
+      reportEstimateFuel: isIshikawaFuelSplit ? osakaFuelCost : reportEstimateFuel,
+      reportEstimateRegular,
+      reportEstimateEtc,
+      reportEstimateParking,
+      reportEstimateOther,
       contractPrice: baseContractPrice, 
       isFinished,
-      profit, 
-      profitWithoutScrap, 
+      profit,
+      profitWithoutScrap,
+      reportEstimatedProfit,
+      reportEstimatedProfitWithoutScrap,
       reportsWithIndex: locMapped,
       clientStr: clients.join(', ') || '',
       startDateStr: startDates[0] || '',
@@ -3280,7 +3328,19 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
               <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
-              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div><div className="text-xl md:text-3xl font-bold text-emerald-800 mt-1.5">{formatAmount(modalData.total)}</div></div>
+              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200">
+                <div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div>
+                <div className="mt-2 space-y-2 text-left">
+                  <div>
+                    <div className="text-[11px] md:text-xs font-bold text-slate-500">日報由来の概算</div>
+                    <div className="text-lg md:text-2xl font-bold text-slate-700">{formatAmount(modalData.reportEstimatedTotal)}</div>
+                  </div>
+                  <div className="border-t border-emerald-200 pt-2">
+                    <div className="text-[11px] md:text-xs font-bold text-emerald-700">確定・手動上書き反映後</div>
+                    <div className="text-xl md:text-3xl font-bold text-emerald-800">{formatAmount(modalData.total)}</div>
+                  </div>
+                </div>
+              </div>
               <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">{formatAmount(modalData.profit)}</div></div>
               <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
@@ -3565,22 +3625,21 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
               {[
-                { key: 'labor', label: '社員人件費', val: costOverrides[modalLocation]?.labor ?? modalData.laborCost },
-                { key: 'sub', label: '外注人件費', val: costOverrides[modalLocation]?.sub ?? modalData.subCostTotal },
-                { key: 'lease', label: 'リース合計', val: costOverrides[modalLocation]?.lease ?? modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
-                { key: 'otherLease', label: 'その他リース', val: costOverrides[modalLocation]?.otherLease ?? modalData.otherLeaseCost },
-                { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
-                { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
-                { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
+                { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost },
+                { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSub, val: modalData.subCostTotal },
+                { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
+                { key: 'otherLease', label: 'その他リース', estimate: modalData.reportEstimateOtherLease, val: modalData.otherLeaseCost },
+                { key: 'ownMachine', label: '自社重機', estimate: modalData.reportEstimateOwnMachine, val: modalData.ownMachineCost },
+                { key: 'vehicle', label: '自社車両', estimate: modalData.reportEstimateVehicle, val: modalData.vehicleCost },
+                { key: 'disposal', label: '🗑️ 処分費 (合計)', estimate: modalData.reportEstimateDisposal, val: modalData.disposalCost, isDisposal: true },
                 ...(modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' ? [
-                  { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
-                  { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost }
+                  { key: 'fuel', label: '燃料代 (軽油・月別単価)', estimate: modalData.reportEstimateFuel, val: modalData.fuelCost },
+                  { key: 'regular', label: 'レギュラー購入分', estimate: modalData.reportEstimateRegular, val: modalData.regularCost }
                 ] : []),
-                { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
-                { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
-                { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
+                { key: 'etc', label: '高速代・ETC', estimate: modalData.reportEstimateEtc, val: modalData.etcCost },
+                { key: 'parking', label: '駐車場代', estimate: modalData.reportEstimateParking, val: modalData.parkingCost },
+                { key: 'other', label: 'その他雑費', estimate: modalData.reportEstimateOther, val: modalData.otherCost },
               ].map((item) => {
-                const isEditing = editingCostFields[modalLocation]?.[item.key];
                 return (
                   <div key={item.key} className={`bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
@@ -3595,15 +3654,7 @@ export default function AdminPage() {
                             詳細
                           </button>
                         )}
-                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && !item.isIshikawaSpecial && (
-                          <button
-                            type="button"
-                            onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
-                            className="text-xs text-blue-600 hover:text-blue-800 underline font-bold"
-                          >
-                            {isEditing ? '完了' : '手動上書き'}
-                          </button>
-                        )}
+
                       </div>
                     </div>
 
@@ -3642,20 +3693,50 @@ export default function AdminPage() {
                             />
                           </div>
                         </div>
-                      ) : isEditing ? (
-                        <div className="flex items-center gap-1 w-full">
-                          <span className="text-slate-500 font-bold">¥</span>
-                          <input
-                            type="number"
-                            value={costOverrides[modalLocation]?.[item.key] ?? ''}
-                            onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                            placeholder="上書き金額"
-                            className="w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base"
-                          />
+                      ) : item.isIshikawaSpecial ? (
+                        <div className="space-y-2">
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                            <div className="text-xs font-bold text-slate-500">日報由来の概算</div>
+                            <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
+                          </div>
+                          <div className="text-xs font-bold text-indigo-700">
+                            確定・反映金額: {formatAmount(item.val || 0)}
+                            <span className="ml-1">※詳細から石川県分・MOK分を個別入力</span>
+                          </div>
                         </div>
                       ) : (
-                        <div className="text-xl md:text-2xl font-bold text-slate-900">
-                          {formatAmount(item.val || 0)}
+                        <div className="space-y-3">
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                            <div className="text-xs font-bold text-slate-500">日報由来の概算</div>
+                            <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-bold text-blue-700 mb-1.5">確定金額（請求書等を確認後に入力）</div>
+                            {authRole === 'admin' ? (
+                              <div className="flex items-center gap-1 w-full">
+                                <span className="text-slate-500 font-bold">¥</span>
+                                <input
+                                  type="number"
+                                  value={costOverrides[modalLocation]?.[item.key] ?? ''}
+                                  onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+                                  placeholder={`未入力：概算 ${Number(item.estimate || 0).toLocaleString('ja-JP')}円`}
+                                  className="w-full p-2.5 border border-blue-400 rounded-xl font-bold text-right bg-blue-50/40 text-base"
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-lg md:text-xl font-bold text-blue-800">
+                                {costOverrides[modalLocation]?.[item.key] !== '' && costOverrides[modalLocation]?.[item.key] !== undefined
+                                  ? formatAmount(costOverrides[modalLocation][item.key])
+                                  : <span className="text-slate-400 text-sm">未入力（概算を使用）</span>}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="border-t border-slate-200 pt-2">
+                            <div className="text-xs font-bold text-emerald-700">現在の原価計算への反映額</div>
+                            <div className="text-lg md:text-xl font-bold text-emerald-800 mt-0.5">{formatAmount(item.val || 0)}</div>
+                          </div>
                         </div>
                       )}
                     </div>
