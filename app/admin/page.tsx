@@ -923,7 +923,23 @@ export default function AdminPage() {
     const ov = costOverrides[locName] || {};
     const laborCost = ov.labor !== '' && ov.labor !== undefined ? Number(ov.labor) : calcLabor;
     const subCostTotal = ov.sub !== '' && ov.sub !== undefined ? Number(ov.sub) : calcSub;
-    const leaseCost = ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease;
+
+    const isIshikawaLeaseSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
+    const ishikawaLeaseCost =
+      isIshikawaLeaseSplit && ov.ishikawaLease !== '' && ov.ishikawaLease !== undefined
+        ? Number(ov.ishikawaLease)
+        : calcIshikawaLease;
+    const mokLeaseCost =
+      isIshikawaLeaseSplit && ov.mokLease !== '' && ov.mokLease !== undefined
+        ? Number(ov.mokLease)
+        : calcMokLease;
+
+    // 旧河北郡市クリーンセンターだけは、石川県分＋MOK分を個別編集した結果をリース合計へ反映。
+    // 他の現場は従来どおり lease の一括手動上書きを使用する。
+    const leaseCost = isIshikawaLeaseSplit
+      ? ishikawaLeaseCost + mokLeaseCost
+      : (ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease);
+
     const otherLeaseCost = ov.otherLease !== '' && ov.otherLease !== undefined ? Number(ov.otherLease) : calcOtherLease;
     const ownMachineCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
     const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
@@ -991,6 +1007,8 @@ export default function AdminPage() {
       otherLeaseCost,
       calcIshikawaLease,
       calcMokLease,
+      ishikawaLeaseCost,
+      mokLeaseCost,
       ownMachineCost,
       vehicleCost,
       disposalCost, 
@@ -3510,7 +3528,7 @@ export default function AdminPage() {
                             詳細
                           </button>
                         )}
-                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && (
+                        {authRole === 'admin' && !item.isCustomFuel && !item.isCustomRegular && !item.isIshikawaSpecial && (
                           <button
                             type="button"
                             onClick={() => toggleCostFieldEdit(modalLocation, item.key)}
@@ -3597,10 +3615,38 @@ export default function AdminPage() {
 
             <div className="space-y-5">
               <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-200 space-y-3">
-                <div className="flex justify-between items-center gap-3">
-                  <span className="font-bold text-indigo-900 text-base">🗾 石川県出張用リース機器合計</span>
-                  <span className="text-xl font-bold text-indigo-700">{formatAmount(modalData.calcIshikawaLease)}</span>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                  <div>
+                    <span className="font-bold text-indigo-900 text-base">🗾 石川県出張用リース機器合計</span>
+                    <div className="text-xs text-indigo-700 mt-1">
+                      自動計算: {formatAmount(modalData.calcIshikawaLease)}
+                    </div>
+                  </div>
+
+                  {authRole === 'admin' ? (
+                    <div className="flex items-center gap-2 md:w-[260px]">
+                      <span className="font-bold text-indigo-700">¥</span>
+                      <input
+                        type="number"
+                        value={costOverrides[modalLocation]?.ishikawaLease ?? ''}
+                        onChange={(e) => handleCostOverrideChange(modalLocation, 'ishikawaLease', e.target.value)}
+                        placeholder={String(modalData.calcIshikawaLease || 0)}
+                        className="w-full p-2.5 border border-indigo-300 rounded-xl bg-white font-bold text-right text-base"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xl font-bold text-indigo-700">{formatAmount(modalData.ishikawaLeaseCost)}</span>
+                  )}
                 </div>
+
+                {authRole === 'admin' && (
+                  <div className="text-xs text-indigo-700 font-bold">
+                    反映金額: {formatAmount(modalData.ishikawaLeaseCost)}
+                    {costOverrides[modalLocation]?.ishikawaLease !== '' && costOverrides[modalLocation]?.ishikawaLease !== undefined
+                      ? '（手動上書き中）'
+                      : '（自動計算）'}
+                  </div>
+                )}
 
                 <div className="border-t border-indigo-200 pt-3 space-y-2">
                   {modalLeaseDetails.ishikawa.length === 0 ? (
@@ -3630,10 +3676,38 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 space-y-3">
-                <div className="flex justify-between items-center gap-3">
-                  <span className="font-bold text-blue-900 text-base">🔹 南大阪建機(MOK) 通常リース合計</span>
-                  <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.calcMokLease)}</span>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                  <div>
+                    <span className="font-bold text-blue-900 text-base">🔹 南大阪建機(MOK) 通常リース合計</span>
+                    <div className="text-xs text-blue-700 mt-1">
+                      自動計算: {formatAmount(modalData.calcMokLease)}
+                    </div>
+                  </div>
+
+                  {authRole === 'admin' ? (
+                    <div className="flex items-center gap-2 md:w-[260px]">
+                      <span className="font-bold text-blue-700">¥</span>
+                      <input
+                        type="number"
+                        value={costOverrides[modalLocation]?.mokLease ?? ''}
+                        onChange={(e) => handleCostOverrideChange(modalLocation, 'mokLease', e.target.value)}
+                        placeholder={String(modalData.calcMokLease || 0)}
+                        className="w-full p-2.5 border border-blue-300 rounded-xl bg-white font-bold text-right text-base"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.mokLeaseCost)}</span>
+                  )}
                 </div>
+
+                {authRole === 'admin' && (
+                  <div className="text-xs text-blue-700 font-bold">
+                    反映金額: {formatAmount(modalData.mokLeaseCost)}
+                    {costOverrides[modalLocation]?.mokLease !== '' && costOverrides[modalLocation]?.mokLease !== undefined
+                      ? '（手動上書き中）'
+                      : '（自動計算）'}
+                  </div>
+                )}
 
                 <div className="border-t border-blue-200 pt-3 space-y-2">
                   {modalLeaseDetails.mok.length === 0 ? (
