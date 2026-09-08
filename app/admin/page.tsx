@@ -679,6 +679,8 @@ export default function AdminPage() {
     let calcFuel = 0, calcRegular = 0, calcEtc = 0, calcParking = 0, calcOther = 0, scrapTotalCalc = 0;
     let totalFuelLitering = 0;
     let totalRegularLitering = 0;
+    let totalUnokeFuelLitering = 0;
+    let totalUnokeRegularLitering = 0;
 
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
@@ -696,6 +698,8 @@ export default function AdminPage() {
       calcDispCalc += dc.dispC;
       totalFuelLitering += Number(r.fuel || 0);
       totalRegularLitering += Number(r.regularPrice || 0);
+      totalUnokeFuelLitering += Number(r.unokeFuel || 0);
+      totalUnokeRegularLitering += Number(r.unokeRegular || 0);
 
       Object.entries(dc.disposalBreakdown).forEach(([locKey, locData]) => {
         if (!aggregatedDisposalBreakdown[locKey]) {
@@ -779,8 +783,17 @@ export default function AdminPage() {
     const ownMachineCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
     const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
     const disposalCost = ov.disposal !== '' && ov.disposal !== undefined ? Number(ov.disposal) : disposalTotal;
-    const fuelCost = ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel;
-    const regularCost = ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular;
+    const isIshikawaFuelSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
+    const osakaFuelCost = calcFuel;
+    const osakaRegularCost = calcRegular;
+    const unokeFuelCost = isIshikawaFuelSplit && ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : 0;
+    const unokeRegularCost = isIshikawaFuelSplit && ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : 0;
+    const fuelCost = isIshikawaFuelSplit
+      ? osakaFuelCost + unokeFuelCost
+      : (ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel);
+    const regularCost = isIshikawaFuelSplit
+      ? osakaRegularCost + unokeRegularCost
+      : (ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular);
     const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
@@ -828,6 +841,10 @@ export default function AdminPage() {
       aggregatedDisposalBreakdown,
       fuelCost, 
       regularCost,
+      osakaFuelCost,
+      osakaRegularCost,
+      unokeFuelCost,
+      unokeRegularCost,
       etcCost, 
       parkingCost, 
       otherCost, 
@@ -842,7 +859,9 @@ export default function AdminPage() {
       clientStr: clients.join(', ') || '',
       startDateStr: startDates[0] || '',
       totalFuelLitering,
-      totalRegularLitering
+      totalRegularLitering,
+      totalUnokeFuelLitering,
+      totalUnokeRegularLitering
     };
   };
 
@@ -2875,6 +2894,72 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
+              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+                <div className="flex justify-between items-center flex-wrap gap-3">
+                  <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 燃料内訳（大阪・石川県）</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 燃料代（大阪）</div>
+                    <div className="text-sm font-bold text-slate-700">
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalFuelLitering} L</span>
+                    </div>
+                    <div className="text-xl md:text-2xl font-bold text-slate-900">
+                      {formatAmount(modalData.osakaFuelCost)}
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ レギュラー購入分（大阪）</div>
+                    <div className="text-sm font-bold text-slate-700">
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{formatAmount(modalData.totalRegularLitering)}</span>
+                    </div>
+                    <div className="text-xl md:text-2xl font-bold text-slate-900">
+                      {formatAmount(modalData.osakaRegularCost)}
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：軽油</div>
+                    <div className="text-sm font-bold text-slate-700">
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalUnokeFuelLitering} L</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-500 font-bold">¥</span>
+                      <input
+                        type="number"
+                        value={costOverrides[modalLocation]?.fuel ?? ''}
+                        onChange={(e) => handleCostOverrideChange(modalLocation, 'fuel', e.target.value)}
+                        placeholder="金額を入力"
+                        readOnly={authRole === 'viewer'}
+                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
+                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：レギュラー</div>
+                    <div className="text-sm font-bold text-slate-700">
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalUnokeRegularLitering} L</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-500 font-bold">¥</span>
+                      <input
+                        type="number"
+                        value={costOverrides[modalLocation]?.regular ?? ''}
+                        onChange={(e) => handleCostOverrideChange(modalLocation, 'regular', e.target.value)}
+                        placeholder="金額を入力"
+                        readOnly={authRole === 'viewer'}
+                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
               <div 
                 className="flex justify-between items-center cursor-pointer select-none"
@@ -3026,25 +3111,10 @@ export default function AdminPage() {
                 { key: 'ownMachine', label: '自社重機', val: costOverrides[modalLocation]?.ownMachine ?? modalData.ownMachineCost },
                 { key: 'vehicle', label: '自社車両', val: costOverrides[modalLocation]?.vehicle ?? modalData.vehicleCost },
                 { key: 'disposal', label: '🗑️ 処分費 (合計)', val: costOverrides[modalLocation]?.disposal ?? modalData.disposalCost, isDisposal: true },
-                ...(modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? [
-                  { 
-                    key: 'fuel', 
-                    label: '⛽ 宇野気石油（石川県）：軽油', 
-                    val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost,
-                    isCustomFuel: true,
-                    litering: modalData.totalFuelLitering
-                  },
-                  { 
-                    key: 'regular', 
-                    label: '⛽ 宇野気石油（石川県）：レギュラー', 
-                    val: costOverrides[modalLocation]?.regular ?? modalData.regularCost,
-                    isCustomRegular: true,
-                    litering: modalData.totalRegularLitering
-                  }
-                ] : [
+                ...(modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' ? [
                   { key: 'fuel', label: '燃料代 (軽油・月別単価)', val: costOverrides[modalLocation]?.fuel ?? modalData.fuelCost },
                   { key: 'regular', label: 'レギュラー購入分', val: costOverrides[modalLocation]?.regular ?? modalData.regularCost }
-                ]),
+                ] : []),
                 { key: 'etc', label: '高速代・ETC', val: costOverrides[modalLocation]?.etc ?? modalData.etcCost },
                 { key: 'parking', label: '駐車場代', val: costOverrides[modalLocation]?.parking ?? modalData.parkingCost },
                 { key: 'other', label: 'その他雑費', val: costOverrides[modalLocation]?.other ?? modalData.otherCost },
@@ -3133,31 +3203,6 @@ export default function AdminPage() {
               })}
             </div>
 
-            {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
-                <div className="flex justify-between items-center flex-wrap gap-3">
-                  <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 大阪の燃料項目（参考）</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
-                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-base md:text-lg font-bold text-slate-700">燃料代 (大阪)</span>
-                    </div>
-                    <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalFuelLitering} L</span>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-base md:text-lg font-bold text-slate-700">レギュラー購入分 (大阪)</span>
-                    </div>
-                    <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{modalData.totalRegularLitering} L</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -3386,5 +3431,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-```
