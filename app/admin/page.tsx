@@ -525,38 +525,86 @@ export default function AdminPage() {
     const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
     const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
     const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
-
-    machines.forEach((m: string) => leaseC += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
-    leaseHeavy.forEach((m: string) => leaseC += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    leaseAttach.forEach((m: string) => leaseC += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
-    leaseOther.forEach((m: string) => leaseC += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaHeavy.forEach((m: string) => leaseC += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaAttach.forEach((m: string) => leaseC += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaOther.forEach((m: string) => leaseC += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-
-    let ishikawaLeaseDetail = 0;
-    ishikawaHeavy.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaAttach.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0));
-    ishikawaOther.forEach((m: string) => ishikawaLeaseDetail += ((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0));
-
-    let mokLeaseDetail = 0;
-    machines.forEach((m: string) => mokLeaseDetail += ((settings.leases || []).find((x:any) => x.name === m)?.price || 0));
-    leaseHeavy.forEach((m: string) => mokLeaseDetail += ((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0));
-    leaseAttach.forEach((m: string) => mokLeaseDetail += ((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0));
-    leaseOther.forEach((m: string) => mokLeaseDetail += ((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0));
-
-    let otherLeaseC = 0;
+    const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
     const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
     const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
 
+    // machines は旧データ互換用。現在の日報では leaseHeavy と同じ内容が入るため、
+    // leaseHeavy が存在する場合は二重計上しない。
+    const legacyMachines = leaseHeavy.length === 0 ? machines : [];
+
+    let ishikawaLeaseDetail = 0;
+    ishikawaHeavy.forEach((m: string) => {
+      const price = Number((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0);
+      ishikawaLeaseDetail += price;
+      leaseC += price;
+    });
+    ishikawaAttach.forEach((m: string) => {
+      const price = Number((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0);
+      ishikawaLeaseDetail += price;
+      leaseC += price;
+    });
+    ishikawaOther.forEach((m: string) => {
+      const price = Number((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0);
+      ishikawaLeaseDetail += price;
+      leaseC += price;
+    });
+
+    // 石川県の自由入力機械は、日報側では「品名・個数」のみ。
+    // price が保存されている過去/拡張データだけ金額計上し、通常は明細表示のみとする。
+    ishikawaCustomMachines.forEach((m: any) => {
+      const explicitUnitPrice = m.price !== undefined && m.price !== null && m.price !== '' ? Number(m.price) : 0;
+      const customCost = explicitUnitPrice * Number(m.count || 0);
+      ishikawaLeaseDetail += customCost;
+      leaseC += customCost;
+    });
+
+    let mokLeaseDetail = 0;
+    legacyMachines.forEach((m: string) => {
+      const price = Number((settings.leases || []).find((x:any) => x.name === m)?.price || 0);
+      mokLeaseDetail += price;
+      leaseC += price;
+    });
+    leaseHeavy.forEach((m: string) => {
+      const price = Number((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0);
+      mokLeaseDetail += price;
+      leaseC += price;
+    });
+    leaseAttach.forEach((m: string) => {
+      const price = Number((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0);
+      mokLeaseDetail += price;
+      leaseC += price;
+    });
+    leaseOther.forEach((m: string) => {
+      const price = Number((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0);
+      mokLeaseDetail += price;
+      leaseC += price;
+    });
+
+    // 南大阪建機の「リスト以外の機械（自由入力）」は otherLeases に保存される。
+    // 保存済み price がある場合はMOK側へ計上し、通常の品名・個数入力は明細表示のみ。
     otherLeases.forEach((ol: any) => {
-      otherLeaseC += Number(ol.price || 0);
+      const customCost = Number(ol.price || 0);
+      mokLeaseDetail += customCost;
+      leaseC += customCost;
     });
+
+    // 旧互換データ用
     mokCustomMachines.forEach((m: any) => {
-      const matched = (settings.leaseHeavy || []).find((x:any) => x.name === m.name) || (settings.leaseOther || []).find((x:any) => x.name === m.name);
-      const unitP = matched?.price || 0;
-      otherLeaseC += (Number(m.count || 0) * unitP);
+      const matched =
+        (settings.leaseHeavy || []).find((x:any) => x.name === m.name) ||
+        (settings.leaseAttach || []).find((x:any) => x.name === m.name) ||
+        (settings.leaseOther || []).find((x:any) => x.name === m.name);
+      const unitP = m.price !== undefined && m.price !== null && m.price !== ''
+        ? Number(m.price)
+        : Number(matched?.price || 0);
+      const customCost = Number(m.count || 0) * unitP;
+      mokLeaseDetail += customCost;
+      leaseC += customCost;
     });
+
+    // 自由入力の南大阪建機分は上の MOK 通常リースへ分類するため、別枠には計上しない。
+    let otherLeaseC = 0;
 
     let ownMachineC = 0;
     const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -647,6 +695,91 @@ export default function AdminPage() {
     const oC = Number(r.otherPrice || 0);
 
     return { lCost, subCost, leaseC, otherLeaseC, ishikawaLeaseDetail, mokLeaseDetail, ownMachineC, vehicleC, dispC, disposalBreakdown, fC: fuelCost, rawFuel: rawFuelL, regularPrice: regPrice, eC, pC, oC, scrapC, scrapBreakdown };
+  };
+
+  const getLeaseDetailEntries = (locName: string) => {
+    const targetNames = getTargetLocationNames(locName);
+    const locReports = reports.filter(r => targetNames.includes(r.location));
+
+    const ishikawaMap: {[key: string]: { label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
+    const mokMap: {[key: string]: { label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
+
+    const addMaster = (
+      target: any,
+      category: string,
+      name: string,
+      masterList: any[]
+    ) => {
+      const master = (masterList || []).find((x:any) => x.name === name);
+      const unitPrice = Number(master?.price || 0);
+      const key = `${category}__${name}`;
+      if (!target[key]) target[key] = { label: `${category}：${name}`, count: 0, unitPrice, total: 0 };
+      target[key].count += 1;
+      target[key].total += unitPrice;
+    };
+
+    const addCustom = (
+      target: any,
+      category: string,
+      item: any,
+      priceMode: 'unit' | 'total' = 'unit'
+    ) => {
+      const name = item?.name || '名称未入力';
+      const count = Number(item?.count || 0);
+      const hasPrice = item?.price !== undefined && item?.price !== null && item?.price !== '';
+      const price = hasPrice ? Number(item.price) : null;
+      const total = price === null ? 0 : (priceMode === 'unit' ? price * count : price);
+      const key = `${category}__${name}`;
+      if (!target[key]) target[key] = { label: `${category}：${name}`, count: 0, unitPrice: price, total: 0, isCustom: true };
+      target[key].count += count;
+      target[key].total += total;
+      if (target[key].unitPrice === null && price !== null) target[key].unitPrice = price;
+    };
+
+    locReports.forEach((r:any) => {
+      const ishHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+      const ishAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+      const ishOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+      const ishCustom = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
+
+      ishHeavy.forEach((name:string) => addMaster(ishikawaMap, '重機', name, settings.ishikawaHeavy || []));
+      ishAttach.forEach((name:string) => addMaster(ishikawaMap, 'アタッチメント', name, settings.ishikawaAttach || []));
+      ishOther.forEach((name:string) => addMaster(ishikawaMap, 'その他機械・機器', name, settings.ishikawaOther || []));
+      ishCustom.forEach((item:any) => addCustom(ishikawaMap, '自由入力', item, 'unit'));
+
+      const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+      const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+      const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+      const machines = Array.isArray(r.machines) ? r.machines : [];
+      const legacyMachines = leaseHeavy.length === 0 ? machines : [];
+      const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+      const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+
+      legacyMachines.forEach((name:string) => addMaster(mokMap, '重機（旧データ）', name, settings.leases || []));
+      leaseHeavy.forEach((name:string) => addMaster(mokMap, '重機', name, settings.leaseHeavy || []));
+      leaseAttach.forEach((name:string) => addMaster(mokMap, 'アタッチメント', name, settings.leaseAttach || []));
+      leaseOther.forEach((name:string) => addMaster(mokMap, 'その他機械・機器', name, settings.leaseOther || []));
+      otherLeases.forEach((item:any) => addCustom(mokMap, '自由入力', item, 'total'));
+
+      mokCustomMachines.forEach((item:any) => {
+        const matched =
+          (settings.leaseHeavy || []).find((x:any) => x.name === item.name) ||
+          (settings.leaseAttach || []).find((x:any) => x.name === item.name) ||
+          (settings.leaseOther || []).find((x:any) => x.name === item.name);
+        const normalized = {
+          ...item,
+          price: item.price !== undefined && item.price !== null && item.price !== ''
+            ? item.price
+            : matched?.price
+        };
+        addCustom(mokMap, '自由入力（旧データ）', normalized, 'unit');
+      });
+    });
+
+    return {
+      ishikawa: Object.values(ishikawaMap),
+      mok: Object.values(mokMap)
+    };
   };
 
   const getTargetLocationNames = (currentLoc: string) => {
@@ -1085,6 +1218,7 @@ export default function AdminPage() {
   }
 
   const modalData = modalLocation ? calculateCosts(modalLocation) : null;
+  const modalLeaseDetails = modalLocation ? getLeaseDetailEntries(modalLocation) : { ishikawa: [], mok: [] };
   const filteredReports = reports.filter(r => !filterLocation || r.location?.includes(filterLocation));
   const locList = (settings.locations || []).map((l:any) => typeof l === 'string' ? {name: l, price: 0, isFinished: false} : l);
   
@@ -3461,20 +3595,71 @@ export default function AdminPage() {
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-200 flex justify-between items-center">
-                <span className="font-bold text-indigo-900 text-base">🗾 石川県出張用リース機器合計</span>
-                <span className="text-xl font-bold text-indigo-700">{formatAmount(modalData.calcIshikawaLease)}</span>
+            <div className="space-y-5">
+              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-200 space-y-3">
+                <div className="flex justify-between items-center gap-3">
+                  <span className="font-bold text-indigo-900 text-base">🗾 石川県出張用リース機器合計</span>
+                  <span className="text-xl font-bold text-indigo-700">{formatAmount(modalData.calcIshikawaLease)}</span>
+                </div>
+
+                <div className="border-t border-indigo-200 pt-3 space-y-2">
+                  {modalLeaseDetails.ishikawa.length === 0 ? (
+                    <div className="text-sm text-slate-500">選択・入力された石川県リース機器はありません。</div>
+                  ) : (
+                    modalLeaseDetails.ishikawa.map((entry:any, idx:number) => (
+                      <div key={`ish_${idx}`} className="bg-white/80 rounded-xl border border-indigo-100 px-3 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+                        <div>
+                          <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
+                          <div className="text-xs text-slate-500">
+                            {entry.isCustom ? `入力個数：${entry.count}` : `使用日数：${entry.count}日`}
+                            {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
+                          </div>
+                        </div>
+                        {!entry.isCustom || entry.unitPrice !== null ? (
+                          <div className="text-sm font-bold text-indigo-700">
+                            {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
+                            合計 {formatAmount(entry.total)}
+                          </div>
+                        ) : (
+                          <div className="text-xs font-bold text-slate-400">明細表示のみ</div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 flex justify-between items-center">
-                <span className="font-bold text-blue-900 text-base">🔹 南大阪建機(MOK) 通常リース合計</span>
-                <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.calcMokLease)}</span>
-              </div>
+              <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 space-y-3">
+                <div className="flex justify-between items-center gap-3">
+                  <span className="font-bold text-blue-900 text-base">🔹 南大阪建機(MOK) 通常リース合計</span>
+                  <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.calcMokLease)}</span>
+                </div>
 
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
-                <span className="font-bold text-slate-900 text-base">📦 その他リース合計</span>
-                <span className="text-xl font-bold text-slate-700">{formatAmount(modalData.otherLeaseCost)}</span>
+                <div className="border-t border-blue-200 pt-3 space-y-2">
+                  {modalLeaseDetails.mok.length === 0 ? (
+                    <div className="text-sm text-slate-500">選択・入力されたMOKリース機器はありません。</div>
+                  ) : (
+                    modalLeaseDetails.mok.map((entry:any, idx:number) => (
+                      <div key={`mok_${idx}`} className="bg-white/80 rounded-xl border border-blue-100 px-3 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+                        <div>
+                          <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
+                          <div className="text-xs text-slate-500">
+                            {entry.isCustom ? `入力個数：${entry.count}` : `使用日数：${entry.count}日`}
+                            {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
+                          </div>
+                        </div>
+                        {!entry.isCustom || entry.unitPrice !== null ? (
+                          <div className="text-sm font-bold text-blue-700">
+                            {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
+                            合計 {formatAmount(entry.total)}
+                          </div>
+                        ) : (
+                          <div className="text-xs font-bold text-slate-400">明細表示のみ</div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
