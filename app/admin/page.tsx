@@ -811,9 +811,7 @@ export default function AdminPage() {
       .reduce((sum, item) => sum + item.total, 0);
 
     const osakaFuelCost = isIshikawaFuelSplit ? monthlyOsakaFuelCost : calcFuel;
-    const osakaRegularCost = isIshikawaFuelSplit
-      ? (ov.osakaRegular !== '' && ov.osakaRegular !== undefined ? Number(ov.osakaRegular) : 0)
-      : calcRegular;
+    const osakaRegularCost = calcRegular;
     const unokeFuelCost = isIshikawaFuelSplit && ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : 0;
     const unokeRegularCost = isIshikawaFuelSplit && ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : 0;
     const fuelCost = isIshikawaFuelSplit
@@ -2992,18 +2990,7 @@ export default function AdminPage() {
                   <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
                     <div className="text-base md:text-lg font-bold text-slate-700">⛽ レギュラー購入分（大阪）</div>
                     <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalRegularLitering || 0).toLocaleString('ja-JP')} L</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-500 font-bold">¥</span>
-                      <input
-                        type="number"
-                        value={costOverrides[modalLocation]?.osakaRegular ?? ''}
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'osakaRegular', e.target.value)}
-                        placeholder="金額を入力"
-                        readOnly={authRole === 'viewer'}
-                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
+                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{formatAmount(modalData.totalRegularLitering)}</span><span className="ml-1">円</span>
                     </div>
                   </div>
 
