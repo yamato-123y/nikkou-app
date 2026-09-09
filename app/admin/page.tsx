@@ -3974,9 +3974,15 @@ export default function AdminPage() {
 
       {/* 石川県現場専用 リース詳細内訳ポップアップ */}
       {showIshikawaLeaseModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-2xl p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn overflow-y-auto"
+          onClick={() => setShowIshikawaLeaseModal(false)}
+        >
+          <div
+            className="bg-white rounded-[32px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-20 bg-white flex justify-between items-center border-b border-slate-100 pb-4 pt-1">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">
                   {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)'
@@ -4169,7 +4175,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="sticky bottom-0 z-20 bg-white pt-4 pb-1 border-t border-slate-100 flex justify-end">
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
