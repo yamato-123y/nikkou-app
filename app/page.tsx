@@ -79,6 +79,24 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
+  // 同じリース品を2台・3台借りる場合に対応。
+  // 同じ名称を数量分だけ配列に保持することで既存API・原価計算との互換性を保ちます。
+  const getLeaseQuantity = (list: string[], item: string) =>
+    list.filter((x: string) => x === item).length;
+
+  const changeLeaseQuantity = (list: string[], item: string, delta: number, setter: Function) => {
+    const current = getLeaseQuantity(list, item);
+    const next = Math.max(0, current + delta);
+    const withoutItem = list.filter((x: string) => x !== item);
+    setter([...withoutItem, ...Array(next).fill(item)]);
+  };
+
+  const summarizeLeaseSelections = (list: string[]) => {
+    const counts: {[name: string]: number} = {};
+    list.forEach((name: string) => counts[name] = (counts[name] || 0) + 1);
+    return Object.entries(counts).map(([name, count]) => count > 1 ? `${name}×${count}` : name);
+  };
+
   // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,14 +221,14 @@ export default function Home() {
                   <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
                   <span className="font-bold text-slate-800">
                     {[
-                      ...selectedOwnMachines, 
-                      ...leaseHeavy, 
-                      ...leaseAttach, 
-                      ...leaseOther, 
+                      ...selectedOwnMachines,
+                      ...summarizeLeaseSelections(leaseHeavy),
+                      ...summarizeLeaseSelections(leaseAttach),
+                      ...summarizeLeaseSelections(leaseOther),
                       ...(manager === '徳本' ? [
-                        ...ishikawaLeaseHeavy, 
-                        ...ishikawaLeaseAttach, 
-                        ...ishikawaLeaseOther,
+                        ...summarizeLeaseSelections(ishikawaLeaseHeavy),
+                        ...summarizeLeaseSelections(ishikawaLeaseAttach),
+                        ...summarizeLeaseSelections(ishikawaLeaseOther),
                         ...ishikawaCustomMachines.map(o => `${o.name}(${o.count})`)
                       ] : []),
                       ...otherLeases.map(o => `${o.name}(${o.count})`)
@@ -487,15 +505,26 @@ export default function Home() {
                  className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【重機を選択する】</span>
-                 {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseHeavy.length}選定中</span>}
+                 {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">数量 {leaseHeavy.length}</span>}
                  <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenHeavy ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenHeavy && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseHeavy || []).map((m:any) => (
-                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseHeavy, m.name, setLeaseHeavy)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseHeavy.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                   ))}
+                   {(settings.leaseHeavy || []).map((m:any) => {
+                      const qty = getLeaseQuantity(leaseHeavy, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseHeavy, m.name, -1, setLeaseHeavy)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseHeavy, m.name, 1, setLeaseHeavy)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-blue-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                  </div>
                )}
              </div>
@@ -507,15 +536,26 @@ export default function Home() {
                  className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【アタッチメントを選択する】</span>
-                 {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseAttach.length}選定中</span>}
+                 {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">数量 {leaseAttach.length}</span>}
                  <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenAttach ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenAttach && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseAttach || []).map((m:any) => (
-                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseAttach, m.name, setLeaseAttach)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseAttach.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                   ))}
+                   {(settings.leaseAttach || []).map((m:any) => {
+                      const qty = getLeaseQuantity(leaseAttach, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseAttach, m.name, -1, setLeaseAttach)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseAttach, m.name, 1, setLeaseAttach)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-blue-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                  </div>
                )}
              </div>
@@ -527,15 +567,26 @@ export default function Home() {
                  className="w-full max-w-full text-left p-4 bg-white border-2 border-blue-200 rounded-2xl font-bold text-base text-slate-950 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 shadow-xs hover:bg-blue-50 transition box-border"
                >
                  <span>【その他の機械・機器を選択する】</span>
-                 {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">{leaseOther.length}選定中</span>}
+                 {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full w-fit font-bold">数量 {leaseOther.length}</span>}
                  <span className="text-sm font-bold text-slate-500 sm:ml-auto">{isOpenOther ? '▲ 閉じる' : '▼ 開く'}</span>
                </button>
                {isOpenOther && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseOther || []).map((m:any) => (
-                     <button type="button" key={m.name} onClick={() => toggleSelection(leaseOther, m.name, setLeaseOther)}
-                     className={`p-4 rounded-2xl font-bold border-2 text-base sm:text-sm text-center break-words transition ${leaseOther.includes(m.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                   ))}
+                   {(settings.leaseOther || []).map((m:any) => {
+                      const qty = getLeaseQuantity(leaseOther, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseOther, m.name, -1, setLeaseOther)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(leaseOther, m.name, 1, setLeaseOther)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-blue-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                  </div>
                )}
              </div>
@@ -617,15 +668,26 @@ export default function Home() {
                    <div>
                      <button type="button" onClick={() => setIsOpenIshikawaHeavy(!isOpenIshikawaHeavy)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                        <span>【（石川県）重機を選択】</span>
-                       {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseHeavy.length}選定中</span>}
+                       {ishikawaLeaseHeavy.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">数量 {ishikawaLeaseHeavy.length}</span>}
                        <span>{isOpenIshikawaHeavy ? '▲' : '▼'}</span>
                      </button>
                      {isOpenIshikawaHeavy && (
                        <div className="grid grid-cols-2 gap-2 pt-2">
-                         {(settings.ishikawaHeavy || []).map((m:any) => (
-                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseHeavy, m.name, setIshikawaLeaseHeavy)}
-                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseHeavy.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                         ))}
+                         {(settings.ishikawaHeavy || []).map((m:any) => {
+                      const qty = getLeaseQuantity(ishikawaLeaseHeavy, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseHeavy, m.name, -1, setIshikawaLeaseHeavy)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseHeavy, m.name, 1, setIshikawaLeaseHeavy)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-indigo-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                        </div>
                      )}
                    </div>
@@ -633,15 +695,26 @@ export default function Home() {
                    <div>
                      <button type="button" onClick={() => setIsOpenIshikawaAttach(!isOpenIshikawaAttach)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                        <span>【（石川県）アタッチメントを選択】</span>
-                       {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseAttach.length}選定中</span>}
+                       {ishikawaLeaseAttach.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">数量 {ishikawaLeaseAttach.length}</span>}
                        <span>{isOpenIshikawaAttach ? '▲' : '▼'}</span>
                      </button>
                      {isOpenIshikawaAttach && (
                        <div className="grid grid-cols-2 gap-2 pt-2">
-                         {(settings.ishikawaAttach || []).map((m:any) => (
-                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseAttach, m.name, setIshikawaLeaseAttach)}
-                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseAttach.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                         ))}
+                         {(settings.ishikawaAttach || []).map((m:any) => {
+                      const qty = getLeaseQuantity(ishikawaLeaseAttach, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseAttach, m.name, -1, setIshikawaLeaseAttach)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseAttach, m.name, 1, setIshikawaLeaseAttach)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-indigo-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                        </div>
                      )}
                    </div>
@@ -649,15 +722,26 @@ export default function Home() {
                    <div>
                      <button type="button" onClick={() => setIsOpenIshikawaOther(!isOpenIshikawaOther)} className="w-full text-left p-3 bg-white border-2 border-indigo-200 rounded-xl font-bold text-sm flex justify-between items-center">
                        <span>【（石川県）その他機械・機器を選択】</span>
-                       {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{ishikawaLeaseOther.length}選定中</span>}
+                       {ishikawaLeaseOther.length > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">数量 {ishikawaLeaseOther.length}</span>}
                        <span>{isOpenIshikawaOther ? '▲' : '▼'}</span>
                      </button>
                      {isOpenIshikawaOther && (
                        <div className="grid grid-cols-2 gap-2 pt-2">
-                         {(settings.ishikawaOther || []).map((m:any) => (
-                           <button type="button" key={m.name} onClick={() => toggleSelection(ishikawaLeaseOther, m.name, setIshikawaLeaseOther)}
-                           className={`p-3 rounded-xl font-bold border-2 text-sm transition ${ishikawaLeaseOther.includes(m.name) ? 'bg-indigo-900 text-white border-indigo-900' : 'bg-white text-slate-900 border-slate-300'}`}>{m.name}</button>
-                         ))}
+                         {(settings.ishikawaOther || []).map((m:any) => {
+                      const qty = getLeaseQuantity(ishikawaLeaseOther, m.name);
+                      return (
+                        <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                          <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseOther, m.name, -1, setIshikawaLeaseOther)} disabled={qty === 0}
+                              className={`w-9 h-9 rounded-xl font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                            <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseOther, m.name, 1, setIshikawaLeaseOther)}
+                              className="w-9 h-9 rounded-xl font-black text-lg bg-indigo-600 text-white">＋</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                        </div>
                      )}
                    </div>
