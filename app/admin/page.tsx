@@ -102,6 +102,7 @@ export default function AdminPage() {
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
+  const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
 
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
   const [disposalStartDate, setDisposalStartDate] = useState('');
@@ -1360,9 +1361,11 @@ export default function AdminPage() {
           <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
         <div className="flex w-full md:w-auto gap-2 flex-wrap items-center">
-          <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-            📦 月別処分一覧
-          </button>
+          {authRole === 'admin' && (
+            <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              📦 月別処分一覧
+            </button>
+          )}
           <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5">
             🔄 最新の状態にする
           </button>
@@ -1385,6 +1388,52 @@ export default function AdminPage() {
         <div className="block md:hidden space-y-4">
           {activeLocList.map((loc:any) => {
             const c = calculateCosts(loc.name);
+
+            if (authRole === 'viewer') {
+              return (
+                <div key={loc.name} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-slate-100">
+                    <div className="text-[17px] font-extrabold leading-snug text-slate-900 break-words">
+                      {loc.name}
+                    </div>
+                  </div>
+
+                  <div className={`mx-4 mt-4 p-3.5 rounded-xl border ${c.profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                    <div className={`text-xs font-bold ${c.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      粗利（売却益込）
+                    </div>
+                    <div className={`text-2xl font-extrabold mt-1 ${c.profit >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                      {formatAmount(c.profit)}
+                    </div>
+                  </div>
+
+                  <div className="m-4 rounded-xl border border-slate-200 divide-y divide-slate-200 bg-slate-50/70">
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">請負金額（税抜）</span>
+                      <span className="text-base font-extrabold text-slate-900">{formatAmount(c.contractPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">合計経費</span>
+                      <span className="text-base font-extrabold text-slate-900">{formatAmount(c.total)}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">稼働日数</span>
+                      <span className="text-base font-extrabold text-slate-900">{c.days}日</span>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-4">
+                    <button
+                      onClick={() => setModalLocation(loc.name)}
+                      className="w-full bg-blue-600 active:bg-blue-700 text-white py-3.5 rounded-xl text-sm font-bold shadow-sm transition"
+                    >
+                      🔍 詳細分析を見る
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div key={loc.name} className="p-4 rounded-2xl border space-y-3 shadow-xs bg-slate-50/90 border-slate-200">
                 <div className="flex flex-col gap-2">
@@ -1392,9 +1441,7 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-lg leading-snug text-blue-600">{loc.name}</span>
                     </div>
-                    {authRole !== 'viewer' && (
-                      <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-slate-300 transition">現場完了</button>
-                    )}
+                    <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-slate-300 transition">現場完了</button>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className={`text-sm px-3 py-1 rounded-xl font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -1879,18 +1926,33 @@ export default function AdminPage() {
 
         {/* 現場日報カレンダー表示セクション */}
         <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4">
-          <div className="flex justify-between items-center flex-wrap gap-3">
+          <div className="flex justify-between items-center gap-3 flex-wrap">
             <h3 className="text-lg md:text-xl font-bold text-slate-800">📅 月別カレンダー（現場名から日報を表示）</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-700">表示月:</span>
-              <input 
-                type="month" 
-                value={calendarYearMonth} 
-                onChange={e => setCalendarYearMonth(e.target.value)}
-                className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!showReportCalendarSection) {
+                  setCalendarYearMonth(getCurrentYearMonth());
+                }
+                setShowReportCalendarSection(!showReportCalendarSection);
+              }}
+              className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition"
+            >
+              {showReportCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを開く ▼'}
+            </button>
           </div>
+
+          {showReportCalendarSection && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="flex justify-end items-center gap-2">
+                <span className="text-sm font-bold text-slate-700">表示月:</span>
+                <input 
+                  type="month" 
+                  value={calendarYearMonth} 
+                  onChange={e => setCalendarYearMonth(e.target.value)}
+                  className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white focus:outline-none"
+                />
+              </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-2">
             {calendarDays.map(dateStr => {
@@ -1945,6 +2007,9 @@ export default function AdminPage() {
               );
             })}
           </div>
+
+            </div>
+          )}
         </div>
 
         {/* 送信された日報一覧（稼働中の現場） */}
@@ -2386,7 +2451,7 @@ export default function AdminPage() {
       )}
 
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
-      {showAllMonthlyDisposalModal && (
+      {showAllMonthlyDisposalModal && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
           <div className="bg-white rounded-[32px] w-full max-w-6xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -3208,83 +3273,100 @@ export default function AdminPage() {
 
       {/* 現場詳細モーダル */}
       {modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-8 z-40 animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-6xl p-5 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 md:space-y-8 shadow-2xl border border-slate-100">
+        <div className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}>
+          <div className={`bg-white rounded-3xl w-full max-w-6xl md:p-10 max-h-[94vh] md:max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 ${authRole === 'viewer' ? 'p-4 space-y-5 md:space-y-8' : 'p-5 space-y-6 md:space-y-8'}`}>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
               <div className="flex flex-col items-start gap-3 w-full">
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div className="w-full">
                   <h2 className="text-2xl md:text-4xl font-bold text-slate-900">{modalLocation} <span className="text-base md:text-xl font-normal text-slate-500 block md:inline">（詳細分析）</span></h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                    <div>
-                      <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">🏢 請負先</label>
-                      <input 
-                        type="text" 
-                        value={modalData.clientStr} 
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          const targetNames = getTargetLocationNames(modalLocation);
-                          const updatedReports = reports.map(r => {
-                            if (targetNames.includes(r.location)) {
-                              return { ...r, client: val };
-                            }
-                            return r;
-                          });
-                          setReports(updatedReports);
-                          for (const r of updatedReports) {
-                            if (targetNames.includes(r.location)) {
-                              const targetId = r.id || r._id;
-                              if (targetId) {
-                                await fetch('/api/reports', {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ ...r, id: targetId })
-                                });
+                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-4 bg-slate-50 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'p-3.5' : 'p-4'}`}>
+                    {authRole === 'viewer' ? (
+                      <>
+                        <div className="bg-white rounded-xl border border-slate-200 p-3.5">
+                          <div className="text-xs font-bold text-slate-500">🏢 請負先</div>
+                          <div className="text-base font-extrabold text-slate-900 mt-1.5 break-words">
+                            {modalData.clientStr || '未登録'}
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-slate-200 p-3.5">
+                          <div className="text-xs font-bold text-slate-500">⏱ 開始日</div>
+                          <div className="text-base font-extrabold text-slate-900 mt-1.5">
+                            {modalData.startDateStr || '未登録'}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">🏢 請負先</label>
+                          <input 
+                            type="text" 
+                            value={modalData.clientStr} 
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              const targetNames = getTargetLocationNames(modalLocation);
+                              const updatedReports = reports.map(r => {
+                                if (targetNames.includes(r.location)) {
+                                  return { ...r, client: val };
+                                }
+                                return r;
+                              });
+                              setReports(updatedReports);
+                              for (const r of updatedReports) {
+                                if (targetNames.includes(r.location)) {
+                                  const targetId = r.id || r._id;
+                                  if (targetId) {
+                                    await fetch('/api/reports', {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ ...r, id: targetId })
+                                    });
+                                  }
+                                }
                               }
-                            }
-                          }
-                        }}
-                        readOnly={authRole === 'viewer'}
-                        placeholder="例: 〇〇建設" 
-                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">⏱ 開始日</label>
-                      <input 
-                        type="date" 
-                        value={modalData.startDateStr} 
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          const targetNames = getTargetLocationNames(modalLocation);
-                          const updatedReports = reports.map(r => {
-                            if (targetNames.includes(r.location)) {
-                              return { ...r, startDate: val };
-                            }
-                            return r;
-                          });
-                          setReports(updatedReports);
-                          for (const r of updatedReports) {
-                            if (targetNames.includes(r.location)) {
-                              const targetId = r.id || r._id;
-                              if (targetId) {
-                                await fetch('/api/reports', {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ ...r, id: targetId })
-                                });
+                            }}
+                            placeholder="例: 〇〇建設" 
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">⏱ 開始日</label>
+                          <input 
+                            type="date" 
+                            value={modalData.startDateStr} 
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              const targetNames = getTargetLocationNames(modalLocation);
+                              const updatedReports = reports.map(r => {
+                                if (targetNames.includes(r.location)) {
+                                  return { ...r, startDate: val };
+                                }
+                                return r;
+                              });
+                              setReports(updatedReports);
+                              for (const r of updatedReports) {
+                                if (targetNames.includes(r.location)) {
+                                  const targetId = r.id || r._id;
+                                  if (targetId) {
+                                    await fetch('/api/reports', {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ ...r, id: targetId })
+                                    });
+                                  }
+                                }
                               }
-                            }
-                          }
-                        }}
-                        readOnly={authRole === 'viewer'}
-                        className={`w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800 ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
+                            }}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white text-slate-800"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 mt-3 flex-wrap">
+                                    <div className="flex items-center gap-3 mt-3 flex-wrap">
                     <p className="text-sm md:text-base text-slate-500">原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
                       <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-2xs flex items-center gap-1">
@@ -3326,9 +3408,9 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center">
-              <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
-              <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200">
+            <div className={`grid md:grid-cols-4 gap-3 md:gap-5 text-center ${authRole === 'viewer' ? 'grid-cols-2 items-stretch' : 'grid-cols-2'}`}>
+              <div className={`bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-xs md:text-base text-slate-600 font-bold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
+              <div className={`bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}>
                 <div className="text-xs md:text-base text-emerald-700 font-bold">合計経費</div>
                 <div className="mt-2 space-y-2 text-left">
                   <div>
@@ -3341,11 +3423,11 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-              <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">{formatAmount(modalData.profit)}</div></div>
-              <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200"><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
+              <div className={`bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-xs md:text-base text-blue-700 font-bold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-800 mt-1.5">{formatAmount(modalData.profit)}</div></div>
+              <div className={`bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-xs md:text-base text-amber-700 font-bold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
             </div>
 
-            <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex justify-between items-center shadow-2xs">
+            <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-2xs">
               <div className="flex items-center gap-2 font-bold text-orange-900 text-base md:text-xl">
                 <span>🗑️ 処分費</span>
               </div>
@@ -3357,7 +3439,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex justify-between items-center shadow-2xs">
+            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-2xs">
               <div className="flex items-center gap-2 font-bold text-emerald-900 text-base md:text-xl">
                 <span>♻️ スクラップ売却計</span>
               </div>
