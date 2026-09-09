@@ -538,6 +538,20 @@ export default function AdminPage() {
     fetchData();
   };
 
+  const getEditingLeaseQuantity = (field: string, item: string) => {
+    const list = Array.isArray(editingReport?.[field]) ? editingReport[field] : [];
+    return list.filter((x: string) => x === item).length;
+  };
+
+  const changeEditingLeaseQuantity = (field: string, item: string, delta: number) => {
+    if (!editingReport) return;
+    const list = Array.isArray(editingReport[field]) ? editingReport[field] : [];
+    const current = list.filter((x: string) => x === item).length;
+    const next = Math.max(0, current + delta);
+    const withoutItem = list.filter((x: string) => x !== item);
+    setEditingReport({ ...editingReport, [field]: [...withoutItem, ...Array(next).fill(item)] });
+  };
+
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (authRole === 'viewer') return;
@@ -3051,17 +3065,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseHeavy || []).map((m: any) => {
-                      const leaseHeavy = Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [];
-                      const checked = leaseHeavy.includes(m.name);
+                      const qty = getEditingLeaseQuantity('leaseHeavy', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, leaseHeavy: updated });
-                          }} className="rounded text-blue-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseHeavy', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseHeavy', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -3071,17 +3086,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseAttach || []).map((m: any) => {
-                      const leaseAttach = Array.isArray(editingReport.leaseAttach) ? editingReport.leaseAttach : [];
-                      const checked = leaseAttach.includes(m.name);
+                      const qty = getEditingLeaseQuantity('leaseAttach', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.leaseAttach) ? editingReport.leaseAttach : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, leaseAttach: updated });
-                          }} className="rounded text-blue-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseAttach', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseAttach', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -3091,17 +3107,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【その他の機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseOther || []).map((m: any) => {
-                      const leaseOther = Array.isArray(editingReport.leaseOther) ? editingReport.leaseOther : [];
-                      const checked = leaseOther.includes(m.name);
+                      const qty = getEditingLeaseQuantity('leaseOther', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.leaseOther) ? editingReport.leaseOther : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, leaseOther: updated });
-                          }} className="rounded text-blue-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseOther', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseOther', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -3192,17 +3209,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaHeavy || []).map((m: any) => {
-                      const ishikawaHeavy = Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [];
-                      const checked = ishikawaHeavy.includes(m.name);
+                      const qty = getEditingLeaseQuantity('ishikawaHeavy', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, ishikawaHeavy: updated });
-                          }} className="rounded text-indigo-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -3212,17 +3230,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaAttach || []).map((m: any) => {
-                      const ishikawaAttach = Array.isArray(editingReport.ishikawaAttach) ? editingReport.ishikawaAttach : [];
-                      const checked = ishikawaAttach.includes(m.name);
+                      const qty = getEditingLeaseQuantity('ishikawaAttach', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.ishikawaAttach) ? editingReport.ishikawaAttach : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, ishikawaAttach: updated });
-                          }} className="rounded text-indigo-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaAttach', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaAttach', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -3232,17 +3251,18 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaOther || []).map((m: any) => {
-                      const ishikawaOther = Array.isArray(editingReport.ishikawaOther) ? editingReport.ishikawaOther : [];
-                      const checked = ishikawaOther.includes(m.name);
+                      const qty = getEditingLeaseQuantity('ishikawaOther', m.name);
                       return (
-                        <label key={m.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition ${checked ? 'bg-indigo-100 border-indigo-400 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input type="checkbox" checked={checked} onChange={e => {
-                            const current = Array.isArray(editingReport.ishikawaOther) ? editingReport.ishikawaOther : [];
-                            const updated = e.target.checked ? [...current, m.name] : current.filter((x: string) => x !== m.name);
-                            setEditingReport({ ...editingReport, ishikawaOther: updated });
-                          }} className="rounded text-indigo-600 w-4 h-4" />
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaOther', m.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <span className="min-w-[42px] text-center font-black">{qty}台</span>
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaOther', m.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -4017,7 +4037,7 @@ export default function AdminPage() {
                         <div>
                           <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
                           <div className="text-xs text-slate-500">
-                            {entry.isCustom ? `入力個数：${entry.count}` : `使用日数：${entry.count}日`}
+                            {entry.isCustom ? `入力個数：${entry.count}` : `延べ使用数：${entry.count}`}
                             {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
                           </div>
                         </div>
@@ -4107,7 +4127,7 @@ export default function AdminPage() {
                         <div>
                           <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
                           <div className="text-xs text-slate-500">
-                            {entry.isCustom ? `入力個数：${entry.count}` : `使用日数：${entry.count}日`}
+                            {entry.isCustom ? `入力個数：${entry.count}` : `延べ使用数：${entry.count}`}
                             {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
                           </div>
                         </div>
