@@ -1523,6 +1523,50 @@ export default function AdminPage() {
         <div className="block md:hidden space-y-4">
           {finishedLocList.map((loc:any) => {
             const c = calculateCosts(loc.name);
+
+            if (authRole === 'viewer') {
+              return (
+                <div key={loc.name} className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-slate-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-[17px] font-extrabold leading-snug text-slate-800 break-words flex-1">
+                        {loc.name}
+                      </div>
+                      <span className="shrink-0 bg-slate-700 text-white text-[11px] px-2.5 py-1 rounded-lg font-bold">📁 完了済</span>
+                    </div>
+                  </div>
+
+                  <div className={`mx-4 mt-4 p-3.5 rounded-xl border ${c.profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                    <div className={`text-xs font-bold ${c.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>粗利（売却益込）</div>
+                    <div className={`text-2xl font-extrabold mt-1 ${c.profit >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                      {formatAmount(c.profit)}
+                    </div>
+                  </div>
+
+                  <div className="m-4 rounded-xl border border-slate-200 divide-y divide-slate-200 bg-slate-50/70">
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">請負金額（税抜）</span>
+                      <span className="text-base font-extrabold text-slate-900">{formatAmount(c.contractPrice)}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">合計経費</span>
+                      <span className="text-base font-extrabold text-slate-900">{formatAmount(c.total)}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-3 px-3.5 py-3">
+                      <span className="text-xs font-bold text-slate-500">稼働日数</span>
+                      <span className="text-base font-extrabold text-slate-900">{c.days}日</span>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-4">
+                    <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 active:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold shadow-sm transition">
+                      🔍 詳細分析を見る
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div key={loc.name} className="p-4 rounded-2xl border space-y-3 shadow-xs bg-slate-200/90 border-slate-300">
                 <div className="flex flex-col gap-2">
@@ -1531,9 +1575,7 @@ export default function AdminPage() {
                       <span className="font-bold text-lg leading-snug text-slate-700">{loc.name}</span>
                       <span className="bg-slate-600 text-white text-xs px-2.5 py-0.5 rounded-md font-bold shadow-2xs">📁 完了済</span>
                     </div>
-                    {authRole !== 'viewer' && (
-                      <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-600 hover:text-slate-900 underline font-medium">未完了に戻す</button>
-                    )}
+                    <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-600 hover:text-slate-900 underline font-medium">未完了に戻す</button>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className={`text-sm px-3 py-1 rounded-xl font-bold inline-block ${c.profit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -1737,11 +1779,11 @@ export default function AdminPage() {
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-          <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-100 pb-4">
+        <div className="bg-white p-4 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+          <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-200 pb-5">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-slate-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
-              <p className="text-sm text-slate-400 mt-0.5">各種単価や現場名、外注先の登録を行います</p>
+              <p className="text-sm text-slate-500 mt-1">新規追加 → 登録済みデータを直接編集 → 「保存」の順で操作できます</p>
             </div>
             <button 
               onClick={() => setShowAdminSection(!showAdminSection)}
@@ -1752,7 +1794,7 @@ export default function AdminPage() {
           </div>
 
           {showAdminSection && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 animate-fadeIn">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pt-2 animate-fadeIn items-start">
               {[
                 { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
@@ -1770,20 +1812,28 @@ export default function AdminPage() {
                 { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
               ].map((sec, idx) => (
-                <div key={idx} className={`p-4 md:p-6 rounded-2xl border space-y-4 flex flex-col justify-between shadow-xs ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200/90'}`}>
+                <div key={idx} className={`p-4 md:p-5 rounded-2xl border space-y-5 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center gap-2">
-                      <h3 className={`font-bold text-base md:text-lg tracking-wider truncate ${sec.isIshikawa ? 'text-indigo-700' : 'text-orange-600'}`}>{sec.title}</h3>
+                    <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200/80">
+                      <div className="min-w-0">
+                        <h3 className={`font-extrabold text-base md:text-lg leading-snug ${sec.isIshikawa ? 'text-indigo-800' : 'text-slate-800'}`}>{sec.title}</h3>
+                        <p className="text-xs text-slate-500 mt-1">登録済み {(settings[sec.key] || []).length} 件</p>
+                      </div>
                       <button 
                         onClick={() => saveMaster(sec.key)} 
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm px-3.5 py-2 rounded-xl font-bold shadow-sm transition shrink-0"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow-sm transition shrink-0"
                       >
                         💾 保存
                       </button>
                     </div>
 
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                      <span className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">＋</span>
+                      新規追加
+                    </div>
+
                     {sec.isSub ? (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
                           <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
@@ -1792,7 +1842,7 @@ export default function AdminPage() {
                         <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isDisp ? (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
                           <input type="text" placeholder="品目" value={form.dItem || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
@@ -1802,7 +1852,7 @@ export default function AdminPage() {
                         <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isScrap ? (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
                         <div className="grid grid-cols-12 gap-2">
                           <input type="text" placeholder="品目" value={form.sItem || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
@@ -1811,12 +1861,12 @@ export default function AdminPage() {
                         <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isNoPrice ? (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : (
-                      <div className="space-y-3 bg-white p-3.5 rounded-2xl border border-slate-200">
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
@@ -1825,12 +1875,17 @@ export default function AdminPage() {
                   </div>
 
                   {/* 登録済みリスト */}
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 bg-white border border-slate-300 rounded-2xl p-3 space-y-3 mt-4">
+                  <div className="space-y-2 mt-1">
+                    <div className="flex items-center justify-between px-1">
+                      <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
+                      <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                    </div>
+                    <div className="max-h-[420px] overflow-y-auto bg-white border border-slate-300 rounded-2xl p-3 space-y-3">
                     {(settings[sec.key] || []).length === 0 ? (
                       <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                     ) : (
                       (settings[sec.key] || []).map((item:any, idx:number)=>(
-                        <div key={idx} className="py-3 flex flex-col gap-2.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200 shadow-2xs">
+                        <div key={idx} className="flex flex-col gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
                           <div className="flex justify-between items-center gap-2">
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
@@ -1846,7 +1901,7 @@ export default function AdminPage() {
                                   {item.isFinished ? '📁 完了済' : '現場完了'}
                                 </button>
                               )}
-                              <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-600 hover:text-rose-800 font-bold text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition">削除</button>
+                              <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-700 hover:text-white font-bold text-xs px-3 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition">🗑 削除</button>
                             </div>
                           </div>
 
@@ -1903,6 +1958,7 @@ export default function AdminPage() {
                         </div>
                       ))
                     )}
+                    </div>
                   </div>
                 </div>
               ))}
