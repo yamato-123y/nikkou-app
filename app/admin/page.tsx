@@ -86,6 +86,7 @@ export default function AdminPage() {
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
+  const [leaseCustomPrices, setLeaseCustomPrices] = useState<any>({});
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
@@ -132,6 +133,7 @@ export default function AdminPage() {
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
+          if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
         }
       }
     } catch (e) {  
@@ -421,6 +423,40 @@ export default function AdminPage() {
     const newData = {
       ...settings,
       monthlyDisposalInvoices: updated
+    };
+    setSettings(newData);
+
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newData)
+    });
+  };
+
+  const handleLeaseCustomPriceChange = async (
+    locName: string,
+    scope: 'ishikawa' | 'mok',
+    entryKey: string,
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+
+    const updated = {
+      ...leaseCustomPrices,
+      [locName]: {
+        ...(leaseCustomPrices[locName] || {}),
+        [scope]: {
+          ...(leaseCustomPrices[locName]?.[scope] || {}),
+          [entryKey]: val
+        }
+      }
+    };
+
+    setLeaseCustomPrices(updated);
+
+    const newData = {
+      ...settings,
+      leaseCustomPrices: updated
     };
     setSettings(newData);
 
@@ -728,8 +764,8 @@ export default function AdminPage() {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
 
-    const ishikawaMap: {[key: string]: { label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
-    const mokMap: {[key: string]: { label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
+    const ishikawaMap: {[key: string]: { key: string; label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
+    const mokMap: {[key: string]: { key: string; label: string; count: number; unitPrice: number | null; total: number; isCustom?: boolean }} = {};
 
     const addMaster = (
       target: any,
@@ -740,7 +776,7 @@ export default function AdminPage() {
       const master = (masterList || []).find((x:any) => x.name === name);
       const unitPrice = Number(master?.price || 0);
       const key = `${category}__${name}`;
-      if (!target[key]) target[key] = { label: `${category}：${name}`, count: 0, unitPrice, total: 0 };
+      if (!target[key]) target[key] = { key, label: `${category}：${name}`, count: 0, unitPrice, total: 0 };
       target[key].count += 1;
       target[key].total += unitPrice;
     };
@@ -757,7 +793,7 @@ export default function AdminPage() {
       const price = hasPrice ? Number(item.price) : null;
       const total = price === null ? 0 : (priceMode === 'unit' ? price * count : price);
       const key = `${category}__${name}`;
-      if (!target[key]) target[key] = { label: `${category}：${name}`, count: 0, unitPrice: price, total: 0, isCustom: true };
+      if (!target[key]) target[key] = { key, label: `${category}：${name}`, count: 0, unitPrice: price, total: 0, isCustom: true };
       target[key].count += count;
       target[key].total += total;
       if (target[key].unitPrice === null && price !== null) target[key].unitPrice = price;
@@ -904,6 +940,35 @@ export default function AdminPage() {
       calcOther += dc.oC; 
       scrapTotalCalc += dc.scrapC;
     });
+
+    // 自由入力リースの管理画面金額を自動計算へ反映。
+    // 日報にpriceが保存されている場合はその既存金額との差額だけを加えるため二重計上しない。
+    const customLeaseDetails = getLeaseDetailEntries(locName);
+    const locCustomLeasePrices = leaseCustomPrices[locName] || {};
+
+    let ishikawaCustomAdjustment = 0;
+    customLeaseDetails.ishikawa
+      .filter((entry:any) => entry.isCustom)
+      .forEach((entry:any) => {
+        const raw = locCustomLeasePrices.ishikawa?.[entry.key];
+        if (raw !== '' && raw !== undefined && raw !== null) {
+          ishikawaCustomAdjustment += Number(raw) - Number(entry.total || 0);
+        }
+      });
+
+    let mokCustomAdjustment = 0;
+    customLeaseDetails.mok
+      .filter((entry:any) => entry.isCustom)
+      .forEach((entry:any) => {
+        const raw = locCustomLeasePrices.mok?.[entry.key];
+        if (raw !== '' && raw !== undefined && raw !== null) {
+          mokCustomAdjustment += Number(raw) - Number(entry.total || 0);
+        }
+      });
+
+    calcIshikawaLease += ishikawaCustomAdjustment;
+    calcMokLease += mokCustomAdjustment;
+    calcLease += ishikawaCustomAdjustment + mokCustomAdjustment;
 
     // 手動上書きや管理画面からの追加を反映する前の「日報由来の概算」を保持
     const reportEstimateLabor = calcLabor;
@@ -3765,7 +3830,7 @@ export default function AdminPage() {
               {[
                 { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost },
                 { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSub, val: modalData.subCostTotal },
-                { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
+                { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isLease: true, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
                 { key: 'otherLease', label: 'その他リース', estimate: modalData.reportEstimateOtherLease, val: modalData.otherLeaseCost },
                 { key: 'ownMachine', label: '自社重機', estimate: modalData.reportEstimateOwnMachine, val: modalData.ownMachineCost },
                 { key: 'vehicle', label: '自社車両', estimate: modalData.reportEstimateVehicle, val: modalData.vehicleCost },
@@ -3783,11 +3848,11 @@ export default function AdminPage() {
                     <div className="flex justify-between items-center">
                       <span className={`text-base md:text-lg font-bold ${item.isDisposal ? 'text-orange-600' : 'text-slate-700'}`}>{item.label}</span>
                       <div className="flex items-center gap-2">
-                        {item.isIshikawaSpecial && (
+                        {item.isLease && (
                           <button
                             type="button"
                             onClick={() => setShowIshikawaLeaseModal(true)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition"
+                            className={`${item.isIshikawaSpecial ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'} text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition`}
                           >
                             詳細
                           </button>
@@ -3893,13 +3958,22 @@ export default function AdminPage() {
           <div className="bg-white rounded-[32px] w-full max-w-2xl p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗾 石川県現場 リース費用の内訳</h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">石川県用の機器リースと、通常のMOKリースの内訳です</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">
+                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)'
+                    ? '🗾 石川県現場 リース費用の内訳'
+                    : '🔹 南大阪建機(MOK) リース費用の内訳'}
+                </h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5">
+                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)'
+                    ? '石川県用の機器リースと、通常のMOKリースの内訳です'
+                    : '日報で選択されたMOKリースと自由入力分の内訳です'}
+                </p>
               </div>
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
             <div className="space-y-5">
+              {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
               <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-200 space-y-3">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                   <div>
@@ -3947,19 +4021,44 @@ export default function AdminPage() {
                             {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
                           </div>
                         </div>
-                        {!entry.isCustom || entry.unitPrice !== null ? (
+                        {entry.isCustom ? (
+                          <div className="w-full md:w-[220px]">
+                            {authRole === 'admin' ? (
+                              <>
+                                <div className="text-[11px] font-bold text-indigo-700 mb-1">自由入力分の金額</div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-slate-500 font-bold">¥</span>
+                                  <input
+                                    type="number"
+                                    value={leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] ?? ''}
+                                    onChange={(e) => handleLeaseCustomPriceChange(modalLocation, 'ishikawa', entry.key, e.target.value)}
+                                    placeholder={entry.total ? String(entry.total) : '金額を入力'}
+                                    className="w-full p-2 border border-indigo-300 rounded-lg bg-white font-bold text-right text-sm"
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm font-bold text-indigo-700 text-right">
+                                {leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] !== '' &&
+                                 leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] !== undefined
+                                  ? formatAmount(leaseCustomPrices[modalLocation].ishikawa[entry.key])
+                                  : (entry.total ? formatAmount(entry.total) : '金額未入力')}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
                           <div className="text-sm font-bold text-indigo-700">
                             {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
                             合計 {formatAmount(entry.total)}
                           </div>
-                        ) : (
-                          <div className="text-xs font-bold text-slate-400">明細表示のみ</div>
                         )}
                       </div>
                     ))
                   )}
                 </div>
               </div>
+
+              )}
 
               <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 space-y-3">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
@@ -3970,23 +4069,27 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {authRole === 'admin' ? (
-                    <div className="flex items-center gap-2 md:w-[260px]">
-                      <span className="font-bold text-blue-700">¥</span>
-                      <input
-                        type="number"
-                        value={costOverrides[modalLocation]?.mokLease ?? ''}
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'mokLease', e.target.value)}
-                        placeholder={String(modalData.calcMokLease || 0)}
-                        className="w-full p-2.5 border border-blue-300 rounded-xl bg-white font-bold text-right text-base"
-                      />
-                    </div>
+                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? (
+                    authRole === 'admin' ? (
+                      <div className="flex items-center gap-2 md:w-[260px]">
+                        <span className="font-bold text-blue-700">¥</span>
+                        <input
+                          type="number"
+                          value={costOverrides[modalLocation]?.mokLease ?? ''}
+                          onChange={(e) => handleCostOverrideChange(modalLocation, 'mokLease', e.target.value)}
+                          placeholder={String(modalData.calcMokLease || 0)}
+                          className="w-full p-2.5 border border-blue-300 rounded-xl bg-white font-bold text-right text-base"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.mokLeaseCost)}</span>
+                    )
                   ) : (
-                    <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.mokLeaseCost)}</span>
+                    <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.reportEstimateLease)}</span>
                   )}
                 </div>
 
-                {authRole === 'admin' && (
+                {authRole === 'admin' && modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
                   <div className="text-xs text-blue-700 font-bold">
                     反映金額: {formatAmount(modalData.mokLeaseCost)}
                     {costOverrides[modalLocation]?.mokLease !== '' && costOverrides[modalLocation]?.mokLease !== undefined
@@ -4008,13 +4111,36 @@ export default function AdminPage() {
                             {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
                           </div>
                         </div>
-                        {!entry.isCustom || entry.unitPrice !== null ? (
+                        {entry.isCustom ? (
+                          <div className="w-full md:w-[220px]">
+                            {authRole === 'admin' ? (
+                              <>
+                                <div className="text-[11px] font-bold text-blue-700 mb-1">自由入力分の金額</div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-slate-500 font-bold">¥</span>
+                                  <input
+                                    type="number"
+                                    value={leaseCustomPrices[modalLocation]?.mok?.[entry.key] ?? ''}
+                                    onChange={(e) => handleLeaseCustomPriceChange(modalLocation, 'mok', entry.key, e.target.value)}
+                                    placeholder={entry.total ? String(entry.total) : '金額を入力'}
+                                    className="w-full p-2 border border-blue-300 rounded-lg bg-white font-bold text-right text-sm"
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm font-bold text-blue-700 text-right">
+                                {leaseCustomPrices[modalLocation]?.mok?.[entry.key] !== '' &&
+                                 leaseCustomPrices[modalLocation]?.mok?.[entry.key] !== undefined
+                                  ? formatAmount(leaseCustomPrices[modalLocation].mok[entry.key])
+                                  : (entry.total ? formatAmount(entry.total) : '金額未入力')}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
                           <div className="text-sm font-bold text-blue-700">
                             {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
                             合計 {formatAmount(entry.total)}
                           </div>
-                        ) : (
-                          <div className="text-xs font-bold text-slate-400">明細表示のみ</div>
                         )}
                       </div>
                     ))
