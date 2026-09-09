@@ -3414,8 +3414,14 @@ export default function AdminPage() {
 
       {/* 現場詳細モーダル */}
       {modalLocation && modalData && (
-        <div className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}>
-          <div className={`bg-white rounded-3xl w-full max-w-6xl md:p-10 max-h-[94vh] md:max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 ${authRole === 'viewer' ? 'p-4 space-y-5 md:space-y-8' : 'p-5 space-y-6 md:space-y-8'}`}>
+        <div
+          className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}
+          onClick={() => setModalLocation(null)}
+        >
+          <div
+            className={`bg-white rounded-3xl w-full max-w-6xl md:p-10 max-h-[94vh] md:max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 ${authRole === 'viewer' ? 'p-4 space-y-5 md:space-y-8' : 'p-5 space-y-6 md:space-y-8'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
               <div className="flex flex-col items-start gap-3 w-full">
                 <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
@@ -3966,6 +3972,16 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setModalLocation(null)}
+                className="bg-slate-800 hover:bg-slate-900 text-white px-6 md:px-8 py-3 rounded-2xl font-bold text-sm md:text-base transition shadow-lg"
+              >
+                閉じる
+              </button>
             </div>
 
           </div>
