@@ -92,6 +92,9 @@ export default function AdminPage() {
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
   const [leaseCustomPrices, setLeaseCustomPrices] = useState<any>({});
+  // 詳細分析・月別処分一覧の金額編集は、入力中は画面内だけ変更し「保存」でSupabaseへまとめて送信
+  const [financialDirty, setFinancialDirty] = useState(false);
+  const [isFinancialSaving, setIsFinancialSaving] = useState(false);
 
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
@@ -354,7 +357,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleCostOverrideChange = async (locName: string, field: string, val: string) => {
+  const handleCostOverrideChange = (locName: string, field: string, val: string) => {
     if (authRole === 'viewer') return;
     const newOverrides = {
       ...costOverrides,
@@ -364,11 +367,10 @@ export default function AdminPage() {
       }
     };
     setCostOverrides(newOverrides);
-    const newData = { ...settings, costOverrides: newOverrides };
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+    setFinancialDirty(true);
   };
 
-  const handleDisposalOverrideChange = async (locName: string, key: string, val: string) => {
+  const handleDisposalOverrideChange = (locName: string, key: string, val: string) => {
     if (authRole === 'viewer') return;
     const newDisposalOverrides = {
       ...disposalOverrides,
@@ -378,12 +380,10 @@ export default function AdminPage() {
       }
     };
     setDisposalOverrides(newDisposalOverrides);
-    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+    setFinancialDirty(true);
   };
 
-  const handleDisposalItemOverrideChange = async (locName: string, disposalName: string, itemKey: string, val: string) => {
+  const handleDisposalItemOverrideChange = (locName: string, disposalName: string, itemKey: string, val: string) => {
     if (authRole === 'viewer') return;
     const subKey = `${disposalName}__${itemKey}`;
     const newDisposalOverrides = {
@@ -394,13 +394,10 @@ export default function AdminPage() {
       }
     };
     setDisposalOverrides(newDisposalOverrides);
-    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+    setFinancialDirty(true);
   };
 
-
-  const handleDisposalDetailOverrideChange = async (
+  const handleDisposalDetailOverrideChange = (
     locName: string,
     disposalName: string,
     yearMonth: string,
@@ -411,8 +408,6 @@ export default function AdminPage() {
   ) => {
     if (authRole === 'viewer') return;
 
-    // 現場 × 処分場 × 月 × 日付 × 品目 単位で保存。
-    // マスタや他現場の単価には影響させない。
     const subKey = `${field}__${disposalName}__${yearMonth}__${dateKey}__${itemKey}`;
     const newDisposalOverrides = {
       ...disposalOverrides,
@@ -422,16 +417,10 @@ export default function AdminPage() {
       }
     };
     setDisposalOverrides(newDisposalOverrides);
-    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
-    });
+    setFinancialDirty(true);
   };
 
-  const handleDisposalMonthlyItemUnitPriceChange = async (
+  const handleDisposalMonthlyItemUnitPriceChange = (
     locName: string,
     disposalName: string,
     yearMonth: string,
@@ -447,22 +436,14 @@ export default function AdminPage() {
       nextLocOverrides[subKey] = val;
     });
 
-    const newDisposalOverrides = {
+    setDisposalOverrides({
       ...disposalOverrides,
       [locName]: nextLocOverrides
-    };
-    setDisposalOverrides(newDisposalOverrides);
-
-    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
     });
+    setFinancialDirty(true);
   };
 
-  const handleDisposalMonthlyItemInvoiceChange = async (
+  const handleDisposalMonthlyItemInvoiceChange = (
     locName: string,
     disposalName: string,
     yearMonth: string,
@@ -491,22 +472,14 @@ export default function AdminPage() {
       nextLocOverrides[subKey] = String(rowConfirmed);
     });
 
-    const newDisposalOverrides = {
+    setDisposalOverrides({
       ...disposalOverrides,
       [locName]: nextLocOverrides
-    };
-    setDisposalOverrides(newDisposalOverrides);
-
-    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
     });
+    setFinancialDirty(true);
   };
 
-  const handleScrapOverrideChange = async (locName: string, key: string, val: string) => {
+  const handleScrapOverrideChange = (locName: string, key: string, val: string) => {
     if (authRole === 'viewer') return;
     const newScrapOverrides = {
       ...scrapOverrides,
@@ -516,36 +489,21 @@ export default function AdminPage() {
       }
     };
     setScrapOverrides(newScrapOverrides);
-    const newData = { ...settings, scrapOverrides: newScrapOverrides };
-    setSettings(newData);
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+    setFinancialDirty(true);
   };
 
-  const handleMonthlyDisposalInvoiceChange = async (disposalSite: string, yearMonth: string, val: string) => {
+  const handleMonthlyDisposalInvoiceChange = (disposalSite: string, yearMonth: string, val: string) => {
     if (authRole === 'viewer') return;
 
     const key = `${disposalSite}__${yearMonth}`;
-    const updated = {
+    setMonthlyDisposalInvoices({
       ...monthlyDisposalInvoices,
       [key]: val
-    };
-
-    setMonthlyDisposalInvoices(updated);
-
-    const newData = {
-      ...settings,
-      monthlyDisposalInvoices: updated
-    };
-    setSettings(newData);
-
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
     });
+    setFinancialDirty(true);
   };
 
-  const handleLeaseCustomPriceChange = async (
+  const handleLeaseCustomPriceChange = (
     locName: string,
     scope: 'ishikawa' | 'mok',
     entryKey: string,
@@ -553,7 +511,7 @@ export default function AdminPage() {
   ) => {
     if (authRole === 'viewer') return;
 
-    const updated = {
+    setLeaseCustomPrices({
       ...leaseCustomPrices,
       [locName]: {
         ...(leaseCustomPrices[locName] || {}),
@@ -562,24 +520,11 @@ export default function AdminPage() {
           [entryKey]: val
         }
       }
-    };
-
-    setLeaseCustomPrices(updated);
-
-    const newData = {
-      ...settings,
-      leaseCustomPrices: updated
-    };
-    setSettings(newData);
-
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newData)
     });
+    setFinancialDirty(true);
   };
 
-  const handleFuelUnitPriceChange = async (locName: string, yearMonth: string, val: string) => {
+  const handleFuelUnitPriceChange = (locName: string, yearMonth: string, val: string) => {
     if (authRole === 'viewer') return;
     const newFuelPrices = {
       ...fuelUnitPrices,
@@ -589,8 +534,50 @@ export default function AdminPage() {
       }
     };
     setFuelUnitPrices(newFuelPrices);
-    const newData = { ...settings, fuelUnitPrices: newFuelPrices };
-    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
+    setFinancialDirty(true);
+  };
+
+  const saveFinancialEdits = async () => {
+    if (authRole === 'viewer' || isFinancialSaving) return;
+
+    try {
+      setIsFinancialSaving(true);
+
+      // 画面内で編集した金額関連を1回のPOSTにまとめる。
+      // 入力のたびにSupabaseへ送らないため、連続書き込みを防ぎます。
+      const newData = {
+        ...settings,
+        costOverrides,
+        disposalOverrides,
+        scrapOverrides,
+        fuelUnitPrices,
+        monthlyDisposalInvoices,
+        leaseCustomPrices,
+        customSubcontractors
+      };
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+
+      if (!res.ok) {
+        alert('金額の保存に失敗しました。');
+        return;
+      }
+
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setFinancialDirty(false);
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。');
+    } finally {
+      setIsFinancialSaving(false);
+    }
   };
 
   const handleAddCustomSubcontractor = async (locName: string) => {
@@ -1611,7 +1598,7 @@ export default function AdminPage() {
       {showSaveToast && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce font-bold text-base md:text-lg">
           <span className="text-2xl">✨</span>
-          <span>日報の編集を保存しました！</span>
+          <span>保存しました！</span>
         </div>
       )}
 
@@ -2784,7 +2771,8 @@ export default function AdminPage() {
                 </p>
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
                   📄 請求書と見比べるための一覧です。<br />
-                  確認できた行をクリックすると色が変わります。もう一度クリックすると元に戻ります。
+                  確認できた行をクリックすると色が変わります。もう一度クリックすると元に戻ります。<br />
+                  <span className="text-emerald-700">金額を変更したら、最後に「💾 保存」を押してください。</span>
                 </div>
               </div>
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -2950,7 +2938,26 @@ export default function AdminPage() {
               })()}
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+              {authRole === 'admin' && (
+                <div className="flex items-center gap-3 mr-auto">
+                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
+                      !financialDirty || isFinancialSaving
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 保存'}
+                  </button>
+                </div>
+              )}
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
@@ -3766,7 +3773,7 @@ export default function AdminPage() {
                         </div>
                         <div className="bg-white rounded-xl border border-blue-200 p-3.5">
                           <div className="font-extrabold text-blue-800">② 確定金額</div>
-                          <div className="text-slate-600 mt-1">請求書が届いたら、実際の金額に修正します。</div>
+                          <div className="text-slate-600 mt-1">請求書が届いたら、実際の金額に修正します。変更後は画面下の「💾 保存」を押します。</div>
                         </div>
                         <div className="bg-white rounded-xl border border-emerald-200 p-3.5">
                           <div className="font-extrabold text-emerald-800">③ 原価への反映額</div>
@@ -4265,12 +4272,31 @@ export default function AdminPage() {
             </div>
 
             <div
-              className={`sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex justify-end ${
+              className={`sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3 ${
                 authRole === 'viewer'
                   ? '-mx-4 md:-mx-10 -mb-4 md:-mb-10 px-4 md:px-10 py-4'
                   : '-mx-6 md:-mx-9 -mb-6 md:-mb-9 px-6 md:px-9 py-4'
               }`}
             >
+              {authRole === 'admin' && (
+                <div className="flex items-center gap-3 mr-auto">
+                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
+                      !financialDirty || isFinancialSaving
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 保存'}
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setModalLocation(null)}
@@ -4487,7 +4513,26 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-white pt-4 pb-1 border-t border-slate-100 flex justify-end">
+            <div className="sticky bottom-0 z-20 bg-white pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+              {authRole === 'admin' && (
+                <div className="flex items-center gap-3 mr-auto">
+                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
+                      !financialDirty || isFinancialSaving
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 保存'}
+                  </button>
+                </div>
+              )}
               <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
@@ -4661,7 +4706,26 @@ export default function AdminPage() {
               📌 この画面と「📦 月別処分一覧」は同じ処分データを見ています。どちらで金額を直しても、もう一方にも反映されます。
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+              {authRole === 'admin' && (
+                <div className="flex items-center gap-3 mr-auto">
+                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
+                      !financialDirty || isFinancialSaving
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 保存'}
+                  </button>
+                </div>
+              )}
               <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3.5 rounded-2xl font-bold text-base md:text-lg transition">閉じる</button>
             </div>
           </div>
@@ -4754,7 +4818,26 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+              {authRole === 'admin' && (
+                <div className="flex items-center gap-3 mr-auto">
+                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
+                      !financialDirty || isFinancialSaving
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 保存'}
+                  </button>
+                </div>
+              )}
               <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
