@@ -19,6 +19,11 @@ const formatAmount = (num: number | string, includeYen = true) => {
   );
 };
 
+const formatInputNumber = (num: number | string) => {
+  const val = Number(num) || 0;
+  return String(Math.round((val + Number.EPSILON) * 100) / 100);
+};
+
 const getCurrentYearMonth = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -417,6 +422,81 @@ export default function AdminPage() {
       }
     };
     setDisposalOverrides(newDisposalOverrides);
+    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
+    setSettings(newData);
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newData)
+    });
+  };
+
+  const handleDisposalMonthlyItemUnitPriceChange = async (
+    locName: string,
+    disposalName: string,
+    yearMonth: string,
+    itemKey: string,
+    rows: any[],
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+
+    const nextLocOverrides = { ...(disposalOverrides[locName] || {}) };
+    rows.forEach((row: any) => {
+      const subKey = `unitPrice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
+      nextLocOverrides[subKey] = val;
+    });
+
+    const newDisposalOverrides = {
+      ...disposalOverrides,
+      [locName]: nextLocOverrides
+    };
+    setDisposalOverrides(newDisposalOverrides);
+
+    const newData = { ...settings, disposalOverrides: newDisposalOverrides };
+    setSettings(newData);
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newData)
+    });
+  };
+
+  const handleDisposalMonthlyItemInvoiceChange = async (
+    locName: string,
+    disposalName: string,
+    yearMonth: string,
+    itemKey: string,
+    rows: any[],
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+
+    const targetTotal = Number(val) || 0;
+    const currentReportTotal = rows.reduce((sum: number, row: any) => sum + Number(row.reportTotal || 0), 0);
+    const nextLocOverrides = { ...(disposalOverrides[locName] || {}) };
+
+    let distributed = 0;
+    rows.forEach((row: any, idx: number) => {
+      let rowConfirmed = 0;
+
+      if (idx === rows.length - 1) {
+        rowConfirmed = Math.round((targetTotal - distributed) * 100) / 100;
+      } else if (currentReportTotal > 0) {
+        rowConfirmed = Math.round((targetTotal * (Number(row.reportTotal || 0) / currentReportTotal)) * 100) / 100;
+        distributed += rowConfirmed;
+      }
+
+      const subKey = `invoice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
+      nextLocOverrides[subKey] = String(rowConfirmed);
+    });
+
+    const newDisposalOverrides = {
+      ...disposalOverrides,
+      [locName]: nextLocOverrides
+    };
+    setDisposalOverrides(newDisposalOverrides);
+
     const newData = { ...settings, disposalOverrides: newDisposalOverrides };
     setSettings(newData);
     await fetch('/api/settings', {
@@ -2765,10 +2845,10 @@ export default function AdminPage() {
                             </div>
 
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1050px] text-left border-collapse text-sm">
+                              <table className="w-full min-w-[1120px] text-left border-collapse text-base">
                                 <thead>
-                                  <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100">
-                                    <th className="py-3 px-3 w-[85px]">日付</th>
+                                  <tr className="border-b border-slate-300 text-slate-700 font-extrabold bg-slate-100 text-base">
+                                    <th className="py-3.5 px-3 w-[90px] text-base">日付</th>
                                     <th className="py-3 px-3">現場名</th>
                                     <th className="py-3 px-3">品目</th>
                                     <th className="py-3 px-3 text-right">数量</th>
@@ -2783,11 +2863,11 @@ export default function AdminPage() {
                                     const displayPrice =
                                       it.priceOverride !== '' && it.priceOverride !== undefined
                                         ? it.priceOverride
-                                        : it.unitPrice;
+                                        : formatInputNumber(it.unitPrice);
                                     const displayInvoice =
                                       it.invoiceOverride !== '' && it.invoiceOverride !== undefined
                                         ? it.invoiceOverride
-                                        : it.reportTotal;
+                                        : formatInputNumber(it.reportTotal);
 
                                     return (
                                       <tr
@@ -2817,7 +2897,7 @@ export default function AdminPage() {
                                               onChange={(e) => handleDisposalDetailOverrideChange(
                                                 it.locationName, dSite, ym, it.dateKey, it.item, 'unitPrice', e.target.value
                                               )}
-                                              className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white"
+                                              className="w-28 p-2.5 border border-slate-300 rounded-lg text-right font-extrabold bg-white text-base"
                                             />
                                           </div>
                                         </td>
@@ -2833,7 +2913,7 @@ export default function AdminPage() {
                                               onChange={(e) => handleDisposalDetailOverrideChange(
                                                 it.locationName, dSite, ym, it.dateKey, it.item, 'invoice', e.target.value
                                               )}
-                                              className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900"
+                                              className="w-32 p-2.5 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900 text-base"
                                             />
                                           </div>
                                         </td>
@@ -4341,149 +4421,150 @@ export default function AdminPage() {
       {/* 処分費内訳確認モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗑️ 処分費の内訳明細</h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-1">
-                  「いつ・どの処分場へ・何を・どれだけ処分したか」と、日報由来金額／請求確定額を確認します。
+                <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">🗑️ 処分費の内訳明細</h3>
+                <p className="text-sm md:text-base text-slate-600 mt-1.5">
+                  処分場ごとに、各月の「品目・総数量・単価・日報由来・請求確定額」を確認します。
                 </p>
-                <div className="text-xs font-bold text-slate-700 mt-2">現場：{modalLocation}</div>
+                <div className="text-sm md:text-base font-bold text-slate-800 mt-2">現場：{modalLocation}</div>
               </div>
-              <button onClick={() => setShowDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <button onClick={() => setShowDisposalModal(false)} className="shrink-0 w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xl transition">✕</button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                <div className="text-xs font-bold text-slate-500">日報由来 処分費合計</div>
-                <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(modalData.reportEstimateDisposal)}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                <div className="text-sm font-bold text-slate-600">日報由来 処分費合計</div>
+                <div className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1">{formatAmount(modalData.reportEstimateDisposal)}</div>
               </div>
-              <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4">
-                <div className="text-xs font-bold text-blue-700">請求確定額 合計（原価反映）</div>
-                <div className="text-2xl font-extrabold text-blue-900 mt-1">{formatAmount(modalData.disposalCost)}</div>
+              <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-5">
+                <div className="text-sm font-bold text-blue-700">請求確定額 合計（原価反映）</div>
+                <div className="text-2xl md:text-3xl font-extrabold text-blue-900 mt-1">{formatAmount(modalData.disposalCost)}</div>
               </div>
             </div>
 
-            <div className="space-y-7">
+            <div className="space-y-8">
               {Object.keys(modalData.aggregatedDisposalBreakdown || {}).length === 0 ? (
-                <p className="text-base text-slate-500 text-center py-8">処分データはありません</p>
+                <p className="text-lg text-slate-500 text-center py-8">処分データはありません</p>
               ) : (
                 Object.entries(modalData.aggregatedDisposalBreakdown).map(([dLoc, siteData]: any) => (
                   <section key={dLoc} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
-                    <div className="bg-slate-800 text-white px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <h4 className="font-extrabold text-lg">🏢 {dLoc}</h4>
-                      <div className="flex gap-3 text-xs md:text-sm font-bold">
+                    <div className="bg-slate-800 text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <h4 className="font-extrabold text-xl">🏢 {dLoc}</h4>
+                      <div className="flex gap-4 text-sm md:text-base font-bold">
                         <span>日報由来 {formatAmount(siteData.reportTotal)}</span>
                         <span className="text-blue-200">確定 {formatAmount(siteData.confirmedTotal)}</span>
                       </div>
                     </div>
 
-                    <div className="p-3 md:p-4 space-y-4">
+                    <div className="p-3 md:p-5 space-y-5">
                       {Object.entries(siteData.months)
                         .sort(([a], [b]) => b.localeCompare(a))
                         .map(([ym, monthData]: any) => {
                           const [y, m] = ym.split('-');
+
+                          const summaryByItem: any = {};
+                          Object.values(monthData.days || {}).forEach((dayData: any) => {
+                            (dayData.rows || []).forEach((row: any) => {
+                              if (!summaryByItem[row.item]) {
+                                summaryByItem[row.item] = {
+                                  item: row.item,
+                                  quantity: 0,
+                                  unit: row.unit,
+                                  reportTotal: 0,
+                                  confirmedTotal: 0,
+                                  rows: []
+                                };
+                              }
+                              summaryByItem[row.item].quantity += Number(row.quantity || 0);
+                              summaryByItem[row.item].reportTotal += Number(row.reportTotal || 0);
+                              summaryByItem[row.item].confirmedTotal += Number(row.confirmedTotal || 0);
+                              summaryByItem[row.item].rows.push(row);
+                            });
+                          });
+
+                          const summaryRows = Object.values(summaryByItem).map((summary: any) => {
+                            const unitPrice = summary.quantity !== 0
+                              ? summary.reportTotal / summary.quantity
+                              : 0;
+                            return { ...summary, unitPrice };
+                          });
+
                           return (
                             <div key={ym} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                                <div className="font-extrabold text-slate-800">📅 {y}年{Number(m)}月</div>
-                                <div className="flex gap-3 text-xs md:text-sm font-bold">
-                                  <span className="text-slate-600">日報由来 {formatAmount(monthData.reportTotal)}</span>
+                              <div className="px-5 py-4 bg-slate-100 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                                <div className="font-extrabold text-lg md:text-xl text-slate-900">📅 {y}年{Number(m)}月分</div>
+                                <div className="flex gap-4 text-sm md:text-base font-bold">
+                                  <span className="text-slate-700">日報由来 {formatAmount(monthData.reportTotal)}</span>
                                   <span className="text-blue-700">確定 {formatAmount(monthData.confirmedTotal)}</span>
                                 </div>
                               </div>
 
-                              <div className="divide-y divide-slate-200">
-                                {Object.entries(monthData.days)
-                                  .sort(([a], [b]) => a.localeCompare(b))
-                                  .map(([dateKey, dayData]: any) => (
-                                    <div key={dateKey} className="p-3 md:p-4">
-                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                                        <div className="inline-flex items-center gap-2">
-                                          <span className="bg-orange-100 text-orange-800 font-extrabold px-3 py-1.5 rounded-xl">
-                                            📆 {dayData.displayDate}
-                                          </span>
-                                          <span className="text-xs text-slate-500">この日の処分</span>
-                                        </div>
-                                        <div className="text-xs md:text-sm font-bold">
-                                          <span className="text-slate-600 mr-3">日報 {formatAmount(dayData.reportTotal)}</span>
-                                          <span className="text-blue-700">確定 {formatAmount(dayData.confirmedTotal)}</span>
-                                        </div>
-                                      </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[850px] text-left border-collapse text-base">
+                                  <thead>
+                                    <tr className="bg-slate-50 text-slate-700 font-extrabold border-b border-slate-200">
+                                      <th className="py-3.5 px-4">品目</th>
+                                      <th className="py-3.5 px-4 text-right">月の総数量</th>
+                                      <th className="py-3.5 px-4 text-right">単価</th>
+                                      <th className="py-3.5 px-4 text-right">日報由来</th>
+                                      <th className="py-3.5 px-4 text-right">請求確定額</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {summaryRows.map((summary: any) => {
+                                      return (
+                                        <tr key={summary.item} className="hover:bg-slate-50/70">
+                                          <td className="py-4 px-4 font-extrabold text-slate-900 text-base md:text-lg">{summary.item}</td>
+                                          <td className="py-4 px-4 text-right font-extrabold text-slate-900">
+                                            {Number(summary.quantity || 0).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} {summary.unit}
+                                          </td>
 
-                                      <div className="overflow-x-auto">
-                                        <table className="w-full min-w-[760px] text-left border-collapse text-sm">
-                                          <thead>
-                                            <tr className="bg-slate-50 text-slate-600 font-bold border-y border-slate-200">
-                                              <th className="py-2.5 px-3">品目</th>
-                                              <th className="py-2.5 px-3 text-right">数量</th>
-                                              <th className="py-2.5 px-3 text-right">単価</th>
-                                              <th className="py-2.5 px-3 text-right">日報由来</th>
-                                              <th className="py-2.5 px-3 text-right">請求確定額</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody className="divide-y divide-slate-100">
-                                            {dayData.rows.map((row: any, rowIndex: number) => {
-                                              const displayPrice =
-                                                row.priceOverride !== '' && row.priceOverride !== undefined
-                                                  ? row.priceOverride
-                                                  : row.unitPrice;
-                                              const displayInvoice =
-                                                row.invoiceOverride !== '' && row.invoiceOverride !== undefined
-                                                  ? row.invoiceOverride
-                                                  : row.reportTotal;
+                                          <td className="py-4 px-4 text-right">
+                                            {authRole === 'admin' ? (
+                                              <div className="flex items-center justify-end gap-1">
+                                                <span className="text-slate-500 font-bold">¥</span>
+                                                <input
+                                                  type="number"
+                                                  value={formatInputNumber(summary.unitPrice)}
+                                                  onChange={(e) => handleDisposalMonthlyItemUnitPriceChange(
+                                                    modalLocation, dLoc, ym, summary.item, summary.rows, e.target.value
+                                                  )}
+                                                  className="w-32 p-2.5 border border-slate-300 rounded-lg text-right font-extrabold bg-white text-base"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className="font-extrabold">{formatAmount(summary.unitPrice)}</span>
+                                            )}
+                                          </td>
 
-                                              return (
-                                                <tr key={`${dateKey}_${row.item}_${rowIndex}`} className="hover:bg-slate-50/70">
-                                                  <td className="py-3 px-3 font-bold text-slate-800">{row.item}</td>
-                                                  <td className="py-3 px-3 text-right font-bold">
-                                                    {Number(row.quantity || 0).toLocaleString('ja-JP')} {row.unit}
-                                                  </td>
-                                                  <td className="py-3 px-3 text-right">
-                                                    {authRole === 'admin' ? (
-                                                      <div className="flex items-center justify-end gap-1">
-                                                        <span className="text-slate-400">¥</span>
-                                                        <input
-                                                          type="number"
-                                                          value={displayPrice}
-                                                          onChange={(e) => handleDisposalDetailOverrideChange(
-                                                            modalLocation, dLoc, ym, dateKey, row.item, 'unitPrice', e.target.value
-                                                          )}
-                                                          className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white"
-                                                        />
-                                                      </div>
-                                                    ) : (
-                                                      <span className="font-bold">{formatAmount(row.unitPrice)}</span>
-                                                    )}
-                                                  </td>
-                                                  <td className="py-3 px-3 text-right font-extrabold text-slate-800">
-                                                    {formatAmount(row.reportTotal)}
-                                                  </td>
-                                                  <td className="py-3 px-3 text-right">
-                                                    {authRole === 'admin' ? (
-                                                      <div className="flex items-center justify-end gap-1">
-                                                        <span className="text-blue-500 font-bold">¥</span>
-                                                        <input
-                                                          type="number"
-                                                          value={displayInvoice}
-                                                          onChange={(e) => handleDisposalDetailOverrideChange(
-                                                            modalLocation, dLoc, ym, dateKey, row.item, 'invoice', e.target.value
-                                                          )}
-                                                          className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900"
-                                                        />
-                                                      </div>
-                                                    ) : (
-                                                      <span className="font-extrabold text-blue-800">{formatAmount(row.confirmedTotal)}</span>
-                                                    )}
-                                                  </td>
-                                                </tr>
-                                              );
-                                            })}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    </div>
-                                  ))}
+                                          <td className="py-4 px-4 text-right font-extrabold text-slate-900 text-base md:text-lg">
+                                            {formatAmount(summary.reportTotal)}
+                                          </td>
+
+                                          <td className="py-4 px-4 text-right">
+                                            {authRole === 'admin' ? (
+                                              <div className="flex items-center justify-end gap-1">
+                                                <span className="text-blue-500 font-bold">¥</span>
+                                                <input
+                                                  type="number"
+                                                  value={formatInputNumber(summary.confirmedTotal)}
+                                                  onChange={(e) => handleDisposalMonthlyItemInvoiceChange(
+                                                    modalLocation, dLoc, ym, summary.item, summary.rows, e.target.value
+                                                  )}
+                                                  className="w-36 p-2.5 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900 text-base"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className="font-extrabold text-blue-800 text-base md:text-lg">{formatAmount(summary.confirmedTotal)}</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
                           );
@@ -4494,12 +4575,12 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs md:text-sm text-blue-800">
-              単価・請求確定額の修正は「この現場・この処分場・この日・この品目」だけに保存されます。処分場マスタや他現場には影響しません。
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm md:text-base text-blue-800">
+              📦 月別処分一覧の「確定額」を合計して、この画面の「請求確定額」に反映します。ここで月合計を修正した場合も、月別処分一覧側へ反映されます。
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3.5 rounded-2xl font-bold text-base md:text-lg transition">閉じる</button>
             </div>
           </div>
         </div>
