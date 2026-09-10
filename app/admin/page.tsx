@@ -4264,11 +4264,17 @@ export default function AdminPage() {
               })}
             </div>
 
-            <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex justify-end">
+            <div
+              className={`sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex justify-end ${
+                authRole === 'viewer'
+                  ? '-mx-4 md:-mx-10 -mb-4 md:-mb-10 px-4 md:px-10 py-4'
+                  : '-mx-6 md:-mx-9 -mb-6 md:-mb-9 px-6 md:px-9 py-4'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setModalLocation(null)}
-                className="bg-slate-800 hover:bg-slate-900 text-white px-7 md:px-10 py-3.5 rounded-2xl font-extrabold text-base md:text-lg transition shadow-lg"
+                className="bg-slate-800 hover:bg-slate-900 text-white px-8 md:px-12 py-3.5 rounded-2xl font-extrabold text-base md:text-lg transition shadow-lg"
               >
                 閉じる
               </button>
