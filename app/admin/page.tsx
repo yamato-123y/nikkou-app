@@ -1270,7 +1270,26 @@ export default function AdminPage() {
       }
     }
 
-    const sumOverrideCost = laborCost + subCostTotal + leaseCost + otherLeaseCost + ownMachineCost + vehicleCost + disposalCost + fuelCost + regularCost + etcCost + parkingCost + otherCost;
+    // 旧河北郡市クリーンセンター等解体工事(石川県)では、
+    // 宇野気石油の軽油・レギュラー金額を分けず、合計金額で原価反映する。
+    const unokeTotalOverride = costOverrides[locName]?.unokeTotal;
+    const ishikawaFuelCombinedCost =
+      isIshikawaFuelSplit && unokeTotalOverride !== '' && unokeTotalOverride !== undefined
+        ? Number(unokeTotalOverride)
+        : fuelCost + regularCost;
+
+    const sumOverrideCost =
+      laborCost +
+      subCostTotal +
+      leaseCost +
+      otherLeaseCost +
+      ownMachineCost +
+      vehicleCost +
+      disposalCost +
+      (isIshikawaFuelSplit ? ishikawaFuelCombinedCost : fuelCost + regularCost) +
+      etcCost +
+      parkingCost +
+      otherCost;
 
     // 「日報由来概算合計」は costOverrides / disposalOverrides / 管理画面手入力を含めない。
     // 石川県案件の宇野気石油分は日報に金額が無いため、概算側では0円のまま。
@@ -2425,10 +2444,9 @@ export default function AdminPage() {
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
                                 {r.location?.includes('旧河北郡市クリーンセンター') && (
-                                  <>
-                                    <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
-                                    <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
-                                  </>
+                                  <div className="col-span-2">
+                                    宇野気石油 合計: <b>{(Number(r.unokeFuel || 0) + Number(r.unokeRegular || 0)).toLocaleString('ja-JP')} L</b>
+                                  </div>
                                 )}
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
@@ -2574,10 +2592,9 @@ export default function AdminPage() {
                                 <div>軽油: <b>{r.fuel || 0} L</b></div>
                                 <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
                                 {r.location?.includes('旧河北郡市クリーンセンター') && (
-                                  <>
-                                    <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
-                                    <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
-                                  </>
+                                  <div className="col-span-2">
+                                    宇野気石油 合計: <b>{(Number(r.unokeFuel || 0) + Number(r.unokeRegular || 0)).toLocaleString('ja-JP')} L</b>
+                                  </div>
                                 )}
                                 <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                                 <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
@@ -2706,10 +2723,9 @@ export default function AdminPage() {
                         <div>軽油: <b>{r.fuel || 0} L</b></div>
                         <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
                         {r.location?.includes('旧河北郡市クリーンセンター') && (
-                          <>
-                            <div>宇野気石油 軽油: <b>{r.unokeFuel || 0} L</b></div>
-                            <div>宇野気石油 レギュラー: <b>{r.unokeRegular || 0} L</b></div>
-                          </>
+                          <div className="col-span-2">
+                            宇野気石油 合計: <b>{(Number(r.unokeFuel || 0) + Number(r.unokeRegular || 0)).toLocaleString('ja-JP')} L</b>
+                          </div>
                         )}
                         <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
                         <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
@@ -3952,40 +3968,44 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
-                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：軽油</div>
-                    <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalUnokeFuelLitering || 0).toLocaleString('ja-JP')} L</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-500 font-bold">¥</span>
-                      <input
-                        type="number"
-                        value={costOverrides[modalLocation]?.fuel ?? ''}
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'fuel', e.target.value)}
-                        placeholder="金額を入力"
-                        readOnly={authRole === 'viewer'}
-                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                  </div>
+                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-4">
+                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）</div>
 
-                  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-3">
-                    <div className="text-base md:text-lg font-bold text-slate-700">⛽ 宇野気石油（石川県）：レギュラー</div>
-                    <div className="text-sm font-bold text-slate-700">
-                      日報入力計: <span className="text-blue-600 font-extrabold text-lg">{Number(modalData.totalUnokeRegularLitering || 0).toLocaleString('ja-JP')} L</span>
+                    <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+                      <div className="text-sm font-bold text-slate-700">日報入力計（軽油＋レギュラー）</div>
+                      <div className="text-blue-700 font-extrabold text-xl md:text-2xl mt-1">
+                        {(Number(modalData.totalUnokeFuelLitering || 0) + Number(modalData.totalUnokeRegularLitering || 0)).toLocaleString('ja-JP')} L
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-500 font-bold">¥</span>
-                      <input
-                        type="number"
-                        value={costOverrides[modalLocation]?.regular ?? ''}
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'regular', e.target.value)}
-                        placeholder="金額を入力"
-                        readOnly={authRole === 'viewer'}
-                        className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
+
+                    <div>
+                      <label className="text-sm font-bold text-slate-600 block mb-1">宇野気石油 合計金額</label>
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500 font-bold">¥</span>
+                        <input
+                          type="number"
+                          value={
+                            costOverrides[modalLocation]?.unokeTotal ??
+                            (
+                              (costOverrides[modalLocation]?.fuel !== '' && costOverrides[modalLocation]?.fuel !== undefined
+                                ? Number(costOverrides[modalLocation]?.fuel)
+                                : 0) +
+                              (costOverrides[modalLocation]?.regular !== '' && costOverrides[modalLocation]?.regular !== undefined
+                                ? Number(costOverrides[modalLocation]?.regular)
+                                : 0)
+                            )
+                          }
+                          onChange={(e) => handleCostOverrideChange(modalLocation, 'unokeTotal', e.target.value)}
+                          placeholder="合計金額を入力"
+                          readOnly={authRole === 'viewer'}
+                          className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                        />
+                      </div>
                     </div>
+
+                    <p className="text-xs md:text-sm text-slate-500">
+                      ※リットル数・金額ともに、軽油とレギュラーを分けず宇野気石油の合計のみ表示します。
+                    </p>
                   </div>
                 </div>
               </div>
