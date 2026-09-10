@@ -484,13 +484,13 @@ export default function Home() {
                            type="button"
                            onClick={() => changeLeaseQuantity(selectedOwnMachines, m.name, -1, setSelectedOwnMachines)}
                            disabled={qty === 0}
-                           className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
+                           className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
                          >−</button>
-                         <div className={`min-w-[54px] h-10 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                         <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                          <button
                            type="button"
                            onClick={() => changeLeaseQuantity(selectedOwnMachines, m.name, 1, setSelectedOwnMachines)}
-                           className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-emerald-600 text-white"
+                           className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-emerald-600 text-white"
                          >＋</button>
                        </div>
                      </div>
@@ -512,13 +512,13 @@ export default function Home() {
                            type="button"
                            onClick={() => changeLeaseQuantity(selectedVehicles, v.name, -1, setSelectedVehicles)}
                            disabled={qty === 0}
-                           className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
+                           className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
                          >−</button>
-                         <div className={`min-w-[54px] h-10 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                         <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                          <button
                            type="button"
                            onClick={() => changeLeaseQuantity(selectedVehicles, v.name, 1, setSelectedVehicles)}
-                           className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-emerald-600 text-white"
+                           className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-emerald-600 text-white"
                          >＋</button>
                        </div>
                      </div>
@@ -556,10 +556,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseHeavy, m.name, -1, setLeaseHeavy)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(leaseHeavy, m.name, 1, setLeaseHeavy)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
                           </div>
                         </div>
                       );
@@ -589,10 +589,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseAttach, m.name, -1, setLeaseAttach)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(leaseAttach, m.name, 1, setLeaseAttach)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
                           </div>
                         </div>
                       );
@@ -622,10 +622,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseOther, m.name, -1, setLeaseOther)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(leaseOther, m.name, 1, setLeaseOther)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-blue-600 text-white">＋</button>
                           </div>
                         </div>
                       );
@@ -729,10 +729,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseHeavy, m.name, -1, setIshikawaLeaseHeavy)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseHeavy, m.name, 1, setIshikawaLeaseHeavy)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
                           </div>
                         </div>
                       );
@@ -762,10 +762,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseAttach, m.name, -1, setIshikawaLeaseAttach)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseAttach, m.name, 1, setIshikawaLeaseAttach)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
                           </div>
                         </div>
                       );
@@ -795,10 +795,10 @@ export default function Home() {
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseOther, m.name, -1, setIshikawaLeaseOther)} disabled={qty === 0}
-                              className={`w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
-                            <div className={`min-w-[52px] h-9 px-2 rounded-xl flex items-center justify-center font-black text-base ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}台</div>
+                              className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                            <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseOther, m.name, 1, setIshikawaLeaseOther)}
-                              className="w-10 h-10 min-w-10 min-h-10 max-w-10 max-h-10 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
+                              className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-indigo-600 text-white">＋</button>
                           </div>
                         </div>
                       );
