@@ -2780,21 +2780,11 @@ export default function AdminPage() {
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
                 <p className="text-sm md:text-base text-slate-600 mt-1.5 leading-relaxed">
-                  1日ごとの日報処分データを表示します。
+                  各現場の「詳細分析 → 処分費」の内容を、処分場・月ごとにまとめて表示します。
                 </p>
-                <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-2 text-sm">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700">
-                    <span className="font-extrabold">① 単価を修正</span><br />
-                    この現場・この処分場・この日・この品目の「日報由来金額」と「処分費内訳」に反映します。マスタや他現場は変更しません。
-                  </div>
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-3 py-2.5 text-blue-800">
-                    <span className="font-extrabold">② 確定額を修正</span><br />
-                    「処分費の内訳明細」の請求確定額、現場の処分費、合計経費、利益・粗利計算に反映します。
-                  </div>
-                  <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-2.5 text-violet-800">
-                    <span className="font-extrabold">③ 処分場請求書（税別・照合メモ）</span><br />
-                    請求書との照合用メモです。入力しても原価・合計経費・利益には反映しません。
-                  </div>
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
+                  📄 請求書と見比べるための一覧です。<br />
+                  確認できた行をクリックすると色が変わります。もう一度クリックすると元に戻ります。
                 </div>
               </div>
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -2848,6 +2838,7 @@ export default function AdminPage() {
                                       <input
                                         type="number"
                                         value={invoiceValue}
+                                        onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => handleMonthlyDisposalInvoiceChange(dSite, ym, e.target.value)}
                                         placeholder="請求書金額"
                                         className="w-full p-1.5 border border-violet-300 rounded-lg bg-white font-bold text-right text-sm"
@@ -2858,8 +2849,8 @@ export default function AdminPage() {
                               </div>
                             </div>
 
-                            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
-                              💡 「単価」は日報由来金額の再計算に使用します。「確定額」は請求書確認後の最終原価として使用します。
+                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm md:text-base text-slate-700 font-bold leading-relaxed">
+                              「日報由来」＝日報からの計算額　／　「確定額」＝請求書を確認して必要なら修正する金額
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full min-w-[1120px] text-left border-collapse text-base">
@@ -2889,16 +2880,21 @@ export default function AdminPage() {
                                     return (
                                       <tr
                                         key={it.rowKey}
-                                        className={isChecked ? "bg-amber-100/80 text-slate-400" : "bg-white hover:bg-slate-50"}
+                                        onClick={() => setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }))}
+                                        className={
+                                          "cursor-pointer transition " +
+                                          (isChecked
+                                            ? "bg-emerald-100/80 text-slate-500"
+                                            : "bg-white hover:bg-amber-50")
+                                        }
                                       >
                                         <td className="py-3 px-3 align-top">
-                                          <button
-                                            type="button"
-                                            onClick={() => setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }))}
-                                            className={"font-extrabold rounded-lg px-2 py-1 " + (isChecked ? "line-through bg-amber-200" : "bg-slate-100 text-slate-800")}
-                                          >
+                                          <div className={"font-extrabold rounded-lg px-2 py-1 inline-block " + (isChecked ? "bg-emerald-200 text-emerald-900" : "bg-slate-100 text-slate-800")}>
                                             {it.formattedDate || '-'}
-                                          </button>
+                                          </div>
+                                          {isChecked && (
+                                            <div className="text-[11px] font-extrabold text-emerald-700 mt-1">✓ 照合済</div>
+                                          )}
                                         </td>
                                         <td className="py-3 px-3 font-bold max-w-[300px] align-top">{it.locationName}</td>
                                         <td className="py-3 px-3 font-bold align-top">{it.item}</td>
@@ -2911,6 +2907,7 @@ export default function AdminPage() {
                                             <input
                                               type="number"
                                               value={displayPrice}
+                                              onClick={(e) => e.stopPropagation()}
                                               onChange={(e) => handleDisposalDetailOverrideChange(
                                                 it.locationName, dSite, ym, it.dateKey, it.item, 'unitPrice', e.target.value
                                               )}
@@ -2927,6 +2924,7 @@ export default function AdminPage() {
                                             <input
                                               type="number"
                                               value={displayInvoice}
+                                              onClick={(e) => e.stopPropagation()}
                                               onChange={(e) => handleDisposalDetailOverrideChange(
                                                 it.locationName, dSite, ym, it.dateKey, it.item, 'invoice', e.target.value
                                               )}
@@ -4447,17 +4445,9 @@ export default function AdminPage() {
                 </p>
                 <div className="text-sm md:text-base font-bold text-slate-800 mt-2">現場：{modalLocation}</div>
                 {authRole === 'admin' && (
-                  <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2 text-sm md:text-base">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 leading-relaxed">
-                      <span className="font-extrabold">単価を変更した場合</span><br />
-                      この現場・この処分場・この月・この品目の単価を変更し、月の「日報由来金額」を再計算します。
-                      📦 月別処分一覧の該当日の単価・日報由来金額にも反映します。処分場マスタや他現場は変更しません。
-                    </div>
-                    <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-3 py-2.5 text-blue-800 leading-relaxed">
-                      <span className="font-extrabold">請求確定額を変更した場合</span><br />
-                      月の確定額を、📦 月別処分一覧の同月・同品目の各日に按分して反映します。
-                      その結果は現場の「処分費 → 合計経費 → 利益・粗利計算」に反映されます。
-                    </div>
+                  <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm md:text-base text-blue-900 font-bold leading-relaxed">
+                    金額を修正すると、📦 月別処分一覧にも同じ内容が反映されます。<br />
+                    「請求確定額」は、この現場の処分費・合計経費・利益の計算にも使われます。
                   </div>
                 )}
               </div>
@@ -4606,11 +4596,8 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm md:text-base text-blue-900 leading-relaxed">
-              <div className="font-extrabold mb-1">🔄 反映先について</div>
-              📦 月別処分一覧で1日ごとの「確定額」を修正すると、この画面の月別「請求確定額」に合計して反映されます。<br />
-              逆に、この画面で月別「請求確定額」を修正すると、📦 月別処分一覧の同月・同品目の各日の確定額へ按分して反映されます。<br />
-              確定額は最終的に、その現場の処分費・合計経費・利益・粗利計算へ反映されます。
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm md:text-base text-blue-900 font-bold leading-relaxed">
+              📌 この画面と「📦 月別処分一覧」は同じ処分データを見ています。どちらで金額を直しても、もう一方にも反映されます。
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
