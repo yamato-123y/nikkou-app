@@ -399,12 +399,16 @@ export default function AdminPage() {
     locName: string,
     disposalName: string,
     yearMonth: string,
+    dateKey: string,
     itemKey: string,
     field: 'unitPrice' | 'invoice',
     val: string
   ) => {
     if (authRole === 'viewer') return;
-    const subKey = `${field}__${disposalName}__${yearMonth}__${itemKey}`;
+
+    // 現場 × 処分場 × 月 × 日付 × 品目 単位で保存。
+    // マスタや他現場の単価には影響させない。
+    const subKey = `${field}__${disposalName}__${yearMonth}__${dateKey}__${itemKey}`;
     const newDisposalOverrides = {
       ...disposalOverrides,
       [locName]: {
@@ -921,65 +925,89 @@ export default function AdminPage() {
       const normalizedDate = normalizeDateStr(r.date || '');
       const dateParts = normalizedDate.split('-');
       const ym = dateParts.length >= 2 ? `${dateParts[0]}-${dateParts[1]}` : '日付不明';
+      const dateKey = normalizedDate || String(r.date || '日付不明');
+      const displayDate = dateParts.length === 3
+        ? `${Number(dateParts[1])}/${Number(dateParts[2])}`
+        : String(r.date || '日付不明');
       const disposals = Array.isArray(r.disposals) ? r.disposals : [];
 
       disposals.forEach((d: any) => {
         const dLoc = d.location || 'その他処分場';
         const itemKey = d.item || '品目未指定';
-        const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === dLoc && s.item === itemKey);
+        const masterRecord = (settings.disposalLocations || []).find(
+          (s: any) => s.location === dLoc && s.item === itemKey
+        );
         const unit = d.unit || masterRecord?.unit || 't';
-        const rawUnitPrice = d.price !== undefined && d.price !== null && d.price !== ''
-          ? Number(d.price)
-          : Number(masterRecord?.price || 0);
+        const rawUnitPrice =
+          d.price !== undefined && d.price !== null && d.price !== ''
+            ? Number(d.price)
+            : Number(masterRecord?.price || 0);
         const quantity = Number(d.quantity || 0);
-        const rawTotal = quantity * rawUnitPrice;
 
-        if (!bySite[dLoc]) bySite[dLoc] = { months: {}, reportTotal: 0, confirmedTotal: 0 };
-        if (!bySite[dLoc].months[ym]) bySite[dLoc].months[ym] = { items: {}, reportTotal: 0, confirmedTotal: 0 };
-        if (!bySite[dLoc].months[ym].items[itemKey]) {
-          bySite[dLoc].months[ym].items[itemKey] = {
-            quantity: 0, unit, originalTotal: 0, originalQuantity: 0, dates: [] as string[]
+        // 新：日付単位。旧：月×品目単位の上書きもフォールバックで読み込む。
+        const priceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const invoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
+        const legacyInvoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
+
+        const savedPrice =
+          dispOv[priceKey] !== undefined ? dispOv[priceKey] : dispOv[legacyPriceKey];
+        const effectiveUnitPrice =
+          savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : rawUnitPrice;
+        const reportTotal = quantity * effectiveUnitPrice;
+
+        const savedInvoice =
+          dispOv[invoiceKey] !== undefined ? dispOv[invoiceKey] : dispOv[legacyInvoiceKey];
+        const confirmedTotal =
+          savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
+
+        if (!bySite[dLoc]) {
+          bySite[dLoc] = { months: {}, reportTotal: 0, confirmedTotal: 0 };
+        }
+        if (!bySite[dLoc].months[ym]) {
+          bySite[dLoc].months[ym] = { days: {}, reportTotal: 0, confirmedTotal: 0 };
+        }
+        if (!bySite[dLoc].months[ym].days[dateKey]) {
+          bySite[dLoc].months[ym].days[dateKey] = {
+            displayDate,
+            rows: [],
+            reportTotal: 0,
+            confirmedTotal: 0
           };
         }
-        const item = bySite[dLoc].months[ym].items[itemKey];
-        item.quantity += quantity;
-        item.originalQuantity += quantity;
-        item.originalTotal += rawTotal;
-        if (r.date && !item.dates.includes(r.date)) item.dates.push(r.date);
+
+        const row = {
+          dateKey,
+          displayDate,
+          item: itemKey,
+          quantity,
+          unit,
+          originalUnitPrice: rawUnitPrice,
+          unitPrice: effectiveUnitPrice,
+          priceOverride: savedPrice ?? '',
+          reportTotal,
+          invoiceOverride: savedInvoice ?? '',
+          confirmedTotal
+        };
+
+        const dayData = bySite[dLoc].months[ym].days[dateKey];
+        dayData.rows.push(row);
+        dayData.reportTotal += reportTotal;
+        dayData.confirmedTotal += confirmedTotal;
+        bySite[dLoc].months[ym].reportTotal += reportTotal;
+        bySite[dLoc].months[ym].confirmedTotal += confirmedTotal;
+        bySite[dLoc].reportTotal += reportTotal;
+        bySite[dLoc].confirmedTotal += confirmedTotal;
       });
     });
 
     let reportTotal = 0;
     let confirmedTotal = 0;
-    Object.entries(bySite).forEach(([dLoc, siteData]: any) => {
-      Object.entries(siteData.months).forEach(([ym, monthData]: any) => {
-        Object.entries(monthData.items).forEach(([itemKey, itemData]: any) => {
-          const priceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
-          const invoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
-          const savedPrice = dispOv[priceKey];
-          const savedInvoice = dispOv[invoiceKey];
-          const baseUnitPrice = itemData.originalQuantity !== 0 ? itemData.originalTotal / itemData.originalQuantity : 0;
-          const effectiveUnitPrice = savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : baseUnitPrice;
-          const itemReportTotal = savedPrice !== '' && savedPrice !== undefined
-            ? Number(itemData.quantity || 0) * effectiveUnitPrice
-            : Number(itemData.originalTotal || 0);
-          const itemConfirmedTotal = savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : itemReportTotal;
-
-          itemData.baseUnitPrice = baseUnitPrice;
-          itemData.unitPrice = effectiveUnitPrice;
-          itemData.reportTotal = itemReportTotal;
-          itemData.confirmedTotal = itemConfirmedTotal;
-          itemData.priceOverride = savedPrice ?? '';
-          itemData.invoiceOverride = savedInvoice ?? '';
-          monthData.reportTotal += itemReportTotal;
-          monthData.confirmedTotal += itemConfirmedTotal;
-          siteData.reportTotal += itemReportTotal;
-          siteData.confirmedTotal += itemConfirmedTotal;
-          reportTotal += itemReportTotal;
-          confirmedTotal += itemConfirmedTotal;
-        });
-      });
+    Object.values(bySite).forEach((siteData: any) => {
+      reportTotal += Number(siteData.reportTotal || 0);
+      confirmedTotal += Number(siteData.confirmedTotal || 0);
     });
+
     return { bySite, reportTotal, confirmedTotal };
   };
 
@@ -1325,61 +1353,81 @@ export default function AdminPage() {
 
   const getAllMonthlyDisposalGroupedData = () => {
     const grouped: any = {};
+
     reports.forEach((r: any) => {
       const normalized = normalizeDateStr(r.date || '');
       const parts = normalized.split('-');
       if (parts.length < 2) return;
+
       const ym = `${parts[0]}-${parts[1]}`;
-      const formattedDate = parts.length >= 3 ? `${Number(parts[1])}/${Number(parts[2])}` : (r.date || '');
+      const dateKey = normalized || String(r.date || '');
+      const formattedDate =
+        parts.length >= 3 ? `${Number(parts[1])}/${Number(parts[2])}` : String(r.date || '');
       const locationName = r.location || '現場名未設定';
       const disposals = Array.isArray(r.disposals) ? r.disposals : [];
+      const locOv = disposalOverrides[locationName] || {};
 
-      disposals.forEach((d: any) => {
+      disposals.forEach((d: any, disposalIndex: number) => {
         const dLoc = d.location || 'その他処分場';
         const itemKey = d.item || '品目未指定';
-        const masterRecord = (settings.disposalLocations || []).find((s: any) => s.location === dLoc && s.item === itemKey);
+        const masterRecord = (settings.disposalLocations || []).find(
+          (s: any) => s.location === dLoc && s.item === itemKey
+        );
         const unit = d.unit || masterRecord?.unit || 't';
-        const originalUnitPrice = d.price !== undefined && d.price !== null && d.price !== '' ? Number(d.price) : Number(masterRecord?.price || 0);
+        const originalUnitPrice =
+          d.price !== undefined && d.price !== null && d.price !== ''
+            ? Number(d.price)
+            : Number(masterRecord?.price || 0);
         const quantity = Number(d.quantity || 0);
-        const originalTotal = quantity * originalUnitPrice;
+
+        const priceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const invoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
+        const legacyInvoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
+
+        const savedPrice =
+          locOv[priceKey] !== undefined ? locOv[priceKey] : locOv[legacyPriceKey];
+        const unitPrice =
+          savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : originalUnitPrice;
+        const reportTotal = quantity * unitPrice;
+
+        const savedInvoice =
+          locOv[invoiceKey] !== undefined ? locOv[invoiceKey] : locOv[legacyInvoiceKey];
+        const confirmedTotal =
+          savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
+
         if (!grouped[dLoc]) grouped[dLoc] = {};
-        if (!grouped[dLoc][ym]) grouped[dLoc][ym] = {};
-        const groupKey = `${locationName}__${itemKey}`;
-        if (!grouped[dLoc][ym][groupKey]) {
-          grouped[dLoc][ym][groupKey] = { locationName, item: itemKey, quantity: 0, unit, originalTotal: 0, originalQuantity: 0, dates: [] as string[] };
-        }
-        const row = grouped[dLoc][ym][groupKey];
-        row.quantity += quantity;
-        row.originalQuantity += quantity;
-        row.originalTotal += originalTotal;
-        if (formattedDate && !row.dates.includes(formattedDate)) row.dates.push(formattedDate);
+        if (!grouped[dLoc][ym]) grouped[dLoc][ym] = [];
+
+        grouped[dLoc][ym].push({
+          dateKey,
+          formattedDate,
+          locationName,
+          item: itemKey,
+          quantity,
+          unit,
+          originalUnitPrice,
+          unitPrice,
+          priceOverride: savedPrice ?? '',
+          reportTotal,
+          invoiceOverride: savedInvoice ?? '',
+          confirmedTotal,
+          rowKey: `${dLoc}_${ym}_${dateKey}_${locationName}_${itemKey}_${disposalIndex}`
+        });
       });
     });
 
-    const result: any = {};
-    Object.entries(grouped).forEach(([dLoc, monthObj]: any) => {
-      result[dLoc] = {};
-      Object.entries(monthObj).forEach(([ym, rowsObj]: any) => {
-        result[dLoc][ym] = Object.values(rowsObj).map((row: any) => {
-          const locOv = disposalOverrides[row.locationName] || {};
-          const priceKey = `unitPrice__${dLoc}__${ym}__${row.item}`;
-          const invoiceKey = `invoice__${dLoc}__${ym}__${row.item}`;
-          const savedPrice = locOv[priceKey];
-          const savedInvoice = locOv[invoiceKey];
-          const baseUnitPrice = row.originalQuantity !== 0 ? row.originalTotal / row.originalQuantity : 0;
-          const unitPrice = savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : baseUnitPrice;
-          const reportTotal = savedPrice !== '' && savedPrice !== undefined ? Number(row.quantity || 0) * unitPrice : Number(row.originalTotal || 0);
-          const confirmedTotal = savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
-          return {
-            ...row, yearMonth: ym, disposalSite: dLoc, unitPrice,
-            priceOverride: savedPrice ?? '', invoiceOverride: savedInvoice ?? '',
-            reportTotal, confirmedTotal,
-            rowKey: `${dLoc}_${ym}_${row.locationName}_${row.item}`
-          };
-        }).sort((a: any, b: any) => a.locationName.localeCompare(b.locationName, 'ja') || a.item.localeCompare(b.item, 'ja'));
+    Object.values(grouped).forEach((monthObj: any) => {
+      Object.values(monthObj).forEach((rows: any) => {
+        rows.sort((a: any, b: any) =>
+          a.dateKey.localeCompare(b.dateKey) ||
+          a.locationName.localeCompare(b.locationName, 'ja') ||
+          a.item.localeCompare(b.item, 'ja')
+        );
       });
     });
-    return result;
+
+    return grouped;
   };
 
   if (!isAuthed) return (
@@ -2646,73 +2694,170 @@ export default function AdminPage() {
 
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && authRole === 'admin' && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-7xl p-5 md:p-8 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">日報由来の金額と確定額を並べて請求書照合できます。単価・確定額の変更は対象現場だけに反映されます。</p>
+                <p className="text-xs md:text-sm text-slate-500 mt-1">
+                  1日ごとの日報処分データを表示します。単価・確定額の修正は対象現場だけに反映されます。
+                </p>
               </div>
-              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
-            <div className="space-y-6">
+
+            <div className="space-y-8">
               {(() => {
                 const groupedData = getAllMonthlyDisposalGroupedData();
                 const disposalSites = Object.keys(groupedData);
-                if (disposalSites.length === 0) return <p className="text-base text-slate-500 text-center py-8">処分データはありません</p>;
+                if (disposalSites.length === 0) {
+                  return <p className="text-base text-slate-500 text-center py-8">処分データはありません</p>;
+                }
+
                 return disposalSites.map(dSite => (
-                  <div key={dSite} className="space-y-4">
-                    {Object.entries(groupedData[dSite]).sort(([a], [b]) => b.localeCompare(a)).map(([ym, items]: any) => {
-                      const [y, m] = ym.split('-');
-                      const lastDay = new Date(Number(y), Number(m), 0).getDate();
-                      const dateRangeStr = `${y}/${Number(m)}/1～${Number(m)}/${lastDay}`;
-                      const reportMonthlyTotal = items.reduce((sum: number, it: any) => sum + Number(it.reportTotal || 0), 0);
-                      const confirmedMonthlyTotal = items.reduce((sum: number, it: any) => sum + Number(it.confirmedTotal || 0), 0);
-                      const invoiceKey = `${dSite}__${ym}`;
-                      const invoiceValue = monthlyDisposalInvoices[invoiceKey] ?? '';
-                      return (
-                        <div key={ym} className="bg-slate-50 p-4 md:p-5 rounded-3xl border border-slate-200 space-y-3 shadow-2xs">
-                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-                            <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto_auto_auto] gap-3 items-center">
-                              <div className="font-bold text-lg text-slate-900">🏢 {dSite}　{dateRangeStr}</div>
-                              <div className="min-w-[190px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"><div className="text-[11px] font-bold text-slate-500">日報由来 合計</div><div className="text-base font-extrabold text-slate-800">{formatAmount(reportMonthlyTotal)}</div></div>
-                              <div className="min-w-[190px] rounded-xl border border-blue-200 bg-blue-50/50 px-3 py-2"><div className="text-[11px] font-bold text-blue-600">確定額 合計（原価反映）</div><div className="text-base font-extrabold text-blue-800">{formatAmount(confirmedMonthlyTotal)}</div></div>
-                              <div className="min-w-[240px] rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2">
-                                <div className="text-[11px] font-bold text-violet-700 mb-1">処分場からの請求書金額（税別・照合メモ）</div>
-                                <div className="flex items-center gap-1.5"><span className="text-slate-500 font-bold">¥</span><input type="number" value={invoiceValue} onChange={(e) => handleMonthlyDisposalInvoiceChange(dSite, ym, e.target.value)} placeholder="請求書金額を入力" className="w-full p-2 border border-violet-300 rounded-lg bg-white font-bold text-right text-sm" /></div>
-                                <div className="text-[10px] text-violet-500 mt-1">※このメモ欄は原価計算には反映しません</div>
+                  <section key={dSite} className="space-y-4">
+                    <div className="sticky top-0 z-10 bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-sm">
+                      <div className="font-extrabold text-lg">🏢 {dSite}</div>
+                    </div>
+
+                    {Object.entries(groupedData[dSite])
+                      .sort(([a], [b]) => b.localeCompare(a))
+                      .map(([ym, items]: any) => {
+                        const [y, m] = ym.split('-');
+                        const reportMonthlyTotal = items.reduce(
+                          (sum: number, it: any) => sum + Number(it.reportTotal || 0), 0
+                        );
+                        const confirmedMonthlyTotal = items.reduce(
+                          (sum: number, it: any) => sum + Number(it.confirmedTotal || 0), 0
+                        );
+                        const invoiceKey = `${dSite}__${ym}`;
+                        const invoiceValue = monthlyDisposalInvoices[invoiceKey] ?? '';
+
+                        return (
+                          <div key={ym} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden shadow-2xs">
+                            <div className="p-4 bg-white border-b border-slate-200">
+                              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                                <div className="font-extrabold text-lg text-slate-900">📅 {y}年{Number(m)}月</div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full xl:w-auto">
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                    <div className="text-[11px] font-bold text-slate-500">日報由来 合計</div>
+                                    <div className="font-extrabold text-slate-800">{formatAmount(reportMonthlyTotal)}</div>
+                                  </div>
+                                  <div className="rounded-xl border border-blue-200 bg-blue-50/50 px-3 py-2">
+                                    <div className="text-[11px] font-bold text-blue-600">確定額 合計（原価反映）</div>
+                                    <div className="font-extrabold text-blue-800">{formatAmount(confirmedMonthlyTotal)}</div>
+                                  </div>
+                                  <div className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2">
+                                    <div className="text-[11px] font-bold text-violet-700">処分場請求書（税別・照合メモ）</div>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <span className="text-slate-500 font-bold">¥</span>
+                                      <input
+                                        type="number"
+                                        value={invoiceValue}
+                                        onChange={(e) => handleMonthlyDisposalInvoiceChange(dSite, ym, e.target.value)}
+                                        placeholder="請求書金額"
+                                        className="w-full p-1.5 border border-violet-300 rounded-lg bg-white font-bold text-right text-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[1050px] text-left border-collapse text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100">
+                                    <th className="py-3 px-3 w-[85px]">日付</th>
+                                    <th className="py-3 px-3">現場名</th>
+                                    <th className="py-3 px-3">品目</th>
+                                    <th className="py-3 px-3 text-right">数量</th>
+                                    <th className="py-3 px-3 text-right">単価</th>
+                                    <th className="py-3 px-3 text-right">日報由来</th>
+                                    <th className="py-3 px-3 text-right">確定額</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                  {items.map((it: any) => {
+                                    const isChecked = !!checkedDisposalRows[it.rowKey];
+                                    const displayPrice =
+                                      it.priceOverride !== '' && it.priceOverride !== undefined
+                                        ? it.priceOverride
+                                        : it.unitPrice;
+                                    const displayInvoice =
+                                      it.invoiceOverride !== '' && it.invoiceOverride !== undefined
+                                        ? it.invoiceOverride
+                                        : it.reportTotal;
+
+                                    return (
+                                      <tr
+                                        key={it.rowKey}
+                                        className={isChecked ? "bg-amber-100/80 text-slate-400" : "bg-white hover:bg-slate-50"}
+                                      >
+                                        <td className="py-3 px-3 align-top">
+                                          <button
+                                            type="button"
+                                            onClick={() => setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }))}
+                                            className={"font-extrabold rounded-lg px-2 py-1 " + (isChecked ? "line-through bg-amber-200" : "bg-slate-100 text-slate-800")}
+                                          >
+                                            {it.formattedDate || '-'}
+                                          </button>
+                                        </td>
+                                        <td className="py-3 px-3 font-bold max-w-[300px] align-top">{it.locationName}</td>
+                                        <td className="py-3 px-3 font-bold align-top">{it.item}</td>
+                                        <td className="py-3 px-3 text-right font-bold align-top">
+                                          {Number(it.quantity || 0).toLocaleString('ja-JP')} {it.unit}
+                                        </td>
+                                        <td className="py-3 px-3 text-right align-top">
+                                          <div className="flex items-center justify-end gap-1">
+                                            <span className="text-slate-400">¥</span>
+                                            <input
+                                              type="number"
+                                              value={displayPrice}
+                                              onChange={(e) => handleDisposalDetailOverrideChange(
+                                                it.locationName, dSite, ym, it.dateKey, it.item, 'unitPrice', e.target.value
+                                              )}
+                                              className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white"
+                                            />
+                                          </div>
+                                        </td>
+                                        <td className="py-3 px-3 text-right font-extrabold text-slate-700 align-top">
+                                          {formatAmount(it.reportTotal)}
+                                        </td>
+                                        <td className="py-3 px-3 text-right align-top">
+                                          <div className="flex items-center justify-end gap-1">
+                                            <span className="text-blue-500 font-bold">¥</span>
+                                            <input
+                                              type="number"
+                                              value={displayInvoice}
+                                              onChange={(e) => handleDisposalDetailOverrideChange(
+                                                it.locationName, dSite, ym, it.dateKey, it.item, 'invoice', e.target.value
+                                              )}
+                                              className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900"
+                                            />
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div className="px-4 py-2 text-[11px] text-slate-400 bg-white border-t border-slate-100">
+                              💡 日付ボタンを押すと照合済みの目印（打消し）を付けられます。
+                            </div>
                           </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full min-w-[980px] text-left border-collapse text-sm md:text-base">
-                              <thead><tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100/80"><th className="py-2.5 px-3">日付</th><th className="py-2.5 px-3">現場名</th><th className="py-2.5 px-3">品目</th><th className="py-2.5 px-3 text-right">数量</th><th className="py-2.5 px-3 text-right">単価</th><th className="py-2.5 px-3 text-right">金額（日報由来）</th><th className="py-2.5 px-3 text-right">確定額（編集可）</th></tr></thead>
-                              <tbody className="divide-y divide-slate-200 font-medium">
-                                {items.map((it: any) => {
-                                  const isChecked = !!checkedDisposalRows[it.rowKey];
-                                  const displayPrice = it.priceOverride !== '' && it.priceOverride !== undefined ? it.priceOverride : it.unitPrice;
-                                  const displayInvoice = it.invoiceOverride !== '' && it.invoiceOverride !== undefined ? it.invoiceOverride : it.reportTotal;
-                                  return (
-                                    <tr key={it.rowKey} onClick={() => setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }))} className={`cursor-pointer transition ${isChecked ? 'bg-amber-100/80 line-through text-slate-400' : 'bg-white hover:bg-slate-50'}`}>
-                                      <td className="py-3 px-3 text-xs font-bold">{it.dates.join(', ') || '-'}</td><td className="py-3 px-3 font-bold max-w-[260px]">{it.locationName}</td><td className="py-3 px-3 font-bold">{it.item}</td><td className="py-3 px-3 text-right font-bold">{it.quantity.toLocaleString('ja-JP')} {it.unit}</td>
-                                      <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-end gap-1"><span className="text-slate-400">¥</span><input type="number" value={displayPrice} onChange={(e) => handleDisposalDetailOverrideChange(it.locationName, dSite, ym, it.item, 'unitPrice', e.target.value)} className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white" /></div></td>
-                                      <td className="py-3 px-3 text-right font-bold text-slate-700">{formatAmount(it.reportTotal)}</td>
-                                      <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-end gap-1"><span className="text-blue-500 font-bold">¥</span><input type="number" value={displayInvoice} onChange={(e) => handleDisposalDetailOverrideChange(it.locationName, dSite, ym, it.item, 'invoice', e.target.value)} className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900" /></div></td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="text-[11px] text-slate-400 text-right">💡 行をクリックすると照合済みの目印を付けられます</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                  </section>
                 ));
               })()}
             </div>
-            <div className="pt-4 border-t border-slate-100 flex justify-end"><button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button></div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
           </div>
         </div>
       )}
@@ -4195,30 +4340,167 @@ export default function AdminPage() {
 
       {/* 処分費内訳確認モーダル */}
       {showDisposalModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-6xl p-5 md:p-8 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4"><div><h3 className="text-xl md:text-2xl font-bold text-slate-900">🗑️ 処分費の内訳明細</h3><p className="text-xs md:text-sm text-slate-500 mt-0.5">{modalLocation} の処分費を、処分場 → 月 → 品目の順で確認します</p></div><button onClick={() => setShowDisposalModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="bg-slate-50 border border-slate-200 rounded-2xl p-4"><div className="text-xs font-bold text-slate-500">日報由来 合計</div><div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(modalData.reportEstimateDisposal)}</div></div><div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4"><div className="text-xs font-bold text-blue-700">確定額 合計（原価反映）</div><div className="text-2xl font-extrabold text-blue-900 mt-1">{formatAmount(modalData.disposalCost)}</div></div></div>
-            <div className="space-y-6">
-              {Object.keys(modalData.aggregatedDisposalBreakdown).length === 0 ? <p className="text-base text-slate-500 text-center py-8">処分データはありません</p> : Object.entries(modalData.aggregatedDisposalBreakdown).map(([dLoc, siteData]: any) => (
-                <div key={dLoc} className="bg-slate-50 p-4 md:p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><h4 className="font-bold text-lg text-slate-900">🏢 {dLoc}</h4><div className="flex flex-wrap gap-3 text-sm font-bold"><span className="text-slate-600">日報由来: {formatAmount(siteData.reportTotal)}</span><span className="text-blue-700">確定額: {formatAmount(siteData.confirmedTotal)}</span></div></div>
-                  {Object.entries(siteData.months).sort(([a], [b]) => b.localeCompare(a)).map(([ym, monthData]: any) => (
-                    <div key={ym} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                      <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2"><div className="font-extrabold text-slate-800">📅 {ym}</div><div className="flex flex-wrap gap-3 text-xs md:text-sm font-bold"><span className="text-slate-600">日報由来 {formatAmount(monthData.reportTotal)}</span><span className="text-blue-700">確定額 {formatAmount(monthData.confirmedTotal)}</span></div></div>
-                      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left border-collapse text-sm md:text-base"><thead><tr className="border-b border-slate-200 text-slate-600 font-bold bg-white"><th className="py-2.5 px-3">品目</th><th className="py-2.5 px-3 text-right">数量</th><th className="py-2.5 px-3 text-right">単価</th><th className="py-2.5 px-3 text-right">金額（日報由来）</th><th className="py-2.5 px-3 text-right">請求額</th></tr></thead><tbody className="divide-y divide-slate-100">
-                        {Object.entries(monthData.items).map(([itemKey, itemData]: any) => {
-                          const displayPrice = itemData.priceOverride !== '' && itemData.priceOverride !== undefined ? itemData.priceOverride : itemData.unitPrice;
-                          const displayInvoice = itemData.invoiceOverride !== '' && itemData.invoiceOverride !== undefined ? itemData.invoiceOverride : itemData.reportTotal;
-                          return <tr key={itemKey} className="hover:bg-slate-50/70"><td className="py-3 px-3 font-bold text-slate-800">{itemKey}{itemData.dates?.length > 0 && <div className="text-[11px] font-medium text-slate-400 mt-1">日付: {itemData.dates.join(', ')}</div>}</td><td className="py-3 px-3 text-right font-bold">{Number(itemData.quantity || 0).toLocaleString('ja-JP')} {itemData.unit}</td><td className="py-3 px-3 text-right">{authRole === 'admin' ? <div className="flex items-center justify-end gap-1"><span className="text-slate-400">¥</span><input type="number" value={displayPrice} onChange={(e) => handleDisposalDetailOverrideChange(modalLocation, dLoc, ym, itemKey, 'unitPrice', e.target.value)} className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white" /></div> : <span className="font-bold">{formatAmount(itemData.unitPrice)}</span>}</td><td className="py-3 px-3 text-right font-extrabold text-slate-800">{formatAmount(itemData.reportTotal)}</td><td className="py-3 px-3 text-right">{authRole === 'admin' ? <div><div className="flex items-center justify-end gap-1"><span className="text-blue-500 font-bold">¥</span><input type="number" value={displayInvoice} onChange={(e) => handleDisposalDetailOverrideChange(modalLocation, dLoc, ym, itemKey, 'invoice', e.target.value)} className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900" /></div><div className="text-[10px] text-slate-400 mt-1">通常は日報由来と同額。差がある場合のみ修正</div></div> : <span className="font-extrabold text-blue-800">{formatAmount(itemData.confirmedTotal)}</span>}</td></tr>;
-                        })}
-                      </tbody></table></div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900">🗑️ 処分費の内訳明細</h3>
+                <p className="text-xs md:text-sm text-slate-500 mt-1">
+                  「いつ・どの処分場へ・何を・どれだけ処分したか」と、日報由来金額／請求確定額を確認します。
+                </p>
+                <div className="text-xs font-bold text-slate-700 mt-2">現場：{modalLocation}</div>
+              </div>
+              <button onClick={() => setShowDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
-            <div className="pt-4 border-t border-slate-100 flex justify-end"><button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button></div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <div className="text-xs font-bold text-slate-500">日報由来 処分費合計</div>
+                <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(modalData.reportEstimateDisposal)}</div>
+              </div>
+              <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4">
+                <div className="text-xs font-bold text-blue-700">請求確定額 合計（原価反映）</div>
+                <div className="text-2xl font-extrabold text-blue-900 mt-1">{formatAmount(modalData.disposalCost)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-7">
+              {Object.keys(modalData.aggregatedDisposalBreakdown || {}).length === 0 ? (
+                <p className="text-base text-slate-500 text-center py-8">処分データはありません</p>
+              ) : (
+                Object.entries(modalData.aggregatedDisposalBreakdown).map(([dLoc, siteData]: any) => (
+                  <section key={dLoc} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
+                    <div className="bg-slate-800 text-white px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <h4 className="font-extrabold text-lg">🏢 {dLoc}</h4>
+                      <div className="flex gap-3 text-xs md:text-sm font-bold">
+                        <span>日報由来 {formatAmount(siteData.reportTotal)}</span>
+                        <span className="text-blue-200">確定 {formatAmount(siteData.confirmedTotal)}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 md:p-4 space-y-4">
+                      {Object.entries(siteData.months)
+                        .sort(([a], [b]) => b.localeCompare(a))
+                        .map(([ym, monthData]: any) => {
+                          const [y, m] = ym.split('-');
+                          return (
+                            <div key={ym} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                                <div className="font-extrabold text-slate-800">📅 {y}年{Number(m)}月</div>
+                                <div className="flex gap-3 text-xs md:text-sm font-bold">
+                                  <span className="text-slate-600">日報由来 {formatAmount(monthData.reportTotal)}</span>
+                                  <span className="text-blue-700">確定 {formatAmount(monthData.confirmedTotal)}</span>
+                                </div>
+                              </div>
+
+                              <div className="divide-y divide-slate-200">
+                                {Object.entries(monthData.days)
+                                  .sort(([a], [b]) => a.localeCompare(b))
+                                  .map(([dateKey, dayData]: any) => (
+                                    <div key={dateKey} className="p-3 md:p-4">
+                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                                        <div className="inline-flex items-center gap-2">
+                                          <span className="bg-orange-100 text-orange-800 font-extrabold px-3 py-1.5 rounded-xl">
+                                            📆 {dayData.displayDate}
+                                          </span>
+                                          <span className="text-xs text-slate-500">この日の処分</span>
+                                        </div>
+                                        <div className="text-xs md:text-sm font-bold">
+                                          <span className="text-slate-600 mr-3">日報 {formatAmount(dayData.reportTotal)}</span>
+                                          <span className="text-blue-700">確定 {formatAmount(dayData.confirmedTotal)}</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[760px] text-left border-collapse text-sm">
+                                          <thead>
+                                            <tr className="bg-slate-50 text-slate-600 font-bold border-y border-slate-200">
+                                              <th className="py-2.5 px-3">品目</th>
+                                              <th className="py-2.5 px-3 text-right">数量</th>
+                                              <th className="py-2.5 px-3 text-right">単価</th>
+                                              <th className="py-2.5 px-3 text-right">日報由来</th>
+                                              <th className="py-2.5 px-3 text-right">請求確定額</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-100">
+                                            {dayData.rows.map((row: any, rowIndex: number) => {
+                                              const displayPrice =
+                                                row.priceOverride !== '' && row.priceOverride !== undefined
+                                                  ? row.priceOverride
+                                                  : row.unitPrice;
+                                              const displayInvoice =
+                                                row.invoiceOverride !== '' && row.invoiceOverride !== undefined
+                                                  ? row.invoiceOverride
+                                                  : row.reportTotal;
+
+                                              return (
+                                                <tr key={`${dateKey}_${row.item}_${rowIndex}`} className="hover:bg-slate-50/70">
+                                                  <td className="py-3 px-3 font-bold text-slate-800">{row.item}</td>
+                                                  <td className="py-3 px-3 text-right font-bold">
+                                                    {Number(row.quantity || 0).toLocaleString('ja-JP')} {row.unit}
+                                                  </td>
+                                                  <td className="py-3 px-3 text-right">
+                                                    {authRole === 'admin' ? (
+                                                      <div className="flex items-center justify-end gap-1">
+                                                        <span className="text-slate-400">¥</span>
+                                                        <input
+                                                          type="number"
+                                                          value={displayPrice}
+                                                          onChange={(e) => handleDisposalDetailOverrideChange(
+                                                            modalLocation, dLoc, ym, dateKey, row.item, 'unitPrice', e.target.value
+                                                          )}
+                                                          className="w-28 p-2 border border-slate-300 rounded-lg text-right font-bold bg-white"
+                                                        />
+                                                      </div>
+                                                    ) : (
+                                                      <span className="font-bold">{formatAmount(row.unitPrice)}</span>
+                                                    )}
+                                                  </td>
+                                                  <td className="py-3 px-3 text-right font-extrabold text-slate-800">
+                                                    {formatAmount(row.reportTotal)}
+                                                  </td>
+                                                  <td className="py-3 px-3 text-right">
+                                                    {authRole === 'admin' ? (
+                                                      <div className="flex items-center justify-end gap-1">
+                                                        <span className="text-blue-500 font-bold">¥</span>
+                                                        <input
+                                                          type="number"
+                                                          value={displayInvoice}
+                                                          onChange={(e) => handleDisposalDetailOverrideChange(
+                                                            modalLocation, dLoc, ym, dateKey, row.item, 'invoice', e.target.value
+                                                          )}
+                                                          className="w-32 p-2 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900"
+                                                        />
+                                                      </div>
+                                                    ) : (
+                                                      <span className="font-extrabold text-blue-800">{formatAmount(row.confirmedTotal)}</span>
+                                                    )}
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </section>
+                ))
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs md:text-sm text-blue-800">
+              単価・請求確定額の修正は「この現場・この処分場・この日・この品目」だけに保存されます。処分場マスタや他現場には影響しません。
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
           </div>
         </div>
       )}
