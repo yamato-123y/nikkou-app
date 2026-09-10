@@ -142,6 +142,7 @@ export default function AdminPage() {
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
+          if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
         }
       }
     } catch (e) {  
@@ -553,6 +554,7 @@ export default function AdminPage() {
         fuelUnitPrices,
         monthlyDisposalInvoices,
         leaseCustomPrices,
+        checkedDisposalRows,
         customSubcontractors
       };
 
@@ -2772,7 +2774,7 @@ export default function AdminPage() {
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
                   📄 請求書と見比べるための一覧です。<br />
                   確認できた行をクリックすると色が変わります。もう一度クリックすると元に戻ります。<br />
-                  <span className="text-emerald-700">金額を変更したら、最後に「💾 保存」を押してください。</span>
+                  <span className="text-emerald-700">金額の変更や照合済みの色変更をしたら、最後に「💾 保存」を押してください。保存後は、再ログインしても他の管理者が見ても同じ状態になります。</span>
                 </div>
               </div>
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -2868,7 +2870,10 @@ export default function AdminPage() {
                                     return (
                                       <tr
                                         key={it.rowKey}
-                                        onClick={() => setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }))}
+                                        onClick={() => {
+                                          setCheckedDisposalRows(prev => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }));
+                                          setFinancialDirty(true);
+                                        }}
                                         className={
                                           "cursor-pointer transition " +
                                           (isChecked
