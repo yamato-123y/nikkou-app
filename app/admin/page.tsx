@@ -1181,8 +1181,10 @@ export default function AdminPage() {
     calcMokLease += mokCustomAdjustment;
     calcLease += ishikawaCustomAdjustment + mokCustomAdjustment;
 
-    // 手動上書きや管理画面からの追加を反映する前の「日報由来の概算」を保持
+    // 手動上書き前の概算を保持
     const reportEstimateLabor = calcLabor;
+    // 外注だけは「日報由来」と「管理画面の手動追加・一括外注分」を分けて見せるため、
+    // ここでは純粋な日報由来分を保持する。
     const reportEstimateSub = calcSub;
     const reportEstimateLease = calcLease;
     const reportEstimateOtherLease = calcOtherLease;
@@ -1198,6 +1200,7 @@ export default function AdminPage() {
 
     const customSubsList = customSubcontractors[locName] || [];
     const customSubsTotal = customSubsList.reduce((acc: number, cur: any) => acc + (Number(cur.price) || 0), 0);
+    const reportEstimateSubWithCustom = reportEstimateSub + customSubsTotal;
     calcSub += customSubsTotal;
 
     const disposalTotal = disposalMonthlyBreakdown.confirmedTotal;
@@ -1295,7 +1298,7 @@ export default function AdminPage() {
     // 石川県案件の宇野気石油分は日報に金額が無いため、概算側では0円のまま。
     const reportEstimatedTotal =
       reportEstimateLabor +
-      reportEstimateSub +
+      reportEstimateSubWithCustom +
       reportEstimateLease +
       reportEstimateOtherLease +
       reportEstimateOwnMachine +
@@ -1348,6 +1351,8 @@ export default function AdminPage() {
       reportEstimatedTotal,
       reportEstimateLabor,
       reportEstimateSub,
+      customSubsTotal,
+      reportEstimateSubWithCustom,
       reportEstimateLease,
       reportEstimateOtherLease,
       reportEstimateOwnMachine,
@@ -2643,8 +2648,8 @@ export default function AdminPage() {
 
       {/* カレンダーの日付・現場名をクリックしたときに日報を表示するモーダル */}
       {calendarReportModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setCalendarReportModal(null)}>
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">
@@ -2779,8 +2784,8 @@ export default function AdminPage() {
 
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && authRole === 'admin' && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowAllMonthlyDisposalModal(false)}>
+          <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
@@ -2987,8 +2992,8 @@ export default function AdminPage() {
 
       {/* 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setEditingReport(null)}>
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shadow-inner">📝</div>
@@ -3865,8 +3870,16 @@ export default function AdminPage() {
                 <div className="text-sm md:text-lg text-emerald-800 font-extrabold">合計経費</div>
                 <div className="mt-2 space-y-2 text-left">
                   <div>
-                    <div className="text-sm font-bold text-slate-600">日報からの概算</div>
+                    <div className="text-sm font-bold text-slate-600">概算合計（日報＋手動追加分）</div>
                     <div className="text-lg md:text-2xl font-bold text-slate-700">{formatAmount(modalData.reportEstimatedTotal)}</div>
+                    {Number(modalData.customSubsTotal || 0) > 0 && (
+                      <div className="mt-2 rounded-lg bg-orange-50 border border-orange-200 px-2.5 py-2 text-xs md:text-sm text-orange-800 font-bold leading-relaxed">
+                        ＋ 手動追加・一括外注分 {formatAmount(modalData.customSubsTotal)}
+                        <span className="block font-medium text-orange-700 mt-0.5">
+                          ※管理画面で追加した外注費も、この概算合計に含めています。
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t border-emerald-200 pt-2">
                     <div className="text-sm font-bold text-emerald-700">確定後の合計経費</div>
@@ -4166,7 +4179,7 @@ export default function AdminPage() {
             <div className={`grid grid-cols-1 gap-4 md:gap-5 ${authRole === 'admin' ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
               {[
                 { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost },
-                { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSub, val: modalData.subCostTotal },
+                { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSubWithCustom, val: modalData.subCostTotal, isSubcontractor: true },
                 { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isLease: true, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
                 { key: 'otherLease', label: 'その他リース', estimate: modalData.reportEstimateOtherLease, val: modalData.otherLeaseCost },
                 { key: 'ownMachine', label: '自社重機', estimate: modalData.reportEstimateOwnMachine, val: modalData.ownMachineCost },
@@ -4231,6 +4244,61 @@ export default function AdminPage() {
                               readOnly={authRole === 'viewer'}
                               className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                             />
+                          </div>
+                        </div>
+                      ) : item.isSubcontractor ? (
+                        <div className="space-y-3">
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                            <div className="text-sm md:text-base font-bold text-slate-600">概算の内訳</div>
+                            <div className="mt-2 space-y-1.5">
+                              <div className="flex justify-between gap-3 text-sm md:text-base">
+                                <span className="text-slate-600">日報からの外注費</span>
+                                <span className="font-extrabold text-slate-900">{formatAmount(modalData.reportEstimateSub || 0)}</span>
+                              </div>
+                              <div className="flex justify-between gap-3 text-sm md:text-base">
+                                <span className="text-orange-700 font-bold">＋ 手動追加・一括外注分</span>
+                                <span className="font-extrabold text-orange-700">{formatAmount(modalData.customSubsTotal || 0)}</span>
+                              </div>
+                              <div className="border-t border-slate-200 pt-2 flex justify-between gap-3 text-base md:text-lg">
+                                <span className="font-extrabold text-slate-700">概算合計</span>
+                                <span className="font-extrabold text-slate-900">{formatAmount(modalData.reportEstimateSubWithCustom || 0)}</span>
+                              </div>
+                            </div>
+                            <div className="text-xs md:text-sm text-slate-500 mt-2">
+                              ※「手動追加・一括外注分」は、上の【手動追加・一括外注分】で管理画面から追加した金額です。
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-sm md:text-base font-extrabold text-blue-800 mb-2">請求書の金額（違う場合だけ入力）</div>
+                            {authRole === 'admin' ? (
+                              <div className="flex items-center gap-1 w-full">
+                                <span className="text-slate-500 font-bold">¥</span>
+                                <input
+                                  type="number"
+                                  value={costOverrides[modalLocation]?.[item.key] ?? ''}
+                                  onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
+                                  placeholder={`未入力：概算 ${Number(modalData.reportEstimateSubWithCustom || 0).toLocaleString('ja-JP')}円`}
+                                  className="w-full p-3 border-2 border-blue-400 rounded-xl font-extrabold text-right bg-blue-50/40 text-lg"
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-lg md:text-xl font-bold text-blue-800">
+                                {costOverrides[modalLocation]?.[item.key] !== '' && costOverrides[modalLocation]?.[item.key] !== undefined
+                                  ? formatAmount(costOverrides[modalLocation][item.key])
+                                  : <span className="text-slate-400 text-sm">未入力（概算を使用）</span>}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="border-t border-slate-200 pt-3">
+                            <div className="text-sm md:text-base font-extrabold text-emerald-700">利益計算に使う金額</div>
+                            <div className="text-xl md:text-2xl font-extrabold text-emerald-800 mt-1">{formatAmount(item.val || 0)}</div>
+                            {authRole === 'admin' && (
+                              <div className="text-sm text-slate-500 mt-1.5">
+                                ※請求書金額が未入力なら、日報分＋手動追加分の概算合計を使います。
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : item.isDisposal ? (
@@ -4566,8 +4634,8 @@ export default function AdminPage() {
 
       {/* 処分費内訳確認モーダル */}
       {showDisposalModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowDisposalModal(false)}>
+          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">🗑️ 処分費の内訳明細</h3>
@@ -4759,8 +4827,8 @@ export default function AdminPage() {
 
       {/* スクラップ内訳・金額入力モーダル */}
       {showScrapModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setShowScrapModal(false)}>
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却の内訳・金額入力</h3>
