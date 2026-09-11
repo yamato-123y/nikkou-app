@@ -437,16 +437,19 @@ export default function AdminPage() {
   ) => {
     if (authRole === 'viewer') return;
 
-    const nextLocOverrides = { ...(disposalOverrides[locName] || {}) };
+    // 詳細分析では複数の表記違い現場を1現場としてまとめる場合がある。
+    // 月別処分一覧と同じ元の日報現場名へ保存し、両画面の金額を必ず一致させる。
+    const nextAllOverrides = { ...disposalOverrides };
+
     rows.forEach((row: any) => {
+      const targetLocation = row.locationName || locName;
+      const targetOverrides = { ...(nextAllOverrides[targetLocation] || {}) };
       const subKey = `unitPrice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
-      nextLocOverrides[subKey] = val;
+      targetOverrides[subKey] = val;
+      nextAllOverrides[targetLocation] = targetOverrides;
     });
 
-    setDisposalOverrides({
-      ...disposalOverrides,
-      [locName]: nextLocOverrides
-    });
+    setDisposalOverrides(nextAllOverrides);
     setFinancialDirty(true);
   };
 
@@ -462,7 +465,7 @@ export default function AdminPage() {
 
     const targetTotal = Number(val) || 0;
     const currentReportTotal = rows.reduce((sum: number, row: any) => sum + Number(row.reportTotal || 0), 0);
-    const nextLocOverrides = { ...(disposalOverrides[locName] || {}) };
+    const nextAllOverrides = { ...disposalOverrides };
 
     let distributed = 0;
     rows.forEach((row: any, idx: number) => {
@@ -475,14 +478,14 @@ export default function AdminPage() {
         distributed += rowConfirmed;
       }
 
+      const targetLocation = row.locationName || locName;
+      const targetOverrides = { ...(nextAllOverrides[targetLocation] || {}) };
       const subKey = `invoice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
-      nextLocOverrides[subKey] = String(rowConfirmed);
+      targetOverrides[subKey] = String(rowConfirmed);
+      nextAllOverrides[targetLocation] = targetOverrides;
     });
 
-    setDisposalOverrides({
-      ...disposalOverrides,
-      [locName]: nextLocOverrides
-    });
+    setDisposalOverrides(nextAllOverrides);
     setFinancialDirty(true);
   };
 
@@ -1046,10 +1049,13 @@ export default function AdminPage() {
   const getDisposalMonthlyBreakdown = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
-    const dispOv = disposalOverrides[locName] || {};
+    const canonicalOv = disposalOverrides[locName] || {};
     const bySite: any = {};
 
     locReports.forEach((r: any) => {
+      const reportLocationName = r.location || locName;
+      const reportOv = disposalOverrides[reportLocationName] || {};
+
       const normalizedDate = normalizeDateStr(r.date || '');
       const dateParts = normalizedDate.split('-');
       const ym = dateParts.length >= 2 ? `${dateParts[0]}-${dateParts[1]}` : '日付不明';
@@ -1078,14 +1084,25 @@ export default function AdminPage() {
         const legacyPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
         const legacyInvoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
 
+        // 月別処分一覧では「実際の日報の現場名」で確定額を保存しているため、
+        // 詳細分析でもまず同じ現場名の値を読む。
+        // 過去に詳細分析側で保存した旧データは canonicalOv からフォールバックして互換維持する。
         const savedPrice =
-          dispOv[priceKey] !== undefined ? dispOv[priceKey] : dispOv[legacyPriceKey];
+          reportOv[priceKey] !== undefined ? reportOv[priceKey]
+          : canonicalOv[priceKey] !== undefined ? canonicalOv[priceKey]
+          : reportOv[legacyPriceKey] !== undefined ? reportOv[legacyPriceKey]
+          : canonicalOv[legacyPriceKey];
+
         const effectiveUnitPrice =
           savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : rawUnitPrice;
         const reportTotal = quantity * effectiveUnitPrice;
 
         const savedInvoice =
-          dispOv[invoiceKey] !== undefined ? dispOv[invoiceKey] : dispOv[legacyInvoiceKey];
+          reportOv[invoiceKey] !== undefined ? reportOv[invoiceKey]
+          : canonicalOv[invoiceKey] !== undefined ? canonicalOv[invoiceKey]
+          : reportOv[legacyInvoiceKey] !== undefined ? reportOv[legacyInvoiceKey]
+          : canonicalOv[legacyInvoiceKey];
+
         const confirmedTotal =
           savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
 
@@ -1107,6 +1124,7 @@ export default function AdminPage() {
         const row = {
           dateKey,
           displayDate,
+          locationName: reportLocationName,
           item: itemKey,
           quantity,
           unit,
@@ -3466,61 +3484,46 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【自社重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.companyMachines || []).map((cm: any) => {
-                      const qty = getEditingLeaseQuantity('ownMachines', cm.name);
+                      const ownMachines = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
+                      const checked = ownMachines.includes(cm.name);
                       return (
-                        <div key={cm.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{cm.name}</div>
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              type="button"
-                              disabled={qty === 0}
-                              onClick={() => changeEditingLeaseQuantity('ownMachines', cm.name, -1)}
-                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
-                            >
-                              −
-                            </button>
-                            <span className="min-w-[38px] text-center font-black">{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => changeEditingLeaseQuantity('ownMachines', cm.name, 1)}
-                              className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-black"
-                            >
-                              ＋
-                            </button>
-                          </div>
-                        </div>
+                        <label key={cm.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
+                          <input 
+                            type="checkbox" 
+                            checked={checked} 
+                            onChange={e => {
+                              const current = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
+                              const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
+                              setEditingReport({ ...editingReport, ownMachines: updated });
+                            }}
+                            className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                          />
+                          <span className="truncate">{cm.name}</span>
+                        </label>
                       );
                     })}
                   </div>
                 </div>
-
                 <div className="space-y-3 pt-2">
                   <label className="text-xs font-bold text-slate-700 block">【自社車両（乗用車・トラック）】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.vehicles || []).map((v: any) => {
-                      const qty = getEditingLeaseQuantity('vehicles', v.name);
+                      const vehicles = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
+                      const checked = vehicles.includes(v.name);
                       return (
-                        <div key={v.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{v.name}</div>
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              type="button"
-                              disabled={qty === 0}
-                              onClick={() => changeEditingLeaseQuantity('vehicles', v.name, -1)}
-                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
-                            >
-                              −
-                            </button>
-                            <span className="min-w-[38px] text-center font-black">{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => changeEditingLeaseQuantity('vehicles', v.name, 1)}
-                              className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black"
-                            >
-                              ＋
-                            </button>
-                          </div>
-                        </div>
+                        <label key={v.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
+                          <input 
+                            type="checkbox" 
+                            checked={checked} 
+                            onChange={e => {
+                              const current = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
+                              const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
+                              setEditingReport({ ...editingReport, vehicles: updated });
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                          />
+                          <span className="truncate">{v.name}</span>
+                        </label>
                       );
                     })}
                   </div>
