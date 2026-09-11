@@ -64,6 +64,111 @@ export default function Home() {
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
 
+
+  // 現場写真（着工前・完了後）
+  const [sitePhotos, setSitePhotos] = useState<{ before: any[]; after: any[] }>({ before: [], after: [] });
+  const [sitePhotoLoading, setSitePhotoLoading] = useState(false);
+  const [sitePhotoUploading, setSitePhotoUploading] = useState<'before' | 'after' | null>(null);
+
+  const loadSitePhotos = async (locationName: string) => {
+    if (!locationName) {
+      setSitePhotos({ before: [], after: [] });
+      return;
+    }
+
+    try {
+      setSitePhotoLoading(true);
+      const res = await fetch(`/api/site-photos?location=${encodeURIComponent(locationName)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('写真の取得に失敗しました');
+      const data = await res.json();
+      setSitePhotos({
+        before: Array.isArray(data?.before) ? data.before : [],
+        after: Array.isArray(data?.after) ? data.after : []
+      });
+    } catch (e) {
+      console.error(e);
+      setSitePhotos({ before: [], after: [] });
+    } finally {
+      setSitePhotoLoading(false);
+    }
+  };
+
+  const compressSitePhoto = async (file: File): Promise<File> => {
+    const maxWidth = 1600;
+    const quality = 0.78;
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+
+      const scale = Math.min(1, maxWidth / img.width);
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', quality)
+      );
+      if (!blob) return file;
+
+      return new File([blob], `${Date.now()}.jpg`, { type: 'image/jpeg' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const uploadSitePhoto = async (type: 'before' | 'after', file: File, locationName: string) => {
+    if (!locationName) {
+      alert('先に現場を選択してください。');
+      return;
+    }
+
+    const currentCount = type === 'before' ? sitePhotos.before.length : sitePhotos.after.length;
+    if (currentCount >= 3) {
+      alert(type === 'before' ? '着工前写真は3枚までです。' : '完了写真は3枚までです。');
+      return;
+    }
+
+    try {
+      setSitePhotoUploading(type);
+      const compressed = await compressSitePhoto(file);
+      const formData = new FormData();
+      formData.append('location', locationName);
+      formData.append('type', type);
+      formData.append('file', compressed);
+
+      const res = await fetch('/api/site-photos', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || '写真のアップロードに失敗しました。');
+        return;
+      }
+
+      await loadSitePhotos(locationName);
+    } catch (e) {
+      console.error(e);
+      alert('写真のアップロードに失敗しました。');
+    } finally {
+      setSitePhotoUploading(null);
+    }
+  };
+
   // モーダル管理用ステート
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -74,6 +179,10 @@ export default function Home() {
       .then(data => setSettings(data || {}))
       .catch(err => console.error(err));
   }, []);
+
+  useEffect(() => {
+    loadSitePhotos(location);
+  }, [location]);
 
   const toggleSelection = (list: string[], item: string, setter: Function) => {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
@@ -371,6 +480,87 @@ export default function Home() {
                {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
              </select>
            </div>
+        </div>
+
+
+        {/* 現場写真：着工前・完了後 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+          <div className="border-b pb-3">
+            <span className="font-black text-lg text-orange-600">📷 現場写真（着工前・完了後）</span>
+            <p className="text-xs md:text-sm font-bold text-slate-500 mt-1">
+              毎日の写真ではなく、この現場の「着工前」「完了後」だけ登録します。各3枚までです。
+            </p>
+          </div>
+
+          {!location ? (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-bold text-slate-500">
+              先に現場名を選択してください。
+            </div>
+          ) : sitePhotoLoading ? (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-bold text-slate-500">
+              写真を読み込み中…
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {([
+                { key: 'before', label: '🏗️ 着工前写真', photos: sitePhotos.before },
+                { key: 'after', label: '✅ 完了写真', photos: sitePhotos.after }
+              ] as const).map((group) => (
+                <div key={group.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-black text-slate-900">{group.label}</div>
+                      <div className="text-xs font-bold text-slate-500 mt-0.5">{group.photos.length}/3枚</div>
+                    </div>
+
+                    <label className={`px-4 py-2 rounded-xl font-black text-sm text-white transition ${
+                      group.photos.length >= 3 || sitePhotoUploading !== null
+                        ? 'bg-slate-300 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                    }`}>
+                      {sitePhotoUploading === group.key ? '送信中…' : '＋ 写真追加'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        disabled={group.photos.length >= 3 || sitePhotoUploading !== null}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.currentTarget.value = '';
+                          if (file) await uploadSitePhoto(group.key, file, location);
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {group.photos.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-400 font-bold">
+                      まだ写真はありません
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {group.photos.map((photo: any) => (
+                        <a
+                          key={photo.path}
+                          href={photo.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-xl overflow-hidden border border-slate-200 bg-white aspect-square"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={group.label}
+                            className="w-full h-full object-cover"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 2. 作業員 */}
