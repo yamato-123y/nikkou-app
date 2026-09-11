@@ -98,6 +98,133 @@ export default function AdminPage() {
   const [financialDirty, setFinancialDirty] = useState(false);
   const [isFinancialSaving, setIsFinancialSaving] = useState(false);
 
+
+  // 現場写真（着工前・完了後）
+  const [sitePhotos, setSitePhotos] = useState<{ before: any[]; after: any[] }>({ before: [], after: [] });
+  const [sitePhotoLoading, setSitePhotoLoading] = useState(false);
+  const [sitePhotoUploading, setSitePhotoUploading] = useState<'before' | 'after' | null>(null);
+
+  const loadSitePhotos = async (locationName: string) => {
+    if (!locationName) {
+      setSitePhotos({ before: [], after: [] });
+      return;
+    }
+
+    try {
+      setSitePhotoLoading(true);
+      const res = await fetch(`/api/site-photos?location=${encodeURIComponent(locationName)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('写真の取得に失敗しました');
+      const data = await res.json();
+      setSitePhotos({
+        before: Array.isArray(data?.before) ? data.before : [],
+        after: Array.isArray(data?.after) ? data.after : []
+      });
+    } catch (e) {
+      console.error(e);
+      setSitePhotos({ before: [], after: [] });
+    } finally {
+      setSitePhotoLoading(false);
+    }
+  };
+
+  const compressSitePhoto = async (file: File): Promise<File> => {
+    const maxWidth = 1600;
+    const quality = 0.78;
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+
+      const scale = Math.min(1, maxWidth / img.width);
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', quality)
+      );
+      if (!blob) return file;
+
+      return new File([blob], `${Date.now()}.jpg`, { type: 'image/jpeg' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const uploadSitePhoto = async (type: 'before' | 'after', file: File, locationName: string) => {
+    if (!locationName) {
+      alert('先に現場を選択してください。');
+      return;
+    }
+
+    const currentCount = type === 'before' ? sitePhotos.before.length : sitePhotos.after.length;
+    if (currentCount >= 3) {
+      alert(type === 'before' ? '着工前写真は3枚までです。' : '完了写真は3枚までです。');
+      return;
+    }
+
+    try {
+      setSitePhotoUploading(type);
+      const compressed = await compressSitePhoto(file);
+      const formData = new FormData();
+      formData.append('location', locationName);
+      formData.append('type', type);
+      formData.append('file', compressed);
+
+      const res = await fetch('/api/site-photos', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || '写真のアップロードに失敗しました。');
+        return;
+      }
+
+      await loadSitePhotos(locationName);
+    } catch (e) {
+      console.error(e);
+      alert('写真のアップロードに失敗しました。');
+    } finally {
+      setSitePhotoUploading(null);
+    }
+  };
+
+  const deleteSitePhoto = async (path: string, locationName: string) => {
+    if (authRole !== 'admin') return;
+    if (!confirm('この写真を削除しますか？')) return;
+
+    try {
+      const res = await fetch('/api/site-photos', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || '写真の削除に失敗しました。');
+        return;
+      }
+      await loadSitePhotos(locationName);
+    } catch (e) {
+      console.error(e);
+      alert('写真の削除に失敗しました。');
+    }
+  };
+
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
@@ -162,6 +289,15 @@ export default function AdminPage() {
   };
 
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
+
+  useEffect(() => {
+    if (modalLocation) {
+      loadSitePhotos(modalLocation);
+    } else {
+      setSitePhotos({ before: [], after: [] });
+    }
+  }, [modalLocation]);
+
 
   const handleLogin = (role: 'admin' | 'viewer') => {
     const targetPassword = role === 'viewer' ? viewerPassword : password;
@@ -4162,6 +4298,83 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+
+
+            {/* 現場写真（着工前・完了後） */}
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
+              <div className="px-5 md:px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div>
+                  <h3 className="text-lg md:text-xl font-extrabold text-slate-900">📷 現場写真</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">着工前・完了後のみ、各3枚まで保存します。</p>
+                </div>
+              </div>
+
+              <div className="p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  { key: 'before', label: '🏗️ 着工前写真', photos: sitePhotos.before },
+                  { key: 'after', label: '✅ 完了写真', photos: sitePhotos.after }
+                ] as const).map((group) => (
+                  <div key={group.key} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-extrabold text-slate-900">{group.label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{group.photos.length}/3枚</div>
+                      </div>
+
+                      {authRole === 'admin' && (
+                        <label className={`px-3 py-2 rounded-xl font-extrabold text-sm text-white transition ${
+                          group.photos.length >= 3 || sitePhotoUploading !== null
+                            ? 'bg-slate-300 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                        }`}>
+                          {sitePhotoUploading === group.key ? '送信中…' : '＋ 追加'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={group.photos.length >= 3 || sitePhotoUploading !== null}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              e.currentTarget.value = '';
+                              if (file) await uploadSitePhoto(group.key, file, modalLocation);
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {sitePhotoLoading ? (
+                      <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500">読み込み中…</div>
+                    ) : group.photos.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-400">
+                        写真はまだありません
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {group.photos.map((photo: any) => (
+                          <div key={photo.path} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-square group/photo">
+                            <a href={photo.url} target="_blank" rel="noreferrer" className="block w-full h-full">
+                              <img src={photo.url} alt={group.label} className="w-full h-full object-cover" />
+                            </a>
+
+                            {authRole === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => deleteSitePhoto(photo.path, modalLocation)}
+                                className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center font-black"
+                                title="削除"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
