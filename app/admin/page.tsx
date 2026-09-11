@@ -92,6 +92,7 @@ export default function AdminPage() {
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
   const [disposalRowMemos, setDisposalRowMemos] = useState<{ [key: string]: string }>({});
+  const [disposalMemoModal, setDisposalMemoModal] = useState<any | null>(null);
   const [leaseCustomPrices, setLeaseCustomPrices] = useState<any>({});
   // 詳細分析・月別処分一覧の金額編集は、入力中は画面内だけ変更し「保存」でSupabaseへまとめて送信
   const [financialDirty, setFinancialDirty] = useState(false);
@@ -2806,8 +2807,8 @@ export default function AdminPage() {
                 </p>
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
                   📄 請求書と見比べるための一覧です。<br />
-                  金額が違った理由は各行の「メモ」に残せます。確認できた行をクリックすると色が変わります。<br />
-                  <span className="text-emerald-700">金額・メモ・照合済みの色を変更したら、最後に「💾 保存」を押してください。保存後は、他の管理者とも同じ状態を共有できます。</span>
+                  日報由来と確定額が違う行には「❕」が表示されます。押すと理由を入力・確認できます。<br />
+                  <span className="text-emerald-700">金額・理由・照合済みの色を変更したら、最後に「💾 保存」を押してください。</span>
                 </div>
               </div>
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -2876,7 +2877,7 @@ export default function AdminPage() {
                               「日報由来」＝日報からの計算額　／　「確定額」＝請求書を確認して必要なら修正する金額
                             </div>
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1360px] text-left border-collapse text-base">
+                              <table className="w-full min-w-[1180px] text-left border-collapse text-base">
                                 <thead>
                                   <tr className="border-b border-slate-300 text-slate-700 font-extrabold bg-slate-100 text-base">
                                     <th className="py-3.5 px-3 w-[90px] text-base">日付</th>
@@ -2886,7 +2887,7 @@ export default function AdminPage() {
                                     <th className="py-3 px-3 text-right">単価</th>
                                     <th className="py-3 px-3 text-right">日報由来</th>
                                     <th className="py-3 px-3 text-right">確定額</th>
-                                    <th className="py-3 px-3 min-w-[260px]">メモ</th>
+                                    <th className="py-3 px-3 text-center w-[72px]">理由</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
@@ -2959,15 +2960,41 @@ export default function AdminPage() {
                                             />
                                           </div>
                                         </td>
-                                        <td className="py-3 px-3 align-top">
-                                          <textarea
-                                            value={disposalRowMemos[it.rowKey] ?? ''}
-                                            onClick={(e) => e.stopPropagation()}
-                                            onChange={(e) => handleDisposalRowMemoChange(it.rowKey, e.target.value)}
-                                            placeholder="例：請求書では○○円、端数調整のため修正"
-                                            rows={2}
-                                            className="w-full min-w-[240px] p-2.5 border border-amber-300 rounded-xl bg-amber-50/40 text-sm font-medium text-slate-800 resize-y"
-                                          />
+                                        <td className="py-3 px-3 text-center align-middle">
+                                          {(() => {
+                                            const hasDifference = Math.abs(Number(it.reportTotal || 0) - Number(it.confirmedTotal || 0)) > 0.009;
+                                            const hasMemo = !!(disposalRowMemos[it.rowKey] || '').trim();
+
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setDisposalMemoModal({
+                                                    rowKey: it.rowKey,
+                                                    date: it.formattedDate,
+                                                    locationName: it.locationName,
+                                                    disposalSite: dSite,
+                                                    item: it.item,
+                                                    reportTotal: it.reportTotal,
+                                                    confirmedTotal: it.confirmedTotal
+                                                  });
+                                                }}
+                                                title={hasMemo ? '理由を確認・編集' : (hasDifference ? '差額の理由を入力' : 'メモを追加')}
+                                                className={`mx-auto w-10 h-10 rounded-full inline-flex items-center justify-center font-black text-lg border-2 transition ${
+                                                  hasDifference
+                                                    ? (hasMemo
+                                                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                                        : 'bg-amber-50 text-amber-600 border-amber-400 animate-pulse')
+                                                    : (hasMemo
+                                                        ? 'bg-slate-700 text-white border-slate-700'
+                                                        : 'bg-white text-slate-300 border-slate-200 hover:text-slate-500')
+                                                }`}
+                                              >
+                                                {hasDifference ? '❕' : '✎'}
+                                              </button>
+                                            );
+                                          })()}
                                         </td>
                                       </tr>
                                     );
@@ -3008,6 +3035,83 @@ export default function AdminPage() {
                 </div>
               )}
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 月別処分一覧：差額理由メモモーダル */}
+      {disposalMemoModal && authRole === 'admin' && (
+        <div
+          className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fadeIn"
+          onClick={() => setDisposalMemoModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xl font-extrabold text-slate-900">❕ 金額が違う理由</div>
+                <div className="text-sm text-slate-500 mt-1">
+                  {disposalMemoModal.date}　{disposalMemoModal.item}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDisposalMemoModal(null)}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm">
+                <div className="font-bold text-slate-700">{disposalMemoModal.locationName}</div>
+                <div className="text-slate-500 mt-1">処分場：{disposalMemoModal.disposalSite}</div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="rounded-xl bg-white border border-slate-200 p-3">
+                    <div className="text-xs font-bold text-slate-500">日報由来</div>
+                    <div className="text-lg font-extrabold text-slate-900 mt-1">
+                      {formatAmount(disposalMemoModal.reportTotal)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+                    <div className="text-xs font-bold text-blue-700">確定額</div>
+                    <div className="text-lg font-extrabold text-blue-900 mt-1">
+                      {formatAmount(disposalMemoModal.confirmedTotal)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-extrabold text-slate-700 block mb-2">
+                  理由・確認内容
+                </label>
+                <textarea
+                  autoFocus
+                  value={disposalRowMemos[disposalMemoModal.rowKey] ?? ''}
+                  onChange={(e) => handleDisposalRowMemoChange(disposalMemoModal.rowKey, e.target.value)}
+                  placeholder="例：請求書では端数切捨て／先方確認済み／数量差のため修正"
+                  rows={5}
+                  className="w-full p-3.5 border-2 border-amber-300 focus:border-amber-500 outline-none rounded-2xl bg-amber-50/30 text-base text-slate-800 resize-y"
+                />
+                <p className="text-xs text-slate-500 mt-2">
+                  ※ここに入力しても日報データは変更されません。請求書照合用のメモです。
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDisposalMemoModal(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 text-white font-extrabold"
+              >
+                閉じる
+              </button>
             </div>
           </div>
         </div>
