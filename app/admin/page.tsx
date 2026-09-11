@@ -91,6 +91,7 @@ export default function AdminPage() {
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
+  const [disposalRowMemos, setDisposalRowMemos] = useState<{ [key: string]: string }>({});
   const [leaseCustomPrices, setLeaseCustomPrices] = useState<any>({});
   // 詳細分析・月別処分一覧の金額編集は、入力中は画面内だけ変更し「保存」でSupabaseへまとめて送信
   const [financialDirty, setFinancialDirty] = useState(false);
@@ -141,6 +142,7 @@ export default function AdminPage() {
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
+          if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
           if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
           if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
         }
@@ -504,6 +506,15 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const handleDisposalRowMemoChange = (rowKey: string, val: string) => {
+    if (authRole === 'viewer') return;
+    setDisposalRowMemos({
+      ...disposalRowMemos,
+      [rowKey]: val
+    });
+    setFinancialDirty(true);
+  };
+
   const handleLeaseCustomPriceChange = (
     locName: string,
     scope: 'ishikawa' | 'mok',
@@ -553,6 +564,7 @@ export default function AdminPage() {
         scrapOverrides,
         fuelUnitPrices,
         monthlyDisposalInvoices,
+        disposalRowMemos,
         leaseCustomPrices,
         checkedDisposalRows,
         customSubcontractors
@@ -2794,8 +2806,8 @@ export default function AdminPage() {
                 </p>
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
                   📄 請求書と見比べるための一覧です。<br />
-                  確認できた行をクリックすると色が変わります。もう一度クリックすると元に戻ります。<br />
-                  <span className="text-emerald-700">金額の変更や照合済みの色変更をしたら、最後に「💾 保存」を押してください。保存後は、再ログインしても他の管理者が見ても同じ状態になります。</span>
+                  金額が違った理由は各行の「メモ」に残せます。確認できた行をクリックすると色が変わります。<br />
+                  <span className="text-emerald-700">金額・メモ・照合済みの色を変更したら、最後に「💾 保存」を押してください。保存後は、他の管理者とも同じ状態を共有できます。</span>
                 </div>
               </div>
               <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -2864,7 +2876,7 @@ export default function AdminPage() {
                               「日報由来」＝日報からの計算額　／　「確定額」＝請求書を確認して必要なら修正する金額
                             </div>
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1120px] text-left border-collapse text-base">
+                              <table className="w-full min-w-[1360px] text-left border-collapse text-base">
                                 <thead>
                                   <tr className="border-b border-slate-300 text-slate-700 font-extrabold bg-slate-100 text-base">
                                     <th className="py-3.5 px-3 w-[90px] text-base">日付</th>
@@ -2874,6 +2886,7 @@ export default function AdminPage() {
                                     <th className="py-3 px-3 text-right">単価</th>
                                     <th className="py-3 px-3 text-right">日報由来</th>
                                     <th className="py-3 px-3 text-right">確定額</th>
+                                    <th className="py-3 px-3 min-w-[260px]">メモ</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
@@ -2945,6 +2958,16 @@ export default function AdminPage() {
                                               className="w-32 p-2.5 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900 text-base"
                                             />
                                           </div>
+                                        </td>
+                                        <td className="py-3 px-3 align-top">
+                                          <textarea
+                                            value={disposalRowMemos[it.rowKey] ?? ''}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={(e) => handleDisposalRowMemoChange(it.rowKey, e.target.value)}
+                                            placeholder="例：請求書では○○円、端数調整のため修正"
+                                            rows={2}
+                                            className="w-full min-w-[240px] p-2.5 border border-amber-300 rounded-xl bg-amber-50/40 text-sm font-medium text-slate-800 resize-y"
+                                          />
                                         </td>
                                       </tr>
                                     );
