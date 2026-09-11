@@ -3466,46 +3466,61 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【自社重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.companyMachines || []).map((cm: any) => {
-                      const ownMachines = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
-                      const checked = ownMachines.includes(cm.name);
+                      const qty = getEditingLeaseQuantity('ownMachines', cm.name);
                       return (
-                        <label key={cm.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = Array.isArray(editingReport.ownMachines) ? editingReport.ownMachines : [];
-                              const updated = e.target.checked ? [...current, cm.name] : current.filter((x: string) => x !== cm.name);
-                              setEditingReport({ ...editingReport, ownMachines: updated });
-                            }}
-                            className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
-                          />
-                          <span className="truncate">{cm.name}</span>
-                        </label>
+                        <div key={cm.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{cm.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              disabled={qty === 0}
+                              onClick={() => changeEditingLeaseQuantity('ownMachines', cm.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
+                            >
+                              −
+                            </button>
+                            <span className="min-w-[38px] text-center font-black">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => changeEditingLeaseQuantity('ownMachines', cm.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-black"
+                            >
+                              ＋
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
                 </div>
+
                 <div className="space-y-3 pt-2">
                   <label className="text-xs font-bold text-slate-700 block">【自社車両（乗用車・トラック）】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.vehicles || []).map((v: any) => {
-                      const vehicles = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
-                      const checked = vehicles.includes(v.name);
+                      const qty = getEditingLeaseQuantity('vehicles', v.name);
                       return (
-                        <label key={v.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold' : 'bg-white border-slate-200'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={checked} 
-                            onChange={e => {
-                              const current = Array.isArray(editingReport.vehicles) ? editingReport.vehicles : [];
-                              const updated = e.target.checked ? [...current, v.name] : current.filter((x: string) => x !== v.name);
-                              setEditingReport({ ...editingReport, vehicles: updated });
-                            }}
-                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                          />
-                          <span className="truncate">{v.name}</span>
-                        </label>
+                        <div key={v.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
+                          <div className="truncate text-center mb-2">{v.name}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              disabled={qty === 0}
+                              onClick={() => changeEditingLeaseQuantity('vehicles', v.name, -1)}
+                              className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}
+                            >
+                              −
+                            </button>
+                            <span className="min-w-[38px] text-center font-black">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => changeEditingLeaseQuantity('vehicles', v.name, 1)}
+                              className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black"
+                            >
+                              ＋
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
