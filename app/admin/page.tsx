@@ -106,6 +106,8 @@ export default function AdminPage() {
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
+  // 日報由来の外注費を「業者＋作業内容」単位で確定額調整するための上書き
+  const [subcontractorDetailOverrides, setSubcontractorDetailOverrides] = useState<any>({});
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -144,6 +146,7 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
+          if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
           if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -556,6 +559,23 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const handleSubcontractorDetailOverrideChange = (
+    locName: string,
+    key: string,
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+
+    setSubcontractorDetailOverrides({
+      ...subcontractorDetailOverrides,
+      [locName]: {
+        ...(subcontractorDetailOverrides[locName] || {}),
+        [key]: val
+      }
+    });
+    setFinancialDirty(true);
+  };
+
   const handleAddCustomExtraExpense = (locName: string) => {
     if (authRole === 'viewer') return;
     const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
@@ -617,6 +637,7 @@ export default function AdminPage() {
         leaseCustomPrices,
         checkedDisposalRows,
         customSubcontractors,
+        subcontractorDetailOverrides,
         customExtraExpenses
       };
 
@@ -1171,10 +1192,62 @@ export default function AdminPage() {
     const aggregatedDisposalBreakdown: {[key: string]: {items: {[itemKey: string]: {quantity: number, price: number, total: number, unit: string, details: Array<{date: string, item: string, quantity: number, unit: string, price: number, total: number}>}}, total: number}} = {};
     const aggregatedScrapBreakdown: {[key: string]: {quantity: number, total: number, details: Array<{date: string, item: string, quantity: number, unit: string, reportId?: any}>}} = {};
 
+    const subcontractorBreakdownMap: {
+      [key: string]: {
+        key: string;
+        company: string;
+        task: string;
+        count: number;
+        unitPrice: number | null;
+        reportTotal: number;
+        hasMultipleUnitPrices: boolean;
+      }
+    } = {};
+
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
       calcLabor += dc.lCost; 
-      calcSub += dc.subCost; 
+      calcSub += dc.subCost;
+
+      // 外注業者ごとに、人数・単価・日報由来合計を集計
+      const reportSubs = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+      reportSubs.forEach((sub: any) => {
+        const company = sub.company || '会社名未設定';
+        const task = sub.task || '作業内容未設定';
+        const key = `${company}__${task}`;
+
+        const subMaster = (settings.subcontractors || []).find(
+          (x: any) => x.company === company && x.task === task
+        );
+        const unitPrice =
+          sub.price !== undefined && sub.price !== null && sub.price !== ''
+            ? Number(sub.price)
+            : Number(subMaster?.price || 0);
+        const count = Number(sub.count || 0);
+        const reportTotal = count * unitPrice;
+
+        if (!subcontractorBreakdownMap[key]) {
+          subcontractorBreakdownMap[key] = {
+            key,
+            company,
+            task,
+            count: 0,
+            unitPrice,
+            reportTotal: 0,
+            hasMultipleUnitPrices: false
+          };
+        } else if (
+          subcontractorBreakdownMap[key].unitPrice !== null &&
+          Number(subcontractorBreakdownMap[key].unitPrice) !== unitPrice
+        ) {
+          subcontractorBreakdownMap[key].hasMultipleUnitPrices = true;
+          subcontractorBreakdownMap[key].unitPrice = null;
+        }
+
+        subcontractorBreakdownMap[key].count += count;
+        subcontractorBreakdownMap[key].reportTotal += reportTotal;
+      });
+
       calcLease += dc.leaseC; 
       calcOtherLease += dc.otherLeaseC;
       calcIshikawaLease += dc.ishikawaLeaseDetail;
@@ -1263,6 +1336,34 @@ export default function AdminPage() {
     // 外注だけは「日報由来」と「管理画面の手動追加・一括外注分」を分けて見せるため、
     // ここでは純粋な日報由来分を保持する。
     const reportEstimateSub = calcSub;
+
+    const locSubDetailOverrides = subcontractorDetailOverrides[locName] || {};
+    const subcontractorBreakdown = Object.values(subcontractorBreakdownMap)
+      .map((entry: any) => {
+        const rawOverride = locSubDetailOverrides[entry.key];
+        const confirmedTotal =
+          rawOverride !== '' && rawOverride !== undefined
+            ? Number(rawOverride)
+            : Number(entry.reportTotal || 0);
+
+        return {
+          ...entry,
+          confirmedTotal
+        };
+      })
+      .sort((a: any, b: any) =>
+        a.company.localeCompare(b.company, 'ja') ||
+        a.task.localeCompare(b.task, 'ja')
+      );
+
+    const subcontractorConfirmedTotal = subcontractorBreakdown.reduce(
+      (sum: number, entry: any) => sum + Number(entry.confirmedTotal || 0),
+      0
+    );
+
+    // 全体上書きが無い場合は、業者別に調整した合計を原価側へ使う
+    calcSub = subcontractorConfirmedTotal;
+
     const reportEstimateLease = calcLease;
     const reportEstimateOtherLease = calcOtherLease;
     const reportEstimateOwnMachine = calcOwnMachine;
@@ -1440,6 +1541,8 @@ export default function AdminPage() {
       reportEstimatedTotal,
       reportEstimateLabor,
       reportEstimateSub,
+      subcontractorBreakdown,
+      subcontractorConfirmedTotal,
       customSubsTotal,
       reportEstimateSubWithCustom,
       reportEstimateLease,
@@ -2859,7 +2962,7 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="-mx-6 md:-mx-10 -mb-6 md:-mb-10 px-6 md:px-10 py-4 bg-white border-t border-slate-200 flex justify-end">
               <button 
                 onClick={() => setCalendarReportModal(null)} 
                 className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition"
@@ -3090,7 +3193,7 @@ export default function AdminPage() {
               })()}
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-7 -mb-4 md:-mb-7 px-4 md:px-7 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -4451,24 +4554,106 @@ export default function AdminPage() {
                         </div>
                       ) : item.isSubcontractor ? (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                            <div className="text-sm md:text-base font-bold text-slate-600">概算の内訳</div>
-                            <div className="mt-2 space-y-1.5">
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 md:p-4">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <div>
+                                <div className="text-sm md:text-base font-extrabold text-slate-700">概算の内訳</div>
+                                <div className="text-xs md:text-sm text-slate-500 mt-0.5">
+                                  日報で使用した外注を、業者ごとに集計しています。
+                                </div>
+                              </div>
+                              <div className="text-sm md:text-base font-extrabold text-slate-900">
+                                日報合計 {formatAmount(modalData.reportEstimateSub || 0)}
+                              </div>
+                            </div>
+
+                            {(modalData.subcontractorBreakdown || []).length === 0 ? (
+                              <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
+                                日報由来の外注費はありません。
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {(modalData.subcontractorBreakdown || []).map((sub: any) => (
+                                  <div
+                                    key={sub.key}
+                                    className="bg-white rounded-xl border border-slate-200 p-3"
+                                  >
+                                    <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto_auto] gap-2 xl:gap-4 xl:items-center">
+                                      <div>
+                                        <div className="font-extrabold text-slate-900 text-sm md:text-base">
+                                          🏢 {sub.company}（{sub.task}）
+                                        </div>
+                                        <div className="text-sm text-slate-600 mt-1">
+                                          {Number(sub.count || 0).toLocaleString('ja-JP')}人
+                                          {' × '}
+                                          {sub.hasMultipleUnitPrices || sub.unitPrice === null
+                                            ? '単価：複数'
+                                            : <>単価 {formatAmount(sub.unitPrice)}</>}
+                                          {' ＝ '}
+                                          <span className="font-bold text-slate-800">
+                                            日報 {formatAmount(sub.reportTotal || 0)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-xs md:text-sm text-slate-500 xl:text-right">
+                                        反映額
+                                      </div>
+
+                                      <div className="xl:w-[180px]">
+                                        {authRole === 'admin' ? (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-blue-500 font-bold">¥</span>
+                                            <input
+                                              type="number"
+                                              value={subcontractorDetailOverrides[modalLocation]?.[sub.key] ?? ''}
+                                              onChange={(e) =>
+                                                handleSubcontractorDetailOverrideChange(
+                                                  modalLocation,
+                                                  sub.key,
+                                                  e.target.value
+                                                )
+                                              }
+                                              placeholder={String(Number(sub.reportTotal || 0))}
+                                              className="w-full p-2.5 border-2 border-blue-300 rounded-xl bg-blue-50/40 text-right font-extrabold text-base"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="font-extrabold text-blue-800 text-right">
+                                            {formatAmount(sub.confirmedTotal || 0)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="mt-3 pt-3 border-t border-slate-200 space-y-1.5">
                               <div className="flex justify-between gap-3 text-sm md:text-base">
-                                <span className="text-slate-600">日報からの外注費</span>
+                                <span className="text-slate-600">日報由来の外注費</span>
                                 <span className="font-extrabold text-slate-900">{formatAmount(modalData.reportEstimateSub || 0)}</span>
+                              </div>
+                              <div className="flex justify-between gap-3 text-sm md:text-base">
+                                <span className="text-blue-700 font-bold">業者別修正後</span>
+                                <span className="font-extrabold text-blue-800">{formatAmount(modalData.subcontractorConfirmedTotal || 0)}</span>
                               </div>
                               <div className="flex justify-between gap-3 text-sm md:text-base">
                                 <span className="text-orange-700 font-bold">＋ 手動追加・一括外注分</span>
                                 <span className="font-extrabold text-orange-700">{formatAmount(modalData.customSubsTotal || 0)}</span>
                               </div>
                               <div className="border-t border-slate-200 pt-2 flex justify-between gap-3 text-base md:text-lg">
-                                <span className="font-extrabold text-slate-700">概算合計</span>
-                                <span className="font-extrabold text-slate-900">{formatAmount(modalData.reportEstimateSubWithCustom || 0)}</span>
+                                <span className="font-extrabold text-slate-700">外注費 反映前合計</span>
+                                <span className="font-extrabold text-slate-900">
+                                  {formatAmount((modalData.subcontractorConfirmedTotal || 0) + (modalData.customSubsTotal || 0))}
+                                </span>
                               </div>
                             </div>
+
                             <div className="text-xs md:text-sm text-slate-500 mt-2">
-                              ※「手動追加・一括外注分」は、上の【手動追加・一括外注分】で管理画面から追加した金額です。
+                              ※各業者の「反映額」を変更すると、その金額が外注費の原価計算に使われます。
+                              下の「請求書の金額」に全体金額を入力した場合は、そちらを最優先します。
                             </div>
                           </div>
 
@@ -4481,7 +4666,7 @@ export default function AdminPage() {
                                   type="number"
                                   value={costOverrides[modalLocation]?.[item.key] ?? ''}
                                   onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                                  placeholder={`未入力：概算 ${Number(modalData.reportEstimateSubWithCustom || 0).toLocaleString('ja-JP')}円`}
+                                  placeholder={`未入力：業者別反映後 ${Number((modalData.subcontractorConfirmedTotal || 0) + (modalData.customSubsTotal || 0)).toLocaleString('ja-JP')}円`}
                                   className="w-full p-3 border-2 border-blue-400 rounded-xl font-extrabold text-right bg-blue-50/40 text-lg"
                                 />
                               </div>
@@ -4499,7 +4684,7 @@ export default function AdminPage() {
                             <div className="text-xl md:text-2xl font-extrabold text-emerald-800 mt-1">{formatAmount(item.val || 0)}</div>
                             {authRole === 'admin' && (
                               <div className="text-sm text-slate-500 mt-1.5">
-                                ※請求書金額が未入力なら、日報分＋手動追加分の概算合計を使います。
+                                ※請求書金額が未入力なら、業者別の反映額＋手動追加分を使います。
                               </div>
                             )}
                           </div>
@@ -4924,7 +5109,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-white pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-8 -mb-6 md:-mb-8 px-6 md:px-8 py-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -5117,7 +5302,7 @@ export default function AdminPage() {
               📌 この画面と「📦 月別処分一覧」は同じ処分データを見ています。どちらで金額を直しても、もう一方にも反映されます。
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-8 -mb-4 md:-mb-8 px-4 md:px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -5229,7 +5414,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="sticky bottom-0 z-20 bg-white/95 backdrop-blur-sm pt-4 pb-1 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-10 -mb-6 md:-mb-10 px-6 md:px-10 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
