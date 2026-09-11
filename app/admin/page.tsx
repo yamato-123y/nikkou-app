@@ -4757,7 +4757,15 @@ export default function AdminPage() {
                                   入場した社員はいません。
                                 </div>
                               ) : (
-                                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                                <div
+                                  className={`grid gap-x-4 gap-y-1.5 ${
+                                    (modalData.workerAttendance || []).length <= 4
+                                      ? 'grid-cols-1'
+                                      : (modalData.workerAttendance || []).length <= 8
+                                        ? 'grid-cols-2'
+                                        : 'grid-cols-2 md:grid-cols-3'
+                                  }`}
+                                >
                                   {(modalData.workerAttendance || []).map((worker: any) => (
                                     <div
                                       key={worker.name}
