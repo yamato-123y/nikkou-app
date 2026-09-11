@@ -106,6 +106,8 @@ export default function AdminPage() {
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
+  // 現場ごとの突発的な追加経費（管理画面から自由追加）
+  const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
@@ -142,6 +144,7 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
+          if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
           if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
@@ -550,6 +553,48 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const handleAddCustomExtraExpense = (locName: string) => {
+    if (authRole === 'viewer') return;
+    const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
+    const newItem = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      label: '',
+      amount: ''
+    };
+    setCustomExtraExpenses({
+      ...customExtraExpenses,
+      [locName]: [...current, newItem]
+    });
+    setFinancialDirty(true);
+  };
+
+  const handleCustomExtraExpenseChange = (
+    locName: string,
+    id: string,
+    field: 'label' | 'amount',
+    value: string
+  ) => {
+    if (authRole === 'viewer') return;
+    const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
+    setCustomExtraExpenses({
+      ...customExtraExpenses,
+      [locName]: current.map((item: any) =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    });
+    setFinancialDirty(true);
+  };
+
+  const handleDeleteCustomExtraExpense = (locName: string, id: string) => {
+    if (authRole === 'viewer') return;
+    const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
+    setCustomExtraExpenses({
+      ...customExtraExpenses,
+      [locName]: current.filter((item: any) => item.id !== id)
+    });
+    setFinancialDirty(true);
+  };
+
   const saveFinancialEdits = async () => {
     if (authRole === 'viewer' || isFinancialSaving) return;
 
@@ -568,7 +613,8 @@ export default function AdminPage() {
         disposalRowMemos,
         leaseCustomPrices,
         checkedDisposalRows,
-        customSubcontractors
+        customSubcontractors,
+        customExtraExpenses
       };
 
       const res = await fetch('/api/settings', {
@@ -1268,6 +1314,15 @@ export default function AdminPage() {
     const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
     const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
 
+    // 管理画面でこの現場だけに追加した突発的な経費
+    const customExtraExpenseList = Array.isArray(customExtraExpenses[locName])
+      ? customExtraExpenses[locName]
+      : [];
+    const customExtraExpenseTotal = customExtraExpenseList.reduce(
+      (sum: number, item: any) => sum + (Number(item.amount) || 0),
+      0
+    );
+
     const scOv = scrapOverrides[locName] || {};
     let scrapTotal = scrapTotalCalc;
     if (scOv.total !== undefined && scOv.total !== '') {
@@ -1305,7 +1360,8 @@ export default function AdminPage() {
       (isIshikawaFuelSplit ? ishikawaFuelCombinedCost : fuelCost + regularCost) +
       etcCost +
       parkingCost +
-      otherCost;
+      otherCost +
+      customExtraExpenseTotal;
 
     // 「日報由来概算合計」は costOverrides / disposalOverrides / 管理画面手入力を含めない。
     // 石川県案件の宇野気石油分は日報に金額が無いため、概算側では0円のまま。
@@ -1357,7 +1413,9 @@ export default function AdminPage() {
       unokeRegularCost,
       etcCost, 
       parkingCost, 
-      otherCost, 
+      otherCost,
+      customExtraExpenseList,
+      customExtraExpenseTotal,
       scrapTotal,
       aggregatedScrapBreakdown,
       total: sumOverrideCost,
@@ -4489,6 +4547,121 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* この現場だけの突発的な追加経費 */}
+            <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 overflow-hidden">
+              <div className="px-5 md:px-6 py-4 md:py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-amber-200">
+                <div>
+                  <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🧾 この現場だけの追加経費</h3>
+                  <p className="text-sm md:text-base text-slate-600 mt-1">
+                    日報にない突発的な経費があった場合に追加します。入力した金額は合計経費・利益・粗利に反映されます。
+                  </p>
+                </div>
+
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddCustomExtraExpense(modalLocation)}
+                    className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl font-extrabold text-base shadow-sm transition"
+                  >
+                    ＋ 追加
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4 md:p-5 space-y-3">
+                {(modalData.customExtraExpenseList || []).length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-amber-300 bg-white/70 px-4 py-5 text-center text-slate-500 text-sm md:text-base">
+                    追加経費はありません。
+                    {authRole === 'admin' && <span> 必要な場合は「＋ 追加」から入力してください。</span>}
+                  </div>
+                ) : (
+                  (modalData.customExtraExpenseList || []).map((item: any) => (
+                    <div
+                      key={item.id}
+                      className="bg-white rounded-2xl border border-amber-200 p-3 md:p-4"
+                    >
+                      {authRole === 'admin' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3 items-end">
+                          <div>
+                            <label className="text-sm font-bold text-slate-700 block mb-1.5">内容</label>
+                            <input
+                              type="text"
+                              value={item.label ?? ''}
+                              onChange={(e) =>
+                                handleCustomExtraExpenseChange(
+                                  modalLocation,
+                                  item.id,
+                                  'label',
+                                  e.target.value
+                                )
+                              }
+                              placeholder="例：近隣対策費、緊急修理費、追加運搬費"
+                              className="w-full p-3 border border-slate-300 rounded-xl bg-white text-base font-bold"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-bold text-slate-700 block mb-1.5">金額</label>
+                            <div className="flex items-center gap-1">
+                              <span className="font-bold text-slate-500">¥</span>
+                              <input
+                                type="number"
+                                value={item.amount ?? ''}
+                                onChange={(e) =>
+                                  handleCustomExtraExpenseChange(
+                                    modalLocation,
+                                    item.id,
+                                    'amount',
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="0"
+                                className="w-full p-3 border-2 border-amber-300 focus:border-amber-500 outline-none rounded-xl bg-amber-50/30 text-right text-lg font-extrabold"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomExtraExpense(modalLocation, item.id)}
+                            className="h-[50px] px-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="font-bold text-slate-800">
+                            {item.label || '内容未入力'}
+                          </div>
+                          <div className="font-extrabold text-lg text-amber-800">
+                            {formatAmount(item.amount || 0)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                {(modalData.customExtraExpenseList || []).length > 0 && (
+                  <div className="flex items-center justify-between gap-4 rounded-2xl bg-amber-100/70 border border-amber-300 px-4 md:px-5 py-3">
+                    <span className="font-extrabold text-amber-900 text-base md:text-lg">
+                      追加経費 合計
+                    </span>
+                    <span className="font-extrabold text-amber-900 text-xl md:text-2xl">
+                      {formatAmount(modalData.customExtraExpenseTotal || 0)}
+                    </span>
+                  </div>
+                )}
+
+                {authRole === 'admin' && (
+                  <p className="text-xs md:text-sm text-slate-500">
+                    ※入力内容は日報そのものには追加されません。この現場の管理用経費として保存されます。変更後は画面下の「💾 保存」を押してください。
+                  </p>
+                )}
+              </div>
             </div>
 
             <div
