@@ -1204,9 +1204,30 @@ export default function AdminPage() {
       }
     } = {};
 
+    // 社員ごとの入場日数を集計。
+    // 日付そのものは画面に出さず、「氏名：○日」だけを表示する。
+    // 同じ日報内の重複や同日複数データがあっても、同じ現場・同じ人・同じ日は1日扱い。
+    const workerAttendanceDateMap: { [name: string]: Set<string> } = {};
+
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
-      calcLabor += dc.lCost; 
+      calcLabor += dc.lCost;
+
+      const attendanceDateKey = normalizeDateStr(r.date || '') || String(r.date || '');
+      const attendanceWorkers = Array.from(
+        new Set(
+          (Array.isArray(r.workers) ? r.workers : [])
+            .filter((name: any) => typeof name === 'string' && name.trim() !== '')
+        )
+      ) as string[];
+
+      attendanceWorkers.forEach((workerName: string) => {
+        if (!workerAttendanceDateMap[workerName]) {
+          workerAttendanceDateMap[workerName] = new Set<string>();
+        }
+        workerAttendanceDateMap[workerName].add(attendanceDateKey);
+      });
+
       calcSub += dc.subCost;
 
       // 外注業者ごとに、人数・単価・日報由来合計を集計
@@ -1333,6 +1354,22 @@ export default function AdminPage() {
 
     // 手動上書き前の概算を保持
     const reportEstimateLabor = calcLabor;
+
+    const workerMasterOrder = new Map(
+      (settings.workers || []).map((worker: any, index: number) => [worker.name, index])
+    );
+    const workerAttendance = Object.entries(workerAttendanceDateMap)
+      .map(([name, dateSet]) => ({
+        name,
+        days: dateSet.size
+      }))
+      .filter((entry: any) => entry.days > 0)
+      .sort((a: any, b: any) => {
+        const aOrder = workerMasterOrder.has(a.name) ? Number(workerMasterOrder.get(a.name)) : 999999;
+        const bOrder = workerMasterOrder.has(b.name) ? Number(workerMasterOrder.get(b.name)) : 999999;
+        return aOrder - bOrder || a.name.localeCompare(b.name, 'ja');
+      });
+
     // 外注だけは「日報由来」と「管理画面の手動追加・一括外注分」を分けて見せるため、
     // ここでは純粋な日報由来分を保持する。
     const reportEstimateSub = calcSub;
@@ -1540,6 +1577,7 @@ export default function AdminPage() {
       total: sumOverrideCost,
       reportEstimatedTotal,
       reportEstimateLabor,
+      workerAttendance,
       reportEstimateSub,
       subcontractorBreakdown,
       subcontractorConfirmedTotal,
@@ -2841,7 +2879,7 @@ export default function AdminPage() {
       {/* カレンダーの日付・現場名をクリックしたときに日報を表示するモーダル */}
       {calendarReportModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setCalendarReportModal(null)}>
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">
@@ -2962,7 +3000,7 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="-mx-6 md:-mx-10 -mb-6 md:-mb-10 px-6 md:px-10 py-4 bg-white border-t border-slate-200 flex justify-end">
+            <div className="-mx-6 md:-mx-10 px-6 md:px-10 py-4 bg-white border-t border-slate-200 flex justify-end">
               <button 
                 onClick={() => setCalendarReportModal(null)} 
                 className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition"
@@ -2977,7 +3015,7 @@ export default function AdminPage() {
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowAllMonthlyDisposalModal(false)}>
-          <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 !pb-0 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
@@ -3193,7 +3231,7 @@ export default function AdminPage() {
               })()}
             </div>
 
-            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-7 -mb-4 md:-mb-7 px-4 md:px-7 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-7 px-4 md:px-7 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -3299,7 +3337,7 @@ export default function AdminPage() {
       {/* 日報編集モーダル */}
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setEditingReport(null)}>
-          <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl shadow-inner">📝</div>
@@ -3975,7 +4013,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="flex gap-4 pt-4 border-t border-slate-100">
+            <div className="-mx-6 md:-mx-10 px-6 md:px-10 py-4 bg-white border-t border-slate-200 flex gap-4">
               <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-base md:text-lg shadow-lg shadow-orange-500/20 transition">
                 💾 更新を保存する
               </button>
@@ -3998,7 +4036,7 @@ export default function AdminPage() {
               authRole === 'viewer'
                 ? 'max-w-6xl p-4 md:p-10 space-y-5 md:space-y-8'
                 : 'max-w-[1400px] p-6 md:p-9 space-y-7 md:space-y-9'
-            }`}
+            } !pb-0`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
@@ -4484,7 +4522,7 @@ export default function AdminPage() {
 
             <div className={`grid grid-cols-1 gap-4 md:gap-5 ${authRole === 'admin' ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
               {[
-                { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost },
+                { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost, isLabor: true },
                 { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSubWithCustom, val: modalData.subCostTotal, isSubcontractor: true },
                 { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isLease: true, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
                 { key: 'otherLease', label: 'その他リース', estimate: modalData.reportEstimateOtherLease, val: modalData.otherLeaseCost },
@@ -4708,6 +4746,33 @@ export default function AdminPage() {
                         </div>
                       ) : (
                         <div className="space-y-3">
+                          {item.isLabor && (
+                            <div className="rounded-xl border border-slate-200 bg-white p-3">
+                              <div className="text-xs md:text-sm font-extrabold text-slate-600 mb-2">
+                                👷 入場日数（日報集計）
+                              </div>
+
+                              {(modalData.workerAttendance || []).length === 0 ? (
+                                <div className="text-xs md:text-sm text-slate-400">
+                                  入場した社員はいません。
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                                  {(modalData.workerAttendance || []).map((worker: any) => (
+                                    <div
+                                      key={worker.name}
+                                      className="text-xs md:text-sm text-slate-700 whitespace-nowrap"
+                                    >
+                                      <span className="font-bold">{worker.name}</span>
+                                      <span className="text-slate-400 mx-1">：</span>
+                                      <span className="font-extrabold text-slate-900">{worker.days}日</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
                             <div className="text-sm md:text-base font-bold text-slate-600">日報からの概算</div>
                             <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
@@ -4870,8 +4935,8 @@ export default function AdminPage() {
             <div
               className={`sticky bottom-0 z-30 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3 ${
                 authRole === 'viewer'
-                  ? '-mx-4 md:-mx-10 -mb-4 md:-mb-10 px-4 md:px-10 py-4'
-                  : '-mx-6 md:-mx-9 -mb-6 md:-mb-9 px-6 md:px-9 py-4'
+                  ? '-mx-4 md:-mx-10 px-4 md:px-10 py-4'
+                  : '-mx-6 md:-mx-9 px-6 md:px-9 py-4'
               }`}
             >
               {authRole === 'admin' && (
@@ -4913,7 +4978,7 @@ export default function AdminPage() {
           onClick={() => setShowIshikawaLeaseModal(false)}
         >
           <div
-            className="bg-white rounded-[32px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 md:p-8 space-y-6 shadow-2xl border border-slate-100"
+            className="bg-white rounded-[32px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 md:p-8 !pb-0 space-y-6 shadow-2xl border border-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 z-20 bg-white flex justify-between items-center border-b border-slate-100 pb-4 pt-1">
@@ -5109,7 +5174,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-8 -mb-6 md:-mb-8 px-6 md:px-8 py-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -5138,7 +5203,7 @@ export default function AdminPage() {
       {/* 処分費内訳確認モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowDisposalModal(false)}>
-          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 !pb-0 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">🗑️ 処分費の内訳明細</h3>
@@ -5302,7 +5367,7 @@ export default function AdminPage() {
               📌 この画面と「📦 月別処分一覧」は同じ処分データを見ています。どちらで金額を直しても、もう一方にも反映されます。
             </div>
 
-            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-8 -mb-4 md:-mb-8 px-4 md:px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -5331,7 +5396,7 @@ export default function AdminPage() {
       {/* スクラップ内訳・金額入力モーダル */}
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setShowScrapModal(false)}>
-          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却の内訳・金額入力</h3>
@@ -5414,7 +5479,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-10 -mb-6 md:-mb-10 px-6 md:px-10 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-10 px-6 md:px-10 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
