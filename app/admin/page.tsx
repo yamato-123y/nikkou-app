@@ -101,7 +101,8 @@ export default function AdminPage() {
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [checkedScrapRows, setCheckedScrapRows] = useState<{ [key: string]: boolean }>({});
   const [scrapRowOverrides, setScrapRowOverrides] = useState<{ [key: string]: string }>({});
-  // スクラップ場ごとの「いつ仕切ったか」日付
+  // スクラップ場 × 月ごとの「いつ仕切ったか」日付
+  // key: `${スクラップ場}__${YYYY-MM}`
   const [scrapSettlementDates, setScrapSettlementDates] = useState<{ [key: string]: string }>({});
   // 現場 × スクラップ場 × 月ごとの「仕切り書」確定合計
   const [monthlyScrapStatementTotals, setMonthlyScrapStatementTotals] = useState<{ [key: string]: string }>({});
@@ -3735,26 +3736,7 @@ export default function AdminPage() {
                 return scrapSites.map((scrapSite) => (
                   <section key={scrapSite} className="space-y-4">
                     <div className="sticky top-0 z-10 bg-emerald-800 text-white px-4 py-3 rounded-2xl shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="font-extrabold text-lg">♻️ {scrapSite}</div>
-                        <div className="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
-                          <label className="text-xs md:text-sm font-extrabold whitespace-nowrap">
-                            📅 仕切った日
-                          </label>
-                          <input
-                            type="date"
-                            value={scrapSettlementDates[scrapSite] ?? ''}
-                            onChange={(e) => {
-                              setScrapSettlementDates((prev) => ({
-                                ...prev,
-                                [scrapSite]: e.target.value
-                              }));
-                              setFinancialDirty(true);
-                            }}
-                            className="bg-white text-slate-900 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-sm font-bold"
-                          />
-                        </div>
-                      </div>
+                      <div className="font-extrabold text-lg">♻️ {scrapSite}</div>
                     </div>
 
                     {Object.entries(groupedData[scrapSite])
@@ -3789,8 +3771,28 @@ export default function AdminPage() {
                             className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-2xs"
                           >
                             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                              <div className="font-extrabold text-lg text-slate-900">
-                                📅 {y}年{Number(m)}月
+                              <div className="space-y-2">
+                                <div className="font-extrabold text-lg text-slate-900">
+                                  📅 {y}年{Number(m)}月
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs md:text-sm font-extrabold text-emerald-800 whitespace-nowrap">
+                                    🧾 仕切った日
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={scrapSettlementDates[`${scrapSite}__${ym}`] ?? ''}
+                                    onChange={(e) => {
+                                      const dateKey = `${scrapSite}__${ym}`;
+                                      setScrapSettlementDates((prev) => ({
+                                        ...prev,
+                                        [dateKey]: e.target.value
+                                      }));
+                                      setFinancialDirty(true);
+                                    }}
+                                    className="bg-white text-slate-900 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-sm font-bold"
+                                  />
+                                </div>
                               </div>
 
                               <div className="flex flex-wrap gap-2 md:gap-3">
