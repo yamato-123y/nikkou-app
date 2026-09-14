@@ -101,6 +101,8 @@ export default function AdminPage() {
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [checkedScrapRows, setCheckedScrapRows] = useState<{ [key: string]: boolean }>({});
   const [scrapRowOverrides, setScrapRowOverrides] = useState<{ [key: string]: string }>({});
+  // スクラップ場ごとの「いつ仕切ったか」日付
+  const [scrapSettlementDates, setScrapSettlementDates] = useState<{ [key: string]: string }>({});
   // 現場 × スクラップ場 × 月ごとの「仕切り書」確定合計
   const [monthlyScrapStatementTotals, setMonthlyScrapStatementTotals] = useState<{ [key: string]: string }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
@@ -285,6 +287,7 @@ export default function AdminPage() {
           if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.scrapRowOverrides) setScrapRowOverrides(sData.scrapRowOverrides);
+          if (sData.scrapSettlementDates) setScrapSettlementDates(sData.scrapSettlementDates);
           if (sData.checkedScrapRows) setCheckedScrapRows(sData.checkedScrapRows);
           if (sData.monthlyScrapStatementTotals) setMonthlyScrapStatementTotals(sData.monthlyScrapStatementTotals);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
@@ -815,6 +818,7 @@ export default function AdminPage() {
         disposalOverrides,
         scrapOverrides,
         scrapRowOverrides,
+        scrapSettlementDates,
         checkedScrapRows,
         monthlyScrapStatementTotals,
         fuelUnitPrices,
@@ -3731,7 +3735,26 @@ export default function AdminPage() {
                 return scrapSites.map((scrapSite) => (
                   <section key={scrapSite} className="space-y-4">
                     <div className="sticky top-0 z-10 bg-emerald-800 text-white px-4 py-3 rounded-2xl shadow-sm">
-                      <div className="font-extrabold text-lg">♻️ {scrapSite}</div>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="font-extrabold text-lg">♻️ {scrapSite}</div>
+                        <div className="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
+                          <label className="text-xs md:text-sm font-extrabold whitespace-nowrap">
+                            📅 仕切った日
+                          </label>
+                          <input
+                            type="date"
+                            value={scrapSettlementDates[scrapSite] ?? ''}
+                            onChange={(e) => {
+                              setScrapSettlementDates((prev) => ({
+                                ...prev,
+                                [scrapSite]: e.target.value
+                              }));
+                              setFinancialDirty(true);
+                            }}
+                            className="bg-white text-slate-900 border border-emerald-200 rounded-lg px-2.5 py-1.5 text-sm font-bold"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     {Object.entries(groupedData[scrapSite])
