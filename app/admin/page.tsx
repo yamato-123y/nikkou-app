@@ -4357,79 +4357,138 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 社長モード専用：工程表（試作版） */}
+      {/* 社長モード専用：工程表（かんたんUI版） */}
       {showScheduleModal && authRole === 'viewer' && (
-        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[80]" onClick={() => {
-          if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
-          setShowScheduleModal(false);
-          setScheduleDrag(null);
-        }}>
-          <div className="bg-white rounded-[28px] w-full max-w-[1500px] max-h-[96vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-white space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl md:text-2xl font-extrabold text-slate-950">📅 工程表</h3>
-                    <span className="rounded-full bg-indigo-100 text-indigo-700 px-3 py-1 text-xs font-extrabold">👑 社長モード専用</span>
+        <div
+          className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-1.5 md:p-4 z-[80]"
+          onClick={() => {
+            if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
+            setShowScheduleModal(false);
+            setScheduleDrag(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl md:rounded-[28px] w-full max-w-[1500px] h-[96vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* シンプルヘッダー */}
+            <div className="px-3 md:px-5 py-3 bg-white border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg md:text-2xl font-black text-slate-950">📅 工程表</h3>
+                    <span className="hidden sm:inline rounded-full bg-orange-100 text-orange-700 px-2.5 py-1 text-[11px] font-black">
+                      社長モード
+                    </span>
                   </div>
-                  <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">工程バーをドラッグ＝日程変更／下の重機・車両・外注を工程へドラッグ＝予定配置・予定原価を自動計算</p>
+                  <div className="text-[11px] md:text-xs text-slate-500 font-bold mt-0.5">
+                    工程を動かす・重機や外注を置く。それだけで使えます。
+                  </div>
                 </div>
-                <button type="button" onClick={() => {
-                  if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
-                  setShowScheduleModal(false);
-                  setScheduleDrag(null);
-                }} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 font-black text-slate-600">✕</button>
+
+                <div className="hidden md:flex items-center rounded-xl bg-indigo-50 px-4 py-2">
+                  <span className="text-xs font-bold text-indigo-600 mr-2">予定原価</span>
+                  <span className="text-lg font-black text-indigo-700">
+                    ¥{Math.round(scheduleLocation ? getScheduleLocationTotalCost(scheduleLocation) : 0).toLocaleString('ja-JP')}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
+                    setShowScheduleModal(false);
+                    setScheduleDrag(null);
+                  }}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 font-black text-slate-600 shrink-0"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <select value={scheduleLocation} onChange={(e) => setScheduleLocation(e.target.value)} className="min-w-[240px] max-w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-sm">
+              {/* 現場・月・追加だけ */}
+              <div className="mt-3 flex flex-wrap gap-2 items-center">
+                <select
+                  value={scheduleLocation}
+                  onChange={(e) => setScheduleLocation(e.target.value)}
+                  className="flex-1 min-w-[220px] p-2.5 rounded-xl border border-slate-300 bg-white font-black text-sm"
+                >
                   <option value="">現場を選択...</option>
-                  {(settings.locations || []).filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished).map((loc: any) => {
-                    const name = typeof loc === 'string' ? loc : loc.name;
-                    return <option key={name} value={name}>{name}</option>;
-                  })}
+                  {(settings.locations || [])
+                    .filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished)
+                    .map((loc: any) => {
+                      const name = typeof loc === 'string' ? loc : loc.name;
+                      return <option key={name} value={name}>{name}</option>;
+                    })}
                 </select>
-                <input type="month" value={scheduleYearMonth} onChange={(e) => setScheduleYearMonth(e.target.value)} className="p-2.5 rounded-xl border border-slate-300 bg-white font-extrabold text-sm" />
-                <button type="button" onClick={addScheduleTask} className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm">＋ 工程追加</button>
+
+                <input
+                  type="month"
+                  value={scheduleYearMonth}
+                  onChange={(e) => setScheduleYearMonth(e.target.value)}
+                  className="p-2.5 rounded-xl border border-slate-300 bg-white font-black text-sm"
+                />
+
+                <button
+                  type="button"
+                  onClick={addScheduleTask}
+                  disabled={!scheduleLocation}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-black ${
+                    scheduleLocation
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  ＋ 工程
+                </button>
               </div>
 
+              {/* 置くもの：できるだけカードだけに */}
               {scheduleLocation && (() => {
                 const catalog = getScheduleResourceCatalog();
-                const groups = [
-                  { title: '🚜 自社重機', items: catalog.machines, tone: 'border-amber-200 bg-amber-50' },
-                  { title: '🚚 自社車両', items: catalog.vehicles, tone: 'border-blue-200 bg-blue-50' },
-                  { title: '🏢 外注業者', items: catalog.subcontractors, tone: 'border-emerald-200 bg-emerald-50' }
+                const compactGroups = [
+                  { title: '🚜 重機', items: catalog.machines },
+                  { title: '🚚 車両', items: catalog.vehicles },
+                  { title: '🏢 外注', items: catalog.subcontractors }
                 ];
 
                 return (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-extrabold text-slate-800">📦 配置する項目</div>
-                      <div className="text-xs font-bold text-slate-500">カードを工程の行へドラッグしてください</div>
+                  <div className="mt-3 rounded-2xl bg-slate-50 border border-slate-200 p-2.5">
+                    <div className="text-[11px] font-black text-slate-500 mb-2">
+                      ↓ 工程へドラッグして置く
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-                      {groups.map(group => (
-                        <div key={group.title} className={`rounded-xl border p-2 ${group.tone}`}>
-                          <div className="text-xs font-extrabold text-slate-700 mb-2">{group.title}</div>
-                          <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
+                    <div className="space-y-2">
+                      {compactGroups.map(group => (
+                        <div key={group.title} className="flex items-start gap-2">
+                          <div className="w-[58px] shrink-0 pt-1.5 text-[11px] font-black text-slate-600">
+                            {group.title}
+                          </div>
+
+                          <div className="flex gap-1.5 overflow-x-auto pb-1 min-w-0">
                             {group.items.length === 0 ? (
-                              <span className="text-[11px] text-slate-400 font-bold">マスタ登録なし</span>
-                            ) : group.items.map((resource: any) => (
-                              <button
-                                key={resource.id}
-                                type="button"
-                                onPointerDown={(e) => startScheduleResourceDrag(e, resource)}
-                                style={{ touchAction: 'none' }}
-                                className="text-left rounded-lg bg-white border border-slate-200 px-2.5 py-2 shadow-sm hover:shadow cursor-grab active:cursor-grabbing select-none"
-                                title="工程へドラッグ"
-                              >
-                                <div className="text-xs font-extrabold text-slate-800">{resource.label}</div>
-                                <div className="text-[10px] font-bold text-slate-500">
-                                  {resource.detail} ／ ¥{Number(resource.unitPrice || 0).toLocaleString('ja-JP')}/{resource.unit === '人' ? '人日' : '台日'}
-                                </div>
-                              </button>
-                            ))}
+                              <span className="text-[10px] text-slate-400 font-bold py-2">
+                                登録なし
+                              </span>
+                            ) : (
+                              group.items.map((resource: any) => (
+                                <button
+                                  key={resource.id}
+                                  type="button"
+                                  onPointerDown={(e) => startScheduleResourceDrag(e, resource)}
+                                  style={{ touchAction: 'none' }}
+                                  className="shrink-0 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-sm cursor-grab active:cursor-grabbing select-none hover:border-indigo-300"
+                                  title="工程へドラッグ"
+                                >
+                                  <div className="text-xs font-black text-slate-800 max-w-[170px] truncate">
+                                    {resource.label}
+                                  </div>
+                                  <div className="text-[10px] font-bold text-slate-400">
+                                    ¥{Number(resource.unitPrice || 0).toLocaleString('ja-JP')}/日
+                                  </div>
+                                </button>
+                              ))
+                            )}
                           </div>
                         </div>
                       ))}
@@ -4437,144 +4496,286 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
-
             </div>
 
+            {/* 工程エリア */}
             <div className="flex-1 overflow-auto bg-slate-50">
               {!scheduleLocation ? (
-                <div className="py-24 text-center text-slate-500 font-bold">現場を選択してください。</div>
+                <div className="h-full flex items-center justify-center p-8">
+                  <div className="text-center">
+                    <div className="text-5xl mb-4">🏗️</div>
+                    <div className="text-lg font-black text-slate-700">現場を選んでください</div>
+                    <div className="text-sm font-bold text-slate-400 mt-2">選ぶだけで工程表が開きます</div>
+                  </div>
+                </div>
               ) : (() => {
                 const days = scheduleMonthDays(scheduleYearMonth);
                 const monthStart = `${scheduleYearMonth}-01`;
                 const tasks = getScheduleTasks(scheduleLocation);
                 const width = days.length * scheduleDayWidth;
+
                 return (
                   <div className="min-w-max">
-                    <div className="sticky top-0 z-30 flex bg-white border-b border-slate-300 shadow-sm">
-                      <div className="sticky left-0 z-40 w-[280px] shrink-0 bg-slate-900 text-white px-4 py-3 font-extrabold border-r border-slate-700">工程名</div>
+                    {/* 日付 */}
+                    <div className="sticky top-0 z-30 flex bg-white border-b border-slate-200 shadow-sm">
+                      <div className="sticky left-0 z-40 w-[230px] shrink-0 bg-slate-900 text-white px-3 py-3 font-black border-r border-slate-700">
+                        工程
+                      </div>
+
                       <div className="flex" style={{ width }}>
                         {days.map(day => {
                           const d = scheduleParse(day)!;
                           const dow = d.getUTCDay();
-                          return <div key={day} style={{ width: scheduleDayWidth }} className={`shrink-0 border-r border-slate-200 py-2 text-center ${dow === 0 ? 'bg-rose-50 text-rose-700' : dow === 6 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-700'}`}>
-                            <div className="text-[10px] font-bold">{['日','月','火','水','木','金','土'][dow]}</div>
-                            <div className="text-sm font-black">{Number(day.slice(-2))}</div>
-                          </div>;
+                          const weekend =
+                            dow === 0
+                              ? 'bg-rose-50 text-rose-600'
+                              : dow === 6
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'bg-white text-slate-600';
+
+                          return (
+                            <div
+                              key={day}
+                              style={{ width: scheduleDayWidth }}
+                              className={`shrink-0 border-r border-slate-100 py-2 text-center ${weekend}`}
+                            >
+                              <div className="text-[9px] font-bold">
+                                {['日','月','火','水','木','金','土'][dow]}
+                              </div>
+                              <div className="text-sm font-black">{Number(day.slice(-2))}</div>
+                            </div>
+                          );
                         })}
                       </div>
                     </div>
 
                     {tasks.length === 0 ? (
-                      <div className="flex min-h-[100px]">
-                        <div className="sticky left-0 z-20 w-[280px] shrink-0 bg-white border-r border-slate-300 p-5 text-slate-500 font-bold">工程がまだありません</div>
-                        <div style={{ width }} className="p-8 text-slate-400 font-bold">「＋ 工程追加」から始めてください。</div>
+                      <div className="flex min-h-[170px]">
+                        <div className="sticky left-0 z-20 w-[230px] shrink-0 bg-white border-r border-slate-200 p-5">
+                          <div className="text-slate-600 font-black">工程なし</div>
+                        </div>
+                        <div
+                          style={{ width }}
+                          className="flex items-center justify-center text-slate-400 font-black"
+                        >
+                          上の「＋ 工程」を押してください
+                        </div>
                       </div>
-                    ) : tasks.map((task: any) => {
-                      const left = scheduleDiffDays(monthStart, task.start) * scheduleDayWidth;
-                      const duration = Math.max(1, scheduleDiffDays(task.start, task.end) + 1);
-                      const barWidth = duration * scheduleDayWidth;
-                      const taskResources = Array.isArray(task.resources) ? task.resources : [];
-                      const taskCost = getScheduleTaskCost(task);
-                      return <div
-                        key={task.id}
-                        data-schedule-drop-task={task.id}
-                        className={`flex min-h-[126px] border-b border-slate-200 bg-white transition ${scheduleResourceDrag ? 'hover:bg-indigo-50 ring-inset hover:ring-2 hover:ring-indigo-300' : ''}`}
-                      >
-                        <div className="sticky left-0 z-20 w-[280px] shrink-0 bg-white border-r border-slate-300 p-2.5">
-                          <div className="flex items-center gap-2">
-                            <input type="checkbox" checked={!!task.completed} onChange={(e) => patchScheduleTask(task.id, { completed: e.target.checked })} className="w-5 h-5 accent-indigo-600 shrink-0" />
-                            <input type="text" value={task.name || ''} onChange={(e) => patchScheduleTask(task.id, { name: e.target.value })} className="min-w-0 flex-1 p-2 rounded-lg border border-slate-200 font-extrabold text-sm" />
-                            <button type="button" onClick={() => deleteScheduleTask(task.id)} className="w-8 h-8 shrink-0 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 font-black">×</button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5 mt-2">
-                            <input type="date" value={task.start || ''} onChange={(e) => {
-                              const oldDuration = Math.max(0, scheduleDiffDays(task.start, task.end));
-                              patchScheduleTask(task.id, { start: e.target.value, end: scheduleAddDays(e.target.value, oldDuration) });
-                            }} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
-                            <input type="date" value={task.end || ''} min={task.start || undefined} onChange={(e) => patchScheduleTask(task.id, { end: e.target.value })} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
-                          </div>
-                          <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[11px] font-extrabold text-slate-600">配置・予定原価</span>
-                              <span className="text-xs font-black text-indigo-700">
-                                ¥{Math.round(taskCost).toLocaleString('ja-JP')}
-                              </span>
+                    ) : (
+                      tasks.map((task: any) => {
+                        const left = scheduleDiffDays(monthStart, task.start) * scheduleDayWidth;
+                        const duration = Math.max(1, scheduleDiffDays(task.start, task.end) + 1);
+                        const barWidth = duration * scheduleDayWidth;
+                        const taskResources = Array.isArray(task.resources) ? task.resources : [];
+                        const taskCost = getScheduleTaskCost(task);
+
+                        return (
+                          <div
+                            key={task.id}
+                            data-schedule-drop-task={task.id}
+                            className={`flex min-h-[104px] border-b border-slate-200 bg-white transition ${
+                              scheduleResourceDrag ? 'hover:bg-indigo-50' : ''
+                            }`}
+                          >
+                            {/* 左：工程名と配置物だけ */}
+                            <div className="sticky left-0 z-20 w-[230px] shrink-0 bg-white border-r border-slate-200 p-2">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => patchScheduleTask(task.id, { completed: !task.completed })}
+                                  className={`w-7 h-7 rounded-lg shrink-0 font-black text-sm ${
+                                    task.completed
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'bg-slate-100 text-slate-400'
+                                  }`}
+                                  title="完了"
+                                >
+                                  {task.completed ? '✓' : ''}
+                                </button>
+
+                                <input
+                                  type="text"
+                                  value={task.name || ''}
+                                  onChange={(e) => patchScheduleTask(task.id, { name: e.target.value })}
+                                  className="min-w-0 flex-1 border-0 bg-transparent px-1 py-1 text-sm font-black text-slate-900 focus:outline-none focus:ring-0"
+                                  placeholder="工程名"
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => deleteScheduleTask(task.id)}
+                                  className="w-7 h-7 rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 font-black"
+                                  title="削除"
+                                >
+                                  ×
+                                </button>
+                              </div>
+
+                              <div className="mt-1.5 flex items-center justify-between gap-2">
+                                <div className="text-[10px] font-bold text-slate-400">
+                                  {task.start?.slice(5).replace('-', '/')}〜{task.end?.slice(5).replace('-', '/')}
+                                </div>
+                                <div className="text-[11px] font-black text-indigo-700">
+                                  ¥{Math.round(taskCost).toLocaleString('ja-JP')}
+                                </div>
+                              </div>
+
+                              {taskResources.length === 0 ? (
+                                <div className={`mt-2 rounded-lg border border-dashed px-2 py-2 text-[10px] font-bold text-center ${
+                                  scheduleResourceDrag
+                                    ? 'border-indigo-400 bg-indigo-50 text-indigo-600'
+                                    : 'border-slate-200 text-slate-300'
+                                }`}>
+                                  {scheduleResourceDrag ? 'ここにドロップ' : '重機・車両・外注を置く'}
+                                </div>
+                              ) : (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {taskResources.map((resource: any) => {
+                                    const qty = Math.max(1, Number(resource.quantity || 1));
+                                    return (
+                                      <div
+                                        key={resource.id}
+                                        className="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 overflow-hidden"
+                                      >
+                                        <span className="px-1.5 py-1 text-[10px] font-black text-slate-700 max-w-[115px] truncate">
+                                          {getScheduleResourceIcon(resource.type)} {getScheduleResourceLabel(resource)}
+                                        </span>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => changeScheduleResourceQuantity(task.id, resource.id, -1)}
+                                          className="w-5 h-6 bg-white text-slate-500 font-black text-xs"
+                                        >
+                                          −
+                                        </button>
+
+                                        <span className="min-w-[28px] text-center text-[10px] font-black">
+                                          {qty}
+                                        </span>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => changeScheduleResourceQuantity(task.id, resource.id, 1)}
+                                          className="w-5 h-6 bg-white text-slate-500 font-black text-xs"
+                                        >
+                                          ＋
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => removeScheduleResource(task.id, resource.id)}
+                                          className="w-5 h-6 bg-white text-rose-400 font-black text-xs"
+                                          title="外す"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
 
-                            {taskResources.length === 0 ? (
-                              <div className="text-[10px] text-slate-400 font-bold mt-1">
-                                重機・車両・外注をこの行へドラッグ
-                              </div>
-                            ) : (
-                              <div className="space-y-1 mt-1.5">
-                                {taskResources.map((resource: any) => {
-                                  const unitPrice = getScheduleResourceUnitPrice(resource);
-                                  const qty = Math.max(1, Number(resource.quantity || 1));
-                                  return (
-                                    <div key={resource.id} className="flex items-center gap-1 text-[10px] rounded-lg bg-white border border-slate-200 px-1.5 py-1">
-                                      <span className="shrink-0">{getScheduleResourceIcon(resource.type)}</span>
-                                      <span className="min-w-0 flex-1 truncate font-bold text-slate-700" title={getScheduleResourceLabel(resource)}>
-                                        {getScheduleResourceLabel(resource)}
-                                      </span>
-                                      <button type="button" onClick={() => changeScheduleResourceQuantity(task.id, resource.id, -1)} className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-black">−</button>
-                                      <span className="w-7 text-center font-black">{qty}{getScheduleResourceUnit(resource)}</span>
-                                      <button type="button" onClick={() => changeScheduleResourceQuantity(task.id, resource.id, 1)} className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-black">＋</button>
-                                      <span className="hidden xl:inline text-slate-400 font-bold whitespace-nowrap">
-                                        ¥{unitPrice.toLocaleString('ja-JP')}/日
-                                      </span>
-                                      <button type="button" onClick={() => removeScheduleResource(task.id, resource.id)} className="w-5 h-5 rounded bg-rose-50 text-rose-500 hover:bg-rose-100 font-black">×</button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
+                            {/* 右：ドラッグするバーだけ */}
+                            <div
+                              className="relative shrink-0"
+                              style={{
+                                width,
+                                backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${scheduleDayWidth - 1}px, rgb(241 245 249) ${scheduleDayWidth - 1}px, rgb(241 245 249) ${scheduleDayWidth}px)`
+                              }}
+                            >
+                              <div
+                                onPointerDown={(e) => startScheduleDrag(e, task, 'move')}
+                                style={{
+                                  left,
+                                  width: barWidth,
+                                  touchAction: 'none'
+                                }}
+                                className={`absolute top-[20px] h-[54px] rounded-xl shadow-sm border flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${
+                                  task.completed
+                                    ? 'bg-emerald-500 border-emerald-600'
+                                    : 'bg-indigo-500 border-indigo-600'
+                                } text-white`}
+                              >
+                                <div className="px-3 min-w-0 flex-1">
+                                  <div className="text-xs font-black truncate">{task.name}</div>
+                                  <div className="text-[10px] font-bold opacity-90 truncate">
+                                    {duration}日
+                                    {taskCost > 0 && <> ・ ¥{Math.round(taskCost).toLocaleString('ja-JP')}</>}
+                                  </div>
+                                </div>
 
-                        </div>
-                        <div className="relative shrink-0" style={{ width, backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth}px)` }}>
-                          <div onPointerDown={(e) => startScheduleDrag(e, task, 'move')} style={{ left, width: barWidth, touchAction: 'none' }} className={`absolute top-4 h-11 rounded-xl shadow-sm border flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${task.completed ? 'bg-emerald-500 border-emerald-600' : 'bg-indigo-500 border-indigo-600'} text-white`}>
-                            <div className="px-3 min-w-0 flex-1">
-                              <div className="text-xs font-extrabold truncate">{task.name}</div>
-                              <div className="text-[10px] font-bold opacity-90">
-                                {task.start?.slice(5).replace('-', '/')}〜{task.end?.slice(5).replace('-', '/')}
-                                {taskCost > 0 && <> ／ ¥{Math.round(taskCost).toLocaleString('ja-JP')}</>}
+                                <div
+                                  onPointerDown={(e) => startScheduleDrag(e, task, 'resize')}
+                                  style={{ touchAction: 'none' }}
+                                  className="h-full w-9 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize font-black"
+                                  title="ここを引っ張って日数変更"
+                                >
+                                  ↔
+                                </div>
                               </div>
-                            </div>
-                            <div onPointerDown={(e) => startScheduleDrag(e, task, 'resize')} style={{ touchAction: 'none' }} className="h-full w-8 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize font-black">↔</div>
-                          </div>
 
-                          {taskResources.length > 0 && (
-                            <div className="absolute top-[66px] flex flex-wrap gap-1" style={{ left: Math.max(0, left), maxWidth: Math.max(190, barWidth) }}>
-                              {taskResources.map((resource: any) => (
-                                <span key={resource.id} className="inline-flex items-center gap-1 rounded-full bg-slate-800 text-white px-2 py-1 text-[10px] font-bold shadow-sm">
-                                  {getScheduleResourceIcon(resource.type)}
-                                  <span className="max-w-[150px] truncate">{getScheduleResourceLabel(resource)}</span>
-                                  <b>{Number(resource.quantity || 1)}{getScheduleResourceUnit(resource)}</b>
-                                </span>
-                              ))}
+                              {taskResources.length > 0 && (
+                                <div
+                                  className="absolute top-[79px] flex gap-1 max-w-full overflow-hidden"
+                                  style={{ left: Math.max(0, left) }}
+                                >
+                                  {taskResources.slice(0, 4).map((resource: any) => (
+                                    <span
+                                      key={resource.id}
+                                      className="inline-flex items-center rounded-full bg-slate-700 text-white px-2 py-1 text-[9px] font-black whitespace-nowrap"
+                                    >
+                                      {getScheduleResourceIcon(resource.type)}
+                                      {Number(resource.quantity || 1)}
+                                    </span>
+                                  ))}
+                                  {taskResources.length > 4 && (
+                                    <span className="rounded-full bg-slate-300 text-slate-700 px-2 py-1 text-[9px] font-black">
+                                      +{taskResources.length - 4}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>;
-                    })}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 );
               })()}
             </div>
 
-            <div className="px-4 md:px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="text-sm font-bold">
-                <span className={scheduleDirty ? 'text-orange-600' : 'text-emerald-600'}>{scheduleDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</span>
-                <span className="text-slate-400 ml-3">※ 日報実績は変更しません</span>
-                {scheduleLocation && (
-                  <span className="ml-3 text-indigo-700 font-black">
-                    予定原価合計：¥{Math.round(getScheduleLocationTotalCost(scheduleLocation)).toLocaleString('ja-JP')}
-                  </span>
-                )}
+            {/* 下部：保存だけを目立たせる */}
+            <div className="px-3 md:px-5 py-3 bg-white border-t border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className={`text-xs font-black ${scheduleDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                    {scheduleDirty ? '● 変更あり' : '✓ 保存済み'}
+                  </div>
+
+                  <div className="md:hidden text-sm font-black text-indigo-700 mt-0.5">
+                    予定原価 ¥{Math.round(scheduleLocation ? getScheduleLocationTotalCost(scheduleLocation) : 0).toLocaleString('ja-JP')}
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                    日報実績・マスタは変更しません
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveSchedulePlans}
+                  disabled={!scheduleDirty || scheduleSaving}
+                  className={`px-5 md:px-8 py-3 rounded-xl font-black text-sm transition ${
+                    !scheduleDirty || scheduleSaving
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                  }`}
+                >
+                  {scheduleSaving ? '保存中…' : '💾 保存'}
+                </button>
               </div>
-              <button type="button" onClick={saveSchedulePlans} disabled={!scheduleDirty || scheduleSaving} className={`px-6 py-3 rounded-xl font-extrabold transition ${!scheduleDirty || scheduleSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'}`}>
-                {scheduleSaving ? '保存中…' : '💾 工程表を保存'}
-              </button>
             </div>
           </div>
         </div>
