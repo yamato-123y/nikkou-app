@@ -81,6 +81,14 @@ export default function AdminPage() {
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   const [filterLocation, setFilterLocation] = useState('');
   const [form, setForm] = useState<any>({});
+  // 詳細分析上部の「請負先・開始日」は入力中に日報全件へ即保存せず、
+  // 画面内で編集してからまとめて保存する。
+  const [projectMetaEdit, setProjectMetaEdit] = useState<{ client: string; startDate: string }>({
+    client: '',
+    startDate: ''
+  });
+  const [projectMetaDirty, setProjectMetaDirty] = useState(false);
+  const [projectMetaSaving, setProjectMetaSaving] = useState(false);
 
   const [editingReport, setEditingReport] = useState<any | null>(null);
   const [showSaveToast, setShowSaveToast] = useState(false);
@@ -301,8 +309,21 @@ export default function AdminPage() {
   useEffect(() => {
     if (modalLocation) {
       loadSitePhotos(modalLocation);
+
+      const targetNames = getTargetLocationNames(modalLocation);
+      const locReports = reports.filter((r: any) => targetNames.includes(r.location));
+      const clients = Array.from(new Set(locReports.map((r: any) => r.client).filter(Boolean)));
+      const startDates = Array.from(new Set(locReports.map((r: any) => r.startDate).filter(Boolean))).sort();
+
+      setProjectMetaEdit({
+        client: clients.join(', ') || '',
+        startDate: startDates[0] || ''
+      });
+      setProjectMetaDirty(false);
     } else {
       setSitePhotos({ before: [], after: [] });
+      setProjectMetaEdit({ client: '', startDate: '' });
+      setProjectMetaDirty(false);
     }
   }, [modalLocation]);
 
@@ -873,6 +894,51 @@ export default function AdminPage() {
         [field]: !current[field]
       }
     });
+  };
+
+  const saveProjectMeta = async () => {
+    if (!modalLocation || authRole !== 'admin' || projectMetaSaving) return;
+
+    try {
+      setProjectMetaSaving(true);
+      const targetNames = getTargetLocationNames(modalLocation);
+
+      const updatedReports = reports.map((r: any) => {
+        if (!targetNames.includes(r.location)) return r;
+        return {
+          ...r,
+          client: projectMetaEdit.client,
+          startDate: projectMetaEdit.startDate
+        };
+      });
+
+      const targets = updatedReports.filter((r: any) => targetNames.includes(r.location));
+
+      for (const r of targets) {
+        const targetId = r.id || r._id || r.reportId;
+        if (!targetId) continue;
+
+        const res = await fetch('/api/reports', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...r, id: targetId })
+        });
+
+        if (!res.ok) {
+          throw new Error('請負先・開始日の保存に失敗しました');
+        }
+      }
+
+      setReports(updatedReports);
+      setProjectMetaDirty(false);
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert('請負先・開始日の保存に失敗しました。');
+    } finally {
+      setProjectMetaSaving(false);
+    }
   };
 
   const handleDeleteReport = async (report: any, index: number) => {
@@ -4724,66 +4790,45 @@ export default function AdminPage() {
                       <>
                         <div>
                           <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">🏢 請負先</label>
-                          <input 
-                            type="text" 
-                            value={modalData.clientStr} 
-                            onChange={async (e) => {
-                              const val = e.target.value;
-                              const targetNames = getTargetLocationNames(modalLocation);
-                              const updatedReports = reports.map(r => {
-                                if (targetNames.includes(r.location)) {
-                                  return { ...r, client: val };
-                                }
-                                return r;
-                              });
-                              setReports(updatedReports);
-                              for (const r of updatedReports) {
-                                if (targetNames.includes(r.location)) {
-                                  const targetId = r.id || r._id;
-                                  if (targetId) {
-                                    await fetch('/api/reports', {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ...r, id: targetId })
-                                    });
-                                  }
-                                }
-                              }
+                          <input
+                            type="text"
+                            value={projectMetaEdit.client}
+                            onChange={(e) => {
+                              setProjectMetaEdit({ ...projectMetaEdit, client: e.target.value });
+                              setProjectMetaDirty(true);
                             }}
-                            placeholder="例: 〇〇建設" 
+                            placeholder="例: 〇〇建設"
                             className="w-full p-3.5 border border-slate-300 rounded-xl text-base md:text-lg font-bold bg-white text-slate-800"
                           />
                         </div>
                         <div>
                           <label className="text-sm md:text-base font-bold text-slate-800 block mb-1.5">⏱ 開始日</label>
-                          <input 
-                            type="date" 
-                            value={modalData.startDateStr} 
-                            onChange={async (e) => {
-                              const val = e.target.value;
-                              const targetNames = getTargetLocationNames(modalLocation);
-                              const updatedReports = reports.map(r => {
-                                if (targetNames.includes(r.location)) {
-                                  return { ...r, startDate: val };
-                                }
-                                return r;
-                              });
-                              setReports(updatedReports);
-                              for (const r of updatedReports) {
-                                if (targetNames.includes(r.location)) {
-                                  const targetId = r.id || r._id;
-                                  if (targetId) {
-                                    await fetch('/api/reports', {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ...r, id: targetId })
-                                    });
-                                  }
-                                }
-                              }
+                          <input
+                            type="date"
+                            value={projectMetaEdit.startDate}
+                            onChange={(e) => {
+                              setProjectMetaEdit({ ...projectMetaEdit, startDate: e.target.value });
+                              setProjectMetaDirty(true);
                             }}
                             className="w-full p-3.5 border border-slate-300 rounded-xl text-base md:text-lg font-bold bg-white text-slate-800"
                           />
+                        </div>
+                        <div className="md:col-span-2 flex items-center justify-end gap-3 pt-1">
+                          <span className={`text-sm font-bold ${projectMetaDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                            {projectMetaDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={saveProjectMeta}
+                            disabled={!projectMetaDirty || projectMetaSaving}
+                            className={`px-5 py-2.5 rounded-xl font-extrabold text-sm md:text-base transition ${
+                              !projectMetaDirty || projectMetaSaving
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                            }`}
+                          >
+                            {projectMetaSaving ? '保存中…' : '💾 請負先・開始日を保存'}
+                          </button>
                         </div>
                       </>
                     )}
