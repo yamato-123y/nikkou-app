@@ -93,6 +93,8 @@ export default function AdminPage() {
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [checkedScrapRows, setCheckedScrapRows] = useState<{ [key: string]: boolean }>({});
   const [scrapRowOverrides, setScrapRowOverrides] = useState<{ [key: string]: string }>({});
+  // 現場 × スクラップ場 × 月ごとの「仕切り書」確定合計
+  const [monthlyScrapStatementTotals, setMonthlyScrapStatementTotals] = useState<{ [key: string]: string }>({});
   const [monthlyDisposalInvoices, setMonthlyDisposalInvoices] = useState<{ [key: string]: string }>({});
   const [disposalRowMemos, setDisposalRowMemos] = useState<{ [key: string]: string }>({});
   const [disposalMemoModal, setDisposalMemoModal] = useState<any | null>(null);
@@ -276,6 +278,7 @@ export default function AdminPage() {
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
           if (sData.scrapRowOverrides) setScrapRowOverrides(sData.scrapRowOverrides);
           if (sData.checkedScrapRows) setCheckedScrapRows(sData.checkedScrapRows);
+          if (sData.monthlyScrapStatementTotals) setMonthlyScrapStatementTotals(sData.monthlyScrapStatementTotals);
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
           if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
@@ -655,6 +658,15 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const handleMonthlyScrapStatementTotalChange = (key: string, val: string) => {
+    if (authRole === 'viewer') return;
+    setMonthlyScrapStatementTotals({
+      ...monthlyScrapStatementTotals,
+      [key]: val
+    });
+    setFinancialDirty(true);
+  };
+
   const handleMonthlyDisposalInvoiceChange = (disposalSite: string, yearMonth: string, val: string) => {
     if (authRole === 'viewer') return;
 
@@ -783,6 +795,7 @@ export default function AdminPage() {
         scrapOverrides,
         scrapRowOverrides,
         checkedScrapRows,
+        monthlyScrapStatementTotals,
         fuelUnitPrices,
         monthlyDisposalInvoices,
         disposalRowMemos,
@@ -1228,6 +1241,99 @@ export default function AdminPage() {
     return matchedLocations.length > 0 ? matchedLocations : [currentLoc];
   };
 
+  const getCanonicalLocationForReport = (reportLocation: string) => {
+    const locationNames = (settings.locations || []).map((l: any) =>
+      typeof l === 'string' ? l : l?.name
+    ).filter(Boolean);
+
+    const matched = locationNames.find((locName: string) =>
+      getTargetLocationNames(locName).includes(reportLocation)
+    );
+
+    return matched || reportLocation || '現場名未設定';
+  };
+
+  const getMonthlyScrapStatementKey = (
+    canonicalLocation: string,
+    scrapSite: string,
+    yearMonth: string
+  ) => `${canonicalLocation}__${scrapSite}__${yearMonth}`;
+
+  const getLocationMonthlyScrapData = (locName: string) => {
+    const targetNames = getTargetLocationNames(locName);
+    const locReports = reports.filter((r: any) => targetNames.includes(r.location));
+    const months: any = {};
+
+    locReports.forEach((r: any) => {
+      const normalized = normalizeDateStr(r.date || '');
+      const parts = normalized.split('-');
+      if (parts.length < 2) return;
+
+      const ym = `${parts[0]}-${parts[1]}`;
+      const displayDate = parts.length >= 3
+        ? `${Number(parts[1])}/${Number(parts[2])}`
+        : String(r.date || '');
+      const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+
+      scraps.forEach((sc: any, scrapIndex: number) => {
+        const scrapSite = sc.location || 'その他スクラップ場';
+        const item = sc.item || '品目未指定';
+        const master = (settings.scrapLocations || []).find(
+          (s: any) => s.location === scrapSite && s.item === item
+        );
+        const unit = sc.unit || master?.unit || 'kg';
+        const quantity = Number(sc.quantity || 0);
+        const rowKey = getScrapRowKey(r, sc, scrapIndex);
+        const rawRowAmount = scrapRowOverrides[rowKey];
+        const saleAmount =
+          rawRowAmount !== '' && rawRowAmount !== undefined
+            ? Number(rawRowAmount)
+            : 0;
+
+        if (!months[ym]) months[ym] = { sites: {} };
+        if (!months[ym].sites[scrapSite]) {
+          months[ym].sites[scrapSite] = {
+            rows: [],
+            quantityByUnit: {},
+            rowSaleTotal: 0,
+            statementKey: getMonthlyScrapStatementKey(locName, scrapSite, ym)
+          };
+        }
+
+        const siteData = months[ym].sites[scrapSite];
+        siteData.rows.push({
+          rowKey,
+          dateKey: normalized,
+          displayDate,
+          item,
+          quantity,
+          unit,
+          saleAmount,
+          saleOverride: rawRowAmount ?? ''
+        });
+        siteData.quantityByUnit[unit] =
+          (siteData.quantityByUnit[unit] || 0) + quantity;
+        siteData.rowSaleTotal += saleAmount;
+      });
+    });
+
+    Object.values(months).forEach((monthData: any) => {
+      Object.values(monthData.sites).forEach((siteData: any) => {
+        siteData.rows.sort((a: any, b: any) =>
+          a.dateKey.localeCompare(b.dateKey) || a.item.localeCompare(b.item, 'ja')
+        );
+        const rawStatement = monthlyScrapStatementTotals[siteData.statementKey];
+        siteData.statementTotal =
+          rawStatement !== '' && rawStatement !== undefined
+            ? Number(rawStatement)
+            : siteData.rowSaleTotal;
+        siteData.statementOverride = rawStatement ?? '';
+      });
+    });
+
+    return months;
+  };
+
   const getDisposalMonthlyBreakdown = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locReports = reports.filter(r => targetNames.includes(r.location));
@@ -1648,20 +1754,26 @@ export default function AdminPage() {
       // 現場全体のスクラップ売却額を直接上書きしている場合は最優先。
       scrapTotal = Number(scOv.total);
     } else {
-      Object.entries(aggregatedScrapBreakdown).forEach(([key, data]: any) => {
-        const rowEnteredTotal = Number(data.total || 0);
-        const hasRowEntry = (data.details || []).some((detail: any) => {
-          const raw = scrapRowOverrides[detail.rowKey];
-          return raw !== '' && raw !== undefined;
+      // 基本は「現場 × スクラップ場 × 月」の仕切り書合計を使う。
+      // 仕切り書合計が未入力の月は、スクラップ確認表の日別売却金額合計を使う。
+      const monthlyScrapData = getLocationMonthlyScrapData(locName);
+      Object.entries(monthlyScrapData).forEach(([ym, monthData]: any) => {
+        Object.entries(monthData.sites || {}).forEach(([scrapSite, siteData]: any) => {
+          const rawStatement = monthlyScrapStatementTotals[siteData.statementKey];
+          if (rawStatement !== '' && rawStatement !== undefined) {
+            scrapTotal += Number(rawStatement);
+          } else if (Number(siteData.rowSaleTotal || 0) !== 0) {
+            scrapTotal += Number(siteData.rowSaleTotal || 0);
+          } else {
+            // 過去の品目別上書きデータがある場合だけ互換用に利用。
+            Object.entries(aggregatedScrapBreakdown).forEach(([key, data]: any) => {
+              if (!key.startsWith(`${scrapSite} (`)) return;
+              if (scOv[key] !== undefined && scOv[key] !== '') {
+                scrapTotal += Number(scOv[key]);
+              }
+            });
+          }
         });
-
-        if (hasRowEntry) {
-          // スクラップ確認表で日別金額を入力した品目は、その日別合計を使用。
-          scrapTotal += rowEnteredTotal;
-        } else if (scOv[key] !== undefined && scOv[key] !== '') {
-          // 過去の「品目ごとの金額上書き」は互換用にそのまま利用。
-          scrapTotal += Number(scOv[key]);
-        }
       });
     }
 
@@ -1863,6 +1975,7 @@ export default function AdminPage() {
       const formattedDate =
         parts.length >= 3 ? `${Number(parts[1])}/${Number(parts[2])}` : String(r.date || '');
       const locationName = r.location || '現場名未設定';
+      const canonicalLocation = getCanonicalLocationForReport(locationName);
       const scraps = Array.isArray(r.scraps) ? r.scraps : [];
 
       scraps.forEach((sc: any, scrapIndex: number) => {
@@ -1888,6 +2001,8 @@ export default function AdminPage() {
           dateKey: normalized,
           formattedDate,
           locationName,
+          canonicalLocation,
+          statementKey: getMonthlyScrapStatementKey(canonicalLocation, scrapSite, ym),
           item,
           quantity,
           unit,
@@ -3518,6 +3633,7 @@ export default function AdminPage() {
                 </p>
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm md:text-base text-emerald-900 font-bold leading-relaxed">
                   💰 売却明細・計量票と照らし合わせて、各日の売却金額を入力してください。<br />
+                  「売却金額」は各現場の「詳細分析 → スクラップ搬出明細」と連動します。仕切り書の月合計も同じ画面間で共有されます。<br />
                   日付をクリックすると「✓ 確認済」にできます。<br />
                   <span className="text-emerald-700">
                     金額や確認済み状態を変更したら、最後に「💾 保存」を押してください。
@@ -3567,6 +3683,17 @@ export default function AdminPage() {
                           0
                         );
 
+                        const projectMonthlyGroups: any = {};
+                        items.forEach((it: any) => {
+                          if (!projectMonthlyGroups[it.canonicalLocation]) {
+                            projectMonthlyGroups[it.canonicalLocation] = {
+                              statementKey: it.statementKey,
+                              rowTotal: 0
+                            };
+                          }
+                          projectMonthlyGroups[it.canonicalLocation].rowTotal += Number(it.saleAmount || 0);
+                        });
+
                         return (
                           <div
                             key={ym}
@@ -3596,6 +3723,45 @@ export default function AdminPage() {
                                     {formatAmount(monthlySaleTotal)}
                                   </div>
                                 </div>
+                              </div>
+                            </div>
+
+                            <div className="px-4 py-3 bg-emerald-50/50 border-b border-emerald-100 space-y-2">
+                              <div className="text-xs md:text-sm font-extrabold text-emerald-900">
+                                📄 仕切り書 月合計（現場別）
+                              </div>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                {Object.entries(projectMonthlyGroups).map(([projectName, projectData]: any) => (
+                                  <div
+                                    key={projectName}
+                                    className="bg-white rounded-xl border border-emerald-200 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-sm text-slate-800 truncate">
+                                        {projectName}
+                                      </div>
+                                      <div className="text-xs text-slate-500 mt-0.5">
+                                        日別入力合計 {formatAmount(projectData.rowTotal || 0)}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="font-bold text-emerald-700">¥</span>
+                                      <input
+                                        type="number"
+                                        value={monthlyScrapStatementTotals[projectData.statementKey] ?? ''}
+                                        onChange={(e) =>
+                                          handleMonthlyScrapStatementTotalChange(
+                                            projectData.statementKey,
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder={String(Number(projectData.rowTotal || 0))}
+                                        className="w-36 p-2 border border-emerald-300 rounded-lg text-right font-extrabold bg-white text-emerald-900"
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
 
@@ -5998,59 +6164,150 @@ export default function AdminPage() {
               </div>
 
               <div className="space-y-4">
-                <h4 className="font-bold text-lg text-slate-800">📋 日報ごとのスクラップ搬出明細</h4>
-                {Object.keys(modalData.aggregatedScrapBreakdown).length === 0 ? (
-                  <p className="text-base text-slate-500 text-center py-8">スクラップ搬出データはありません</p>
-                ) : (
-                  Object.entries(modalData.aggregatedScrapBreakdown).map(([key, data]) => {
-                    const scOv = scrapOverrides[modalLocation] || {};
-                    const currentOverride = scOv[key] !== undefined ? scOv[key] : '';
+                <h4 className="font-bold text-lg text-slate-800">📋 月別スクラップ搬出明細</h4>
+                <p className="text-sm text-slate-500">
+                  月ごと・スクラップ場ごとに搬出内容を確認し、仕切り書が届いたら「仕切り書 月合計」を入力してください。
+                  日別の「売却金額」は上部の「♻️ スクラップ確認表」と同じデータです。
+                </p>
 
+                {(() => {
+                  const monthlyData = getLocationMonthlyScrapData(modalLocation);
+                  const monthEntries = Object.entries(monthlyData).sort(([a], [b]) => b.localeCompare(a));
+
+                  if (monthEntries.length === 0) {
                     return (
-                      <div key={key} className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
-                        <div className="flex justify-between items-center flex-wrap gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-                          <div>
-                            <h5 className="font-bold text-lg text-slate-900">♻️ {key}</h5>
-                            <span className="text-sm font-bold text-emerald-700">合計数量: {data.quantity}</span>
-                          </div>
-                          {authRole === 'admin' && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-600">この項目の金額上書き:</span>
-                              <input 
-                                type="number" 
-                                value={currentOverride} 
-                                onChange={e => handleScrapOverrideChange(modalLocation, key, e.target.value)} 
-                                placeholder="金額" 
-                                className="w-32 p-2 border border-emerald-400 rounded-xl text-right text-sm font-bold bg-white" 
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse text-sm md:text-base">
-                            <thead>
-                              <tr className="border-b border-slate-300 text-slate-600 font-bold bg-slate-100">
-                                <th className="py-2.5 px-3">日付</th>
-                                <th className="py-2.5 px-3">品目</th>
-                                <th className="py-2.5 px-3 text-right">数量</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 font-medium">
-                              {data.details.map((detail, dIdx) => (
-                                <tr key={dIdx} className="bg-white hover:bg-slate-50 transition">
-                                  <td className="py-3 px-3 font-bold">{detail.date}</td>
-                                  <td className="py-3 px-3">{detail.item}</td>
-                                  <td className="py-3 px-3 text-right font-bold">{detail.quantity} {detail.unit}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      <p className="text-base text-slate-500 text-center py-8">
+                        スクラップ搬出データはありません
+                      </p>
                     );
-                  })
-                )}
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {monthEntries.map(([ym, monthData]: any) => {
+                        const [y, m] = ym.split('-');
+
+                        return (
+                          <div key={ym} className="rounded-3xl border border-emerald-200 bg-emerald-50/30 overflow-hidden">
+                            <div className="px-4 md:px-5 py-3 bg-emerald-800 text-white">
+                              <div className="font-extrabold text-lg">
+                                📅 {y}年{Number(m)}月
+                              </div>
+                            </div>
+
+                            <div className="p-4 md:p-5 space-y-4">
+                              {Object.entries(monthData.sites || {}).map(([scrapSite, siteData]: any) => (
+                                <div key={scrapSite} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                                  <div className="p-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                    <div>
+                                      <h5 className="font-extrabold text-slate-900 text-base md:text-lg">
+                                        ♻️ {scrapSite}
+                                      </h5>
+                                      <div className="text-sm text-slate-600 mt-1">
+                                        搬出数量：
+                                        {Object.entries(siteData.quantityByUnit || {}).map(([unit, qty], idx) => (
+                                          <span key={unit}>
+                                            {idx > 0 && ' / '}
+                                            <b>{Number(qty).toLocaleString('ja-JP')} {unit}</b>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                      <div className="text-sm text-slate-600">
+                                        日別入力合計：
+                                        <span className="font-extrabold text-emerald-800 ml-1">
+                                          {formatAmount(siteData.rowSaleTotal || 0)}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-300 px-3 py-2">
+                                        <span className="text-sm font-extrabold text-emerald-800 whitespace-nowrap">
+                                          仕切り書 月合計
+                                        </span>
+                                        <span className="font-bold text-emerald-700">¥</span>
+                                        {authRole === 'admin' ? (
+                                          <input
+                                            type="number"
+                                            value={monthlyScrapStatementTotals[siteData.statementKey] ?? ''}
+                                            onChange={(e) =>
+                                              handleMonthlyScrapStatementTotalChange(
+                                                siteData.statementKey,
+                                                e.target.value
+                                              )
+                                            }
+                                            placeholder={String(Number(siteData.rowSaleTotal || 0))}
+                                            className="w-36 p-2 border border-emerald-400 rounded-lg text-right font-extrabold bg-white"
+                                          />
+                                        ) : (
+                                          <span className="font-extrabold text-emerald-900">
+                                            {formatAmount(siteData.statementTotal || 0, false)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[760px] text-left border-collapse text-sm md:text-base">
+                                      <thead>
+                                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold">
+                                          <th className="py-2.5 px-3">日付</th>
+                                          <th className="py-2.5 px-3">品目</th>
+                                          <th className="py-2.5 px-3 text-right">数量</th>
+                                          <th className="py-2.5 px-3 text-right">売却金額</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200">
+                                        {(siteData.rows || []).map((row: any) => (
+                                          <tr key={row.rowKey} className="bg-white hover:bg-emerald-50/40">
+                                            <td className="py-3 px-3 font-bold">{row.displayDate}</td>
+                                            <td className="py-3 px-3">{row.item}</td>
+                                            <td className="py-3 px-3 text-right font-bold">
+                                              {Number(row.quantity || 0).toLocaleString('ja-JP')} {row.unit}
+                                            </td>
+                                            <td className="py-3 px-3 text-right">
+                                              {authRole === 'admin' ? (
+                                                <div className="flex items-center justify-end gap-1">
+                                                  <span className="text-emerald-600 font-bold">¥</span>
+                                                  <input
+                                                    type="number"
+                                                    value={scrapRowOverrides[row.rowKey] ?? ''}
+                                                    onChange={(e) =>
+                                                      handleScrapRowOverrideChange(
+                                                        row.rowKey,
+                                                        e.target.value
+                                                      )
+                                                    }
+                                                    placeholder="売却額"
+                                                    className="w-36 p-2 border border-emerald-300 rounded-lg text-right font-extrabold bg-emerald-50/40 text-emerald-900"
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <span className="font-extrabold text-emerald-800">
+                                                  {formatAmount(row.saleAmount || 0)}
+                                                </span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+
+                                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs md:text-sm text-slate-500">
+                                    ※「仕切り書 月合計」を入力した場合、その金額がこの月・このスクラップ場の売却確定額として最終粗利に反映されます。
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
