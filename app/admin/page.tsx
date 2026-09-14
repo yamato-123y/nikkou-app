@@ -279,6 +279,8 @@ export default function AdminPage() {
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleDrag, setScheduleDrag] = useState<any | null>(null);
+  const [scheduleResourceDrag, setScheduleResourceDrag] = useState<any | null>(null);
+  const [scheduleResourceDragPos, setScheduleResourceDragPos] = useState<{ x: number; y: number } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -461,6 +463,213 @@ export default function AdminPage() {
       window.removeEventListener('pointercancel', up);
     };
   }, [scheduleDrag]);
+
+  // 工程表へ配置するマスタ資源（自社重機・自社車両・外注業者）
+  const getScheduleResourceCatalog = () => {
+    const machines = (settings.companyMachines || []).map((item: any) => ({
+      id: `machine__${item.name}`,
+      type: 'machine',
+      name: item.name,
+      label: item.name,
+      detail: '自社重機',
+      unit: '台',
+      unitPrice: Number(item.price || 0)
+    }));
+
+    const vehicles = (settings.vehicles || []).map((item: any) => ({
+      id: `vehicle__${item.name}`,
+      type: 'vehicle',
+      name: item.name,
+      label: item.name,
+      detail: '自社車両',
+      unit: '台',
+      unitPrice: Number(item.price || 0)
+    }));
+
+    const subcontractors = (settings.subcontractors || []).map((item: any) => ({
+      id: `subcontractor__${item.company}__${item.task}`,
+      type: 'subcontractor',
+      company: item.company,
+      task: item.task,
+      label: item.company,
+      detail: item.task || '作業内容未設定',
+      unit: '人',
+      unitPrice: Number(item.price || 0)
+    }));
+
+    return { machines, vehicles, subcontractors };
+  };
+
+  const getScheduleResourceUnitPrice = (resource: any) => {
+    if (!resource) return 0;
+
+    if (resource.type === 'machine') {
+      return Number(
+        (settings.companyMachines || []).find((x: any) => x.name === resource.name)?.price
+        ?? resource.unitPrice
+        ?? 0
+      );
+    }
+
+    if (resource.type === 'vehicle') {
+      return Number(
+        (settings.vehicles || []).find((x: any) => x.name === resource.name)?.price
+        ?? resource.unitPrice
+        ?? 0
+      );
+    }
+
+    if (resource.type === 'subcontractor') {
+      return Number(
+        (settings.subcontractors || []).find(
+          (x: any) => x.company === resource.company && x.task === resource.task
+        )?.price
+        ?? resource.unitPrice
+        ?? 0
+      );
+    }
+
+    return Number(resource.unitPrice || 0);
+  };
+
+  const getScheduleResourceLabel = (resource: any) => {
+    if (resource?.type === 'subcontractor') {
+      return `${resource.company || '外注'}${resource.task ? `（${resource.task}）` : ''}`;
+    }
+    return resource?.name || resource?.label || '名称未設定';
+  };
+
+  const getScheduleResourceIcon = (type: string) => {
+    if (type === 'machine') return '🚜';
+    if (type === 'vehicle') return '🚚';
+    if (type === 'subcontractor') return '🏢';
+    return '📌';
+  };
+
+  const getScheduleResourceUnit = (resource: any) =>
+    resource?.type === 'subcontractor' ? '人' : '台';
+
+  const getScheduleTaskDuration = (task: any) =>
+    Math.max(1, scheduleDiffDays(task.start, task.end) + 1);
+
+  const getScheduleTaskCost = (task: any) => {
+    const duration = getScheduleTaskDuration(task);
+    const resources = Array.isArray(task.resources) ? task.resources : [];
+    return resources.reduce((sum: number, resource: any) => {
+      const qty = Math.max(0, Number(resource.quantity || 0));
+      return sum + getScheduleResourceUnitPrice(resource) * qty * duration;
+    }, 0);
+  };
+
+  const getScheduleLocationTotalCost = (locName: string) =>
+    getScheduleTasks(locName).reduce(
+      (sum: number, task: any) => sum + getScheduleTaskCost(task),
+      0
+    );
+
+  const addScheduleResourceToTask = (taskId: string, resource: any) => {
+    if (!scheduleLocation || !taskId || !resource) return;
+
+    updateScheduleTasks(scheduleLocation, tasks =>
+      tasks.map((task: any) => {
+        if (task.id !== taskId) return task;
+
+        const resources = Array.isArray(task.resources) ? task.resources : [];
+        const existing = resources.find((r: any) => r.id === resource.id);
+
+        if (existing) {
+          return {
+            ...task,
+            resources: resources.map((r: any) =>
+              r.id === resource.id
+                ? { ...r, quantity: Math.max(1, Number(r.quantity || 1) + 1) }
+                : r
+            )
+          };
+        }
+
+        return {
+          ...task,
+          resources: [...resources, { ...resource, quantity: 1 }]
+        };
+      })
+    );
+  };
+
+  const changeScheduleResourceQuantity = (taskId: string, resourceId: string, delta: number) => {
+    if (!scheduleLocation) return;
+
+    updateScheduleTasks(scheduleLocation, tasks =>
+      tasks.map((task: any) => {
+        if (task.id !== taskId) return task;
+        const resources = Array.isArray(task.resources) ? task.resources : [];
+        return {
+          ...task,
+          resources: resources
+            .map((r: any) =>
+              r.id === resourceId
+                ? { ...r, quantity: Math.max(0, Number(r.quantity || 0) + delta) }
+                : r
+            )
+            .filter((r: any) => Number(r.quantity || 0) > 0)
+        };
+      })
+    );
+  };
+
+  const removeScheduleResource = (taskId: string, resourceId: string) => {
+    if (!scheduleLocation) return;
+
+    updateScheduleTasks(scheduleLocation, tasks =>
+      tasks.map((task: any) =>
+        task.id === taskId
+          ? {
+              ...task,
+              resources: (Array.isArray(task.resources) ? task.resources : [])
+                .filter((r: any) => r.id !== resourceId)
+            }
+          : task
+      )
+    );
+  };
+
+  const startScheduleResourceDrag = (e: React.PointerEvent, resource: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setScheduleResourceDrag(resource);
+    setScheduleResourceDragPos({ x: e.clientX, y: e.clientY });
+  };
+
+  useEffect(() => {
+    if (!scheduleResourceDrag) return;
+
+    const move = (e: PointerEvent) => {
+      setScheduleResourceDragPos({ x: e.clientX, y: e.clientY });
+    };
+
+    const up = (e: PointerEvent) => {
+      const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const dropRow = target?.closest?.('[data-schedule-drop-task]') as HTMLElement | null;
+      const taskId = dropRow?.dataset?.scheduleDropTask;
+
+      if (taskId) {
+        addScheduleResourceToTask(taskId, scheduleResourceDrag);
+      }
+
+      setScheduleResourceDrag(null);
+      setScheduleResourceDragPos(null);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [scheduleResourceDrag, scheduleLocation, schedulePlans, settings]);
 
   const saveSchedulePlans = async () => {
     if (authRole !== 'viewer' || scheduleSaving) return;
@@ -4163,7 +4372,7 @@ export default function AdminPage() {
                     <h3 className="text-xl md:text-2xl font-extrabold text-slate-950">📅 工程表</h3>
                     <span className="rounded-full bg-indigo-100 text-indigo-700 px-3 py-1 text-xs font-extrabold">👑 社長モード専用</span>
                   </div>
-                  <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">バーを左右にドラッグ＝日程移動／右端↔をドラッグ＝期間変更</p>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">工程バーをドラッグ＝日程変更／下の重機・車両・外注を工程へドラッグ＝予定配置・予定原価を自動計算</p>
                 </div>
                 <button type="button" onClick={() => {
                   if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
@@ -4183,6 +4392,52 @@ export default function AdminPage() {
                 <input type="month" value={scheduleYearMonth} onChange={(e) => setScheduleYearMonth(e.target.value)} className="p-2.5 rounded-xl border border-slate-300 bg-white font-extrabold text-sm" />
                 <button type="button" onClick={addScheduleTask} className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm">＋ 工程追加</button>
               </div>
+
+              {scheduleLocation && (() => {
+                const catalog = getScheduleResourceCatalog();
+                const groups = [
+                  { title: '🚜 自社重機', items: catalog.machines, tone: 'border-amber-200 bg-amber-50' },
+                  { title: '🚚 自社車両', items: catalog.vehicles, tone: 'border-blue-200 bg-blue-50' },
+                  { title: '🏢 外注業者', items: catalog.subcontractors, tone: 'border-emerald-200 bg-emerald-50' }
+                ];
+
+                return (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-extrabold text-slate-800">📦 配置する項目</div>
+                      <div className="text-xs font-bold text-slate-500">カードを工程の行へドラッグしてください</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+                      {groups.map(group => (
+                        <div key={group.title} className={`rounded-xl border p-2 ${group.tone}`}>
+                          <div className="text-xs font-extrabold text-slate-700 mb-2">{group.title}</div>
+                          <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
+                            {group.items.length === 0 ? (
+                              <span className="text-[11px] text-slate-400 font-bold">マスタ登録なし</span>
+                            ) : group.items.map((resource: any) => (
+                              <button
+                                key={resource.id}
+                                type="button"
+                                onPointerDown={(e) => startScheduleResourceDrag(e, resource)}
+                                style={{ touchAction: 'none' }}
+                                className="text-left rounded-lg bg-white border border-slate-200 px-2.5 py-2 shadow-sm hover:shadow cursor-grab active:cursor-grabbing select-none"
+                                title="工程へドラッグ"
+                              >
+                                <div className="text-xs font-extrabold text-slate-800">{resource.label}</div>
+                                <div className="text-[10px] font-bold text-slate-500">
+                                  {resource.detail} ／ ¥{Number(resource.unitPrice || 0).toLocaleString('ja-JP')}/{resource.unit === '人' ? '人日' : '台日'}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
             </div>
 
             <div className="flex-1 overflow-auto bg-slate-50">
@@ -4218,7 +4473,13 @@ export default function AdminPage() {
                       const left = scheduleDiffDays(monthStart, task.start) * scheduleDayWidth;
                       const duration = Math.max(1, scheduleDiffDays(task.start, task.end) + 1);
                       const barWidth = duration * scheduleDayWidth;
-                      return <div key={task.id} className="flex min-h-[78px] border-b border-slate-200 bg-white">
+                      const taskResources = Array.isArray(task.resources) ? task.resources : [];
+                      const taskCost = getScheduleTaskCost(task);
+                      return <div
+                        key={task.id}
+                        data-schedule-drop-task={task.id}
+                        className={`flex min-h-[126px] border-b border-slate-200 bg-white transition ${scheduleResourceDrag ? 'hover:bg-indigo-50 ring-inset hover:ring-2 hover:ring-indigo-300' : ''}`}
+                      >
                         <div className="sticky left-0 z-20 w-[280px] shrink-0 bg-white border-r border-slate-300 p-2.5">
                           <div className="flex items-center gap-2">
                             <input type="checkbox" checked={!!task.completed} onChange={(e) => patchScheduleTask(task.id, { completed: e.target.checked })} className="w-5 h-5 accent-indigo-600 shrink-0" />
@@ -4232,15 +4493,67 @@ export default function AdminPage() {
                             }} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
                             <input type="date" value={task.end || ''} min={task.start || undefined} onChange={(e) => patchScheduleTask(task.id, { end: e.target.value })} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
                           </div>
+                          <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-extrabold text-slate-600">配置・予定原価</span>
+                              <span className="text-xs font-black text-indigo-700">
+                                ¥{Math.round(taskCost).toLocaleString('ja-JP')}
+                              </span>
+                            </div>
+
+                            {taskResources.length === 0 ? (
+                              <div className="text-[10px] text-slate-400 font-bold mt-1">
+                                重機・車両・外注をこの行へドラッグ
+                              </div>
+                            ) : (
+                              <div className="space-y-1 mt-1.5">
+                                {taskResources.map((resource: any) => {
+                                  const unitPrice = getScheduleResourceUnitPrice(resource);
+                                  const qty = Math.max(1, Number(resource.quantity || 1));
+                                  return (
+                                    <div key={resource.id} className="flex items-center gap-1 text-[10px] rounded-lg bg-white border border-slate-200 px-1.5 py-1">
+                                      <span className="shrink-0">{getScheduleResourceIcon(resource.type)}</span>
+                                      <span className="min-w-0 flex-1 truncate font-bold text-slate-700" title={getScheduleResourceLabel(resource)}>
+                                        {getScheduleResourceLabel(resource)}
+                                      </span>
+                                      <button type="button" onClick={() => changeScheduleResourceQuantity(task.id, resource.id, -1)} className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-black">−</button>
+                                      <span className="w-7 text-center font-black">{qty}{getScheduleResourceUnit(resource)}</span>
+                                      <button type="button" onClick={() => changeScheduleResourceQuantity(task.id, resource.id, 1)} className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-black">＋</button>
+                                      <span className="hidden xl:inline text-slate-400 font-bold whitespace-nowrap">
+                                        ¥{unitPrice.toLocaleString('ja-JP')}/日
+                                      </span>
+                                      <button type="button" onClick={() => removeScheduleResource(task.id, resource.id)} className="w-5 h-5 rounded bg-rose-50 text-rose-500 hover:bg-rose-100 font-black">×</button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
                         </div>
                         <div className="relative shrink-0" style={{ width, backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth}px)` }}>
                           <div onPointerDown={(e) => startScheduleDrag(e, task, 'move')} style={{ left, width: barWidth, touchAction: 'none' }} className={`absolute top-4 h-11 rounded-xl shadow-sm border flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${task.completed ? 'bg-emerald-500 border-emerald-600' : 'bg-indigo-500 border-indigo-600'} text-white`}>
                             <div className="px-3 min-w-0 flex-1">
                               <div className="text-xs font-extrabold truncate">{task.name}</div>
-                              <div className="text-[10px] font-bold opacity-90">{task.start?.slice(5).replace('-', '/')}〜{task.end?.slice(5).replace('-', '/')}</div>
+                              <div className="text-[10px] font-bold opacity-90">
+                                {task.start?.slice(5).replace('-', '/')}〜{task.end?.slice(5).replace('-', '/')}
+                                {taskCost > 0 && <> ／ ¥{Math.round(taskCost).toLocaleString('ja-JP')}</>}
+                              </div>
                             </div>
                             <div onPointerDown={(e) => startScheduleDrag(e, task, 'resize')} style={{ touchAction: 'none' }} className="h-full w-8 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize font-black">↔</div>
                           </div>
+
+                          {taskResources.length > 0 && (
+                            <div className="absolute top-[66px] flex flex-wrap gap-1" style={{ left: Math.max(0, left), maxWidth: Math.max(190, barWidth) }}>
+                              {taskResources.map((resource: any) => (
+                                <span key={resource.id} className="inline-flex items-center gap-1 rounded-full bg-slate-800 text-white px-2 py-1 text-[10px] font-bold shadow-sm">
+                                  {getScheduleResourceIcon(resource.type)}
+                                  <span className="max-w-[150px] truncate">{getScheduleResourceLabel(resource)}</span>
+                                  <b>{Number(resource.quantity || 1)}{getScheduleResourceUnit(resource)}</b>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>;
                     })}
@@ -4252,12 +4565,35 @@ export default function AdminPage() {
             <div className="px-4 md:px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="text-sm font-bold">
                 <span className={scheduleDirty ? 'text-orange-600' : 'text-emerald-600'}>{scheduleDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</span>
-                <span className="text-slate-400 ml-3">※ 原価・日報・マスタには影響しません</span>
+                <span className="text-slate-400 ml-3">※ 日報実績は変更しません</span>
+                {scheduleLocation && (
+                  <span className="ml-3 text-indigo-700 font-black">
+                    予定原価合計：¥{Math.round(getScheduleLocationTotalCost(scheduleLocation)).toLocaleString('ja-JP')}
+                  </span>
+                )}
               </div>
               <button type="button" onClick={saveSchedulePlans} disabled={!scheduleDirty || scheduleSaving} className={`px-6 py-3 rounded-xl font-extrabold transition ${!scheduleDirty || scheduleSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'}`}>
                 {scheduleSaving ? '保存中…' : '💾 工程表を保存'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {scheduleResourceDrag && scheduleResourceDragPos && (
+        <div
+          className="fixed z-[120] pointer-events-none rounded-xl bg-slate-900 text-white px-3 py-2 shadow-2xl border border-white/20"
+          style={{
+            left: scheduleResourceDragPos.x + 14,
+            top: scheduleResourceDragPos.y + 14,
+            maxWidth: 260
+          }}
+        >
+          <div className="text-xs font-extrabold">
+            {getScheduleResourceIcon(scheduleResourceDrag.type)} {getScheduleResourceLabel(scheduleResourceDrag)}
+          </div>
+          <div className="text-[10px] font-bold text-slate-300">
+            工程の行で離すと追加 ／ ¥{getScheduleResourceUnitPrice(scheduleResourceDrag).toLocaleString('ja-JP')}/日
           </div>
         </div>
       )}
