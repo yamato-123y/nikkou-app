@@ -271,6 +271,15 @@ export default function AdminPage() {
 
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => getCurrentYearMonth());
 
+  // 社長モード専用：工程表（試作版）
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleLocation, setScheduleLocation] = useState('');
+  const [scheduleYearMonth, setScheduleYearMonth] = useState(() => getCurrentYearMonth());
+  const [schedulePlans, setSchedulePlans] = useState<{ [location: string]: any[] }>({});
+  const [scheduleDirty, setScheduleDirty] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleDrag, setScheduleDrag] = useState<any | null>(null);
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -299,6 +308,7 @@ export default function AdminPage() {
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
           if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
           if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
+          if (sData.schedulePlans) setSchedulePlans(sData.schedulePlans);
         }
       }
     } catch (e) {  
@@ -331,6 +341,150 @@ export default function AdminPage() {
     }
   }, [modalLocation]);
 
+
+  const scheduleDayWidth = 38;
+
+  const scheduleParse = (value: string) => {
+    const [y, m, d] = String(value || '').split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(Date.UTC(y, m - 1, d));
+  };
+
+  const scheduleFormat = (date: Date) =>
+    `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+
+  const scheduleAddDays = (value: string, days: number) => {
+    const date = scheduleParse(value);
+    if (!date) return value;
+    date.setUTCDate(date.getUTCDate() + days);
+    return scheduleFormat(date);
+  };
+
+  const scheduleDiffDays = (from: string, to: string) => {
+    const a = scheduleParse(from);
+    const b = scheduleParse(to);
+    if (!a || !b) return 0;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  };
+
+  const scheduleMonthDays = (ym: string) => {
+    const [y, m] = ym.split('-').map(Number);
+    if (!y || !m) return [];
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return Array.from({ length: last }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`);
+  };
+
+  const openSchedule = () => {
+    const first = (settings.locations || []).find((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished);
+    const firstName = typeof first === 'string' ? first : first?.name;
+    setScheduleLocation(scheduleLocation || firstName || '');
+    setScheduleYearMonth(getCurrentYearMonth());
+    setShowScheduleModal(true);
+  };
+
+  const getScheduleTasks = (locName: string) => Array.isArray(schedulePlans[locName]) ? schedulePlans[locName] : [];
+
+  const updateScheduleTasks = (locName: string, updater: (tasks: any[]) => any[]) => {
+    setSchedulePlans(prev => ({ ...prev, [locName]: updater(Array.isArray(prev[locName]) ? prev[locName] : []) }));
+    setScheduleDirty(true);
+  };
+
+  const addScheduleTask = () => {
+    if (!scheduleLocation) return alert('現場を選択してください。');
+    const start = `${scheduleYearMonth}-01`;
+    const task = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: '新しい工程',
+      start,
+      end: scheduleAddDays(start, 2),
+      completed: false
+    };
+    updateScheduleTasks(scheduleLocation, tasks => [...tasks, task]);
+  };
+
+  const patchScheduleTask = (taskId: string, patch: any) => {
+    if (!scheduleLocation) return;
+    updateScheduleTasks(scheduleLocation, tasks => tasks.map((t: any) => t.id === taskId ? { ...t, ...patch } : t));
+  };
+
+  const deleteScheduleTask = (taskId: string) => {
+    if (!scheduleLocation || !confirm('この工程を削除しますか？')) return;
+    updateScheduleTasks(scheduleLocation, tasks => tasks.filter((t: any) => t.id !== taskId));
+  };
+
+  const startScheduleDrag = (e: React.PointerEvent, task: any, mode: 'move' | 'resize') => {
+    e.preventDefault();
+    e.stopPropagation();
+    setScheduleDrag({
+      location: scheduleLocation,
+      taskId: task.id,
+      mode,
+      startX: e.clientX,
+      originalStart: task.start,
+      originalEnd: task.end,
+      lastDays: 0
+    });
+  };
+
+  useEffect(() => {
+    if (!scheduleDrag) return;
+
+    const move = (e: PointerEvent) => {
+      const deltaDays = Math.round((e.clientX - scheduleDrag.startX) / scheduleDayWidth);
+      if (deltaDays === scheduleDrag.lastDays) return;
+      setScheduleDrag((prev: any) => prev ? { ...prev, lastDays: deltaDays } : prev);
+      setSchedulePlans(prev => {
+        const list = Array.isArray(prev[scheduleDrag.location]) ? prev[scheduleDrag.location] : [];
+        const next = list.map((t: any) => {
+          if (t.id !== scheduleDrag.taskId) return t;
+          if (scheduleDrag.mode === 'move') {
+            return {
+              ...t,
+              start: scheduleAddDays(scheduleDrag.originalStart, deltaDays),
+              end: scheduleAddDays(scheduleDrag.originalEnd, deltaDays)
+            };
+          }
+          const nextEnd = scheduleAddDays(scheduleDrag.originalEnd, deltaDays);
+          return { ...t, end: scheduleDiffDays(scheduleDrag.originalStart, nextEnd) < 0 ? scheduleDrag.originalStart : nextEnd };
+        });
+        return { ...prev, [scheduleDrag.location]: next };
+      });
+      setScheduleDirty(true);
+    };
+    const up = () => setScheduleDrag(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [scheduleDrag]);
+
+  const saveSchedulePlans = async () => {
+    if (authRole !== 'viewer' || scheduleSaving) return;
+    try {
+      setScheduleSaving(true);
+      const newData = { ...settings, schedulePlans };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) return alert('工程表の保存に失敗しました。');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setScheduleDirty(false);
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert('工程表の保存中に通信エラーが発生しました。');
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
 
   const handleLogin = (role: 'admin' | 'viewer') => {
     const targetPassword = role === 'viewer' ? viewerPassword : password;
@@ -2302,6 +2456,11 @@ export default function AdminPage() {
               </button>
             </>
           )}
+          {authRole === 'viewer' && (
+            <button onClick={openSchedule} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              📅 工程表
+            </button>
+          )}
           <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5">
             🔄 最新の状態にする
           </button>
@@ -2313,7 +2472,7 @@ export default function AdminPage() {
 
       {authRole === 'viewer' && (
         <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-2xl font-bold text-center text-sm md:text-lg shadow-xs">
-          👑 社長モードで表示しています。（データの確認が可能です）
+          👑 社長モードで表示しています。（原価等は閲覧専用／📅 工程表のみ編集できます）
         </div>
       )}
 
@@ -3983,6 +4142,120 @@ export default function AdminPage() {
                 className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition"
               >
                 閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 社長モード専用：工程表（試作版） */}
+      {showScheduleModal && authRole === 'viewer' && (
+        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[80]" onClick={() => {
+          if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
+          setShowScheduleModal(false);
+          setScheduleDrag(null);
+        }}>
+          <div className="bg-white rounded-[28px] w-full max-w-[1500px] max-h-[96vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-white space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl md:text-2xl font-extrabold text-slate-950">📅 工程表</h3>
+                    <span className="rounded-full bg-indigo-100 text-indigo-700 px-3 py-1 text-xs font-extrabold">👑 社長モード専用</span>
+                  </div>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">バーを左右にドラッグ＝日程移動／右端↔をドラッグ＝期間変更</p>
+                </div>
+                <button type="button" onClick={() => {
+                  if (scheduleDirty && !confirm('未保存の変更があります。閉じますか？')) return;
+                  setShowScheduleModal(false);
+                  setScheduleDrag(null);
+                }} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 font-black text-slate-600">✕</button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={scheduleLocation} onChange={(e) => setScheduleLocation(e.target.value)} className="min-w-[240px] max-w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-sm">
+                  <option value="">現場を選択...</option>
+                  {(settings.locations || []).filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished).map((loc: any) => {
+                    const name = typeof loc === 'string' ? loc : loc.name;
+                    return <option key={name} value={name}>{name}</option>;
+                  })}
+                </select>
+                <input type="month" value={scheduleYearMonth} onChange={(e) => setScheduleYearMonth(e.target.value)} className="p-2.5 rounded-xl border border-slate-300 bg-white font-extrabold text-sm" />
+                <button type="button" onClick={addScheduleTask} className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm">＋ 工程追加</button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-slate-50">
+              {!scheduleLocation ? (
+                <div className="py-24 text-center text-slate-500 font-bold">現場を選択してください。</div>
+              ) : (() => {
+                const days = scheduleMonthDays(scheduleYearMonth);
+                const monthStart = `${scheduleYearMonth}-01`;
+                const tasks = getScheduleTasks(scheduleLocation);
+                const width = days.length * scheduleDayWidth;
+                return (
+                  <div className="min-w-max">
+                    <div className="sticky top-0 z-30 flex bg-white border-b border-slate-300 shadow-sm">
+                      <div className="sticky left-0 z-40 w-[280px] shrink-0 bg-slate-900 text-white px-4 py-3 font-extrabold border-r border-slate-700">工程名</div>
+                      <div className="flex" style={{ width }}>
+                        {days.map(day => {
+                          const d = scheduleParse(day)!;
+                          const dow = d.getUTCDay();
+                          return <div key={day} style={{ width: scheduleDayWidth }} className={`shrink-0 border-r border-slate-200 py-2 text-center ${dow === 0 ? 'bg-rose-50 text-rose-700' : dow === 6 ? 'bg-blue-50 text-blue-700' : 'bg-white text-slate-700'}`}>
+                            <div className="text-[10px] font-bold">{['日','月','火','水','木','金','土'][dow]}</div>
+                            <div className="text-sm font-black">{Number(day.slice(-2))}</div>
+                          </div>;
+                        })}
+                      </div>
+                    </div>
+
+                    {tasks.length === 0 ? (
+                      <div className="flex min-h-[100px]">
+                        <div className="sticky left-0 z-20 w-[280px] shrink-0 bg-white border-r border-slate-300 p-5 text-slate-500 font-bold">工程がまだありません</div>
+                        <div style={{ width }} className="p-8 text-slate-400 font-bold">「＋ 工程追加」から始めてください。</div>
+                      </div>
+                    ) : tasks.map((task: any) => {
+                      const left = scheduleDiffDays(monthStart, task.start) * scheduleDayWidth;
+                      const duration = Math.max(1, scheduleDiffDays(task.start, task.end) + 1);
+                      const barWidth = duration * scheduleDayWidth;
+                      return <div key={task.id} className="flex min-h-[78px] border-b border-slate-200 bg-white">
+                        <div className="sticky left-0 z-20 w-[280px] shrink-0 bg-white border-r border-slate-300 p-2.5">
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={!!task.completed} onChange={(e) => patchScheduleTask(task.id, { completed: e.target.checked })} className="w-5 h-5 accent-indigo-600 shrink-0" />
+                            <input type="text" value={task.name || ''} onChange={(e) => patchScheduleTask(task.id, { name: e.target.value })} className="min-w-0 flex-1 p-2 rounded-lg border border-slate-200 font-extrabold text-sm" />
+                            <button type="button" onClick={() => deleteScheduleTask(task.id)} className="w-8 h-8 shrink-0 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 font-black">×</button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5 mt-2">
+                            <input type="date" value={task.start || ''} onChange={(e) => {
+                              const oldDuration = Math.max(0, scheduleDiffDays(task.start, task.end));
+                              patchScheduleTask(task.id, { start: e.target.value, end: scheduleAddDays(e.target.value, oldDuration) });
+                            }} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
+                            <input type="date" value={task.end || ''} min={task.start || undefined} onChange={(e) => patchScheduleTask(task.id, { end: e.target.value })} className="w-full min-w-0 p-1.5 rounded-lg border border-slate-200 text-[11px] font-bold" />
+                          </div>
+                        </div>
+                        <div className="relative shrink-0" style={{ width, backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth - 1}px, rgb(226 232 240) ${scheduleDayWidth}px)` }}>
+                          <div onPointerDown={(e) => startScheduleDrag(e, task, 'move')} style={{ left, width: barWidth, touchAction: 'none' }} className={`absolute top-4 h-11 rounded-xl shadow-sm border flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${task.completed ? 'bg-emerald-500 border-emerald-600' : 'bg-indigo-500 border-indigo-600'} text-white`}>
+                            <div className="px-3 min-w-0 flex-1">
+                              <div className="text-xs font-extrabold truncate">{task.name}</div>
+                              <div className="text-[10px] font-bold opacity-90">{task.start?.slice(5).replace('-', '/')}〜{task.end?.slice(5).replace('-', '/')}</div>
+                            </div>
+                            <div onPointerDown={(e) => startScheduleDrag(e, task, 'resize')} style={{ touchAction: 'none' }} className="h-full w-8 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize font-black">↔</div>
+                          </div>
+                        </div>
+                      </div>;
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-4 md:px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm font-bold">
+                <span className={scheduleDirty ? 'text-orange-600' : 'text-emerald-600'}>{scheduleDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</span>
+                <span className="text-slate-400 ml-3">※ 原価・日報・マスタには影響しません</span>
+              </div>
+              <button type="button" onClick={saveSchedulePlans} disabled={!scheduleDirty || scheduleSaving} className={`px-6 py-3 rounded-xl font-extrabold transition ${!scheduleDirty || scheduleSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'}`}>
+                {scheduleSaving ? '保存中…' : '💾 工程表を保存'}
               </button>
             </div>
           </div>
