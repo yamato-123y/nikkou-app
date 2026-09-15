@@ -4238,118 +4238,166 @@ export default function AdminPage() {
       )}
 
 
-      {/* 社長モード専用：簡易工程表（試験版・保存なし） */}
+      {/* 社長モード専用：かんたん工程表（社長向けUI・試験版） */}
       {showTrialSchedule && authRole === 'viewer' && (
         <div
-          className="fixed inset-0 bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-1.5 md:p-4 z-[85]"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-1 md:p-3 z-[85]"
           onClick={() => setShowTrialSchedule(false)}
         >
           <div
-            className="bg-white rounded-2xl md:rounded-[28px] w-full max-w-[1500px] h-[95vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col"
+            className="bg-slate-50 rounded-2xl md:rounded-[30px] w-full max-w-[1550px] h-[97vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-3 md:px-5 py-3 md:py-4 border-b border-slate-200 bg-white">
+            {/* 上部：タイトルと閉じるだけ */}
+            <div className="px-4 md:px-7 py-4 md:py-5 bg-white border-b border-slate-200">
               <div className="flex items-center gap-3">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl md:text-3xl shadow-sm shrink-0">
+                  📅
+                </div>
+
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl md:text-3xl font-black text-slate-950">📅 工程表</h3>
-                    <span className="rounded-full bg-indigo-100 text-indigo-700 px-3 py-1 text-xs md:text-sm font-black">👑 社長モード</span>
-                    <span className="rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-xs font-black">試験版・保存なし</span>
+                    <h3 className="text-2xl md:text-4xl font-black text-slate-950 tracking-tight">工程表</h3>
+                    <span className="rounded-full bg-orange-100 text-orange-700 px-3 py-1 text-xs md:text-sm font-black">
+                      👑 社長モード
+                    </span>
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-black">
+                      試験版
+                    </span>
                   </div>
-                  <p className="text-xs md:text-base text-slate-500 font-bold mt-1">
-                    ドラッグして工程を動かし、社員・重機・車両・外注を置いて操作感を試せます。
+                  <p className="text-sm md:text-lg text-slate-500 font-bold mt-1">
+                    ① 現場を選ぶ　→　② 工程を追加　→　③ バーを動かす　→　④ 人・重機・外注を置く
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowTrialSchedule(false)}
-                  className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black shrink-0"
+                  className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xl font-black shrink-0"
+                  title="閉じる"
                 >
                   ✕
                 </button>
               </div>
+            </div>
 
-              <div className="mt-3 flex flex-col md:flex-row gap-2">
-                <select
-                  value={trialScheduleLocation}
-                  onChange={(e) => {
-                    setTrialScheduleLocation(e.target.value);
-                    setTrialScheduleTasks([]);
-                  }}
-                  className="flex-1 p-3 md:p-4 rounded-2xl border-2 border-slate-200 bg-white text-base md:text-xl font-black"
-                >
-                  <option value="">現場を選択</option>
-                  {(settings.locations || [])
-                    .filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished)
-                    .map((loc: any) => {
-                      const name = typeof loc === 'string' ? loc : loc.name;
-                      return <option key={name} value={name}>{name}</option>;
-                    })}
-                </select>
+            {/* ステップ1：現場・月・追加 */}
+            <div className="px-3 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200">
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto_auto] gap-3">
+                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3 md:p-4">
+                  <div className="text-xs md:text-sm font-black text-slate-500 mb-2">① 現場を選ぶ</div>
+                  <select
+                    value={trialScheduleLocation}
+                    onChange={(e) => {
+                      setTrialScheduleLocation(e.target.value);
+                      setTrialScheduleTasks([]);
+                    }}
+                    className="w-full bg-white border-0 rounded-xl p-3 md:p-4 text-base md:text-2xl font-black text-slate-950 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  >
+                    <option value="">現場を選択してください</option>
+                    {(settings.locations || [])
+                      .filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished)
+                      .map((loc: any) => {
+                        const name = typeof loc === 'string' ? loc : loc.name;
+                        return <option key={name} value={name}>{name}</option>;
+                      })}
+                  </select>
+                </div>
 
-                <input
-                  type="month"
-                  value={trialScheduleMonth}
-                  onChange={(e) => setTrialScheduleMonth(e.target.value)}
-                  className="p-3 md:p-4 rounded-2xl border-2 border-slate-200 bg-white text-base md:text-xl font-black"
-                />
+                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3 md:p-4 min-w-[210px]">
+                  <div className="text-xs md:text-sm font-black text-slate-500 mb-2">表示する月</div>
+                  <input
+                    type="month"
+                    value={trialScheduleMonth}
+                    onChange={(e) => setTrialScheduleMonth(e.target.value)}
+                    className="w-full bg-white border-0 rounded-xl p-3 md:p-4 text-base md:text-xl font-black focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                </div>
 
                 <button
                   type="button"
                   onClick={addTrialScheduleTask}
-                  className="px-5 py-3 md:py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-base md:text-xl font-black"
+                  disabled={!trialScheduleLocation}
+                  className={`rounded-2xl px-6 md:px-8 py-4 text-lg md:text-2xl font-black shadow-sm transition ${
+                    trialScheduleLocation
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   ＋ 工程追加
                 </button>
               </div>
-
-              {trialScheduleLocation && (() => {
-                const catalog = getTrialResourceCatalog();
-                const groups = [
-                  { title: '👷 社員', items: catalog.workers },
-                  { title: '🚜 自社重機', items: catalog.machines },
-                  { title: '🚚 車両', items: catalog.vehicles },
-                  { title: '🏢 外注', items: catalog.subcontractors }
-                ];
-
-                return (
-                  <div className="mt-3 rounded-2xl bg-slate-50 border border-slate-200 p-3">
-                    <div className="text-xs md:text-sm font-black text-slate-500 mb-2">↓ 工程の行へドラッグ</div>
-                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-2">
-                      {groups.map(group => (
-                        <div key={group.title} className="rounded-xl bg-white border border-slate-200 p-2">
-                          <div className="text-sm md:text-base font-black mb-2">{group.title}</div>
-                          <div className="flex xl:flex-wrap gap-1.5 overflow-x-auto max-h-[100px] xl:overflow-y-auto">
-                            {group.items.length === 0 ? (
-                              <span className="text-xs text-slate-400 font-bold py-2">登録なし</span>
-                            ) : group.items.map((resource: any) => (
-                              <button
-                                key={resource.id}
-                                type="button"
-                                onPointerDown={(e) => startTrialResourceDrag(e, resource)}
-                                style={{ touchAction: 'none' }}
-                                className="shrink-0 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-left cursor-grab active:cursor-grabbing select-none"
-                              >
-                                <div className="text-xs md:text-sm font-black">{resource.label}</div>
-                                <div className="text-[10px] md:text-xs text-slate-400 font-bold">{resource.detail}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
 
-            <div className="flex-1 overflow-auto bg-slate-50">
+            {/* ステップ2：配置するもの */}
+            {trialScheduleLocation && (() => {
+              const catalog = getTrialResourceCatalog();
+              const groups = [
+                { title: '社員', icon: '👷', items: catalog.workers, tone: 'bg-blue-50 border-blue-200' },
+                { title: '自社重機', icon: '🚜', items: catalog.machines, tone: 'bg-amber-50 border-amber-200' },
+                { title: '車両', icon: '🚚', items: catalog.vehicles, tone: 'bg-cyan-50 border-cyan-200' },
+                { title: '外注', icon: '🏢', items: catalog.subcontractors, tone: 'bg-emerald-50 border-emerald-200' }
+              ];
+
+              return (
+                <div className="px-3 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <div className="text-base md:text-xl font-black text-slate-900">② 工程に入れる人・機械を選ぶ</div>
+                      <div className="text-xs md:text-sm font-bold text-slate-500 mt-1">
+                        カードを工程の行へドラッグしてください
+                      </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2 text-sm font-black text-slate-500">
+                      <span className="px-3 py-1.5 rounded-full bg-slate-100">つかむ</span>
+                      <span>→</span>
+                      <span className="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700">工程へ置く</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                    {groups.map(group => (
+                      <div key={group.title} className={`rounded-2xl border-2 p-3 ${group.tone}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="text-2xl">{group.icon}</div>
+                          <div className="text-base md:text-xl font-black">{group.title}</div>
+                        </div>
+
+                        <div className="flex gap-2 overflow-x-auto xl:flex-wrap xl:max-h-[110px] xl:overflow-y-auto pb-1">
+                          {group.items.length === 0 ? (
+                            <span className="text-sm text-slate-400 font-bold py-3">登録なし</span>
+                          ) : group.items.map((resource: any) => (
+                            <button
+                              key={resource.id}
+                              type="button"
+                              onPointerDown={(e) => startTrialResourceDrag(e, resource)}
+                              style={{ touchAction: 'none' }}
+                              className="shrink-0 rounded-xl bg-white border-2 border-white hover:border-indigo-300 px-3 py-2.5 text-left cursor-grab active:cursor-grabbing select-none shadow-sm"
+                            >
+                              <div className="text-sm md:text-base font-black text-slate-900">{resource.label}</div>
+                              <div className="text-[11px] md:text-xs text-slate-400 font-bold mt-0.5">{resource.detail}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 工程表本体 */}
+            <div className="flex-1 overflow-auto bg-slate-100">
               {!trialScheduleLocation ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-6xl mb-3">🏗️</div>
-                    <div className="text-2xl font-black text-slate-600">現場を選んでください</div>
+                <div className="h-full flex items-center justify-center p-8">
+                  <div className="text-center max-w-xl">
+                    <div className="w-24 h-24 mx-auto rounded-[30px] bg-white border border-slate-200 shadow-sm flex items-center justify-center text-5xl mb-5">
+                      🏗️
+                    </div>
+                    <div className="text-2xl md:text-4xl font-black text-slate-800">まず現場を選んでください</div>
+                    <div className="text-base md:text-xl font-bold text-slate-400 mt-3">
+                      現場を選ぶと工程表が表示されます
+                    </div>
                   </div>
                 </div>
               ) : (() => {
@@ -4358,171 +4406,240 @@ export default function AdminPage() {
                 const totalWidth = days.length * trialDayWidth;
 
                 return (
-                  <div className="min-w-max">
-                    <div className="sticky top-0 z-30 flex bg-white border-b-2 border-slate-200 shadow-sm">
-                      <div className="sticky left-0 z-40 w-[270px] md:w-[360px] shrink-0 bg-slate-900 text-white px-4 py-4 text-lg md:text-2xl font-black border-r border-slate-700">
-                        工程
+                  <div className="min-w-max p-2 md:p-4">
+                    <div className="rounded-2xl md:rounded-[28px] bg-white border border-slate-200 shadow-sm overflow-hidden">
+                      {/* 日付ヘッダー */}
+                      <div className="sticky top-0 z-30 flex bg-white border-b-2 border-slate-200">
+                        <div className="sticky left-0 z-40 w-[300px] md:w-[400px] shrink-0 bg-slate-900 text-white px-4 md:px-6 py-4 md:py-5 border-r border-slate-700">
+                          <div className="text-lg md:text-2xl font-black">③ 工程</div>
+                          <div className="text-xs md:text-sm text-slate-300 font-bold mt-1">バーを左右に動かせます</div>
+                        </div>
+
+                        <div className="flex" style={{ width: totalWidth }}>
+                          {days.map((day: string) => {
+                            const d = trialParseYmd(day)!;
+                            const dow = d.getUTCDay();
+                            const weekend =
+                              dow === 0 ? 'bg-rose-50 text-rose-600'
+                              : dow === 6 ? 'bg-blue-50 text-blue-600'
+                              : 'bg-white text-slate-700';
+
+                            return (
+                              <div
+                                key={day}
+                                style={{ width: trialDayWidth }}
+                                className={`shrink-0 border-r border-slate-200 py-3 text-center ${weekend}`}
+                              >
+                                <div className="text-[11px] md:text-xs font-black">{['日','月','火','水','木','金','土'][dow]}</div>
+                                <div className="text-lg md:text-2xl font-black">{Number(day.slice(-2))}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="flex" style={{ width: totalWidth }}>
-                        {days.map((day: string) => {
-                          const d = trialParseYmd(day)!;
-                          const dow = d.getUTCDay();
+
+                      {trialScheduleTasks.length === 0 ? (
+                        <div className="flex min-h-[260px]">
+                          <div className="sticky left-0 z-20 w-[300px] md:w-[400px] shrink-0 bg-white border-r border-slate-200 p-6">
+                            <div className="text-xl md:text-2xl font-black text-slate-600">工程はまだありません</div>
+                            <div className="text-sm md:text-base font-bold text-slate-400 mt-2">上の「＋ 工程追加」を押してください</div>
+                          </div>
+                          <div style={{ width: totalWidth }} className="flex items-center justify-center">
+                            <div className="text-center text-slate-300">
+                              <div className="text-5xl mb-3">➕</div>
+                              <div className="text-xl font-black">工程を追加してください</div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        trialScheduleTasks.map((task: any, taskIndex: number) => {
+                          const left = trialDiffDays(monthStart, task.start) * trialDayWidth;
+                          const duration = Math.max(1, trialDiffDays(task.start, task.end) + 1);
+                          const barWidth = duration * trialDayWidth;
+                          const resources = Array.isArray(task.resources) ? task.resources : [];
+
                           return (
                             <div
-                              key={day}
-                              style={{ width: trialDayWidth }}
-                              className={`shrink-0 border-r border-slate-200 py-2 text-center ${
-                                dow === 0 ? 'bg-rose-50 text-rose-600'
-                                : dow === 6 ? 'bg-blue-50 text-blue-600'
-                                : 'bg-white text-slate-700'
+                              key={task.id}
+                              data-trial-task-drop={task.id}
+                              className={`flex min-h-[165px] border-b border-slate-200 transition ${
+                                trialResourceDrag ? 'bg-indigo-50/40' : 'bg-white'
                               }`}
                             >
-                              <div className="text-[10px] md:text-xs font-black">{['日','月','火','水','木','金','土'][dow]}</div>
-                              <div className="text-base md:text-xl font-black">{Number(day.slice(-2))}</div>
+                              {/* 左側：工程カード */}
+                              <div className="sticky left-0 z-20 w-[300px] md:w-[400px] shrink-0 bg-white border-r border-slate-200 p-3 md:p-5">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center font-black text-base md:text-lg shrink-0">
+                                    {taskIndex + 1}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <input
+                                      type="text"
+                                      value={task.name}
+                                      onChange={(e) => patchTrialTask(task.id, { name: e.target.value })}
+                                      className="w-full border-0 bg-transparent text-xl md:text-3xl font-black text-slate-950 focus:outline-none"
+                                    />
+
+                                    <div className="mt-1 text-sm md:text-base font-black text-slate-400">
+                                      {task.start.slice(5).replace('-', '/')} ～ {task.end.slice(5).replace('-', '/')}
+                                      <span className="ml-2">（{duration}日）</span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => patchTrialTask(task.id, { completed: !task.completed })}
+                                    className={`w-11 h-11 md:w-12 md:h-12 rounded-xl shrink-0 text-xl font-black ${
+                                      task.completed
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-slate-100 text-slate-300'
+                                    }`}
+                                    title="完了"
+                                  >
+                                    {task.completed ? '✓' : '○'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setTrialScheduleTasks(prev => prev.filter(x => x.id !== task.id))}
+                                    className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-400 font-black"
+                                    title="削除"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+
+                                {resources.length === 0 ? (
+                                  <div className={`mt-4 rounded-2xl border-2 border-dashed p-4 text-center text-sm md:text-base font-black ${
+                                    trialResourceDrag
+                                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-300'
+                                  }`}>
+                                    {trialResourceDrag ? 'ここに置いてください' : '社員・重機・車両・外注をここへ配置'}
+                                  </div>
+                                ) : (
+                                  <div className="mt-4 flex flex-wrap gap-2">
+                                    {resources.map((r: any) => (
+                                      <div key={r.id} className="inline-flex items-center rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shadow-sm">
+                                        <span className="px-2.5 py-2 text-xs md:text-sm font-black max-w-[180px] truncate">
+                                          {trialResourceIcon(r.type)} {r.label}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => changeTrialResourceQty(task.id, r.id, -1)}
+                                          className="w-9 h-10 bg-white text-slate-600 text-lg font-black"
+                                        >
+                                          −
+                                        </button>
+                                        <span className="min-w-[36px] text-center text-sm md:text-base font-black">
+                                          {Number(r.quantity || 1)}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => changeTrialResourceQty(task.id, r.id, 1)}
+                                          className="w-9 h-10 bg-white text-slate-600 text-lg font-black"
+                                        >
+                                          ＋
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 右側：工程バー */}
+                              <div
+                                className="relative shrink-0"
+                                style={{
+                                  width: totalWidth,
+                                  backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${trialDayWidth - 1}px, rgb(241 245 249) ${trialDayWidth - 1}px, rgb(241 245 249) ${trialDayWidth}px)`
+                                }}
+                              >
+                                <div
+                                  onPointerDown={(e) => startTrialTaskDrag(e, task, 'move')}
+                                  style={{
+                                    left,
+                                    width: barWidth,
+                                    touchAction: 'none'
+                                  }}
+                                  className={`absolute top-8 h-[82px] rounded-2xl shadow-lg border-2 flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${
+                                    task.completed
+                                      ? 'bg-emerald-500 border-emerald-600'
+                                      : 'bg-indigo-600 border-indigo-700'
+                                  } text-white`}
+                                >
+                                  <div className="px-4 md:px-5 min-w-0 flex-1">
+                                    <div className="text-sm md:text-xl font-black truncate">{task.name}</div>
+                                    <div className="text-xs md:text-base font-bold opacity-90 mt-1">
+                                      {duration}日
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    onPointerDown={(e) => startTrialTaskDrag(e, task, 'resize')}
+                                    style={{ touchAction: 'none' }}
+                                    className="h-full w-12 md:w-14 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize text-2xl font-black"
+                                    title="ここを引っ張って期間変更"
+                                  >
+                                    ↔
+                                  </div>
+                                </div>
+
+                                {resources.length > 0 && (
+                                  <div
+                                    className="absolute top-[120px] flex gap-1.5 overflow-hidden"
+                                    style={{ left: Math.max(0, left), maxWidth: Math.max(240, barWidth) }}
+                                  >
+                                    {resources.slice(0, 5).map((r: any) => (
+                                      <span
+                                        key={r.id}
+                                        className="rounded-full bg-slate-800 text-white px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-sm"
+                                      >
+                                        {trialResourceIcon(r.type)} {Number(r.quantity || 1)}
+                                      </span>
+                                    ))}
+                                    {resources.length > 5 && (
+                                      <span className="rounded-full bg-slate-300 text-slate-700 px-3 py-1.5 text-xs font-black">
+                                        +{resources.length - 5}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
-                        })}
-                      </div>
+                        })
+                      )}
                     </div>
-
-                    {trialScheduleTasks.length === 0 ? (
-                      <div className="flex min-h-[220px]">
-                        <div className="sticky left-0 z-20 w-[270px] md:w-[360px] shrink-0 bg-white border-r border-slate-200 p-6">
-                          <div className="text-lg md:text-xl font-black text-slate-500">工程がありません</div>
-                        </div>
-                        <div style={{ width: totalWidth }} className="flex items-center justify-center text-xl font-black text-slate-300">
-                          「＋ 工程追加」を押してください
-                        </div>
-                      </div>
-                    ) : trialScheduleTasks.map((task: any) => {
-                      const left = trialDiffDays(monthStart, task.start) * trialDayWidth;
-                      const duration = Math.max(1, trialDiffDays(task.start, task.end) + 1);
-                      const barWidth = duration * trialDayWidth;
-                      const resources = Array.isArray(task.resources) ? task.resources : [];
-
-                      return (
-                        <div
-                          key={task.id}
-                          data-trial-task-drop={task.id}
-                          className={`flex min-h-[145px] border-b border-slate-200 bg-white transition ${
-                            trialResourceDrag ? 'hover:bg-indigo-50' : ''
-                          }`}
-                        >
-                          <div className="sticky left-0 z-20 w-[270px] md:w-[360px] shrink-0 bg-white border-r border-slate-200 p-3 md:p-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => patchTrialTask(task.id, { completed: !task.completed })}
-                                className={`w-10 h-10 rounded-xl shrink-0 text-xl font-black ${
-                                  task.completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300'
-                                }`}
-                              >
-                                {task.completed ? '✓' : ''}
-                              </button>
-
-                              <input
-                                type="text"
-                                value={task.name}
-                                onChange={(e) => patchTrialTask(task.id, { name: e.target.value })}
-                                className="min-w-0 flex-1 border-0 bg-transparent text-lg md:text-2xl font-black focus:outline-none"
-                              />
-
-                              <button
-                                type="button"
-                                onClick={() => setTrialScheduleTasks(prev => prev.filter(x => x.id !== task.id))}
-                                className="w-9 h-9 rounded-xl bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-400 font-black"
-                              >
-                                ×
-                              </button>
-                            </div>
-
-                            <div className="mt-2 text-sm md:text-base font-black text-slate-400">
-                              {task.start.slice(5).replace('-', '/')}〜{task.end.slice(5).replace('-', '/')}・{duration}日
-                            </div>
-
-                            {resources.length === 0 ? (
-                              <div className={`mt-3 rounded-xl border-2 border-dashed p-3 text-center text-sm font-black ${
-                                trialResourceDrag ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-300'
-                              }`}>
-                                {trialResourceDrag ? 'ここにドロップ' : '社員・重機・車両・外注を配置'}
-                              </div>
-                            ) : (
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {resources.map((r: any) => (
-                                  <div key={r.id} className="inline-flex items-center rounded-xl bg-slate-100 border border-slate-200 overflow-hidden">
-                                    <span className="px-2 py-2 text-xs md:text-sm font-black max-w-[150px] truncate">
-                                      {trialResourceIcon(r.type)} {r.label}
-                                    </span>
-                                    <button type="button" onClick={() => changeTrialResourceQty(task.id, r.id, -1)} className="w-8 h-9 bg-white text-slate-600 text-lg font-black">−</button>
-                                    <span className="min-w-[34px] text-center text-sm font-black">{Number(r.quantity || 1)}</span>
-                                    <button type="button" onClick={() => changeTrialResourceQty(task.id, r.id, 1)} className="w-8 h-9 bg-white text-slate-600 text-lg font-black">＋</button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div
-                            className="relative shrink-0"
-                            style={{
-                              width: totalWidth,
-                              backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent ${trialDayWidth - 1}px, rgb(241 245 249) ${trialDayWidth - 1}px, rgb(241 245 249) ${trialDayWidth}px)`
-                            }}
-                          >
-                            <div
-                              onPointerDown={(e) => startTrialTaskDrag(e, task, 'move')}
-                              style={{ left, width: barWidth, touchAction: 'none' }}
-                              className={`absolute top-7 h-[70px] rounded-2xl shadow-md border-2 flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${
-                                task.completed ? 'bg-emerald-500 border-emerald-600' : 'bg-indigo-600 border-indigo-700'
-                              } text-white`}
-                            >
-                              <div className="px-4 min-w-0 flex-1">
-                                <div className="text-sm md:text-lg font-black truncate">{task.name}</div>
-                                <div className="text-xs md:text-sm font-bold opacity-90">{duration}日</div>
-                              </div>
-
-                              <div
-                                onPointerDown={(e) => startTrialTaskDrag(e, task, 'resize')}
-                                style={{ touchAction: 'none' }}
-                                className="h-full w-12 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize text-xl font-black"
-                              >
-                                ↔
-                              </div>
-                            </div>
-
-                            {resources.length > 0 && (
-                              <div className="absolute top-[108px] flex gap-1.5" style={{ left: Math.max(0, left) }}>
-                                {resources.slice(0, 5).map((r: any) => (
-                                  <span key={r.id} className="rounded-full bg-slate-800 text-white px-2.5 py-1 text-xs font-black">
-                                    {trialResourceIcon(r.type)} {Number(r.quantity || 1)}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 );
               })()}
             </div>
 
-            <div className="px-3 md:px-5 py-3 border-t border-slate-200 bg-white flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm md:text-base font-black text-amber-700">⚠️ 試験版のため保存しません</div>
-                <div className="text-xs md:text-sm text-slate-400 font-bold mt-0.5">
-                  日報・マスタ・Supabaseのデータは一切変更しません。
+            {/* 下部固定：説明と閉じる */}
+            <div className="px-4 md:px-7 py-3 md:py-4 bg-white border-t border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                  ⚠️
                 </div>
-              </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm md:text-base font-black text-amber-800">
+                    今は操作確認用です。保存されません。
+                  </div>
+                  <div className="text-xs md:text-sm text-slate-400 font-bold mt-0.5">
+                    日報・原価・マスタ・Supabaseのデータには一切影響しません。
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setShowTrialSchedule(false)}
-                className="px-6 py-3 rounded-xl bg-slate-900 text-white font-black"
-              >
-                閉じる
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTrialSchedule(false)}
+                  className="px-6 md:px-8 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-base md:text-lg font-black"
+                >
+                  閉じる
+                </button>
+              </div>
             </div>
           </div>
         </div>
