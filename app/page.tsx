@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [settings, setSettings] = useState<any>({});
+  const [reports, setReports] = useState<any[]>([]);
+  const [showCostSummaryModal, setShowCostSummaryModal] = useState(false);
 
   const [date, setDate] = useState(() => {
     const now = new Date();
@@ -174,9 +176,14 @@ export default function Home() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => setSettings(data || {}))
+    Promise.all([
+      fetch('/api/settings').then(res => res.json()),
+      fetch('/api/reports').then(res => res.json())
+    ])
+      .then(([settingsData, reportsData]) => {
+        setSettings(settingsData || {});
+        setReports(Array.isArray(reportsData) ? reportsData : []);
+      })
       .catch(err => console.error(err));
   }, []);
 
@@ -205,6 +212,344 @@ export default function Home() {
     list.forEach((name: string) => counts[name] = (counts[name] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => count > 1 ? `${name}×${count}` : name);
   };
+
+
+  // ─────────────────────────────────────────────
+  // 現場別「現在原価・残額」サマリー
+  // 日報に保存済みの実績と、管理画面側で確定・上書きした金額をできるだけ反映する。
+  // 細かな単価は表示せず、カテゴリ別合計のみ表示する。
+  // ─────────────────────────────────────────────
+  const normalizeSummaryDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const cleaned = String(dateStr).replace(/\//g, '-');
+    const parts = cleaned.split('-');
+    if (parts.length === 3) {
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+    return cleaned;
+  };
+
+  const getSummaryTargetLocationNames = (currentLoc: string) => {
+    const keywordRules: { [key: string]: string } = {
+      '旧河北郡市クリーンセンター等解体工事(石川県)': '旧河北郡市クリーンセンター',
+      '美加の台地区施設一体型小中教育推進校整備工事': '美加の台地区施設',
+      '和歌山下津港海岸(海南地区)船尾南護岸(第2工区)機側操作室解体工事': '船尾南護岸',
+      '岸和田市別所町3丁目20-4解体工事': '岸和田市別所町3丁目'
+    };
+
+    const keyword = keywordRules[currentLoc];
+    if (!keyword) return [currentLoc];
+
+    const matched = Array.from(
+      new Set(
+        reports
+          .map((r: any) => r.location)
+          .filter((name: string) => name && name.includes(keyword))
+      )
+    );
+
+    return matched.length > 0 ? matched : [currentLoc];
+  };
+
+  const getSummaryDisposalCost = (locName: string, locReports: any[]) => {
+    const disposalOverrides = settings.disposalOverrides || {};
+    const canonicalOv = disposalOverrides[locName] || {};
+    let total = 0;
+
+    locReports.forEach((r: any) => {
+      const reportLocationName = r.location || locName;
+      const reportOv = disposalOverrides[reportLocationName] || {};
+      const normalizedDate = normalizeSummaryDate(r.date || '');
+      const parts = normalizedDate.split('-');
+      const ym = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : '日付不明';
+      const dateKey = normalizedDate || String(r.date || '日付不明');
+
+      (Array.isArray(r.disposals) ? r.disposals : []).forEach((d: any) => {
+        const disposalSite = d.location || 'その他処分場';
+        const item = d.item || '品目未指定';
+        const master = (settings.disposalLocations || []).find(
+          (x: any) => x.location === disposalSite && x.item === item
+        );
+
+        const originalUnitPrice =
+          d.price !== undefined && d.price !== null && d.price !== ''
+            ? Number(d.price)
+            : Number(master?.price || 0);
+
+        const priceKey = `unitPrice__${disposalSite}__${ym}__${dateKey}__${item}`;
+        const invoiceKey = `invoice__${disposalSite}__${ym}__${dateKey}__${item}`;
+        const legacyPriceKey = `unitPrice__${disposalSite}__${ym}__${item}`;
+        const legacyInvoiceKey = `invoice__${disposalSite}__${ym}__${item}`;
+
+        const savedPrice =
+          reportOv[priceKey] !== undefined ? reportOv[priceKey]
+          : canonicalOv[priceKey] !== undefined ? canonicalOv[priceKey]
+          : reportOv[legacyPriceKey] !== undefined ? reportOv[legacyPriceKey]
+          : canonicalOv[legacyPriceKey];
+
+        const effectiveUnitPrice =
+          savedPrice !== '' && savedPrice !== undefined
+            ? Number(savedPrice)
+            : originalUnitPrice;
+
+        const reportTotal = Number(d.quantity || 0) * effectiveUnitPrice;
+
+        const savedInvoice =
+          reportOv[invoiceKey] !== undefined ? reportOv[invoiceKey]
+          : canonicalOv[invoiceKey] !== undefined ? canonicalOv[invoiceKey]
+          : reportOv[legacyInvoiceKey] !== undefined ? reportOv[legacyInvoiceKey]
+          : canonicalOv[legacyInvoiceKey];
+
+        total +=
+          savedInvoice !== '' && savedInvoice !== undefined
+            ? Number(savedInvoice)
+            : reportTotal;
+      });
+    });
+
+    return total;
+  };
+
+  const calculateLocationCostSummary = (locName: string) => {
+    const targetNames = getSummaryTargetLocationNames(locName);
+    const locReports = reports.filter((r: any) => targetNames.includes(r.location));
+
+    let labor = 0;
+    let subcontractor = 0;
+    let lease = 0;
+    let ownMachine = 0;
+    let vehicle = 0;
+    let fuel = 0;
+    let regular = 0;
+    let etc = 0;
+    let parking = 0;
+    let other = 0;
+
+    const subcontractorGroup: any = {};
+    const fuelLitersByMonth: any = {};
+
+    locReports.forEach((r: any) => {
+      // 人件費
+      (Array.isArray(r.workers) ? r.workers : []).forEach((name: string) => {
+        labor += Number((settings.workers || []).find((x: any) => x.name === name)?.price || 0);
+      });
+
+      // 外注費（あとで業者・作業単位の確定額を反映）
+      (Array.isArray(r.subcontractors) ? r.subcontractors : []).forEach((sub: any) => {
+        const company = sub.company || '会社名未設定';
+        const task = sub.task || '作業内容未設定';
+        const key = `${company}__${task}`;
+        const master = (settings.subcontractors || []).find(
+          (x: any) => x.company === company && x.task === task
+        );
+        const unitPrice =
+          sub.price !== undefined && sub.price !== null && sub.price !== ''
+            ? Number(sub.price)
+            : Number(master?.price || 0);
+
+        subcontractorGroup[key] =
+          (subcontractorGroup[key] || 0) + Number(sub.count || 0) * unitPrice;
+      });
+
+      // リース
+      const leaseHeavyList = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+      const legacyMachines =
+        leaseHeavyList.length === 0 && Array.isArray(r.machines) ? r.machines : [];
+
+      legacyMachines.forEach((name: string) => {
+        lease += Number((settings.leases || []).find((x: any) => x.name === name)?.price || 0);
+      });
+      leaseHeavyList.forEach((name: string) => {
+        lease += Number((settings.leaseHeavy || []).find((x: any) => x.name === name)?.price || 0);
+      });
+      (Array.isArray(r.leaseAttach) ? r.leaseAttach : []).forEach((name: string) => {
+        lease += Number((settings.leaseAttach || []).find((x: any) => x.name === name)?.price || 0);
+      });
+      (Array.isArray(r.leaseOther) ? r.leaseOther : []).forEach((name: string) => {
+        lease += Number((settings.leaseOther || []).find((x: any) => x.name === name)?.price || 0);
+      });
+
+      (Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : []).forEach((name: string) => {
+        lease += Number((settings.ishikawaHeavy || []).find((x: any) => x.name === name)?.price || 0);
+      });
+      (Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : []).forEach((name: string) => {
+        lease += Number((settings.ishikawaAttach || []).find((x: any) => x.name === name)?.price || 0);
+      });
+      (Array.isArray(r.ishikawaOther) ? r.ishikawaOther : []).forEach((name: string) => {
+        lease += Number((settings.ishikawaOther || []).find((x: any) => x.name === name)?.price || 0);
+      });
+
+      // 自由入力リースで日報に金額がある過去データだけ反映
+      (Array.isArray(r.otherLeases) ? r.otherLeases : []).forEach((item: any) => {
+        lease += Number(item.price || 0);
+      });
+      (Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : []).forEach((item: any) => {
+        const master =
+          (settings.leaseHeavy || []).find((x: any) => x.name === item.name) ||
+          (settings.leaseAttach || []).find((x: any) => x.name === item.name) ||
+          (settings.leaseOther || []).find((x: any) => x.name === item.name);
+        const unitPrice =
+          item.price !== undefined && item.price !== null && item.price !== ''
+            ? Number(item.price)
+            : Number(master?.price || 0);
+        lease += Number(item.count || 0) * unitPrice;
+      });
+      (Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : []).forEach((item: any) => {
+        if (item.price !== undefined && item.price !== null && item.price !== '') {
+          lease += Number(item.count || 0) * Number(item.price);
+        }
+      });
+
+      // 自社重機
+      (Array.isArray(r.ownMachines) ? r.ownMachines : []).forEach((name: string) => {
+        ownMachine += Number((settings.companyMachines || []).find((x: any) => x.name === name)?.price || 0);
+      });
+
+      // 車両
+      (Array.isArray(r.vehicles) ? r.vehicles : []).forEach((name: string) => {
+        vehicle += Number((settings.vehicles || []).find((x: any) => x.name === name)?.price || 0);
+      });
+
+      // 軽油（L × 月単価）
+      const normalized = normalizeSummaryDate(r.date || '');
+      const parts = normalized.split('-');
+      if (parts.length >= 2) {
+        const ym = `${parts[0]}-${parts[1]}`;
+        fuelLitersByMonth[ym] = (fuelLitersByMonth[ym] || 0) + Number(r.fuel || 0);
+      }
+
+      // 日報に直接金額保存されているもの
+      regular += Number(r.regularPrice || 0);
+      etc += Number(r.etcPrice || 0);
+      parking += Number(r.parkingPrice || 0);
+      other += Number(r.otherPrice || 0);
+    });
+
+    // 外注：業者・作業別の管理画面確定額を反映
+    const subDetailOverrides = settings.subcontractorDetailOverrides?.[locName] || {};
+    subcontractor = Object.entries(subcontractorGroup).reduce((sum: number, [key, raw]: any) => {
+      const override = subDetailOverrides[key];
+      return sum + (
+        override !== '' && override !== undefined
+          ? Number(override)
+          : Number(raw || 0)
+      );
+    }, 0);
+
+    // 管理画面から追加した一括外注
+    const customSubsTotal = (settings.customSubcontractors?.[locName] || []).reduce(
+      (sum: number, item: any) => sum + Number(item.price || 0),
+      0
+    );
+    subcontractor += customSubsTotal;
+
+    // 軽油月単価
+    const fuelUnitPrices = settings.fuelUnitPrices?.[locName] || {};
+    Object.entries(fuelLitersByMonth).forEach(([ym, liters]: any) => {
+      const unitPrice = fuelUnitPrices[ym];
+      if (unitPrice !== '' && unitPrice !== undefined) {
+        fuel += Number(liters) * Number(unitPrice);
+      }
+    });
+
+    // 処分費：管理画面の確定額を優先
+    const disposal = getSummaryDisposalCost(locName, locReports);
+
+    // 管理画面での全体上書き
+    const ov = settings.costOverrides?.[locName] || {};
+    if (ov.labor !== '' && ov.labor !== undefined) labor = Number(ov.labor);
+    if (ov.sub !== '' && ov.sub !== undefined) subcontractor = Number(ov.sub);
+
+    const isIshikawa = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
+    if (!isIshikawa && ov.lease !== '' && ov.lease !== undefined) lease = Number(ov.lease);
+    if (isIshikawa) {
+      const ishikawaLease =
+        ov.ishikawaLease !== '' && ov.ishikawaLease !== undefined
+          ? Number(ov.ishikawaLease)
+          : 0;
+      const mokLease =
+        ov.mokLease !== '' && ov.mokLease !== undefined
+          ? Number(ov.mokLease)
+          : 0;
+
+      // 管理画面で個別確定されている場合だけ、その合計を優先
+      if (
+        (ov.ishikawaLease !== '' && ov.ishikawaLease !== undefined) ||
+        (ov.mokLease !== '' && ov.mokLease !== undefined)
+      ) {
+        lease = ishikawaLease + mokLease;
+      }
+    }
+
+    if (ov.ownMachine !== '' && ov.ownMachine !== undefined) ownMachine = Number(ov.ownMachine);
+    if (ov.vehicle !== '' && ov.vehicle !== undefined) vehicle = Number(ov.vehicle);
+    if (ov.fuel !== '' && ov.fuel !== undefined && !isIshikawa) fuel = Number(ov.fuel);
+    if (ov.regular !== '' && ov.regular !== undefined && !isIshikawa) regular = Number(ov.regular);
+    if (ov.etc !== '' && ov.etc !== undefined) etc = Number(ov.etc);
+    if (ov.parking !== '' && ov.parking !== undefined) parking = Number(ov.parking);
+    if (ov.other !== '' && ov.other !== undefined) other = Number(ov.other);
+
+    // 石川県案件の宇野気石油合計
+    if (isIshikawa) {
+      if (ov.unokeTotal !== '' && ov.unokeTotal !== undefined) {
+        fuel += Number(ov.unokeTotal);
+      } else {
+        if (ov.fuel !== '' && ov.fuel !== undefined) fuel += Number(ov.fuel);
+        if (ov.regular !== '' && ov.regular !== undefined) regular += Number(ov.regular);
+      }
+    }
+
+    // 管理画面で追加したその他経費
+    const extra = (settings.customExtraExpenses?.[locName] || []).reduce(
+      (sum: number, item: any) => sum + Number(item.amount || 0),
+      0
+    );
+
+    const matchedLoc = (settings.locations || []).find(
+      (l: any) => (typeof l === 'string' ? l : l?.name) === locName
+    );
+    const contractPrice = Number(
+      typeof matchedLoc === 'object' && matchedLoc !== null ? matchedLoc.price || 0 : 0
+    );
+
+    const fuelAndRegular = fuel + regular;
+    const total =
+      labor +
+      subcontractor +
+      lease +
+      ownMachine +
+      vehicle +
+      disposal +
+      fuelAndRegular +
+      etc +
+      parking +
+      other +
+      extra;
+
+    const remaining = contractPrice - total;
+
+    return {
+      contractPrice,
+      labor,
+      subcontractor,
+      lease,
+      ownMachine,
+      vehicle,
+      disposal,
+      fuelAndRegular,
+      etc,
+      parking,
+      other,
+      extra,
+      total,
+      remaining,
+      reportCount: locReports.length
+    };
+  };
+
+  const selectedLocationCostSummary = location
+    ? calculateLocationCostSummary(location)
+    : null;
 
   // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
   const handlePreSubmit = (e: React.FormEvent) => {
@@ -304,6 +649,129 @@ export default function Home() {
       </div>
 
       {/* 送信内容確認ポップアップ */}
+
+      {/* 現場別 現在原価・残額ポップアップ */}
+      {showCostSummaryModal && location && selectedLocationCostSummary && (
+        <div
+          className="fixed inset-0 z-[90] bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-3 md:p-6"
+          onClick={() => setShowCostSummaryModal(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-[28px] shadow-2xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-5 md:px-7 py-5 rounded-t-[28px]">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-black text-orange-600">現場原価の確認</div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-950 mt-1 break-words">
+                    {location}
+                  </h3>
+                  <div className="text-xs md:text-sm text-slate-400 font-bold mt-1">
+                    保存済み日報 {selectedLocationCostSummary.reportCount}件を集計
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCostSummaryModal(false)}
+                  className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 md:p-7 space-y-5">
+              {/* 上部3項目 */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <div className="text-sm font-bold text-slate-500">請負金額</div>
+                  <div className="text-2xl md:text-3xl font-black text-slate-950 mt-1">
+                    ¥{Math.round(selectedLocationCostSummary.contractPrice).toLocaleString('ja-JP')}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4">
+                  <div className="text-sm font-bold text-orange-700">現在までの経費</div>
+                  <div className="text-2xl md:text-3xl font-black text-orange-700 mt-1">
+                    ¥{Math.round(selectedLocationCostSummary.total).toLocaleString('ja-JP')}
+                  </div>
+                </div>
+
+                <div className={`rounded-2xl border p-4 ${
+                  selectedLocationCostSummary.remaining >= 0
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-rose-50 border-rose-200'
+                }`}>
+                  <div className={`text-sm font-bold ${
+                    selectedLocationCostSummary.remaining >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    残りの金額
+                  </div>
+                  <div className={`text-2xl md:text-3xl font-black mt-1 ${
+                    selectedLocationCostSummary.remaining >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    {selectedLocationCostSummary.remaining < 0 ? '▲ ' : ''}
+                    ¥{Math.abs(Math.round(selectedLocationCostSummary.remaining)).toLocaleString('ja-JP')}
+                  </div>
+                </div>
+              </div>
+
+              {/* 経費内訳 */}
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white px-5 py-3 font-black text-lg">
+                  経費の内訳
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {[
+                    ['人件費', selectedLocationCostSummary.labor],
+                    ['外注費', selectedLocationCostSummary.subcontractor],
+                    ['リース', selectedLocationCostSummary.lease],
+                    ['自社重機', selectedLocationCostSummary.ownMachine],
+                    ['車両', selectedLocationCostSummary.vehicle],
+                    ['処分費用', selectedLocationCostSummary.disposal],
+                    ['燃料費', selectedLocationCostSummary.fuelAndRegular],
+                    ['ETC', selectedLocationCostSummary.etc],
+                    ['駐車場', selectedLocationCostSummary.parking],
+                    ['その他経費', selectedLocationCostSummary.other + selectedLocationCostSummary.extra]
+                  ].map(([label, amount]: any) => (
+                    <div key={label} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                      <span className="text-base font-bold text-slate-700">{label}</span>
+                      <span className="text-lg font-black text-slate-950">
+                        ¥{Math.round(Number(amount || 0)).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-4 px-5 py-4 bg-orange-50 border-t-2 border-orange-200">
+                  <span className="text-lg font-black text-orange-800">使用した経費 合計</span>
+                  <span className="text-2xl font-black text-orange-700">
+                    ¥{Math.round(selectedLocationCostSummary.total).toLocaleString('ja-JP')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs md:text-sm font-bold text-slate-500 leading-relaxed">
+                ※ 金額は保存済みの日報と管理画面で確定・上書きされた金額をもとに集計しています。<br />
+                ※ 今入力している未送信の日報内容は、まだこの金額には含まれません。<br />
+                ※ 人件費などの単価は表示せず、項目ごとの合計金額のみ表示しています。
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCostSummaryModal(false)}
+                className="w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white py-4 font-black text-lg"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-4 border my-auto max-h-[90vh] flex flex-col">
@@ -454,6 +922,16 @@ export default function Home() {
                    );
                  })}
              </select>
+
+             {location && (
+               <button
+                 type="button"
+                 onClick={() => setShowCostSummaryModal(true)}
+                 className="mt-3 w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-4 font-black text-base md:text-lg shadow-sm flex items-center justify-center gap-2 transition"
+               >
+                 💰 現在の原価・残額を見る
+               </button>
+             )}
            </div>
 
            <div>
