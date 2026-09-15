@@ -4238,87 +4238,75 @@ export default function AdminPage() {
       )}
 
 
-      {/* 社長モード専用：かんたん工程表（社長向けUI・試験版） */}
+      {/* 社長モード専用：工程表優先UI（試験版・保存なし） */}
       {showTrialSchedule && authRole === 'viewer' && (
         <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-1 md:p-3 z-[85]"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-1 md:p-2 z-[85]"
           onClick={() => setShowTrialSchedule(false)}
         >
           <div
-            className="bg-slate-50 rounded-2xl md:rounded-[30px] w-full max-w-[1550px] h-[97vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col"
+            className="bg-white rounded-2xl md:rounded-[26px] w-full max-w-[1600px] h-[98vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 上部：タイトルと閉じるだけ */}
-            <div className="px-4 md:px-7 py-4 md:py-5 bg-white border-b border-slate-200">
+            {/* 超コンパクトヘッダー */}
+            <div className="px-3 md:px-5 py-2.5 md:py-3 bg-white border-b border-slate-200 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl md:text-3xl shadow-sm shrink-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl md:text-2xl shrink-0">
                   📅
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-2xl md:text-4xl font-black text-slate-950 tracking-tight">工程表</h3>
-                    <span className="rounded-full bg-orange-100 text-orange-700 px-3 py-1 text-xs md:text-sm font-black">
+                    <h3 className="text-xl md:text-3xl font-black text-slate-950">工程表</h3>
+                    <span className="rounded-full bg-orange-100 text-orange-700 px-2.5 py-1 text-[11px] md:text-xs font-black">
                       👑 社長モード
                     </span>
-                    <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-black">
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-1 text-[11px] font-black">
                       試験版
                     </span>
                   </div>
-                  <p className="text-sm md:text-lg text-slate-500 font-bold mt-1">
-                    ① 現場を選ぶ　→　② 工程を追加　→　③ バーを動かす　→　④ 人・重機・外注を置く
-                  </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowTrialSchedule(false)}
-                  className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xl font-black shrink-0"
-                  title="閉じる"
+                  className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black shrink-0"
                 >
                   ✕
                 </button>
               </div>
-            </div>
 
-            {/* ステップ1：現場・月・追加 */}
-            <div className="px-3 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200">
-              <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto_auto] gap-3">
-                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3 md:p-4">
-                  <div className="text-xs md:text-sm font-black text-slate-500 mb-2">① 現場を選ぶ</div>
-                  <select
-                    value={trialScheduleLocation}
-                    onChange={(e) => {
-                      setTrialScheduleLocation(e.target.value);
-                      setTrialScheduleTasks([]);
-                    }}
-                    className="w-full bg-white border-0 rounded-xl p-3 md:p-4 text-base md:text-2xl font-black text-slate-950 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  >
-                    <option value="">現場を選択してください</option>
-                    {(settings.locations || [])
-                      .filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished)
-                      .map((loc: any) => {
-                        const name = typeof loc === 'string' ? loc : loc.name;
-                        return <option key={name} value={name}>{name}</option>;
-                      })}
-                  </select>
-                </div>
+              {/* 現場・月・追加を1段に圧縮 */}
+              <div className="mt-2.5 grid grid-cols-1 lg:grid-cols-[1fr_190px_170px] gap-2">
+                <select
+                  value={trialScheduleLocation}
+                  onChange={(e) => {
+                    setTrialScheduleLocation(e.target.value);
+                    setTrialScheduleTasks([]);
+                  }}
+                  className="w-full p-2.5 md:p-3 rounded-xl border-2 border-slate-200 bg-slate-50 text-sm md:text-lg font-black"
+                >
+                  <option value="">現場を選択してください</option>
+                  {(settings.locations || [])
+                    .filter((loc: any) => typeof loc === 'string' ? true : !loc?.isFinished)
+                    .map((loc: any) => {
+                      const name = typeof loc === 'string' ? loc : loc.name;
+                      return <option key={name} value={name}>{name}</option>;
+                    })}
+                </select>
 
-                <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3 md:p-4 min-w-[210px]">
-                  <div className="text-xs md:text-sm font-black text-slate-500 mb-2">表示する月</div>
-                  <input
-                    type="month"
-                    value={trialScheduleMonth}
-                    onChange={(e) => setTrialScheduleMonth(e.target.value)}
-                    className="w-full bg-white border-0 rounded-xl p-3 md:p-4 text-base md:text-xl font-black focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  />
-                </div>
+                <input
+                  type="month"
+                  value={trialScheduleMonth}
+                  onChange={(e) => setTrialScheduleMonth(e.target.value)}
+                  className="w-full p-2.5 md:p-3 rounded-xl border-2 border-slate-200 bg-slate-50 text-sm md:text-lg font-black"
+                />
 
                 <button
                   type="button"
                   onClick={addTrialScheduleTask}
                   disabled={!trialScheduleLocation}
-                  className={`rounded-2xl px-6 md:px-8 py-4 text-lg md:text-2xl font-black shadow-sm transition ${
+                  className={`rounded-xl px-4 py-2.5 md:py-3 text-base md:text-lg font-black transition ${
                     trialScheduleLocation
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
@@ -4327,76 +4315,62 @@ export default function AdminPage() {
                   ＋ 工程追加
                 </button>
               </div>
+
+              {/* 配置物は1本の横スクロールバーに集約 */}
+              {trialScheduleLocation && (() => {
+                const catalog = getTrialResourceCatalog();
+                const allResources = [
+                  ...catalog.workers.map((x: any) => ({ ...x, groupLabel: '社員' })),
+                  ...catalog.machines.map((x: any) => ({ ...x, groupLabel: '重機' })),
+                  ...catalog.vehicles.map((x: any) => ({ ...x, groupLabel: '車両' })),
+                  ...catalog.subcontractors.map((x: any) => ({ ...x, groupLabel: '外注' }))
+                ];
+
+                return (
+                  <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 p-2">
+                    <div className="shrink-0 px-2">
+                      <div className="text-xs md:text-sm font-black text-slate-700">配置</div>
+                      <div className="text-[10px] text-slate-400 font-bold">工程へドラッグ</div>
+                    </div>
+
+                    <div className="flex gap-1.5 overflow-x-auto min-w-0 pb-0.5">
+                      {allResources.length === 0 ? (
+                        <span className="text-xs text-slate-400 font-bold py-2 px-3">マスタ登録なし</span>
+                      ) : allResources.map((resource: any) => (
+                        <button
+                          key={resource.id}
+                          type="button"
+                          onPointerDown={(e) => startTrialResourceDrag(e, resource)}
+                          style={{ touchAction: 'none' }}
+                          className="shrink-0 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 px-2.5 py-2 text-left cursor-grab active:cursor-grabbing select-none"
+                          title="工程へドラッグ"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>{trialResourceIcon(resource.type)}</span>
+                            <span className="text-xs md:text-sm font-black text-slate-900 max-w-[130px] truncate">
+                              {resource.label}
+                            </span>
+                          </div>
+                          <div className="text-[9px] md:text-[10px] text-slate-400 font-bold mt-0.5">
+                            {resource.groupLabel}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* ステップ2：配置するもの */}
-            {trialScheduleLocation && (() => {
-              const catalog = getTrialResourceCatalog();
-              const groups = [
-                { title: '社員', icon: '👷', items: catalog.workers, tone: 'bg-blue-50 border-blue-200' },
-                { title: '自社重機', icon: '🚜', items: catalog.machines, tone: 'bg-amber-50 border-amber-200' },
-                { title: '車両', icon: '🚚', items: catalog.vehicles, tone: 'bg-cyan-50 border-cyan-200' },
-                { title: '外注', icon: '🏢', items: catalog.subcontractors, tone: 'bg-emerald-50 border-emerald-200' }
-              ];
-
-              return (
-                <div className="px-3 md:px-6 py-3 md:py-4 bg-white border-b border-slate-200">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <div className="text-base md:text-xl font-black text-slate-900">② 工程に入れる人・機械を選ぶ</div>
-                      <div className="text-xs md:text-sm font-bold text-slate-500 mt-1">
-                        カードを工程の行へドラッグしてください
-                      </div>
-                    </div>
-                    <div className="hidden md:flex items-center gap-2 text-sm font-black text-slate-500">
-                      <span className="px-3 py-1.5 rounded-full bg-slate-100">つかむ</span>
-                      <span>→</span>
-                      <span className="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700">工程へ置く</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                    {groups.map(group => (
-                      <div key={group.title} className={`rounded-2xl border-2 p-3 ${group.tone}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="text-2xl">{group.icon}</div>
-                          <div className="text-base md:text-xl font-black">{group.title}</div>
-                        </div>
-
-                        <div className="flex gap-2 overflow-x-auto xl:flex-wrap xl:max-h-[110px] xl:overflow-y-auto pb-1">
-                          {group.items.length === 0 ? (
-                            <span className="text-sm text-slate-400 font-bold py-3">登録なし</span>
-                          ) : group.items.map((resource: any) => (
-                            <button
-                              key={resource.id}
-                              type="button"
-                              onPointerDown={(e) => startTrialResourceDrag(e, resource)}
-                              style={{ touchAction: 'none' }}
-                              className="shrink-0 rounded-xl bg-white border-2 border-white hover:border-indigo-300 px-3 py-2.5 text-left cursor-grab active:cursor-grabbing select-none shadow-sm"
-                            >
-                              <div className="text-sm md:text-base font-black text-slate-900">{resource.label}</div>
-                              <div className="text-[11px] md:text-xs text-slate-400 font-bold mt-0.5">{resource.detail}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* 工程表本体 */}
-            <div className="flex-1 overflow-auto bg-slate-100">
+            {/* 工程表を最大化 */}
+            <div className="flex-1 min-h-0 overflow-auto bg-slate-100">
               {!trialScheduleLocation ? (
                 <div className="h-full flex items-center justify-center p-8">
-                  <div className="text-center max-w-xl">
-                    <div className="w-24 h-24 mx-auto rounded-[30px] bg-white border border-slate-200 shadow-sm flex items-center justify-center text-5xl mb-5">
-                      🏗️
-                    </div>
-                    <div className="text-2xl md:text-4xl font-black text-slate-800">まず現場を選んでください</div>
-                    <div className="text-base md:text-xl font-bold text-slate-400 mt-3">
-                      現場を選ぶと工程表が表示されます
+                  <div className="text-center">
+                    <div className="text-5xl mb-3">🏗️</div>
+                    <div className="text-2xl md:text-3xl font-black text-slate-700">現場を選んでください</div>
+                    <div className="text-sm md:text-base font-bold text-slate-400 mt-2">
+                      選択すると工程表が大きく表示されます
                     </div>
                   </div>
                 </div>
@@ -4406,13 +4380,15 @@ export default function AdminPage() {
                 const totalWidth = days.length * trialDayWidth;
 
                 return (
-                  <div className="min-w-max p-2 md:p-4">
-                    <div className="rounded-2xl md:rounded-[28px] bg-white border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="min-w-max p-1.5 md:p-2">
+                    <div className="rounded-xl md:rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
                       {/* 日付ヘッダー */}
                       <div className="sticky top-0 z-30 flex bg-white border-b-2 border-slate-200">
-                        <div className="sticky left-0 z-40 w-[300px] md:w-[400px] shrink-0 bg-slate-900 text-white px-4 md:px-6 py-4 md:py-5 border-r border-slate-700">
-                          <div className="text-lg md:text-2xl font-black">③ 工程</div>
-                          <div className="text-xs md:text-sm text-slate-300 font-bold mt-1">バーを左右に動かせます</div>
+                        <div className="sticky left-0 z-40 w-[255px] md:w-[320px] shrink-0 bg-slate-900 text-white px-3 md:px-4 py-3 border-r border-slate-700">
+                          <div className="text-base md:text-xl font-black">工程</div>
+                          <div className="text-[10px] md:text-xs text-slate-300 font-bold mt-0.5">
+                            バーを左右にドラッグ
+                          </div>
                         </div>
 
                         <div className="flex" style={{ width: totalWidth }}>
@@ -4428,10 +4404,12 @@ export default function AdminPage() {
                               <div
                                 key={day}
                                 style={{ width: trialDayWidth }}
-                                className={`shrink-0 border-r border-slate-200 py-3 text-center ${weekend}`}
+                                className={`shrink-0 border-r border-slate-200 py-2 text-center ${weekend}`}
                               >
-                                <div className="text-[11px] md:text-xs font-black">{['日','月','火','水','木','金','土'][dow]}</div>
-                                <div className="text-lg md:text-2xl font-black">{Number(day.slice(-2))}</div>
+                                <div className="text-[10px] md:text-xs font-black">
+                                  {['日','月','火','水','木','金','土'][dow]}
+                                </div>
+                                <div className="text-base md:text-xl font-black">{Number(day.slice(-2))}</div>
                               </div>
                             );
                           })}
@@ -4439,13 +4417,15 @@ export default function AdminPage() {
                       </div>
 
                       {trialScheduleTasks.length === 0 ? (
-                        <div className="flex min-h-[260px]">
-                          <div className="sticky left-0 z-20 w-[300px] md:w-[400px] shrink-0 bg-white border-r border-slate-200 p-6">
-                            <div className="text-xl md:text-2xl font-black text-slate-600">工程はまだありません</div>
-                            <div className="text-sm md:text-base font-bold text-slate-400 mt-2">上の「＋ 工程追加」を押してください</div>
+                        <div className="flex min-h-[380px]">
+                          <div className="sticky left-0 z-20 w-[255px] md:w-[320px] shrink-0 bg-white border-r border-slate-200 p-5">
+                            <div className="text-lg md:text-xl font-black text-slate-600">工程がありません</div>
+                            <div className="text-xs md:text-sm font-bold text-slate-400 mt-2">
+                              上の「＋工程追加」を押してください
+                            </div>
                           </div>
-                          <div style={{ width: totalWidth }} className="flex items-center justify-center">
-                            <div className="text-center text-slate-300">
+                          <div style={{ width: totalWidth }} className="flex items-center justify-center text-slate-300">
+                            <div className="text-center">
                               <div className="text-5xl mb-3">➕</div>
                               <div className="text-xl font-black">工程を追加してください</div>
                             </div>
@@ -4462,38 +4442,29 @@ export default function AdminPage() {
                             <div
                               key={task.id}
                               data-trial-task-drop={task.id}
-                              className={`flex min-h-[165px] border-b border-slate-200 transition ${
+                              className={`flex min-h-[118px] border-b border-slate-200 transition ${
                                 trialResourceDrag ? 'bg-indigo-50/40' : 'bg-white'
                               }`}
                             >
-                              {/* 左側：工程カード */}
-                              <div className="sticky left-0 z-20 w-[300px] md:w-[400px] shrink-0 bg-white border-r border-slate-200 p-3 md:p-5">
-                                <div className="flex items-start gap-3">
-                                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center font-black text-base md:text-lg shrink-0">
+                              {/* 左工程カードをコンパクト化 */}
+                              <div className="sticky left-0 z-20 w-[255px] md:w-[320px] shrink-0 bg-white border-r border-slate-200 p-2.5 md:p-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center font-black text-sm shrink-0">
                                     {taskIndex + 1}
                                   </div>
 
-                                  <div className="min-w-0 flex-1">
-                                    <input
-                                      type="text"
-                                      value={task.name}
-                                      onChange={(e) => patchTrialTask(task.id, { name: e.target.value })}
-                                      className="w-full border-0 bg-transparent text-xl md:text-3xl font-black text-slate-950 focus:outline-none"
-                                    />
-
-                                    <div className="mt-1 text-sm md:text-base font-black text-slate-400">
-                                      {task.start.slice(5).replace('-', '/')} ～ {task.end.slice(5).replace('-', '/')}
-                                      <span className="ml-2">（{duration}日）</span>
-                                    </div>
-                                  </div>
+                                  <input
+                                    type="text"
+                                    value={task.name}
+                                    onChange={(e) => patchTrialTask(task.id, { name: e.target.value })}
+                                    className="min-w-0 flex-1 border-0 bg-transparent text-base md:text-xl font-black text-slate-950 focus:outline-none"
+                                  />
 
                                   <button
                                     type="button"
                                     onClick={() => patchTrialTask(task.id, { completed: !task.completed })}
-                                    className={`w-11 h-11 md:w-12 md:h-12 rounded-xl shrink-0 text-xl font-black ${
-                                      task.completed
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-slate-100 text-slate-300'
+                                    className={`w-8 h-8 rounded-lg shrink-0 font-black ${
+                                      task.completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300'
                                     }`}
                                     title="完了"
                                   >
@@ -4503,42 +4474,47 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() => setTrialScheduleTasks(prev => prev.filter(x => x.id !== task.id))}
-                                    className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-400 font-black"
+                                    className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-600 text-slate-400 font-black"
                                     title="削除"
                                   >
                                     ×
                                   </button>
                                 </div>
 
+                                <div className="mt-1.5 text-[11px] md:text-xs font-black text-slate-400">
+                                  {task.start.slice(5).replace('-', '/')} ～ {task.end.slice(5).replace('-', '/')}
+                                  <span className="ml-1">（{duration}日）</span>
+                                </div>
+
                                 {resources.length === 0 ? (
-                                  <div className={`mt-4 rounded-2xl border-2 border-dashed p-4 text-center text-sm md:text-base font-black ${
+                                  <div className={`mt-2 rounded-lg border-2 border-dashed px-2 py-2 text-center text-[11px] md:text-xs font-black ${
                                     trialResourceDrag
                                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                                       : 'border-slate-200 bg-slate-50 text-slate-300'
                                   }`}>
-                                    {trialResourceDrag ? 'ここに置いてください' : '社員・重機・車両・外注をここへ配置'}
+                                    {trialResourceDrag ? 'ここにドロップ' : '人・重機・車両・外注を配置'}
                                   </div>
                                 ) : (
-                                  <div className="mt-4 flex flex-wrap gap-2">
+                                  <div className="mt-2 flex flex-wrap gap-1">
                                     {resources.map((r: any) => (
-                                      <div key={r.id} className="inline-flex items-center rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shadow-sm">
-                                        <span className="px-2.5 py-2 text-xs md:text-sm font-black max-w-[180px] truncate">
+                                      <div key={r.id} className="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 overflow-hidden">
+                                        <span className="px-1.5 py-1.5 text-[10px] md:text-xs font-black max-w-[110px] truncate">
                                           {trialResourceIcon(r.type)} {r.label}
                                         </span>
                                         <button
                                           type="button"
                                           onClick={() => changeTrialResourceQty(task.id, r.id, -1)}
-                                          className="w-9 h-10 bg-white text-slate-600 text-lg font-black"
+                                          className="w-6 h-7 bg-white text-slate-600 font-black"
                                         >
                                           −
                                         </button>
-                                        <span className="min-w-[36px] text-center text-sm md:text-base font-black">
+                                        <span className="min-w-[28px] text-center text-xs font-black">
                                           {Number(r.quantity || 1)}
                                         </span>
                                         <button
                                           type="button"
                                           onClick={() => changeTrialResourceQty(task.id, r.id, 1)}
-                                          className="w-9 h-10 bg-white text-slate-600 text-lg font-black"
+                                          className="w-6 h-7 bg-white text-slate-600 font-black"
                                         >
                                           ＋
                                         </button>
@@ -4548,7 +4524,7 @@ export default function AdminPage() {
                                 )}
                               </div>
 
-                              {/* 右側：工程バー */}
+                              {/* タイムラインを主役に */}
                               <div
                                 className="relative shrink-0"
                                 style={{
@@ -4563,23 +4539,21 @@ export default function AdminPage() {
                                     width: barWidth,
                                     touchAction: 'none'
                                   }}
-                                  className={`absolute top-8 h-[82px] rounded-2xl shadow-lg border-2 flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${
+                                  className={`absolute top-5 h-[64px] rounded-xl shadow-md border-2 flex items-center select-none cursor-grab active:cursor-grabbing overflow-hidden ${
                                     task.completed
                                       ? 'bg-emerald-500 border-emerald-600'
                                       : 'bg-indigo-600 border-indigo-700'
                                   } text-white`}
                                 >
-                                  <div className="px-4 md:px-5 min-w-0 flex-1">
-                                    <div className="text-sm md:text-xl font-black truncate">{task.name}</div>
-                                    <div className="text-xs md:text-base font-bold opacity-90 mt-1">
-                                      {duration}日
-                                    </div>
+                                  <div className="px-3 md:px-4 min-w-0 flex-1">
+                                    <div className="text-sm md:text-base font-black truncate">{task.name}</div>
+                                    <div className="text-[10px] md:text-xs font-bold opacity-90 mt-0.5">{duration}日</div>
                                   </div>
 
                                   <div
                                     onPointerDown={(e) => startTrialTaskDrag(e, task, 'resize')}
                                     style={{ touchAction: 'none' }}
-                                    className="h-full w-12 md:w-14 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize text-2xl font-black"
+                                    className="h-full w-10 md:w-12 shrink-0 bg-black/15 flex items-center justify-center cursor-ew-resize text-xl font-black"
                                     title="ここを引っ張って期間変更"
                                   >
                                     ↔
@@ -4588,22 +4562,17 @@ export default function AdminPage() {
 
                                 {resources.length > 0 && (
                                   <div
-                                    className="absolute top-[120px] flex gap-1.5 overflow-hidden"
-                                    style={{ left: Math.max(0, left), maxWidth: Math.max(240, barWidth) }}
+                                    className="absolute top-[88px] flex gap-1 overflow-hidden"
+                                    style={{ left: Math.max(0, left), maxWidth: Math.max(220, barWidth) }}
                                   >
-                                    {resources.slice(0, 5).map((r: any) => (
+                                    {resources.slice(0, 6).map((r: any) => (
                                       <span
                                         key={r.id}
-                                        className="rounded-full bg-slate-800 text-white px-3 py-1.5 text-xs font-black whitespace-nowrap shadow-sm"
+                                        className="rounded-full bg-slate-800 text-white px-2 py-1 text-[10px] font-black whitespace-nowrap"
                                       >
                                         {trialResourceIcon(r.type)} {Number(r.quantity || 1)}
                                       </span>
                                     ))}
-                                    {resources.length > 5 && (
-                                      <span className="rounded-full bg-slate-300 text-slate-700 px-3 py-1.5 text-xs font-black">
-                                        +{resources.length - 5}
-                                      </span>
-                                    )}
                                   </div>
                                 )}
                               </div>
@@ -4617,25 +4586,22 @@ export default function AdminPage() {
               })()}
             </div>
 
-            {/* 下部固定：説明と閉じる */}
-            <div className="px-4 md:px-7 py-3 md:py-4 bg-white border-t border-slate-200">
+            {/* 最小限フッター */}
+            <div className="px-3 md:px-5 py-2.5 bg-white border-t border-slate-200 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
-                  ⚠️
-                </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm md:text-base font-black text-amber-800">
-                    今は操作確認用です。保存されません。
+                  <div className="text-xs md:text-sm font-black text-amber-800">
+                    ⚠️ 試験版のため保存されません
                   </div>
-                  <div className="text-xs md:text-sm text-slate-400 font-bold mt-0.5">
-                    日報・原価・マスタ・Supabaseのデータには一切影響しません。
+                  <div className="hidden md:block text-xs text-slate-400 font-bold mt-0.5">
+                    日報・原価・マスタ・Supabaseには影響しません。
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowTrialSchedule(false)}
-                  className="px-6 md:px-8 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-base md:text-lg font-black"
+                  className="px-5 md:px-7 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black"
                 >
                   閉じる
                 </button>
