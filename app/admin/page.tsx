@@ -5921,29 +5921,61 @@ export default function AdminPage() {
 
           if (key === 'disposal') {
             const sites = Object.entries(modalData.aggregatedDisposalBreakdown || {});
+
             return sites.length > 0 ? (
               <div className="space-y-3">
-                {sites.map(([siteName, siteData]: any) => (
-                  <div key={siteName} className="rounded-xl bg-white border border-slate-200 overflow-hidden">
-                    <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-slate-50">
-                      <span className="text-[13px] font-medium text-slate-800 break-words">{siteName}</span>
-                      <span className="text-[13px] font-medium text-slate-950 shrink-0">{wholeYen(siteData.total)}</span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                      {Object.entries(siteData.items || {}).map(([itemName, itemData]: any) => (
-                        <div key={itemName} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <div className="min-w-0">
-                            <div className="text-[12px] text-slate-700 break-words">{itemName}</div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">{itemData.quantity} {itemData.unit}</div>
+                {sites.map(([siteName, siteData]: any) => {
+                  const itemSummary: any = {};
+
+                  Object.entries(siteData.months || {}).forEach(([ym, monthData]: any) => {
+                    Object.values(monthData.days || {}).forEach((dayData: any) => {
+                      (dayData.rows || []).forEach((row: any) => {
+                        if (!itemSummary[row.item]) {
+                          itemSummary[row.item] = {
+                            quantity: 0,
+                            unit: row.unit,
+                            confirmedTotal: 0
+                          };
+                        }
+
+                        itemSummary[row.item].quantity += Number(row.quantity || 0);
+                        itemSummary[row.item].confirmedTotal += Number(row.confirmedTotal || 0);
+                      });
+                    });
+                  });
+
+                  return (
+                    <div key={siteName} className="rounded-xl bg-white border border-slate-200 overflow-hidden">
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-slate-50">
+                        <span className="text-[13px] font-medium text-slate-800 break-words">{siteName}</span>
+                        <span className="text-[13px] font-medium text-slate-950 shrink-0">
+                          {wholeYen(siteData.confirmedTotal)}
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {Object.entries(itemSummary).map(([itemName, itemData]: any) => (
+                          <div key={itemName} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                            <div className="min-w-0">
+                              <div className="text-[12px] text-slate-700 break-words">{itemName}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {Number(itemData.quantity || 0).toLocaleString('ja-JP')} {itemData.unit}
+                              </div>
+                            </div>
+
+                            <div className="text-[12px] font-medium text-slate-950 shrink-0">
+                              {wholeYen(itemData.confirmedTotal)}
+                            </div>
                           </div>
-                          <div className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(itemData.total)}</div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            ) : <div className="text-[12px] text-slate-400">処分費の明細はありません。</div>;
+            ) : (
+              <div className="text-[12px] text-slate-400">処分費の明細はありません。</div>
+            );
           }
 
           if (key === 'fuel') {
