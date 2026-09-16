@@ -272,6 +272,8 @@ export default function AdminPage() {
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => getCurrentYearMonth());
   // 社長モード専用UX：スマホで「何を確認したいか」から入る
   const [viewerSection, setViewerSection] = useState<'home' | 'sites' | 'costs' | 'reports' | 'attendance'>('home');
+  // 社長モード詳細分析：経費内訳の開閉
+  const [viewerExpenseDetailKey, setViewerExpenseDetailKey] = useState<string | null>(null);
 
   // 社長モード専用・簡易工程表（試験版）
   // ※ この試験版はSupabaseへ保存しません。画面を再読み込みするとリセットされます。
@@ -5782,21 +5784,253 @@ export default function AdminPage() {
           `¥${Math.round(Number(value || 0)).toLocaleString('ja-JP')}`;
 
         const expenseRows = [
-          { label: '人件費', icon: '👷', value: modalData.laborCost },
-          { label: '外注費', icon: '🏢', value: modalData.subCostTotal },
-          { label: 'リース', icon: '🏗️', value: Number(modalData.leaseCost || 0) + Number(modalData.otherLeaseCost || 0) },
-          { label: '自社重機', icon: '🚜', value: modalData.ownMachineCost },
-          { label: '車両', icon: '🚚', value: modalData.vehicleCost },
-          { label: '処分費', icon: '🗑️', value: modalData.disposalCost },
-          { label: '燃料', icon: '⛽', value: Number(modalData.fuelCost || 0) + Number(modalData.regularCost || 0) },
-          { label: 'ETC・駐車場', icon: '🛣️', value: Number(modalData.etcCost || 0) + Number(modalData.parkingCost || 0) },
-          { label: 'その他', icon: '📦', value: Number(modalData.otherCost || 0) + Number(modalData.customExtraExpenseTotal || 0) }
+          { key: 'labor', label: '人件費', icon: '👷', value: modalData.laborCost },
+          { key: 'subcontractor', label: '外注費', icon: '🏢', value: modalData.subCostTotal },
+          { key: 'lease', label: 'リース', icon: '🏗️', value: Number(modalData.leaseCost || 0) + Number(modalData.otherLeaseCost || 0) },
+          { key: 'ownMachine', label: '自社重機', icon: '🚜', value: modalData.ownMachineCost },
+          { key: 'vehicle', label: '車両', icon: '🚚', value: modalData.vehicleCost },
+          { key: 'disposal', label: '処分費', icon: '🗑️', value: modalData.disposalCost },
+          { key: 'fuel', label: '燃料', icon: '⛽', value: Number(modalData.fuelCost || 0) + Number(modalData.regularCost || 0) },
+          { key: 'road', label: 'ETC・駐車場', icon: '🛣️', value: Number(modalData.etcCost || 0) + Number(modalData.parkingCost || 0) },
+          { key: 'other', label: 'その他', icon: '📦', value: Number(modalData.otherCost || 0) + Number(modalData.customExtraExpenseTotal || 0) }
         ];
+
+        const aggregateNameCounts = (field: string) => {
+          const map: { [key: string]: number } = {};
+          (modalData.reportsWithIndex || []).forEach((r: any) => {
+            (Array.isArray(r?.[field]) ? r[field] : []).forEach((name: string) => {
+              if (!name) return;
+              map[name] = (map[name] || 0) + 1;
+            });
+          });
+          return Object.entries(map)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a: any, b: any) => b.count - a.count || a.name.localeCompare(b.name, 'ja'));
+        };
+
+        const ownMachineDetails = aggregateNameCounts('ownMachines');
+        const vehicleDetails = aggregateNameCounts('vehicles');
+
+        const leaseDetails = getLeaseDetailEntries(modalLocation);
+        const leaseSimpleDetails = [
+          ...(leaseDetails.ishikawa || []).map((x: any) => ({ ...x, group: '石川県リース' })),
+          ...(leaseDetails.mok || []).map((x: any) => ({ ...x, group: '南大阪建機' }))
+        ];
+
+        const roadDetails = (modalData.reportsWithIndex || [])
+          .map((r: any) => ({
+            date: r.date || '',
+            etc: Number(r.etcPrice || 0),
+            parking: Number(r.parkingPrice || 0)
+          }))
+          .filter((x: any) => x.etc !== 0 || x.parking !== 0);
+
+        const otherDailyDetails = (modalData.reportsWithIndex || [])
+          .map((r: any) => ({
+            date: r.date || '',
+            label: r.otherItem || 'その他',
+            amount: Number(r.otherPrice || 0)
+          }))
+          .filter((x: any) => x.amount !== 0);
+
+        const renderExpenseDetails = (key: string) => {
+          if (key === 'labor') {
+            const rows = Array.isArray(modalData.workerAttendance) ? modalData.workerAttendance : [];
+            return rows.length > 0 ? (
+              <div className="space-y-2">
+                {rows.map((row: any) => (
+                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <span className="text-[13px] text-slate-700">{row.name}</span>
+                    <span className="text-[13px] font-medium text-slate-950">{row.days}日</span>
+                  </div>
+                ))}
+                <div className="text-[11px] text-slate-400">
+                  ※ 個人ごとの単価は表示していません。
+                </div>
+              </div>
+            ) : <div className="text-[12px] text-slate-400">人件費の明細はありません。</div>;
+          }
+
+          if (key === 'subcontractor') {
+            const rows = Array.isArray(modalData.subcontractorBreakdown) ? modalData.subcontractorBreakdown : [];
+            const custom = Array.isArray(customSubcontractors[modalLocation]) ? customSubcontractors[modalLocation] : [];
+            return (rows.length > 0 || custom.length > 0) ? (
+              <div className="space-y-2">
+                {rows.map((row: any) => (
+                  <div key={row.key} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-slate-800 break-words">{row.company}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5 break-words">{row.task}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.confirmedTotal)}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">延べ {row.count}人</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {custom.map((row: any, idx: number) => (
+                  <div key={`custom_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[13px] font-medium text-slate-800">{row.company}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{row.task || '一括請負'}</div>
+                      </div>
+                      <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.price)}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="text-[11px] text-slate-400">※ 外注単価は表示していません。</div>
+              </div>
+            ) : <div className="text-[12px] text-slate-400">外注費の明細はありません。</div>;
+          }
+
+          if (key === 'lease') {
+            return leaseSimpleDetails.length > 0 ? (
+              <div className="space-y-2">
+                {leaseSimpleDetails.map((row: any) => (
+                  <div key={`${row.group}_${row.key}`} className="flex items-start justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="text-[13px] text-slate-800 break-words">{row.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{row.group}</div>
+                    </div>
+                    <span className="text-[12px] font-medium text-slate-950 shrink-0">{row.count}回</span>
+                  </div>
+                ))}
+                <div className="text-[11px] text-slate-400">※ リース単価は表示していません。</div>
+              </div>
+            ) : <div className="text-[12px] text-slate-400">リースの明細はありません。</div>;
+          }
+
+          if (key === 'ownMachine' || key === 'vehicle') {
+            const rows = key === 'ownMachine' ? ownMachineDetails : vehicleDetails;
+            const unit = key === 'ownMachine' ? '台日' : '台日';
+            return rows.length > 0 ? (
+              <div className="space-y-2">
+                {rows.map((row: any) => (
+                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <span className="text-[13px] text-slate-800 break-words">{row.name}</span>
+                    <span className="text-[13px] font-medium text-slate-950 shrink-0">{row.count}{unit}</span>
+                  </div>
+                ))}
+                <div className="text-[11px] text-slate-400">※ 単価は表示していません。</div>
+              </div>
+            ) : <div className="text-[12px] text-slate-400">明細はありません。</div>;
+          }
+
+          if (key === 'disposal') {
+            const sites = Object.entries(modalData.aggregatedDisposalBreakdown || {});
+            return sites.length > 0 ? (
+              <div className="space-y-3">
+                {sites.map(([siteName, siteData]: any) => (
+                  <div key={siteName} className="rounded-xl bg-white border border-slate-200 overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-slate-50">
+                      <span className="text-[13px] font-medium text-slate-800 break-words">{siteName}</span>
+                      <span className="text-[13px] font-medium text-slate-950 shrink-0">{wholeYen(siteData.total)}</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {Object.entries(siteData.items || {}).map(([itemName, itemData]: any) => (
+                        <div key={itemName} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <div className="text-[12px] text-slate-700 break-words">{itemName}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">{itemData.quantity} {itemData.unit}</div>
+                          </div>
+                          <div className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(itemData.total)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-[12px] text-slate-400">処分費の明細はありません。</div>;
+          }
+
+          if (key === 'fuel') {
+            const rows = Object.entries(modalData.monthlyFuelBreakdown || {});
+            return rows.length > 0 ? (
+              <div className="space-y-2">
+                {rows.map(([ym, row]: any) => (
+                  <div key={ym} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[13px] text-slate-800">{ym}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{Number(row.liters || 0).toLocaleString('ja-JP')} L</div>
+                      </div>
+                      <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.total)}</div>
+                    </div>
+                  </div>
+                ))}
+                {Number(modalData.regularCost || 0) !== 0 && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <span className="text-[13px] text-slate-700">レギュラー等</span>
+                    <span className="text-[13px] font-medium text-slate-950">{wholeYen(modalData.regularCost)}</span>
+                  </div>
+                )}
+                <div className="text-[11px] text-slate-400">※ 燃料単価は表示していません。</div>
+              </div>
+            ) : <div className="text-[12px] text-slate-400">燃料費の明細はありません。</div>;
+          }
+
+          if (key === 'road') {
+            return roadDetails.length > 0 ? (
+              <div className="space-y-2">
+                {roadDetails.map((row: any, idx: number) => (
+                  <div key={`${row.date}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="text-[11px] text-slate-400">{row.date || '日付不明'}</div>
+                    <div className="mt-1 space-y-1">
+                      {row.etc !== 0 && (
+                        <div className="flex justify-between gap-3 text-[12px]">
+                          <span className="text-slate-600">ETC</span>
+                          <span className="font-medium text-slate-950">{wholeYen(row.etc)}</span>
+                        </div>
+                      )}
+                      {row.parking !== 0 && (
+                        <div className="flex justify-between gap-3 text-[12px]">
+                          <span className="text-slate-600">駐車場</span>
+                          <span className="font-medium text-slate-950">{wholeYen(row.parking)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-[12px] text-slate-400">ETC・駐車場の明細はありません。</div>;
+          }
+
+          if (key === 'other') {
+            const customRows = Array.isArray(modalData.customExtraExpenseList) ? modalData.customExtraExpenseList : [];
+            return (otherDailyDetails.length > 0 || customRows.length > 0) ? (
+              <div className="space-y-2">
+                {otherDailyDetails.map((row: any, idx: number) => (
+                  <div key={`${row.date}_${row.label}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="text-[10px] text-slate-400">{row.date || '日付不明'}</div>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <span className="text-[12px] text-slate-700 break-words">{row.label}</span>
+                      <span className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+                {customRows.map((row: any) => (
+                  <div key={row.id} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                    <div className="text-[10px] text-slate-400">管理側追加経費</div>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <span className="text-[12px] text-slate-700 break-words">{row.label || 'その他経費'}</span>
+                      <span className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-[12px] text-slate-400">その他経費の明細はありません。</div>;
+          }
+
+          return null;
+        };
 
         return (
           <div
             className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-sm overflow-y-auto p-2"
-            onClick={() => setModalLocation(null)}
+            onClick={() => { setModalLocation(null); setViewerExpenseDetailKey(null); }}
           >
             <div
               className="mx-auto w-full max-w-xl min-h-[calc(100vh-16px)] bg-slate-50 rounded-[26px] overflow-hidden shadow-2xl"
@@ -5956,19 +6190,47 @@ export default function AdminPage() {
                   </div>
 
                   <div className="divide-y divide-slate-100">
-                    {expenseRows.map((row: any) => (
-                      <div key={row.label} className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-                          {row.icon}
+                    {expenseRows.map((row: any) => {
+                      const isOpen = viewerExpenseDetailKey === row.key;
+
+                      return (
+                        <div key={row.key}>
+                          <button
+                            type="button"
+                            onClick={() => setViewerExpenseDetailKey(isOpen ? null : row.key)}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-slate-50"
+                          >
+                            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-[17px]">
+                              {row.icon}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[13px] text-slate-700">{row.label}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                タップして詳細を見る
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <div className="text-[14px] font-medium text-slate-950">
+                                {wholeYen(row.value)}
+                              </div>
+                              <div className={`mt-0.5 text-[13px] text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+                                ›
+                              </div>
+                            </div>
+                          </button>
+
+                          {isOpen && (
+                            <div className="px-4 pb-4">
+                              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
+                                {renderExpenseDetails(row.key)}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="min-w-0 flex-1 text-[13px] text-slate-600">
-                          {row.label}
-                        </div>
-                        <div className="shrink-0 text-[14px] font-medium text-slate-950 text-right">
-                          {wholeYen(row.value)}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center justify-between gap-3 px-4 py-4 bg-slate-900 text-white">
