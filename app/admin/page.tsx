@@ -270,6 +270,8 @@ export default function AdminPage() {
   const [calendarReportModal, setCalendarReportModal] = useState<{ date: string; location: string; reports: any[] } | null>(null);
 
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => getCurrentYearMonth());
+  // 社長モード専用UX：スマホで「何を確認したいか」から入る
+  const [viewerSection, setViewerSection] = useState<'home' | 'sites' | 'costs' | 'reports' | 'attendance'>('home');
 
   // 社長モード専用・簡易工程表（試験版）
   // ※ この試験版はSupabaseへ保存しません。画面を再読み込みするとリセットされます。
@@ -565,6 +567,7 @@ export default function AdminPage() {
       setIsAuthed(true);
       setAuthRole(role);
       setShowAdminSection(false);
+      if (role === 'viewer') setViewerSection('home');
     } else {
       alert('パスワードが間違っています。');
     }
@@ -2565,8 +2568,314 @@ export default function AdminPage() {
         </div>
       )}
 
+      {authRole === 'viewer' && (() => {
+        const activeSummary = activeLocList.map((loc: any) => {
+          const c = calculateCosts(loc.name);
+          const spentRate = c.contractPrice > 0 ? Math.min(999, Math.round((c.total / c.contractPrice) * 100)) : 0;
+          const remaining = c.contractPrice - c.total;
+          return { loc, c, spentRate, remaining };
+        });
+
+        const totalContract = activeSummary.reduce((sum: number, x: any) => sum + Number(x.c.contractPrice || 0), 0);
+        const totalCost = activeSummary.reduce((sum: number, x: any) => sum + Number(x.c.total || 0), 0);
+        const totalProfit = activeSummary.reduce((sum: number, x: any) => sum + Number(x.c.profit || 0), 0);
+        const totalRemaining = totalContract - totalCost;
+
+        return (
+          <div className="space-y-4 md:space-y-6">
+            {/* 社長ホーム */}
+            <div className="bg-gradient-to-br from-slate-950 to-slate-800 text-white rounded-[28px] p-5 md:p-8 shadow-lg overflow-hidden relative">
+              <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs md:text-sm font-black text-orange-300">👑 社長モード</div>
+                    <h2 className="text-2xl md:text-3xl font-black mt-1">現在の会社状況</h2>
+                    <p className="text-sm md:text-base text-slate-300 font-bold mt-1">
+                      見たい内容をタップしてください
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchData}
+                    className="shrink-0 rounded-2xl bg-white/10 hover:bg-white/15 px-4 py-3 text-sm font-black"
+                  >
+                    🔄 更新
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 mt-5">
+                  <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+                    <div className="text-xs font-bold text-slate-300">稼働中の現場</div>
+                    <div className="text-3xl font-black mt-1">{activeLocList.length}<span className="text-base ml-1">件</span></div>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+                    <div className="text-xs font-bold text-slate-300">現在の経費合計</div>
+                    <div className="text-xl md:text-2xl font-black mt-1">{formatAmount(totalCost)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 border border-white/10 p-4">
+                    <div className="text-xs font-bold text-slate-300">請負金額合計</div>
+                    <div className="text-xl md:text-2xl font-black mt-1">{formatAmount(totalContract)}</div>
+                  </div>
+                  <div className={`rounded-2xl border p-4 ${totalRemaining >= 0 ? 'bg-emerald-500/15 border-emerald-400/20' : 'bg-rose-500/15 border-rose-400/20'}`}>
+                    <div className={`text-xs font-bold ${totalRemaining >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>残りの金額</div>
+                    <div className={`text-xl md:text-2xl font-black mt-1 ${totalRemaining >= 0 ? 'text-emerald-100' : 'text-rose-100'}`}>
+                      {formatAmount(totalRemaining)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 目的から選ぶ */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setViewerSection(viewerSection === 'sites' ? 'home' : 'sites')}
+                className={`text-left rounded-[24px] p-4 md:p-5 border-2 shadow-sm transition ${
+                  viewerSection === 'sites'
+                    ? 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-blue-100 text-slate-900'
+                }`}
+              >
+                <div className="text-3xl">🏢</div>
+                <div className="text-lg md:text-xl font-black mt-2">現場の状況</div>
+                <div className={`text-xs md:text-sm font-bold mt-1 ${viewerSection === 'sites' ? 'text-blue-100' : 'text-slate-500'}`}>
+                  稼働中・完了・利益を見る
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewerSection(viewerSection === 'costs' ? 'home' : 'costs')}
+                className={`text-left rounded-[24px] p-4 md:p-5 border-2 shadow-sm transition ${
+                  viewerSection === 'costs'
+                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : 'bg-white border-emerald-100 text-slate-900'
+                }`}
+              >
+                <div className="text-3xl">💰</div>
+                <div className="text-lg md:text-xl font-black mt-2">経費の流れ</div>
+                <div className={`text-xs md:text-sm font-bold mt-1 ${viewerSection === 'costs' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  使った額・残額を見る
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewerSection(viewerSection === 'reports' ? 'home' : 'reports')}
+                className={`text-left rounded-[22px] p-4 border-2 shadow-sm transition ${
+                  viewerSection === 'reports'
+                    ? 'bg-violet-600 border-violet-600 text-white'
+                    : 'bg-white border-violet-100 text-slate-900'
+                }`}
+              >
+                <div className="text-2xl">📋</div>
+                <div className="text-base md:text-lg font-black mt-1.5">日報を見る</div>
+                <div className={`text-xs font-bold mt-1 ${viewerSection === 'reports' ? 'text-violet-100' : 'text-slate-500'}`}>
+                  今日・過去の日報
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const firstActive = (settings.locations || []).find((loc: any) =>
+                    typeof loc === 'string' ? true : !loc?.isFinished
+                  );
+                  const firstName = typeof firstActive === 'string' ? firstActive : firstActive?.name;
+                  if (!trialScheduleLocation && firstName) setTrialScheduleLocation(firstName);
+                  setShowTrialSchedule(true);
+                }}
+                className="text-left rounded-[22px] p-4 border-2 border-indigo-100 bg-white text-slate-900 shadow-sm transition"
+              >
+                <div className="text-2xl">📅</div>
+                <div className="text-base md:text-lg font-black mt-1.5">工程表</div>
+                <div className="text-xs font-bold text-slate-500 mt-1">今後の予定を確認</div>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setViewerSection(viewerSection === 'attendance' ? 'home' : 'attendance')}
+              className={`w-full rounded-2xl border px-4 py-3 text-left flex items-center justify-between gap-3 shadow-sm ${
+                viewerSection === 'attendance'
+                  ? 'bg-slate-900 border-slate-900 text-white'
+                  : 'bg-white border-slate-200 text-slate-700'
+              }`}
+            >
+              <div>
+                <div className="text-sm font-black">👷 出勤状況を確認</div>
+                <div className={`text-xs font-bold mt-0.5 ${viewerSection === 'attendance' ? 'text-slate-300' : 'text-slate-400'}`}>
+                  誰が・どの現場に入っていたか
+                </div>
+              </div>
+              <span className="text-xl">›</span>
+            </button>
+
+            {/* ホーム：重要な現場だけコンパクト表示 */}
+            {viewerSection === 'home' && (
+              <div className="bg-white rounded-[26px] border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">🏗️ 現在の現場</h3>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5">経費の使用率をひと目で確認</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewerSection('sites')}
+                    className="text-sm font-black text-blue-600"
+                  >
+                    すべて見る →
+                  </button>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {activeSummary.slice(0, 4).map(({ loc, c, spentRate, remaining }: any) => (
+                    <button
+                      key={loc.name}
+                      type="button"
+                      onClick={() => setModalLocation(loc.name)}
+                      className="w-full text-left px-5 py-4 active:bg-slate-50"
+                    >
+                      <div className="font-black text-[15px] leading-snug text-slate-900 break-words">{loc.name}</div>
+                      <div className="flex items-center justify-between gap-3 mt-3">
+                        <div className="text-xs font-bold text-slate-500">
+                          経費使用率 <span className={`font-black ${spentRate >= 90 ? 'text-rose-600' : spentRate >= 75 ? 'text-amber-600' : 'text-emerald-600'}`}>{spentRate}%</span>
+                        </div>
+                        <div className={`text-sm font-black ${remaining >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          残り {formatAmount(remaining)}
+                        </div>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden mt-2">
+                        <div
+                          className={`h-full rounded-full ${spentRate >= 90 ? 'bg-rose-500' : spentRate >= 75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.min(100, spentRate)}%` }}
+                        />
+                      </div>
+                    </button>
+                  ))}
+                  {activeSummary.length === 0 && (
+                    <div className="px-5 py-8 text-center text-slate-400 font-bold">稼働中の現場はありません</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 経費の流れ：現場別に大きく・単純に */}
+            {viewerSection === 'costs' && (
+              <div className="space-y-3">
+                <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm">
+                  <div className="text-sm font-black text-slate-500">稼働中現場合計</div>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[10px] font-bold text-slate-500">請負</div>
+                      <div className="text-sm md:text-lg font-black mt-1">{formatAmount(totalContract)}</div>
+                    </div>
+                    <div className="rounded-2xl bg-orange-50 p-3">
+                      <div className="text-[10px] font-bold text-orange-600">使用済</div>
+                      <div className="text-sm md:text-lg font-black text-orange-700 mt-1">{formatAmount(totalCost)}</div>
+                    </div>
+                    <div className={`rounded-2xl p-3 ${totalRemaining >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                      <div className={`text-[10px] font-bold ${totalRemaining >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>残り</div>
+                      <div className={`text-sm md:text-lg font-black mt-1 ${totalRemaining >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatAmount(totalRemaining)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {activeSummary.map(({ loc, c, spentRate, remaining }: any) => {
+                  const otherCosts =
+                    Number(c.ownMachineCost || 0) +
+                    Number(c.vehicleCost || 0) +
+                    Number(c.fuelCost || 0) +
+                    Number(c.regularCost || 0) +
+                    Number(c.etcCost || 0) +
+                    Number(c.parkingCost || 0) +
+                    Number(c.otherCost || 0) +
+                    Number(c.customExtraExpenseTotal || 0);
+
+                  return (
+                    <div key={loc.name} className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setModalLocation(loc.name)}
+                        className="w-full text-left p-5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="font-black text-base leading-snug text-slate-900 break-words flex-1">{loc.name}</div>
+                          <div className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${
+                            spentRate >= 90 ? 'bg-rose-100 text-rose-700' :
+                            spentRate >= 75 ? 'bg-amber-100 text-amber-700' :
+                            'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {spentRate}%使用
+                          </div>
+                        </div>
+
+                        <div className="h-3 rounded-full bg-slate-100 overflow-hidden mt-4">
+                          <div
+                            className={`h-full rounded-full ${
+                              spentRate >= 90 ? 'bg-rose-500' :
+                              spentRate >= 75 ? 'bg-amber-500' :
+                              'bg-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(100, spentRate)}%` }}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 mt-4">
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-400">請負</div>
+                            <div className="text-sm font-black text-slate-800 mt-0.5">{formatAmount(c.contractPrice)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-400">経費</div>
+                            <div className="text-sm font-black text-orange-700 mt-0.5">{formatAmount(c.total)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold text-slate-400">残り</div>
+                            <div className={`text-sm font-black mt-0.5 ${remaining >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatAmount(remaining)}</div>
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-slate-100 px-5 py-4">
+                        <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm">
+                          <div className="flex justify-between gap-2"><span className="font-bold text-slate-500">人件費</span><span className="font-black">{formatAmount(c.laborCost)}</span></div>
+                          <div className="flex justify-between gap-2"><span className="font-bold text-slate-500">外注費</span><span className="font-black">{formatAmount(c.subCostTotal)}</span></div>
+                          <div className="flex justify-between gap-2"><span className="font-bold text-slate-500">リース</span><span className="font-black">{formatAmount(c.leaseCost + c.otherLeaseCost)}</span></div>
+                          <div className="flex justify-between gap-2"><span className="font-bold text-slate-500">処分費</span><span className="font-black">{formatAmount(c.disposalCost)}</span></div>
+                          <div className="flex justify-between gap-2 col-span-2"><span className="font-bold text-slate-500">車両・重機・燃料・その他</span><span className="font-black">{formatAmount(otherCosts)}</span></div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setModalLocation(loc.name)}
+                          className="w-full mt-4 rounded-xl bg-slate-900 text-white py-3 font-black text-sm"
+                        >
+                          詳細を見る →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {viewerSection !== 'home' && (
+              <button
+                type="button"
+                onClick={() => setViewerSection('home')}
+                className="w-full rounded-2xl bg-white border border-slate-200 py-3.5 font-black text-slate-600 shadow-sm"
+              >
+                ← 社長ホームへ戻る
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* 稼働中の現場サマリー */}
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5">
+      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5`}>
         <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 稼働中の現場 一覧</h2>
 
         <div className="block md:hidden space-y-4">
@@ -2701,7 +3010,7 @@ export default function AdminPage() {
       </div>
 
       {/* 完了済の現場 一覧 */}
-      <div className="bg-slate-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5">
+      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-slate-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5`}>
         <h2 className="text-xl md:text-2xl font-bold text-slate-700">📁 完了済の現場 一覧</h2>
 
         <div className="block md:hidden space-y-4">
@@ -2836,7 +3145,7 @@ export default function AdminPage() {
       </div>
 
       {/* 出勤確認表 */}
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4">
+      <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4`}>
         <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-slate-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
@@ -3152,7 +3461,7 @@ export default function AdminPage() {
       )}
 
       {/* 送信された日報一覧（カレンダー＆現場別リスト） */}
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
+      <div className={`${authRole === 'viewer' && viewerSection !== 'reports' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6`}>
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
           <input 
