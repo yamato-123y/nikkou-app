@@ -2593,11 +2593,11 @@ export default function AdminPage() {
               <div className="px-4 pt-4 pb-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-medium text-orange-600">👑 社長モード</div>
-                    <h2 className="mt-1 text-[24px] leading-tight font-semibold text-slate-950">
+                    <div className="text-[14px] font-medium text-orange-700">👑 社長モード</div>
+                    <h2 className="mt-1 text-[28px] leading-tight font-semibold text-slate-950">
                       現在の会社状況
                     </h2>
-                    <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
+                    <p className="mt-1 text-[15px] leading-relaxed text-slate-600">
                       確認したい内容を選んでください
                     </p>
                   </div>
@@ -2605,7 +2605,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={fetchData}
-                    className="shrink-0 rounded-xl bg-slate-100 px-3 py-2.5 text-[13px] font-medium text-slate-700 active:bg-slate-200"
+                    className="shrink-0 rounded-xl bg-slate-100 px-4 py-3 text-[17px] font-medium text-slate-800 active:bg-slate-200"
                   >
                     🔄 更新
                   </button>
@@ -2614,25 +2614,25 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-2 px-4 pb-4">
                 <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                  <div className="text-[11px] leading-tight text-slate-500">稼働中の現場</div>
+                  <div className="text-[15px] leading-tight text-slate-600">稼働中の現場</div>
                   <div className="mt-1 flex items-end gap-1">
-                    <span className="text-[28px] leading-none font-semibold text-slate-950">
+                    <span className="text-[32px] leading-none font-semibold text-slate-950">
                       {activeLocList.length}
                     </span>
-                    <span className="text-[12px] text-slate-500">件</span>
+                    <span className="text-[14px] text-slate-600">件</span>
                   </div>
                 </div>
 
                 <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                  <div className="text-[11px] leading-tight text-slate-500">現在の経費合計</div>
-                  <div className="mt-1 text-[18px] leading-snug font-semibold text-slate-950 break-words">
+                  <div className="text-[15px] leading-tight text-slate-600">現在の経費合計</div>
+                  <div className="mt-1 text-[22px] leading-snug font-semibold text-slate-950 break-words">
                     {formatWholeYen(totalCost)}
                   </div>
                 </div>
 
                 <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                  <div className="text-[11px] leading-tight text-slate-500">請負金額合計</div>
-                  <div className="mt-1 text-[18px] leading-snug font-semibold text-slate-950 break-words">
+                  <div className="text-[15px] leading-tight text-slate-600">請負金額合計</div>
+                  <div className="mt-1 text-[22px] leading-snug font-semibold text-slate-950 break-words">
                     {formatWholeYen(totalContract)}
                   </div>
                 </div>
@@ -2647,7 +2647,7 @@ export default function AdminPage() {
                   }`}>
                     残りの金額
                   </div>
-                  <div className={`mt-1 text-[18px] leading-snug font-semibold break-words ${
+                  <div className={`mt-1 text-[22px] leading-snug font-semibold break-words ${
                     totalRemaining >= 0 ? 'text-emerald-800' : 'text-rose-800'
                   }`}>
                     {formatWholeYen(totalRemaining)}
@@ -2666,9 +2666,9 @@ export default function AdminPage() {
                     : 'bg-white border-blue-100 text-slate-900'
                 }`}
               >
-                <div className="text-[28px] leading-none">🏢</div>
-                <div className="mt-3 text-[17px] leading-tight font-semibold">現場の状況</div>
-                <div className={`mt-1.5 text-[12px] leading-relaxed ${
+                <div className="text-[32px] leading-none">🏢</div>
+                <div className="mt-3 text-[19px] leading-tight font-semibold">現場の状況</div>
+                <div className={`mt-1.5 text-[14px] leading-relaxed ${
                   viewerSection === 'sites' ? 'text-blue-100' : 'text-slate-500'
                 }`}>
                   稼働中・完了・利益を確認
@@ -2684,9 +2684,9 @@ export default function AdminPage() {
                     : 'bg-white border-emerald-100 text-slate-900'
                 }`}
               >
-                <div className="text-[28px] leading-none">💰</div>
-                <div className="mt-3 text-[17px] leading-tight font-semibold">経費の流れ</div>
-                <div className={`mt-1.5 text-[12px] leading-relaxed ${
+                <div className="text-[32px] leading-none">💰</div>
+                <div className="mt-3 text-[19px] leading-tight font-semibold">経費の流れ</div>
+                <div className={`mt-1.5 text-[14px] leading-relaxed ${
                   viewerSection === 'costs' ? 'text-emerald-100' : 'text-slate-500'
                 }`}>
                   使用額・残額を確認
@@ -2702,9 +2702,9 @@ export default function AdminPage() {
                     : 'bg-white border-violet-100 text-slate-900'
                 }`}
               >
-                <div className="text-[28px] leading-none">📋</div>
-                <div className="mt-3 text-[17px] leading-tight font-semibold">日報を見る</div>
-                <div className={`mt-1.5 text-[12px] leading-relaxed ${
+                <div className="text-[32px] leading-none">📋</div>
+                <div className="mt-3 text-[19px] leading-tight font-semibold">日報を見る</div>
+                <div className={`mt-1.5 text-[14px] leading-relaxed ${
                   viewerSection === 'reports' ? 'text-violet-100' : 'text-slate-500'
                 }`}>
                   今日・過去の日報
@@ -2725,8 +2725,8 @@ export default function AdminPage() {
               <div className="flex items-center gap-3">
                 <div className="text-[24px]">👷</div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-medium">出勤状況を確認</div>
-                  <div className={`mt-0.5 text-[11px] leading-relaxed ${
+                  <div className="text-[17px] font-medium">出勤状況を確認</div>
+                  <div className={`mt-0.5 text-[15px] leading-relaxed ${
                     viewerSection === 'attendance' ? 'text-slate-300' : 'text-slate-400'
                   }`}>
                     誰が、どの現場に入っていたか
@@ -2741,8 +2741,8 @@ export default function AdminPage() {
                 <div className="px-4 py-4 border-b border-slate-100">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="text-[18px] font-semibold text-slate-900">🏗️ 現在の現場</h3>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+                      <h3 className="text-[21px] font-semibold text-slate-900">🏗️ 現在の現場</h3>
+                      <p className="mt-0.5 text-[15px] leading-relaxed text-slate-400">
                         経費の使用状況を一覧で確認
                       </p>
                     </div>
@@ -2750,7 +2750,7 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => setViewerSection('sites')}
-                      className="shrink-0 text-[12px] font-medium text-blue-600"
+                      className="shrink-0 text-[14px] font-medium text-blue-700"
                     >
                       すべて見る →
                     </button>
@@ -2765,12 +2765,12 @@ export default function AdminPage() {
                       onClick={() => setModalLocation(loc.name)}
                       className="w-full px-4 py-4 text-left active:bg-slate-50"
                     >
-                      <div className="text-[14px] leading-relaxed font-medium text-slate-900 break-words">
+                      <div className="text-[16px] leading-relaxed font-medium text-slate-950 break-words">
                         {loc.name}
                       </div>
 
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[15px] text-slate-600">
                           経費使用率
                           <span className={`ml-1 font-semibold ${
                             spentRate >= 90 ? 'text-rose-600'
@@ -2781,7 +2781,7 @@ export default function AdminPage() {
                           </span>
                         </div>
 
-                        <div className={`text-[13px] font-semibold text-right ${
+                        <div className={`text-[15px] font-semibold text-right ${
                           remaining >= 0 ? 'text-emerald-700' : 'text-rose-700'
                         }`}>
                           残り {formatWholeYen(remaining)}
@@ -2802,7 +2802,7 @@ export default function AdminPage() {
                   ))}
 
                   {activeSummary.length === 0 && (
-                    <div className="px-4 py-8 text-center text-[13px] text-slate-400">
+                    <div className="px-4 py-8 text-center text-[15px] text-slate-400">
                       稼働中の現場はありません
                     </div>
                   )}
@@ -2835,7 +2835,7 @@ export default function AdminPage() {
                       >
                         <div className="flex items-start gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[14px] leading-relaxed font-medium text-slate-900 break-words">
+                            <div className="text-[16px] leading-relaxed font-medium text-slate-950 break-words">
                               {loc.name}
                             </div>
                           </div>
@@ -2860,7 +2860,7 @@ export default function AdminPage() {
                           />
                         </div>
 
-                        <div className="mt-4 space-y-2 text-[13px]">
+                        <div className="mt-4 space-y-2 text-[15px]">
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-500">請負金額</span>
                             <span className="font-medium text-slate-900 text-right">{formatWholeYen(c.contractPrice)}</span>
@@ -2881,7 +2881,7 @@ export default function AdminPage() {
                       </button>
 
                       <div className="border-t border-slate-100 px-4 py-3.5">
-                        <div className="space-y-2.5 text-[12px]">
+                        <div className="space-y-2.5 text-[14px]">
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-500">人件費</span>
                             <span className="font-medium text-right">{formatWholeYen(c.laborCost)}</span>
@@ -2907,7 +2907,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={() => setModalLocation(loc.name)}
-                          className="mt-4 w-full rounded-xl bg-slate-900 py-3 text-[13px] font-medium text-white"
+                          className="mt-4 w-full rounded-xl bg-slate-900 py-3 text-[15px] font-medium text-white"
                         >
                           詳細を見る
                         </button>
@@ -2922,7 +2922,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => setViewerSection('home')}
-                className="w-full rounded-2xl bg-white border border-slate-200 py-3.5 text-[13px] font-medium text-slate-600 shadow-sm"
+                className="w-full rounded-2xl bg-white border border-slate-200 py-3.5 text-[15px] font-medium text-slate-600 shadow-sm"
               >
                 ← 社長ホームへ戻る
               </button>
@@ -5839,16 +5839,16 @@ export default function AdminPage() {
             return rows.length > 0 ? (
               <div className="space-y-2">
                 {rows.map((row: any) => (
-                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <span className="text-[13px] text-slate-700">{row.name}</span>
-                    <span className="text-[13px] font-medium text-slate-950">{row.days}日</span>
+                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <span className="text-[16px] text-slate-700">{row.name}</span>
+                    <span className="text-[16px] font-medium text-slate-950">{row.days}日</span>
                   </div>
                 ))}
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[14px] text-slate-500">
                   ※ 個人ごとの単価は表示していません。
                 </div>
               </div>
-            ) : <div className="text-[12px] text-slate-400">人件費の明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">人件費の明細はありません。</div>;
           }
 
           if (key === 'subcontractor') {
@@ -5857,50 +5857,50 @@ export default function AdminPage() {
             return (rows.length > 0 || custom.length > 0) ? (
               <div className="space-y-2">
                 {rows.map((row: any) => (
-                  <div key={row.key} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                  <div key={row.key} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-[13px] font-medium text-slate-800 break-words">{row.company}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 break-words">{row.task}</div>
+                        <div className="text-[16px] font-medium text-slate-800 break-words">{row.company}</div>
+                        <div className="text-[14px] text-slate-500 mt-0.5 break-words">{row.task}</div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.confirmedTotal)}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">延べ {row.count}人</div>
+                        <div className="text-[16px] font-medium text-slate-950">{wholeYen(row.confirmedTotal)}</div>
+                        <div className="text-[13px] text-slate-500 mt-0.5">延べ {row.count}人</div>
                       </div>
                     </div>
                   </div>
                 ))}
                 {custom.map((row: any, idx: number) => (
-                  <div key={`custom_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                  <div key={`custom_${idx}`} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-[13px] font-medium text-slate-800">{row.company}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{row.task || '一括請負'}</div>
+                        <div className="text-[16px] font-medium text-slate-800">{row.company}</div>
+                        <div className="text-[14px] text-slate-500 mt-0.5">{row.task || '一括請負'}</div>
                       </div>
-                      <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.price)}</div>
+                      <div className="text-[16px] font-medium text-slate-950">{wholeYen(row.price)}</div>
                     </div>
                   </div>
                 ))}
-                <div className="text-[11px] text-slate-400">※ 外注単価は表示していません。</div>
+                <div className="text-[14px] text-slate-500">※ 外注単価は表示していません。</div>
               </div>
-            ) : <div className="text-[12px] text-slate-400">外注費の明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">外注費の明細はありません。</div>;
           }
 
           if (key === 'lease') {
             return leaseSimpleDetails.length > 0 ? (
               <div className="space-y-2">
                 {leaseSimpleDetails.map((row: any) => (
-                  <div key={`${row.group}_${row.key}`} className="flex items-start justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                  <div key={`${row.group}_${row.key}`} className="flex items-start justify-between gap-3 rounded-xl bg-white border border-slate-200 px-4 py-3.5">
                     <div className="min-w-0">
-                      <div className="text-[13px] text-slate-800 break-words">{row.label}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{row.group}</div>
+                      <div className="text-[16px] text-slate-800 break-words">{row.label}</div>
+                      <div className="text-[13px] text-slate-500 mt-0.5">{row.group}</div>
                     </div>
-                    <span className="text-[12px] font-medium text-slate-950 shrink-0">{row.count}回</span>
+                    <span className="text-[15px] font-medium text-slate-950 shrink-0">{row.count}回</span>
                   </div>
                 ))}
-                <div className="text-[11px] text-slate-400">※ リース単価は表示していません。</div>
+                <div className="text-[14px] text-slate-500">※ リース単価は表示していません。</div>
               </div>
-            ) : <div className="text-[12px] text-slate-400">リースの明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">リースの明細はありません。</div>;
           }
 
           if (key === 'ownMachine' || key === 'vehicle') {
@@ -5909,14 +5909,14 @@ export default function AdminPage() {
             return rows.length > 0 ? (
               <div className="space-y-2">
                 {rows.map((row: any) => (
-                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <span className="text-[13px] text-slate-800 break-words">{row.name}</span>
-                    <span className="text-[13px] font-medium text-slate-950 shrink-0">{row.count}{unit}</span>
+                  <div key={row.name} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <span className="text-[16px] text-slate-800 break-words">{row.name}</span>
+                    <span className="text-[16px] font-medium text-slate-950 shrink-0">{row.count}{unit}</span>
                   </div>
                 ))}
-                <div className="text-[11px] text-slate-400">※ 単価は表示していません。</div>
+                <div className="text-[14px] text-slate-500">※ 単価は表示していません。</div>
               </div>
-            ) : <div className="text-[12px] text-slate-400">明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">明細はありません。</div>;
           }
 
           if (key === 'disposal') {
@@ -5946,24 +5946,24 @@ export default function AdminPage() {
 
                   return (
                     <div key={siteName} className="rounded-xl bg-white border border-slate-200 overflow-hidden">
-                      <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-slate-50">
-                        <span className="text-[13px] font-medium text-slate-800 break-words">{siteName}</span>
-                        <span className="text-[13px] font-medium text-slate-950 shrink-0">
+                      <div className="flex items-center justify-between gap-3 px-4 py-3.5 bg-slate-50">
+                        <span className="text-[16px] font-medium text-slate-800 break-words">{siteName}</span>
+                        <span className="text-[16px] font-medium text-slate-950 shrink-0">
                           {wholeYen(siteData.confirmedTotal)}
                         </span>
                       </div>
 
                       <div className="divide-y divide-slate-100">
                         {Object.entries(itemSummary).map(([itemName, itemData]: any) => (
-                          <div key={itemName} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <div key={itemName} className="flex items-center justify-between gap-3 px-4 py-3.5">
                             <div className="min-w-0">
-                              <div className="text-[12px] text-slate-700 break-words">{itemName}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5">
+                              <div className="text-[15px] text-slate-700 break-words">{itemName}</div>
+                              <div className="text-[13px] text-slate-500 mt-0.5">
                                 {Number(itemData.quantity || 0).toLocaleString('ja-JP')} {itemData.unit}
                               </div>
                             </div>
 
-                            <div className="text-[12px] font-medium text-slate-950 shrink-0">
+                            <div className="text-[15px] font-medium text-slate-950 shrink-0">
                               {wholeYen(itemData.confirmedTotal)}
                             </div>
                           </div>
@@ -5974,7 +5974,7 @@ export default function AdminPage() {
                 })}
               </div>
             ) : (
-              <div className="text-[12px] text-slate-400">処分費の明細はありません。</div>
+              <div className="text-[15px] text-slate-500">処分費の明細はありません。</div>
             );
           }
 
@@ -5983,42 +5983,42 @@ export default function AdminPage() {
             return rows.length > 0 ? (
               <div className="space-y-2">
                 {rows.map(([ym, row]: any) => (
-                  <div key={ym} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
+                  <div key={ym} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-[13px] text-slate-800">{ym}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{Number(row.liters || 0).toLocaleString('ja-JP')} L</div>
+                        <div className="text-[16px] text-slate-800">{ym}</div>
+                        <div className="text-[13px] text-slate-500 mt-0.5">{Number(row.liters || 0).toLocaleString('ja-JP')} L</div>
                       </div>
-                      <div className="text-[13px] font-medium text-slate-950">{wholeYen(row.total)}</div>
+                      <div className="text-[16px] font-medium text-slate-950">{wholeYen(row.total)}</div>
                     </div>
                   </div>
                 ))}
                 {Number(modalData.regularCost || 0) !== 0 && (
-                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <span className="text-[13px] text-slate-700">レギュラー等</span>
-                    <span className="text-[13px] font-medium text-slate-950">{wholeYen(modalData.regularCost)}</span>
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <span className="text-[16px] text-slate-700">レギュラー等</span>
+                    <span className="text-[16px] font-medium text-slate-950">{wholeYen(modalData.regularCost)}</span>
                   </div>
                 )}
-                <div className="text-[11px] text-slate-400">※ 燃料単価は表示していません。</div>
+                <div className="text-[14px] text-slate-500">※ 燃料単価は表示していません。</div>
               </div>
-            ) : <div className="text-[12px] text-slate-400">燃料費の明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">燃料費の明細はありません。</div>;
           }
 
           if (key === 'road') {
             return roadDetails.length > 0 ? (
               <div className="space-y-2">
                 {roadDetails.map((row: any, idx: number) => (
-                  <div key={`${row.date}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <div className="text-[11px] text-slate-400">{row.date || '日付不明'}</div>
+                  <div key={`${row.date}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <div className="text-[14px] text-slate-500">{row.date || '日付不明'}</div>
                     <div className="mt-1 space-y-1">
                       {row.etc !== 0 && (
-                        <div className="flex justify-between gap-3 text-[12px]">
+                        <div className="flex justify-between gap-3 text-[15px]">
                           <span className="text-slate-600">ETC</span>
                           <span className="font-medium text-slate-950">{wholeYen(row.etc)}</span>
                         </div>
                       )}
                       {row.parking !== 0 && (
-                        <div className="flex justify-between gap-3 text-[12px]">
+                        <div className="flex justify-between gap-3 text-[15px]">
                           <span className="text-slate-600">駐車場</span>
                           <span className="font-medium text-slate-950">{wholeYen(row.parking)}</span>
                         </div>
@@ -6027,7 +6027,7 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-            ) : <div className="text-[12px] text-slate-400">ETC・駐車場の明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">ETC・駐車場の明細はありません。</div>;
           }
 
           if (key === 'other') {
@@ -6035,25 +6035,25 @@ export default function AdminPage() {
             return (otherDailyDetails.length > 0 || customRows.length > 0) ? (
               <div className="space-y-2">
                 {otherDailyDetails.map((row: any, idx: number) => (
-                  <div key={`${row.date}_${row.label}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <div className="text-[10px] text-slate-400">{row.date || '日付不明'}</div>
+                  <div key={`${row.date}_${row.label}_${idx}`} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <div className="text-[13px] text-slate-500">{row.date || '日付不明'}</div>
                     <div className="mt-1 flex items-center justify-between gap-3">
-                      <span className="text-[12px] text-slate-700 break-words">{row.label}</span>
-                      <span className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
+                      <span className="text-[15px] text-slate-700 break-words">{row.label}</span>
+                      <span className="text-[15px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
                     </div>
                   </div>
                 ))}
                 {customRows.map((row: any) => (
-                  <div key={row.id} className="rounded-xl bg-white border border-slate-200 px-3 py-2.5">
-                    <div className="text-[10px] text-slate-400">管理側追加経費</div>
+                  <div key={row.id} className="rounded-xl bg-white border border-slate-200 px-4 py-3.5">
+                    <div className="text-[13px] text-slate-500">管理側追加経費</div>
                     <div className="mt-1 flex items-center justify-between gap-3">
-                      <span className="text-[12px] text-slate-700 break-words">{row.label || 'その他経費'}</span>
-                      <span className="text-[12px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
+                      <span className="text-[15px] text-slate-700 break-words">{row.label || 'その他経費'}</span>
+                      <span className="text-[15px] font-medium text-slate-950 shrink-0">{wholeYen(row.amount)}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            ) : <div className="text-[12px] text-slate-400">その他経費の明細はありません。</div>;
+            ) : <div className="text-[15px] text-slate-500">その他経費の明細はありません。</div>;
           }
 
           return null;
@@ -6069,19 +6069,19 @@ export default function AdminPage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* ヘッダー */}
-              <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3">
+              <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3.5">
                 <div className="flex items-start gap-3">
                   <button
                     type="button"
                     onClick={() => setModalLocation(null)}
-                    className="shrink-0 w-10 h-10 rounded-xl bg-slate-100 text-slate-600 text-lg"
+                    className="shrink-0 w-12 h-12 rounded-xl bg-slate-100 text-slate-600 text-lg"
                   >
                     ←
                   </button>
 
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium text-orange-600">現場の詳細</div>
-                    <h2 className="mt-0.5 text-[18px] leading-relaxed font-semibold text-slate-950 break-words">
+                    <div className="text-[17px] font-medium text-orange-700">現場の詳細</div>
+                    <h2 className="mt-0.5 text-[22px] leading-relaxed font-semibold text-slate-950 break-words">
                       {modalLocation}
                     </h2>
                   </div>
@@ -6089,7 +6089,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setModalLocation(null)}
-                    className="shrink-0 w-10 h-10 rounded-full bg-slate-100 text-slate-500"
+                    className="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500"
                   >
                     ✕
                   </button>
@@ -6099,9 +6099,9 @@ export default function AdminPage() {
               <div className="p-3 space-y-3">
                 {/* 現場の基本情報 */}
                 <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm p-4">
-                  <h3 className="text-[15px] font-semibold text-slate-900">現場の状況</h3>
+                  <h3 className="text-[22px] font-semibold text-slate-950">現場の状況</h3>
 
-                  <div className="mt-3 space-y-2.5 text-[13px]">
+                  <div className="mt-3 space-y-2.5 text-[16px]">
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-slate-500 shrink-0">請負先</span>
                       <span className="text-right text-slate-900 break-words">
@@ -6126,13 +6126,13 @@ export default function AdminPage() {
                   <div className="px-4 pt-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-[15px] font-semibold text-slate-900">現在の収支</h3>
-                        <p className="mt-0.5 text-[11px] text-slate-400">
+                        <h3 className="text-[22px] font-semibold text-slate-950">現在の収支</h3>
+                        <p className="mt-0.5 text-[14px] text-slate-500">
                           請負金額に対して、現在どこまで経費を使っているか
                         </p>
                       </div>
 
-                      <div className={`rounded-full px-3 py-1.5 text-[12px] font-medium ${
+                      <div className={`rounded-full px-3 py-1.5 text-[15px] font-medium ${
                         usedRate >= 90
                           ? 'bg-rose-100 text-rose-700'
                           : usedRate >= 75
@@ -6159,15 +6159,15 @@ export default function AdminPage() {
 
                   <div className="grid grid-cols-1 gap-2 p-4">
                     <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                      <div className="text-[11px] text-slate-500">請負金額</div>
-                      <div className="mt-1 text-[22px] font-semibold text-slate-950 break-words">
+                      <div className="text-[14px] text-slate-500">請負金額</div>
+                      <div className="mt-1 text-[26px] font-semibold text-slate-950 break-words">
                         {wholeYen(modalData.contractPrice)}
                       </div>
                     </div>
 
                     <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3.5">
-                      <div className="text-[11px] text-orange-700">現在までに使った経費</div>
-                      <div className="mt-1 text-[22px] font-semibold text-orange-800 break-words">
+                      <div className="text-[14px] text-orange-700">現在までに使った経費</div>
+                      <div className="mt-1 text-[26px] font-semibold text-orange-800 break-words">
                         {wholeYen(modalData.total)}
                       </div>
                     </div>
@@ -6177,12 +6177,12 @@ export default function AdminPage() {
                         ? 'bg-emerald-50 border-emerald-200'
                         : 'bg-rose-50 border-rose-200'
                     }`}>
-                      <div className={`text-[11px] ${
+                      <div className={`text-[14px] ${
                         remainingBeforeScrap >= 0 ? 'text-emerald-700' : 'text-rose-700'
                       }`}>
                         請負金額から残っている金額
                       </div>
-                      <div className={`mt-1 text-[22px] font-semibold break-words ${
+                      <div className={`mt-1 text-[26px] font-semibold break-words ${
                         remainingBeforeScrap >= 0 ? 'text-emerald-800' : 'text-rose-800'
                       }`}>
                         {wholeYen(remainingBeforeScrap)}
@@ -6194,14 +6194,14 @@ export default function AdminPage() {
                     <div className="mx-4 mb-4 rounded-2xl bg-blue-50 border border-blue-200 p-3.5">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-[11px] text-blue-700">スクラップ売却</div>
-                          <div className="mt-1 text-[18px] font-semibold text-blue-800">
+                          <div className="text-[14px] text-blue-700">スクラップ売却</div>
+                          <div className="mt-1 text-[22px] font-semibold text-blue-800">
                             ＋ {wholeYen(modalData.scrapTotal)}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[11px] text-slate-500">売却益を含む利益</div>
-                          <div className={`mt-1 text-[18px] font-semibold ${
+                          <div className="text-[14px] text-slate-500">売却益を含む利益</div>
+                          <div className={`mt-1 text-[22px] font-semibold ${
                             Number(modalData.profit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'
                           }`}>
                             {wholeYen(modalData.profit)}
@@ -6214,9 +6214,9 @@ export default function AdminPage() {
 
                 {/* 経費内訳 */}
                 <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3.5 border-b border-slate-100">
-                    <h3 className="text-[15px] font-semibold text-slate-900">経費の内訳</h3>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
+                  <div className="px-4 py-4 border-b border-slate-100">
+                    <h3 className="text-[22px] font-semibold text-slate-950">経費の内訳</h3>
+                    <p className="mt-0.5 text-[14px] text-slate-500">
                       単価は表示せず、現在の合計金額だけ表示しています
                     </p>
                   </div>
@@ -6230,24 +6230,24 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() => setViewerExpenseDetailKey(isOpen ? null : row.key)}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-slate-50"
+                            className="w-full flex items-center gap-3 px-4 py-4.5 text-left active:bg-slate-100 min-h-[78px]"
                           >
-                            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 text-[17px]">
+                            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 text-[17px]">
                               {row.icon}
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="text-[13px] text-slate-700">{row.label}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5">
+                              <div className="text-[16px] text-slate-700">{row.label}</div>
+                              <div className="text-[13px] text-slate-500 mt-0.5">
                                 タップして詳細を見る
                               </div>
                             </div>
 
                             <div className="shrink-0 text-right">
-                              <div className="text-[14px] font-medium text-slate-950">
+                              <div className="text-[17px] font-medium text-slate-950">
                                 {wholeYen(row.value)}
                               </div>
-                              <div className={`mt-0.5 text-[13px] text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+                              <div className={`mt-0.5 text-[16px] text-slate-500 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
                                 ›
                               </div>
                             </div>
@@ -6266,7 +6266,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="flex items-center justify-between gap-3 px-4 py-4 bg-slate-900 text-white">
-                    <span className="text-[13px]">経費合計</span>
+                    <span className="text-[16px]">経費合計</span>
                     <span className="text-[19px] font-semibold">
                       {wholeYen(modalData.total)}
                     </span>
@@ -6281,8 +6281,8 @@ export default function AdminPage() {
                     className="rounded-2xl bg-white border border-slate-200 p-4 text-left shadow-sm"
                   >
                     <div className="text-[24px]">🗑️</div>
-                    <div className="mt-2 text-[14px] font-medium text-slate-900">処分費を見る</div>
-                    <div className="mt-1 text-[11px] text-slate-400">
+                    <div className="mt-2 text-[17px] font-medium text-slate-900">処分費を見る</div>
+                    <div className="mt-1 text-[14px] text-slate-500">
                       {wholeYen(modalData.disposalCost)}
                     </div>
                   </button>
@@ -6293,8 +6293,8 @@ export default function AdminPage() {
                     className="rounded-2xl bg-white border border-slate-200 p-4 text-left shadow-sm"
                   >
                     <div className="text-[24px]">♻️</div>
-                    <div className="mt-2 text-[14px] font-medium text-slate-900">スクラップを見る</div>
-                    <div className="mt-1 text-[11px] text-slate-400">
+                    <div className="mt-2 text-[17px] font-medium text-slate-900">スクラップを見る</div>
+                    <div className="mt-1 text-[14px] text-slate-500">
                       {wholeYen(modalData.scrapTotal)}
                     </div>
                   </button>
@@ -6303,9 +6303,9 @@ export default function AdminPage() {
                 {/* 写真 */}
                 <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-[15px] font-semibold text-slate-900">📷 現場写真</h3>
+                    <h3 className="text-[22px] font-semibold text-slate-950">📷 現場写真</h3>
                     {sitePhotoLoading && (
-                      <span className="text-[11px] text-slate-400">読み込み中…</span>
+                      <span className="text-[14px] text-slate-500">読み込み中…</span>
                     )}
                   </div>
 
@@ -6315,12 +6315,12 @@ export default function AdminPage() {
                       { label: '完了', photos: sitePhotos.after }
                     ].map((group: any) => (
                       <div key={group.label}>
-                        <div className="text-[11px] text-slate-500 mb-2">
+                        <div className="text-[14px] text-slate-500 mb-2">
                           {group.label}（{group.photos.length}/3）
                         </div>
 
                         {group.photos.length === 0 ? (
-                          <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[11px] text-slate-300">
+                          <div className="aspect-[4/3] rounded-xl bg-slate-100 border border-dashed border-slate-200 flex items-center justify-center text-[14px] text-slate-400">
                             写真なし
                           </div>
                         ) : (
@@ -6350,7 +6350,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setModalLocation(null)}
-                  className="w-full rounded-2xl bg-slate-900 text-white py-4 text-[14px] font-medium"
+                  className="w-full rounded-2xl bg-slate-900 text-white py-4 text-[17px] font-medium"
                 >
                   閉じる
                 </button>
