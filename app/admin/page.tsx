@@ -2658,7 +2658,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => setViewerSection(viewerSection === 'sites' ? 'home' : 'sites')}
-                className={`min-w-0 rounded-[22px] border p-4 text-left shadow-sm transition active:scale-[0.99] ${
+                className={`col-span-2 min-w-0 rounded-[22px] border p-4 text-left shadow-sm transition active:scale-[0.99] ${
                   viewerSection === 'sites'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-blue-100 text-slate-900'
@@ -2709,24 +2709,6 @@ export default function AdminPage() {
                 </div>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const firstActive = (settings.locations || []).find((loc: any) =>
-                    typeof loc === 'string' ? true : !loc?.isFinished
-                  );
-                  const firstName = typeof firstActive === 'string' ? firstActive : firstActive?.name;
-                  if (!trialScheduleLocation && firstName) setTrialScheduleLocation(firstName);
-                  setShowTrialSchedule(true);
-                }}
-                className="min-w-0 rounded-[22px] border border-indigo-100 bg-white p-4 text-left text-slate-900 shadow-sm transition active:scale-[0.99]"
-              >
-                <div className="text-[28px] leading-none">📅</div>
-                <div className="mt-3 text-[17px] leading-tight font-semibold">工程表</div>
-                <div className="mt-1.5 text-[12px] leading-relaxed text-slate-500">
-                  今後の予定を確認
-                </div>
-              </button>
             </section>
 
             <button
@@ -2828,43 +2810,6 @@ export default function AdminPage() {
 
             {viewerSection === 'costs' && (
               <section className="space-y-3">
-                <div className="rounded-[24px] bg-white border border-slate-200 shadow-sm p-4">
-                  <div className="text-[14px] font-medium text-slate-700">稼働中現場の合計</div>
-
-                  <div className="mt-3 grid grid-cols-1 gap-2">
-                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                      <div className="text-[11px] text-slate-500">請負金額</div>
-                      <div className="mt-1 text-[20px] font-semibold text-slate-950 break-words">
-                        {formatWholeYen(totalContract)}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3.5">
-                      <div className="text-[11px] text-orange-700">現在までの経費</div>
-                      <div className="mt-1 text-[20px] font-semibold text-orange-800 break-words">
-                        {formatWholeYen(totalCost)}
-                      </div>
-                    </div>
-
-                    <div className={`rounded-2xl border p-3.5 ${
-                      totalRemaining >= 0
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-rose-50 border-rose-200'
-                    }`}>
-                      <div className={`text-[11px] ${
-                        totalRemaining >= 0 ? 'text-emerald-700' : 'text-rose-700'
-                      }`}>
-                        残りの金額
-                      </div>
-                      <div className={`mt-1 text-[20px] font-semibold break-words ${
-                        totalRemaining >= 0 ? 'text-emerald-800' : 'text-rose-800'
-                      }`}>
-                        {formatWholeYen(totalRemaining)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {activeSummary.map(({ loc, c, spentRate, remaining }: any) => {
                   const otherCosts =
                     Number(c.ownMachineCost || 0) +
@@ -5825,8 +5770,304 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 現場詳細モーダル */}
-      {modalLocation && modalData && (
+
+      {/* 社長モード専用：スマホで見やすい現場詳細 */}
+      {modalLocation && modalData && authRole === 'viewer' && (() => {
+        const remainingBeforeScrap = Number(modalData.contractPrice || 0) - Number(modalData.total || 0);
+        const usedRate = Number(modalData.contractPrice || 0) > 0
+          ? Math.round((Number(modalData.total || 0) / Number(modalData.contractPrice || 0)) * 100)
+          : 0;
+
+        const wholeYen = (value: number) =>
+          `¥${Math.round(Number(value || 0)).toLocaleString('ja-JP')}`;
+
+        const expenseRows = [
+          { label: '人件費', icon: '👷', value: modalData.laborCost },
+          { label: '外注費', icon: '🏢', value: modalData.subCostTotal },
+          { label: 'リース', icon: '🏗️', value: Number(modalData.leaseCost || 0) + Number(modalData.otherLeaseCost || 0) },
+          { label: '自社重機', icon: '🚜', value: modalData.ownMachineCost },
+          { label: '車両', icon: '🚚', value: modalData.vehicleCost },
+          { label: '処分費', icon: '🗑️', value: modalData.disposalCost },
+          { label: '燃料', icon: '⛽', value: Number(modalData.fuelCost || 0) + Number(modalData.regularCost || 0) },
+          { label: 'ETC・駐車場', icon: '🛣️', value: Number(modalData.etcCost || 0) + Number(modalData.parkingCost || 0) },
+          { label: 'その他', icon: '📦', value: Number(modalData.otherCost || 0) + Number(modalData.customExtraExpenseTotal || 0) }
+        ];
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-sm overflow-y-auto p-2"
+            onClick={() => setModalLocation(null)}
+          >
+            <div
+              className="mx-auto w-full max-w-xl min-h-[calc(100vh-16px)] bg-slate-50 rounded-[26px] overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ヘッダー */}
+              <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModalLocation(null)}
+                    className="shrink-0 w-10 h-10 rounded-xl bg-slate-100 text-slate-600 text-lg"
+                  >
+                    ←
+                  </button>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-medium text-orange-600">現場の詳細</div>
+                    <h2 className="mt-0.5 text-[18px] leading-relaxed font-semibold text-slate-950 break-words">
+                      {modalLocation}
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setModalLocation(null)}
+                    className="shrink-0 w-10 h-10 rounded-full bg-slate-100 text-slate-500"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 space-y-3">
+                {/* 現場の基本情報 */}
+                <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm p-4">
+                  <h3 className="text-[15px] font-semibold text-slate-900">現場の状況</h3>
+
+                  <div className="mt-3 space-y-2.5 text-[13px]">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-slate-500 shrink-0">請負先</span>
+                      <span className="text-right text-slate-900 break-words">
+                        {modalData.clientStr || '未登録'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-slate-500">開始日</span>
+                      <span className="text-slate-900">{modalData.startDateStr || '未登録'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-slate-500">稼働日数</span>
+                      <span className="text-slate-900">{modalData.days}日</span>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 一番大事な収支 */}
+                <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-4 pt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-[15px] font-semibold text-slate-900">現在の収支</h3>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          請負金額に対して、現在どこまで経費を使っているか
+                        </p>
+                      </div>
+
+                      <div className={`rounded-full px-3 py-1.5 text-[12px] font-medium ${
+                        usedRate >= 90
+                          ? 'bg-rose-100 text-rose-700'
+                          : usedRate >= 75
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {usedRate}% 使用
+                      </div>
+                    </div>
+
+                    <div className="mt-4 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          usedRate >= 90
+                            ? 'bg-rose-500'
+                            : usedRate >= 75
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, usedRate))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 p-4">
+                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+                      <div className="text-[11px] text-slate-500">請負金額</div>
+                      <div className="mt-1 text-[22px] font-semibold text-slate-950 break-words">
+                        {wholeYen(modalData.contractPrice)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3.5">
+                      <div className="text-[11px] text-orange-700">現在までに使った経費</div>
+                      <div className="mt-1 text-[22px] font-semibold text-orange-800 break-words">
+                        {wholeYen(modalData.total)}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-2xl border p-3.5 ${
+                      remainingBeforeScrap >= 0
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-rose-50 border-rose-200'
+                    }`}>
+                      <div className={`text-[11px] ${
+                        remainingBeforeScrap >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                      }`}>
+                        請負金額から残っている金額
+                      </div>
+                      <div className={`mt-1 text-[22px] font-semibold break-words ${
+                        remainingBeforeScrap >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                      }`}>
+                        {wholeYen(remainingBeforeScrap)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {Number(modalData.scrapTotal || 0) !== 0 && (
+                    <div className="mx-4 mb-4 rounded-2xl bg-blue-50 border border-blue-200 p-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] text-blue-700">スクラップ売却</div>
+                          <div className="mt-1 text-[18px] font-semibold text-blue-800">
+                            ＋ {wholeYen(modalData.scrapTotal)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[11px] text-slate-500">売却益を含む利益</div>
+                          <div className={`mt-1 text-[18px] font-semibold ${
+                            Number(modalData.profit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                          }`}>
+                            {wholeYen(modalData.profit)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* 経費内訳 */}
+                <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3.5 border-b border-slate-100">
+                    <h3 className="text-[15px] font-semibold text-slate-900">経費の内訳</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      単価は表示せず、現在の合計金額だけ表示しています
+                    </p>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {expenseRows.map((row: any) => (
+                      <div key={row.label} className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
+                          {row.icon}
+                        </div>
+                        <div className="min-w-0 flex-1 text-[13px] text-slate-600">
+                          {row.label}
+                        </div>
+                        <div className="shrink-0 text-[14px] font-medium text-slate-950 text-right">
+                          {wholeYen(row.value)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 px-4 py-4 bg-slate-900 text-white">
+                    <span className="text-[13px]">経費合計</span>
+                    <span className="text-[19px] font-semibold">
+                      {wholeYen(modalData.total)}
+                    </span>
+                  </div>
+                </section>
+
+                {/* 必要な詳細だけ */}
+                <section className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDisposalModal(true)}
+                    className="rounded-2xl bg-white border border-slate-200 p-4 text-left shadow-sm"
+                  >
+                    <div className="text-[24px]">🗑️</div>
+                    <div className="mt-2 text-[14px] font-medium text-slate-900">処分費を見る</div>
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      {wholeYen(modalData.disposalCost)}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowScrapModal(true)}
+                    className="rounded-2xl bg-white border border-slate-200 p-4 text-left shadow-sm"
+                  >
+                    <div className="text-[24px]">♻️</div>
+                    <div className="mt-2 text-[14px] font-medium text-slate-900">スクラップを見る</div>
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      {wholeYen(modalData.scrapTotal)}
+                    </div>
+                  </button>
+                </section>
+
+                {/* 写真 */}
+                <section className="rounded-[22px] bg-white border border-slate-200 shadow-sm p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-[15px] font-semibold text-slate-900">📷 現場写真</h3>
+                    {sitePhotoLoading && (
+                      <span className="text-[11px] text-slate-400">読み込み中…</span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {[
+                      { label: '着工前', photos: sitePhotos.before },
+                      { label: '完了', photos: sitePhotos.after }
+                    ].map((group: any) => (
+                      <div key={group.label}>
+                        <div className="text-[11px] text-slate-500 mb-2">
+                          {group.label}（{group.photos.length}/3）
+                        </div>
+
+                        {group.photos.length === 0 ? (
+                          <div className="aspect-[4/3] rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-[11px] text-slate-300">
+                            写真なし
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2">
+                            {group.photos.slice(0, 3).map((photo: any) => (
+                              <a
+                                key={photo.path}
+                                href={photo.signedUrl || photo.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={photo.signedUrl || photo.url}
+                                  alt={group.label}
+                                  className="w-full aspect-[4/3] object-cover rounded-xl border border-slate-200"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <button
+                  type="button"
+                  onClick={() => setModalLocation(null)}
+                  className="w-full rounded-2xl bg-slate-900 text-white py-4 text-[14px] font-medium"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 現場詳細モーダル：管理者モード（既存機能・既存UIはそのまま） */}
+      {modalLocation && modalData && authRole === 'admin' && (
         <div
           className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}
           onClick={() => setModalLocation(null)}
