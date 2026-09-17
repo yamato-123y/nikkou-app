@@ -257,6 +257,8 @@ export default function AdminPage() {
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
+  const [subcontractorEstimateOpen, setSubcontractorEstimateOpen] = useState(false);
+  const [deletingCompletedSite, setDeletingCompletedSite] = useState<string | null>(null);
 
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
@@ -586,6 +588,13 @@ export default function AdminPage() {
       return;
     }
     try {
+      // 現場一覧以外のマスタ単価を保存する前に、
+      // まだ固定されていない過去日報へ「その時点の単価」を保存する。
+      // これにより、今回変更する単価は今後の日報だけに適用される。
+      if (key !== 'locations') {
+        await freezeExistingReportsIfNeeded();
+      }
+
       const targetList = customList !== undefined ? customList : settings[key];
       
       const oldList = originalSettings[key] || [];
@@ -765,6 +774,79 @@ export default function AdminPage() {
       });
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const deleteCompletedSite = async (locName: string) => {
+    if (authRole !== 'admin' || deletingCompletedSite) return;
+
+    const finishedLoc = (settings.locations || []).find((l: any) => {
+      const name = typeof l === 'string' ? l : l?.name;
+      const isFinished = typeof l === 'object' ? !!l?.isFinished : false;
+      return name === locName && isFinished;
+    });
+
+    if (!finishedLoc) {
+      alert('完了済みの現場だけ削除できます。');
+      return;
+    }
+
+    const backupOk = confirm(
+      `⚠️ 現場データを完全削除します。\n\n` +
+      `【${locName}】\n\n` +
+      `この現場のExcel出力・Supabaseバックアップは済んでいますか？\n\n` +
+      `削除すると、この現場の日報・現場別原価情報・写真などは元に戻せません。\n` +
+      `社員・外注・車両・重機・処分場などのマスタと、他の現場は削除されません。`
+    );
+
+    if (!backupOk) return;
+
+    const typed = prompt(
+      `最終確認です。\n\n本当に削除する場合は、下の現場名をそのまま入力してください。\n\n${locName}`
+    );
+
+    if (typed !== locName) {
+      alert('現場名が一致しないため、削除を中止しました。');
+      return;
+    }
+
+    try {
+      setDeletingCompletedSite(locName);
+
+      const res = await fetch('/api/admin/delete-completed-site', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: locName,
+          confirmation: typed
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || '現場データの削除に失敗しました。');
+        return;
+      }
+
+      if (modalLocation === locName) {
+        setModalLocation(null);
+      }
+
+      await fetchData();
+
+      alert(
+        `削除しました。\n\n` +
+        `現場：${locName}\n` +
+        `削除した日報：${Number(data?.deletedReports || 0)}件\n` +
+        `削除した写真：${Number(data?.deletedPhotos || 0)}枚\n\n` +
+        `他の現場・マスタ登録情報は変更していません。`
+      );
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。削除結果を確認してから再操作してください。');
+    } finally {
+      setDeletingCompletedSite(null);
     }
   };
 
@@ -1043,6 +1125,9 @@ export default function AdminPage() {
     try {
       setIsFinancialSaving(true);
 
+      // 燃料単価などの金額設定変更でも、過去日報は固定したままにする。
+      await freezeExistingReportsIfNeeded();
+
       // 画面内で編集した金額関連を1回のPOSTにまとめる。
       // 入力のたびにSupabaseへ送らないため、連続書き込みを防ぎます。
       const newData = {
@@ -1231,21 +1316,353 @@ export default function AdminPage() {
     }
   };
 
-  const calculateReportDailyCost = (r: any) => {
+  const buildReportCostSnapshot = (
+    r: any,
+    pricingSettings: any,
+    pricingFuelUnitPrices: any
+  ) => {
+    const workerPrices: any = {};
     let lCost = 0;
     const workers = Array.isArray(r.workers) ? r.workers : [];
-    const workerOvertimeHours = r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
-      ? r.workerOvertimeHours
-      : {};
+    const overtimeMap =
+      r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
+        ? r.workerOvertimeHours
+        : {};
+    const halfDayMap =
+      r.workerHalfDay && typeof r.workerHalfDay === 'object'
+        ? r.workerHalfDay
+        : {};
+
+    workers.forEach((name: string) => {
+      const master = (pricingSettings.workers || []).find((x: any) => x.name === name);
+      const dailyPrice = Number(master?.price || 0);
+      const shiftHours = Number(master?.shiftHours || 8) === 7 ? 7 : 8;
+      const overtimeHours = Math.max(0, Number(overtimeMap[name] || 0));
+      const isHalfDay = !!halfDayMap[name];
+      const baseCost = isHalfDay ? Math.round(dailyPrice / 2) : dailyPrice;
+      const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
+      const total = baseCost + overtimeCost;
+
+      workerPrices[name] = {
+        dailyPrice,
+        shiftHours,
+        isHalfDay,
+        overtimeHours,
+        baseCost,
+        overtimeCost,
+        total
+      };
+      lCost += total;
+    });
+
+    let subCost = 0;
+    const subcontractorPrices: any = {};
+    (Array.isArray(r.subcontractors) ? r.subcontractors : []).forEach((sub: any) => {
+      const company = sub.company || '';
+      const task = sub.task || '';
+      const master = (pricingSettings.subcontractors || []).find(
+        (x: any) => x.company === company && x.task === task
+      );
+      const unitPrice =
+        sub.price !== undefined && sub.price !== null && sub.price !== ''
+          ? Number(sub.price)
+          : Number(master?.price || 0);
+      subcontractorPrices[`${company}__${task}`] = unitPrice;
+      subCost += Number(sub.count || 0) * unitPrice;
+    });
+
+    const masterPriceMaps: any = {
+      leases: {},
+      leaseHeavy: {},
+      leaseAttach: {},
+      leaseOther: {},
+      ishikawaHeavy: {},
+      ishikawaAttach: {},
+      ishikawaOther: {},
+      companyMachines: {},
+      vehicles: {}
+    };
+
+    const getPrice = (key: string, name: string) => {
+      if (masterPriceMaps[key]?.[name] !== undefined) {
+        return Number(masterPriceMaps[key][name] || 0);
+      }
+      const price = Number((pricingSettings[key] || []).find((x: any) => x.name === name)?.price || 0);
+      if (!masterPriceMaps[key]) masterPriceMaps[key] = {};
+      masterPriceMaps[key][name] = price;
+      return price;
+    };
+
+    let leaseC = 0;
+    let ishikawaLeaseDetail = 0;
+    let mokLeaseDetail = 0;
+
+    const machines = Array.isArray(r.machines) ? r.machines : [];
+    const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+    const leaseAttach = Array.isArray(r.leaseAttach) ? r.leaseAttach : [];
+    const leaseOther = Array.isArray(r.leaseOther) ? r.leaseOther : [];
+    const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
+    const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
+    const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+    const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
+    const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
+    const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
+    const legacyMachines = leaseHeavy.length === 0 ? machines : [];
+
+    ishikawaHeavy.forEach((name: string) => {
+      const p = getPrice('ishikawaHeavy', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    ishikawaAttach.forEach((name: string) => {
+      const p = getPrice('ishikawaAttach', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    ishikawaOther.forEach((name: string) => {
+      const p = getPrice('ishikawaOther', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    ishikawaCustomMachines.forEach((item: any) => {
+      const explicit = item.price !== undefined && item.price !== null && item.price !== ''
+        ? Number(item.price)
+        : 0;
+      const cost = explicit * Number(item.count || 0);
+      leaseC += cost;
+      ishikawaLeaseDetail += cost;
+    });
+
+    legacyMachines.forEach((name: string) => {
+      const p = getPrice('leases', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    leaseHeavy.forEach((name: string) => {
+      const p = getPrice('leaseHeavy', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    leaseAttach.forEach((name: string) => {
+      const p = getPrice('leaseAttach', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    leaseOther.forEach((name: string) => {
+      const p = getPrice('leaseOther', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    otherLeases.forEach((item: any) => {
+      const cost = Number(item.price || 0);
+      leaseC += cost;
+      mokLeaseDetail += cost;
+    });
+    mokCustomMachines.forEach((item: any) => {
+      const matched =
+        (pricingSettings.leaseHeavy || []).find((x: any) => x.name === item.name) ||
+        (pricingSettings.leaseAttach || []).find((x: any) => x.name === item.name) ||
+        (pricingSettings.leaseOther || []).find((x: any) => x.name === item.name);
+      const unitPrice =
+        item.price !== undefined && item.price !== null && item.price !== ''
+          ? Number(item.price)
+          : Number(matched?.price || 0);
+      const cost = Number(item.count || 0) * unitPrice;
+      leaseC += cost;
+      mokLeaseDetail += cost;
+    });
+
+    let ownMachineC = 0;
+    (Array.isArray(r.ownMachines) ? r.ownMachines : []).forEach((name: string) => {
+      ownMachineC += getPrice('companyMachines', name);
+    });
+
+    let vehicleC = 0;
+    (Array.isArray(r.vehicles) ? r.vehicles : []).forEach((name: string) => {
+      vehicleC += getPrice('vehicles', name);
+    });
+
+    let dispC = 0;
+    const disposalPrices: any = {};
+    const disposalBreakdown: any = {};
+    (Array.isArray(r.disposals) ? r.disposals : []).forEach((item: any) => {
+      const disposalLocation = item.location || 'その他処分場';
+      const itemName = item.item || '品目未指定';
+      const master = (pricingSettings.disposalLocations || []).find(
+        (x: any) => x.location === disposalLocation && x.item === itemName
+      );
+      const unit = item.unit || master?.unit || 't';
+      const unitPrice =
+        item.price !== undefined && item.price !== null && item.price !== ''
+          ? Number(item.price)
+          : Number(master?.price || 0);
+      const quantity = Number(item.quantity || 0);
+      const total = quantity * unitPrice;
+
+      disposalPrices[`${disposalLocation}__${itemName}`] = {
+        unitPrice,
+        unit
+      };
+      dispC += total;
+
+      if (!disposalBreakdown[disposalLocation]) {
+        disposalBreakdown[disposalLocation] = { items: {}, total: 0 };
+      }
+      disposalBreakdown[disposalLocation].total += total;
+      if (!disposalBreakdown[disposalLocation].items[itemName]) {
+        disposalBreakdown[disposalLocation].items[itemName] = {
+          quantity: 0,
+          price: unitPrice,
+          total: 0,
+          unit,
+          details: []
+        };
+      }
+      disposalBreakdown[disposalLocation].items[itemName].quantity += quantity;
+      disposalBreakdown[disposalLocation].items[itemName].total += total;
+      disposalBreakdown[disposalLocation].items[itemName].details.push({
+        date: r.date || '日付不明',
+        item: itemName,
+        quantity,
+        unit,
+        price: unitPrice,
+        total
+      });
+    });
+
+    let fuelCost = 0;
+    let snapshotFuelUnitPrice: number | null = null;
+    const normalizedDate = String(r.date || '').replace(/\//g, '-');
+    const parts = normalizedDate.split('-');
+    if (parts.length >= 2) {
+      const ym = `${parts[0]}-${String(parts[1]).padStart(2, '0')}`;
+      const fuelLocationKey =
+        r.location && String(r.location).includes('旧河北郡市クリーンセンター')
+          ? '旧河北郡市クリーンセンター等解体工事(石川県)'
+          : r.location;
+      const locationFuelPrices =
+        pricingFuelUnitPrices?.[fuelLocationKey] ||
+        pricingFuelUnitPrices?.[r.location] ||
+        {};
+      const unitPrice = locationFuelPrices?.[ym];
+      if (unitPrice !== '' && unitPrice !== undefined) {
+        snapshotFuelUnitPrice = Number(unitPrice);
+        fuelCost = Number(r.fuel || 0) * snapshotFuelUnitPrice;
+      }
+    }
+
+    const totals = {
+      lCost,
+      subCost,
+      leaseC,
+      otherLeaseC: 0,
+      ishikawaLeaseDetail,
+      mokLeaseDetail,
+      ownMachineC,
+      vehicleC,
+      dispC,
+      fC: fuelCost,
+      rawFuel: Number(r.fuel || 0),
+      regularPrice: Number(r.regularPrice || 0),
+      eC: Number(r.etcPrice || 0),
+      pC: Number(r.parkingPrice || 0),
+      oC: Number(r.otherPrice || 0)
+    };
+
+    return {
+      version: 1,
+      frozenAt: new Date().toISOString(),
+      workerPrices,
+      subcontractorPrices,
+      masterPrices: masterPriceMaps,
+      disposalPrices,
+      fuelUnitPrice: snapshotFuelUnitPrice,
+      disposalBreakdown,
+      totals
+    };
+  };
+
+  const freezeExistingReportsIfNeeded = async () => {
+    const targets = reports.filter((r: any) => !r?.costSnapshot?.totals);
+    if (targets.length === 0) return;
+
+    const oldPricingSettings = originalSettings && Object.keys(originalSettings).length > 0
+      ? originalSettings
+      : settings;
+    const oldFuelPrices =
+      oldPricingSettings?.fuelUnitPrices ||
+      fuelUnitPrices ||
+      {};
+
+    const updatedById = new Map<any, any>();
+
+    for (const report of targets) {
+      const targetId = report.id || report._id || report.reportId;
+      if (!targetId) continue;
+
+      const updated = {
+        ...report,
+        costSnapshot: buildReportCostSnapshot(
+          report,
+          oldPricingSettings,
+          oldFuelPrices
+        ),
+        id: targetId
+      };
+
+      const res = await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+
+      if (!res.ok) {
+        throw new Error('過去日報の金額固定に失敗しました。マスタ単価はまだ変更していません。');
+      }
+
+      updatedById.set(targetId, updated);
+    }
+
+    if (updatedById.size > 0) {
+      setReports((prev: any[]) =>
+        prev.map((r: any) => {
+          const id = r.id || r._id || r.reportId;
+          return updatedById.get(id) || r;
+        })
+      );
+    }
+  };
+
+  const calculateReportDailyCost = (r: any) => {
+    if (r?.costSnapshot?.totals) {
+      const s = r.costSnapshot;
+      return {
+        ...s.totals,
+        disposalBreakdown: s.disposalBreakdown || {},
+        scrapC: 0,
+        scrapBreakdown: {}
+      };
+    }
+    let lCost = 0;
+    const workers = Array.isArray(r.workers) ? r.workers : [];
+    const workerOvertimeHours =
+      r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
+        ? r.workerOvertimeHours
+        : {};
+    const workerHalfDay =
+      r.workerHalfDay && typeof r.workerHalfDay === 'object'
+        ? r.workerHalfDay
+        : {};
 
     workers.forEach((w: string) => {
       const workerMaster = (settings.workers || []).find((x:any) => x.name === w);
       const dailyPrice = Number(workerMaster?.price || 0);
       const shiftHours = Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
       const overtimeHours = Math.max(0, Number(workerOvertimeHours[w] || 0));
+      const baseCost = workerHalfDay[w] ? Math.round(dailyPrice / 2) : dailyPrice;
       const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
 
-      lCost += dailyPrice + overtimeCost;
+      lCost += baseCost + overtimeCost;
     });
 
     let subCost = 0;
@@ -1791,6 +2208,7 @@ export default function AdminPage() {
     // 同じ日報内の重複や同日複数データがあっても、同じ現場・同じ人・同じ日は1日扱い。
     const workerAttendanceDateMap: { [name: string]: Set<string> } = {};
     const workerOvertimeTotalMap: { [name: string]: number } = {};
+    const workerHalfDayCountMap: { [name: string]: number } = {};
 
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -1814,9 +2232,19 @@ export default function AdminPage() {
           r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
             ? r.workerOvertimeHours
             : {};
+        const reportHalfDayMap =
+          r.workerHalfDay && typeof r.workerHalfDay === 'object'
+            ? r.workerHalfDay
+            : {};
+
         workerOvertimeTotalMap[workerName] =
           Number(workerOvertimeTotalMap[workerName] || 0) +
           Math.max(0, Number(reportOvertimeMap[workerName] || 0));
+
+        if (reportHalfDayMap[workerName]) {
+          workerHalfDayCountMap[workerName] =
+            Number(workerHalfDayCountMap[workerName] || 0) + 1;
+        }
       });
 
       calcSub += dc.subCost;
@@ -1954,7 +2382,8 @@ export default function AdminPage() {
       .map(([name, dateSet]) => ({
         name,
         days: dateSet.size,
-        overtimeHours: Number(workerOvertimeTotalMap[name] || 0)
+        overtimeHours: Number(workerOvertimeTotalMap[name] || 0),
+        halfDays: Number(workerHalfDayCountMap[name] || 0)
       }))
       .filter((entry: any) => entry.days > 0)
       .sort((a: any, b: any) => {
@@ -2637,6 +3066,7 @@ export default function AdminPage() {
     const workerRows = (costs.workerAttendance || []).map((x: any) => [
       x.name,
       Number(x.days || 0),
+      Number(x.halfDays || 0),
       Number(x.overtimeHours || 0)
     ]);
 
@@ -2656,13 +3086,13 @@ export default function AdminPage() {
 
     const peopleSheetRows: any[][] = [
       ['【作業員 稼働集計】', '', '', ''],
-      ['作業員名', '稼働日数', '残業時間', ''],
-      ...workerRows.map((x: any[]) => [x[0], x[1], x[2], '']),
+      ['作業員名', '稼働日数', '半日回数', '残業時間'],
+      ...workerRows,
       [
         '合計',
         workerRows.reduce((s: number, x: any[]) => s + Number(x[1] || 0), 0),
         workerRows.reduce((s: number, x: any[]) => s + Number(x[2] || 0), 0),
-        ''
+        workerRows.reduce((s: number, x: any[]) => s + Number(x[3] || 0), 0)
       ],
       ['', '', '', ''],
       ['【外注費 集計】', '', '', ''],
@@ -3777,8 +4207,24 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  <button
+                    onClick={() => setModalLocation(loc.name)}
+                    className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
+                  >
+                    🔍 詳細分析を見る
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCompletedSite(loc.name)}
+                    disabled={deletingCompletedSite === loc.name}
+                    className="w-full bg-white hover:bg-rose-50 text-rose-700 border-2 border-rose-300 py-3 rounded-xl text-sm font-bold shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingCompletedSite === loc.name ? '削除中…' : '🗑 現場データを削除'}
+                  </button>
+                  <div className="text-[11px] leading-relaxed text-rose-600 px-1">
+                    ※この完了現場の日報・現場別情報・写真のみ削除します。マスタや他現場は削除しません。
+                  </div>
                 </div>
               </div>
             );
@@ -3820,7 +4266,17 @@ export default function AdminPage() {
                     <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
                         {authRole !== 'viewer' && (
-                          <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                          <>
+                            <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                            <button
+                              type="button"
+                              onClick={() => deleteCompletedSite(loc.name)}
+                              disabled={deletingCompletedSite === loc.name}
+                              className="bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingCompletedSite === loc.name ? '削除中…' : '🗑 削除'}
+                            </button>
+                          </>
                         )}
                         <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
@@ -7710,19 +8166,36 @@ export default function AdminPage() {
                         </div>
                       ) : item.isSubcontractor ? (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 md:p-4">
-                            <div className="flex items-center justify-between gap-3 mb-3">
-                              <div>
-                                <div className="text-sm md:text-base font-extrabold text-slate-700">概算の内訳</div>
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setSubcontractorEstimateOpen(!subcontractorEstimateOpen)}
+                              className="w-full p-3 md:p-4 flex items-center justify-between gap-3 text-left hover:bg-slate-100 transition"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm md:text-base font-extrabold text-slate-700">
+                                    概算の内訳
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                                    {subcontractorEstimateOpen ? '▲ 閉じる' : '▼ 開く'}
+                                  </span>
+                                </div>
                                 <div className="text-xs md:text-sm text-slate-500 mt-0.5">
                                   日報で使用した外注を、業者ごとに集計しています。
                                 </div>
                               </div>
-                              <div className="text-sm md:text-base font-extrabold text-slate-900">
-                                日報合計 {formatAmount(modalData.reportEstimateSub || 0)}
-                              </div>
-                            </div>
 
+                              <div className="shrink-0 text-right">
+                                <div className="text-xs text-slate-500">日報合計</div>
+                                <div className="text-sm md:text-base font-extrabold text-slate-900">
+                                  {formatAmount(modalData.reportEstimateSub || 0)}
+                                </div>
+                              </div>
+                            </button>
+
+                            {subcontractorEstimateOpen && (
+                              <div className="px-3 pb-3 md:px-4 md:pb-4 pt-1 border-t border-slate-200">
                             {(modalData.subcontractorBreakdown || []).length === 0 ? (
                               <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
                                 日報由来の外注費はありません。
@@ -7811,6 +8284,8 @@ export default function AdminPage() {
                               ※各業者の「反映額」を変更すると、その金額が外注費の原価計算に使われます。
                               下の「請求書の金額」に全体金額を入力した場合は、そちらを最優先します。
                             </div>
+                              </div>
+                            )}
                           </div>
 
                           <div>
@@ -7892,6 +8367,11 @@ export default function AdminPage() {
                                       <span className="font-bold">{worker.name}</span>
                                       <span className="text-slate-400 mx-1">：</span>
                                       <span className="font-extrabold text-slate-900">{worker.days}日</span>
+                                      {Number(worker.halfDays || 0) > 0 && (
+                                        <span className="font-bold text-blue-700 ml-1">
+                                          （半日{Number(worker.halfDays || 0)}回）
+                                        </span>
+                                      )}
                                       {Number(worker.overtimeHours || 0) > 0 && (
                                         <span className="font-extrabold text-orange-700 ml-1">
                                           ＋残業{Number(worker.overtimeHours || 0)}時間
