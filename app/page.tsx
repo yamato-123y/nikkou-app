@@ -17,6 +17,7 @@ export default function Home() {
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
@@ -195,6 +196,39 @@ export default function Home() {
     setter(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
+  const toggleWorkerSelection = (workerName: string) => {
+    if (selectedWorkers.includes(workerName)) {
+      setSelectedWorkers(selectedWorkers.filter((name) => name !== workerName));
+      setWorkerOvertimeHours((prev) => {
+        const next = { ...prev };
+        delete next[workerName];
+        return next;
+      });
+    } else {
+      setSelectedWorkers([...selectedWorkers, workerName]);
+    }
+  };
+
+  const changeWorkerOvertime = (workerName: string, delta: number) => {
+    if (!selectedWorkers.includes(workerName)) {
+      setSelectedWorkers([...selectedWorkers, workerName]);
+    }
+
+    setWorkerOvertimeHours((prev) => {
+      const current = Number(prev[workerName] || 0);
+      const nextValue = Math.max(0, current + delta);
+      const next = { ...prev };
+
+      if (nextValue === 0) {
+        delete next[workerName];
+      } else {
+        next[workerName] = nextValue;
+      }
+
+      return next;
+    });
+  };
+
   // 同じリース品を2台・3台借りる場合に対応。
   // 同じ名称を数量分だけ配列に保持することで既存API・原価計算との互換性を保ちます。
   const getLeaseQuantity = (list: string[], item: string) =>
@@ -331,7 +365,13 @@ export default function Home() {
     locReports.forEach((r: any) => {
       // 人件費
       (Array.isArray(r.workers) ? r.workers : []).forEach((name: string) => {
-        labor += Number((settings.workers || []).find((x: any) => x.name === name)?.price || 0);
+        const workerMaster = (settings.workers || []).find((x: any) => x.name === name);
+        const dailyPrice = Number(workerMaster?.price || 0);
+        const shiftHours = Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
+        const overtimeHours = Math.max(0, Number(r.workerOvertimeHours?.[name] || 0));
+        const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
+
+        labor += dailyPrice + overtimeCost;
       });
 
       // 外注費（あとで業者・作業単位の確定額を反映）
@@ -576,7 +616,11 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        date, location, manager, workers: selectedWorkers, 
+        date, location, manager, workers: selectedWorkers,
+        workerOvertimeHours: Object.fromEntries(
+          Object.entries(workerOvertimeHours)
+            .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
+        ),
         jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
@@ -603,7 +647,8 @@ export default function Home() {
       })
     });
 
-    setSelectedWorkers([]); 
+    setSelectedWorkers([]);
+    setWorkerOvertimeHours({});
     setJobTypesCount({});
     setSubcontractors([]);
     setLeaseHeavy([]);
@@ -790,7 +835,16 @@ export default function Home() {
 
               <div>
                 <span className="font-bold text-slate-500 block text-xs">作業員 ({selectedWorkers.length}名)</span>
-                <span className="font-bold text-slate-800">{selectedWorkers.length > 0 ? selectedWorkers.join(', ') : 'なし'}</span>
+                <span className="font-bold text-slate-800">
+                  {selectedWorkers.length > 0
+                    ? selectedWorkers
+                        .map((name) => {
+                          const overtime = Number(workerOvertimeHours[name] || 0);
+                          return overtime > 0 ? `${name}（残業${overtime}時間）` : name;
+                        })
+                        .join(', ')
+                    : 'なし'}
+                </span>
               </div>
 
               {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && (ishikawaLeaseHeavy.length > 0 || ishikawaLeaseAttach.length > 0 || ishikawaLeaseOther.length > 0 || ishikawaCustomMachines.length > 0)) || selectedOwnMachines.length > 0 || selectedVehicles.length > 0 || otherLeases.length > 0) && (
@@ -1047,11 +1101,80 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600 block">👥 2. 作業員（複数選択可）</span>
              <p className="text-xs md:text-sm font-bold text-slate-500">※職長も現場で作業した場合は、ここでも選択してください。</p>
            </div>
-           <div className="grid grid-cols-2 gap-3 pt-1">
-             {(settings.workers || []).map((w:any) => (
-               <button type="button" key={w.name} onClick={() => toggleSelection(selectedWorkers, w.name, setSelectedWorkers)}
-               className={`p-4 rounded-2xl font-bold border-2 text-lg transition ${selectedWorkers.includes(w.name) ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-900 border-slate-300'}`}>{w.name}</button>
-             ))}
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+             {(settings.workers || []).map((w:any) => {
+               const selected = selectedWorkers.includes(w.name);
+               const overtime = Number(workerOvertimeHours[w.name] || 0);
+               const shiftHours = Number(w.shiftHours || 8) === 7 ? 7 : 8;
+
+               return (
+                 <div
+                   key={w.name}
+                   className={`rounded-2xl border-2 overflow-hidden transition ${
+                     selected
+                       ? 'bg-slate-900 border-slate-900 shadow-md'
+                       : 'bg-slate-50 border-slate-300'
+                   }`}
+                 >
+                   <button
+                     type="button"
+                     onClick={() => toggleWorkerSelection(w.name)}
+                     className={`w-full p-4 text-left transition ${
+                       selected ? 'text-white' : 'text-slate-900'
+                     }`}
+                   >
+                     <div className="font-black text-lg">{w.name}</div>
+                     <div className={`text-xs font-bold mt-1 ${selected ? 'text-slate-300' : 'text-slate-500'}`}>
+                       {shiftHours}時間勤務
+                       {overtime > 0 ? `・残業 ${overtime}時間` : '・残業なし'}
+                     </div>
+                   </button>
+
+                   <div className={`px-3 pb-3 ${selected ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                     <div className={`rounded-xl p-2.5 flex items-center justify-between gap-2 ${
+                       selected ? 'bg-white/10' : 'bg-white border border-slate-200'
+                     }`}>
+                       <span className={`text-sm font-bold ${selected ? 'text-slate-200' : 'text-slate-600'}`}>
+                         残業
+                       </span>
+
+                       <div className="flex items-center gap-2">
+                         <button
+                           type="button"
+                           onClick={() => changeWorkerOvertime(w.name, -1)}
+                           disabled={overtime <= 0}
+                           className={`w-10 h-10 rounded-xl font-black text-xl border-2 transition ${
+                             selected
+                               ? 'bg-white text-slate-900 border-white disabled:opacity-30'
+                               : 'bg-white text-slate-800 border-slate-300 disabled:opacity-30'
+                           }`}
+                         >
+                           −
+                         </button>
+
+                         <div className={`min-w-[78px] text-center text-base font-black ${
+                           selected ? 'text-white' : 'text-slate-900'
+                         }`}>
+                           {overtime}時間
+                         </div>
+
+                         <button
+                           type="button"
+                           onClick={() => changeWorkerOvertime(w.name, 1)}
+                           className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xl border-2 border-orange-500 transition"
+                         >
+                           ＋
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+
+           <div className="rounded-2xl bg-orange-50 border border-orange-200 p-3 text-xs md:text-sm font-bold text-orange-800 leading-relaxed">
+             ＋1 ＝ 残業1時間です。残業代は、管理画面で登録した日額を「8時間勤務」または「7時間勤務」で割った1時間分を原価へ加算します。
            </div>
 
            {(settings.jobTypes || []).length > 0 && (
