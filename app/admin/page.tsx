@@ -257,6 +257,7 @@ export default function AdminPage() {
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
+  const [subcontractorEstimateOpen, setSubcontractorEstimateOpen] = useState(false);
 
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
@@ -7594,19 +7595,36 @@ export default function AdminPage() {
                         </div>
                       ) : item.isSubcontractor ? (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 md:p-4">
-                            <div className="flex items-center justify-between gap-3 mb-3">
-                              <div>
-                                <div className="text-sm md:text-base font-extrabold text-slate-700">概算の内訳</div>
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setSubcontractorEstimateOpen(!subcontractorEstimateOpen)}
+                              className="w-full p-3 md:p-4 flex items-center justify-between gap-3 text-left hover:bg-slate-100 transition"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm md:text-base font-extrabold text-slate-700">
+                                    概算の内訳
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                                    {subcontractorEstimateOpen ? '▲ 閉じる' : '▼ 開く'}
+                                  </span>
+                                </div>
                                 <div className="text-xs md:text-sm text-slate-500 mt-0.5">
                                   日報で使用した外注を、業者ごとに集計しています。
                                 </div>
                               </div>
-                              <div className="text-sm md:text-base font-extrabold text-slate-900">
-                                日報合計 {formatAmount(modalData.reportEstimateSub || 0)}
-                              </div>
-                            </div>
 
+                              <div className="shrink-0 text-right">
+                                <div className="text-xs text-slate-500">日報合計</div>
+                                <div className="text-sm md:text-base font-extrabold text-slate-900">
+                                  {formatAmount(modalData.reportEstimateSub || 0)}
+                                </div>
+                              </div>
+                            </button>
+
+                            {subcontractorEstimateOpen && (
+                              <div className="px-3 pb-3 md:px-4 md:pb-4 pt-1 border-t border-slate-200">
                             {(modalData.subcontractorBreakdown || []).length === 0 ? (
                               <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
                                 日報由来の外注費はありません。
@@ -7695,6 +7713,8 @@ export default function AdminPage() {
                               ※各業者の「反映額」を変更すると、その金額が外注費の原価計算に使われます。
                               下の「請求書の金額」に全体金額を入力した場合は、そちらを最優先します。
                             </div>
+                              </div>
+                            )}
                           </div>
 
                           <div>
