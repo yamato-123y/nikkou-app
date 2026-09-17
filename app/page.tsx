@@ -67,6 +67,7 @@ export default function Home() {
   const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
   const [description, setDescription] = useState('');
+  const [officeMessage, setOfficeMessage] = useState('');
 
 
   // 現場写真（着工前・完了後）
@@ -923,7 +924,9 @@ export default function Home() {
         unokeFuel: isIshikawaActive ? (unokeFuel || '0') : '0',
         unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
         otherItem, otherPrice: otherPrice || '0',
-        disposals, scraps, workDescription: description,
+        disposals, scraps,
+        workDescription: description,
+        officeMessage,
         createdAt: new Date().toISOString()
     };
 
@@ -956,7 +959,7 @@ export default function Home() {
     setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
     setUnokeFuel(''); setUnokeRegular('');
     setOtherItem(''); setOtherPrice('');
-    setDisposals([]); setScraps([]); setDescription('');
+    setDisposals([]); setScraps([]); setDescription(''); setOfficeMessage('');
 
     setShowSuccessModal(true);
   };
@@ -1182,6 +1185,13 @@ export default function Home() {
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">作業内容</span>
                   <p className="font-bold text-slate-800 whitespace-pre-wrap line-clamp-3">{description}</p>
+                </div>
+              )}
+
+              {officeMessage && (
+                <div>
+                  <span className="font-bold text-orange-600 block text-xs">事務所への報告・相談</span>
+                  <p className="font-bold text-slate-800 whitespace-pre-wrap line-clamp-4">{officeMessage}</p>
                 </div>
               )}
             </div>
@@ -2159,7 +2169,31 @@ export default function Home() {
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">📝 7. 本日の作業内容</span>
            </div>
-           <textarea placeholder="作業内容を入力してください" value={description} onChange={e=>setDescription(e.target.value)} className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950 box-border block" />
+
+           <div>
+             <label className="text-base font-bold text-slate-800 block mb-2">本日の作業内容</label>
+             <textarea
+               placeholder="作業内容を入力してください"
+               value={description}
+               onChange={e=>setDescription(e.target.value)}
+               className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 h-40 font-bold text-lg outline-none bg-white text-slate-950 box-border block"
+             />
+           </div>
+
+           <div className="pt-4 border-t border-slate-200">
+             <label className="text-base font-bold text-orange-700 block mb-2">
+               📢 事務所への報告・相談
+             </label>
+             <div className="text-sm text-slate-500 mb-2 leading-relaxed">
+               事務所へ伝えたいことや、相談したいことがあれば入力してください。
+             </div>
+             <textarea
+               placeholder="〇〇について確認してほしい。など"
+               value={officeMessage}
+               onChange={e=>setOfficeMessage(e.target.value)}
+               className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
+             />
+           </div>
         </div>
 
         <button type="submit" className="w-full bg-[#E56312] text-white font-black text-2xl py-5 rounded-3xl shadow-xl hover:bg-orange-700 transition">
