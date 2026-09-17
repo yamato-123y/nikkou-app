@@ -4867,6 +4867,27 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                               </div>
 
+                              <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
+                                (r.officeMessage || r.data?.officeMessage)
+                                  ? 'bg-orange-50 border-orange-300'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}>
+                                <div className={`text-xs md:text-sm mb-1 ${
+                                  (r.officeMessage || r.data?.officeMessage)
+                                    ? 'text-orange-700'
+                                    : 'text-slate-400'
+                                }`}>
+                                  📢 事務所への報告・相談
+                                </div>
+                                <div className={`text-sm md:text-base font-medium ${
+                                  (r.officeMessage || r.data?.officeMessage)
+                                    ? 'text-slate-900'
+                                    : 'text-slate-400'
+                                }`}>
+                                  {(r.officeMessage || r.data?.officeMessage) || 'なし'}
+                                </div>
+                              </div>
+
                               {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
                                 <div className="text-sm text-indigo-800 font-bold">
                                   🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
@@ -4929,9 +4950,12 @@ export default function AdminPage() {
 
                               {r.workDescription && (
                                 <div className="text-sm md:text-base text-slate-700 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                                  <div className="text-xs text-slate-500 mb-1">📝 本日の作業内容</div>
                                   {r.workDescription}
                                 </div>
                               )}
+
+
                             </div>
 
                             {authRole === 'admin' && (
@@ -5015,6 +5039,27 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                               </div>
 
+                              <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
+                                (r.officeMessage || r.data?.officeMessage)
+                                  ? 'bg-orange-50 border-orange-300'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}>
+                                <div className={`text-xs md:text-sm mb-1 ${
+                                  (r.officeMessage || r.data?.officeMessage)
+                                    ? 'text-orange-700'
+                                    : 'text-slate-400'
+                                }`}>
+                                  📢 事務所への報告・相談
+                                </div>
+                                <div className={`text-sm md:text-base font-medium ${
+                                  (r.officeMessage || r.data?.officeMessage)
+                                    ? 'text-slate-900'
+                                    : 'text-slate-400'
+                                }`}>
+                                  {(r.officeMessage || r.data?.officeMessage) || 'なし'}
+                                </div>
+                              </div>
+
                               {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
                                 <div className="text-sm text-indigo-800 font-bold">
                                   🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
@@ -5077,9 +5122,12 @@ export default function AdminPage() {
 
                               {r.workDescription && (
                                 <div className="text-sm md:text-base text-slate-700 font-medium bg-slate-50 p-3 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                                  <div className="text-xs text-slate-500 mb-1">📝 本日の作業内容</div>
                                   {r.workDescription}
                                 </div>
                               )}
+
+
                             </div>
 
                             {authRole === 'admin' && (
@@ -5150,6 +5198,27 @@ export default function AdminPage() {
                         <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
                       </div>
 
+                      <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
+                        (r.officeMessage || r.data?.officeMessage)
+                          ? 'bg-orange-50 border-orange-300'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <div className={`text-xs md:text-sm mb-1 ${
+                          (r.officeMessage || r.data?.officeMessage)
+                            ? 'text-orange-700'
+                            : 'text-slate-400'
+                        }`}>
+                          📢 事務所への報告・相談
+                        </div>
+                        <div className={`text-sm md:text-base font-medium ${
+                          (r.officeMessage || r.data?.officeMessage)
+                            ? 'text-slate-900'
+                            : 'text-slate-400'
+                        }`}>
+                          {(r.officeMessage || r.data?.officeMessage) || 'なし'}
+                        </div>
+                      </div>
+
                       {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
                         <div className="text-sm text-indigo-800 font-bold">
                           🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
@@ -5208,9 +5277,12 @@ export default function AdminPage() {
 
                       {r.workDescription && (
                         <div className="text-sm md:text-base text-slate-700 font-medium bg-white p-3.5 rounded-xl border border-slate-200 whitespace-pre-wrap">
+                          <div className="text-xs text-slate-500 mb-1">📝 本日の作業内容</div>
                           {r.workDescription}
                         </div>
                       )}
+
+
 
                       {authRole === 'admin' && (
                         <div className="flex gap-2 pt-2">
@@ -6940,6 +7012,17 @@ export default function AdminPage() {
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">📝 作業内容メモ</h3>
                 <textarea rows={3} value={editingReport.workDescription || ''} onChange={e=>setEditingReport({...editingReport, workDescription: e.target.value})} className="w-full p-4 border border-slate-300 rounded-2xl text-sm bg-white font-medium shadow-2xs leading-relaxed" placeholder="本日の作業内容や特記事項を入力..." />
+              </div>
+
+              <div className="bg-orange-50/70 p-5 md:p-6 rounded-3xl border border-orange-200 space-y-4">
+                <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wider">📢 事務所への報告・相談</h3>
+                <textarea
+                  rows={3}
+                  value={editingReport.officeMessage || editingReport.data?.officeMessage || ''}
+                  onChange={e=>setEditingReport({...editingReport, officeMessage: e.target.value})}
+                  className="w-full p-4 border border-orange-200 rounded-2xl text-sm bg-white font-medium shadow-2xs leading-relaxed"
+                  placeholder="事務所への報告・相談があれば入力..."
+                />
               </div>
             </div>
 
