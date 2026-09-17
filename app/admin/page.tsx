@@ -1292,8 +1292,70 @@ export default function AdminPage() {
   const handleUpdateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (authRole === 'viewer') return;
+
+    const selectedWorkers = Array.isArray(editingReport.workers) ? editingReport.workers : [];
+    const overtimeMap =
+      editingReport.workerOvertimeHours && typeof editingReport.workerOvertimeHours === 'object'
+        ? editingReport.workerOvertimeHours
+        : {};
+    const halfDayMap =
+      editingReport.workerHalfDay && typeof editingReport.workerHalfDay === 'object'
+        ? editingReport.workerHalfDay
+        : {};
+
+    // 過去日報の単価は変更せず、保存済みの当時単価を使って
+    // 「半日」「残業」だけを再計算する。
+    let nextCostSnapshot = editingReport.costSnapshot;
+
+    if (editingReport?.costSnapshot?.totals) {
+      const oldWorkerPrices = editingReport.costSnapshot.workerPrices || {};
+      const nextWorkerPrices: any = {};
+      let nextLaborCost = 0;
+
+      selectedWorkers.forEach((workerName: string) => {
+        const frozen = oldWorkerPrices[workerName];
+        const currentMaster = (settings.workers || []).find((x: any) => x.name === workerName);
+
+        const dailyPrice =
+          frozen?.dailyPrice !== undefined
+            ? Number(frozen.dailyPrice || 0)
+            : Number(currentMaster?.price || 0);
+
+        const shiftHours =
+          Number(frozen?.shiftHours || currentMaster?.shiftHours || 8) === 7 ? 7 : 8;
+
+        const overtimeHours = Math.max(0, Number(overtimeMap[workerName] || 0));
+        const isHalfDay = !!halfDayMap[workerName];
+        const baseCost = isHalfDay ? Math.round(dailyPrice / 2) : dailyPrice;
+        const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
+        const total = baseCost + overtimeCost;
+
+        nextWorkerPrices[workerName] = {
+          dailyPrice,
+          shiftHours,
+          isHalfDay,
+          overtimeHours,
+          baseCost,
+          overtimeCost,
+          total
+        };
+
+        nextLaborCost += total;
+      });
+
+      nextCostSnapshot = {
+        ...editingReport.costSnapshot,
+        workerPrices: nextWorkerPrices,
+        totals: {
+          ...editingReport.costSnapshot.totals,
+          lCost: nextLaborCost
+        }
+      };
+    }
+
     const payload = {
       ...editingReport,
+      costSnapshot: nextCostSnapshot,
       // 日報入力側で互換用に二重保持しているリース項目も編集内容に同期
       machines: Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [],
       ishikawaLeaseHeavy: Array.isArray(editingReport.ishikawaHeavy) ? editingReport.ishikawaHeavy : [],
@@ -6387,24 +6449,155 @@ export default function AdminPage() {
 
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
                 <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">👥 作業員</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(settings.workers || []).map((w: any) => {
                     const workers = Array.isArray(editingReport.workers) ? editingReport.workers : [];
                     const checked = workers.includes(w.name);
+                    const overtimeMap =
+                      editingReport.workerOvertimeHours && typeof editingReport.workerOvertimeHours === 'object'
+                        ? editingReport.workerOvertimeHours
+                        : {};
+                    const halfDayMap =
+                      editingReport.workerHalfDay && typeof editingReport.workerHalfDay === 'object'
+                        ? editingReport.workerHalfDay
+                        : {};
+                    const overtime = Math.max(0, Number(overtimeMap[w.name] || 0));
+                    const isHalfDay = !!halfDayMap[w.name];
+
                     return (
-                      <label key={w.name} className={`flex items-center gap-2.5 p-3 rounded-2xl border cursor-pointer text-xs md:text-sm font-medium transition shadow-2xs ${checked ? 'bg-orange-50 border-orange-300 text-orange-900 font-bold' : 'bg-white border-slate-200'}`}>
-                        <input 
-                          type="checkbox" 
-                          checked={checked} 
-                          onChange={e => {
-                            const current = Array.isArray(editingReport.workers) ? editingReport.workers : [];
-                            const updated = e.target.checked ? [...current, w.name] : current.filter((x: string) => x !== w.name);
-                            setEditingReport({ ...editingReport, workers: updated });
-                          }}
-                          className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
-                        />
-                        <span className="truncate">{w.name}</span>
-                      </label>
+                      <div
+                        key={w.name}
+                        className={`rounded-2xl border p-3 transition ${
+                          checked
+                            ? 'bg-blue-50 border-blue-300'
+                            : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={e => {
+                              const current = Array.isArray(editingReport.workers) ? editingReport.workers : [];
+                              const updated = e.target.checked
+                                ? [...current, w.name]
+                                : current.filter((x: string) => x !== w.name);
+
+                              const nextOvertime = { ...overtimeMap };
+                              const nextHalfDay = { ...halfDayMap };
+
+                              if (!e.target.checked) {
+                                delete nextOvertime[w.name];
+                                delete nextHalfDay[w.name];
+                              }
+
+                              setEditingReport({
+                                ...editingReport,
+                                workers: updated,
+                                workerOvertimeHours: nextOvertime,
+                                workerHalfDay: nextHalfDay
+                              });
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500 w-5 h-5"
+                          />
+                          <span className={`text-base ${checked ? 'font-semibold text-blue-950' : 'font-medium text-slate-800'}`}>
+                            {w.name}
+                          </span>
+                        </label>
+
+                        {checked && (
+                          <div className="mt-3 pt-3 border-t border-blue-200 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium text-slate-600">勤務区分</span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = { ...halfDayMap };
+                                    delete next[w.name];
+                                    setEditingReport({
+                                      ...editingReport,
+                                      workerHalfDay: next
+                                    });
+                                  }}
+                                  className={`px-3 py-2 rounded-xl border text-sm font-medium ${
+                                    !isHalfDay
+                                      ? 'bg-blue-100 border-blue-500 text-blue-900'
+                                      : 'bg-white border-slate-300 text-slate-600'
+                                  }`}
+                                >
+                                  通常
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingReport({
+                                      ...editingReport,
+                                      workerHalfDay: {
+                                        ...halfDayMap,
+                                        [w.name]: true
+                                      }
+                                    })
+                                  }
+                                  className={`px-3 py-2 rounded-xl border text-sm font-medium ${
+                                    isHalfDay
+                                      ? 'bg-amber-100 border-amber-500 text-amber-900'
+                                      : 'bg-white border-slate-300 text-slate-600'
+                                  }`}
+                                >
+                                  半日
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium text-slate-600">残業</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={overtime <= 0}
+                                  onClick={() => {
+                                    const nextValue = Math.max(0, overtime - 1);
+                                    const next = { ...overtimeMap };
+                                    if (nextValue === 0) {
+                                      delete next[w.name];
+                                    } else {
+                                      next[w.name] = nextValue;
+                                    }
+                                    setEditingReport({
+                                      ...editingReport,
+                                      workerOvertimeHours: next
+                                    });
+                                  }}
+                                  className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl text-slate-600 disabled:opacity-30"
+                                >
+                                  −
+                                </button>
+
+                                <div className="min-w-[88px] text-center text-sm font-medium text-slate-700">
+                                  残業{overtime}時間
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingReport({
+                                      ...editingReport,
+                                      workerOvertimeHours: {
+                                        ...overtimeMap,
+                                        [w.name]: overtime + 1
+                                      }
+                                    })
+                                  }
+                                  className="w-10 h-10 rounded-xl border border-blue-400 bg-blue-50 text-xl text-blue-700"
+                                >
+                                  ＋
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
