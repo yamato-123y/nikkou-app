@@ -1411,14 +1411,18 @@ export default function Home() {
                        : 'bg-white border-slate-300'
                    }`}
                  >
-                   <div className="flex items-start gap-1 px-2 pt-2.5">
+                   <div className="relative px-2 pt-2.5">
                      <button
                        type="button"
                        onClick={() => toggleWorkerSelection(w.name)}
-                       className="min-w-0 flex-1 px-1 py-1 text-center rounded-lg active:bg-slate-100"
+                       className={`w-full min-h-[58px] px-2 py-2.5 pr-[54px] text-center rounded-xl border transition ${
+                         selected
+                           ? 'bg-blue-200 border-blue-600 active:bg-blue-300'
+                           : 'bg-white border-transparent active:bg-slate-100'
+                       }`}
                      >
                        <div
-                         className={`text-[17px] leading-tight font-semibold break-words ${
+                         className={`text-[19px] leading-tight font-semibold break-words ${
                            selected ? 'text-blue-950' : 'text-slate-900'
                          }`}
                        >
@@ -1430,7 +1434,7 @@ export default function Home() {
                        type="button"
                        onClick={() => toggleWorkerHalfDay(w.name)}
                        aria-label={`${w.name}を半日勤務にする`}
-                       className={`shrink-0 px-2.5 h-8 rounded-lg border text-[12px] font-semibold transition ${
+                       className={`absolute right-3 top-1/2 -translate-y-[34%] shrink-0 px-2.5 h-9 rounded-lg border text-[12px] font-semibold transition ${
                          workerHalfDay[w.name]
                            ? 'bg-amber-500 border-amber-500 text-white'
                            : 'bg-white border-slate-300 text-slate-600'
