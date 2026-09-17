@@ -2612,45 +2612,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 px-4 pb-4">
-                <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+              <div className="px-4 pb-4">
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
                   <div className="text-[15px] leading-tight text-slate-600">稼働中の現場</div>
                   <div className="mt-1 flex items-end gap-1">
                     <span className="text-[32px] leading-none font-semibold text-slate-950">
                       {activeLocList.length}
                     </span>
                     <span className="text-[14px] text-slate-600">件</span>
-                  </div>
-                </div>
-
-                <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                  <div className="text-[15px] leading-tight text-slate-600">現在の経費合計</div>
-                  <div className="mt-1 text-[22px] leading-snug font-semibold text-slate-950 break-words">
-                    {formatWholeYen(totalCost)}
-                  </div>
-                </div>
-
-                <div className="min-w-0 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
-                  <div className="text-[15px] leading-tight text-slate-600">請負金額合計</div>
-                  <div className="mt-1 text-[22px] leading-snug font-semibold text-slate-950 break-words">
-                    {formatWholeYen(totalContract)}
-                  </div>
-                </div>
-
-                <div className={`min-w-0 rounded-2xl border p-3.5 ${
-                  totalRemaining >= 0
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-rose-50 border-rose-200'
-                }`}>
-                  <div className={`text-[11px] leading-tight ${
-                    totalRemaining >= 0 ? 'text-emerald-700' : 'text-rose-700'
-                  }`}>
-                    残りの金額
-                  </div>
-                  <div className={`mt-1 text-[22px] leading-snug font-semibold break-words ${
-                    totalRemaining >= 0 ? 'text-emerald-800' : 'text-rose-800'
-                  }`}>
-                    {formatWholeYen(totalRemaining)}
                   </div>
                 </div>
               </div>
