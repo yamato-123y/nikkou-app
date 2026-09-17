@@ -258,6 +258,7 @@ export default function AdminPage() {
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
   const [subcontractorEstimateOpen, setSubcontractorEstimateOpen] = useState(false);
+  const [deletingCompletedSite, setDeletingCompletedSite] = useState<string | null>(null);
 
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
@@ -766,6 +767,79 @@ export default function AdminPage() {
       });
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const deleteCompletedSite = async (locName: string) => {
+    if (authRole !== 'admin' || deletingCompletedSite) return;
+
+    const finishedLoc = (settings.locations || []).find((l: any) => {
+      const name = typeof l === 'string' ? l : l?.name;
+      const isFinished = typeof l === 'object' ? !!l?.isFinished : false;
+      return name === locName && isFinished;
+    });
+
+    if (!finishedLoc) {
+      alert('完了済みの現場だけ削除できます。');
+      return;
+    }
+
+    const backupOk = confirm(
+      `⚠️ 現場データを完全削除します。\n\n` +
+      `【${locName}】\n\n` +
+      `この現場のExcel出力・Supabaseバックアップは済んでいますか？\n\n` +
+      `削除すると、この現場の日報・現場別原価情報・写真などは元に戻せません。\n` +
+      `社員・外注・車両・重機・処分場などのマスタと、他の現場は削除されません。`
+    );
+
+    if (!backupOk) return;
+
+    const typed = prompt(
+      `最終確認です。\n\n本当に削除する場合は、下の現場名をそのまま入力してください。\n\n${locName}`
+    );
+
+    if (typed !== locName) {
+      alert('現場名が一致しないため、削除を中止しました。');
+      return;
+    }
+
+    try {
+      setDeletingCompletedSite(locName);
+
+      const res = await fetch('/api/admin/delete-completed-site', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: locName,
+          confirmation: typed
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || '現場データの削除に失敗しました。');
+        return;
+      }
+
+      if (modalLocation === locName) {
+        setModalLocation(null);
+      }
+
+      await fetchData();
+
+      alert(
+        `削除しました。\n\n` +
+        `現場：${locName}\n` +
+        `削除した日報：${Number(data?.deletedReports || 0)}件\n` +
+        `削除した写真：${Number(data?.deletedPhotos || 0)}枚\n\n` +
+        `他の現場・マスタ登録情報は変更していません。`
+      );
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。削除結果を確認してから再操作してください。');
+    } finally {
+      setDeletingCompletedSite(null);
     }
   };
 
@@ -3750,8 +3824,24 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  <button
+                    onClick={() => setModalLocation(loc.name)}
+                    className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
+                  >
+                    🔍 詳細分析を見る
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCompletedSite(loc.name)}
+                    disabled={deletingCompletedSite === loc.name}
+                    className="w-full bg-white hover:bg-rose-50 text-rose-700 border-2 border-rose-300 py-3 rounded-xl text-sm font-bold shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingCompletedSite === loc.name ? '削除中…' : '🗑 現場データを削除'}
+                  </button>
+                  <div className="text-[11px] leading-relaxed text-rose-600 px-1">
+                    ※この完了現場の日報・現場別情報・写真のみ削除します。マスタや他現場は削除しません。
+                  </div>
                 </div>
               </div>
             );
@@ -3793,7 +3883,17 @@ export default function AdminPage() {
                     <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
                         {authRole !== 'viewer' && (
-                          <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                          <>
+                            <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
+                            <button
+                              type="button"
+                              onClick={() => deleteCompletedSite(loc.name)}
+                              disabled={deletingCompletedSite === loc.name}
+                              className="bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingCompletedSite === loc.name ? '削除中…' : '🗑 削除'}
+                            </button>
+                          </>
                         )}
                         <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
