@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
 const formatAmount = (num: number | string, includeYen = true) => {
   const val = Number(num) || 0;
@@ -2192,11 +2193,126 @@ export default function AdminPage() {
     };
   };
 
-  const downloadLocationCSV = (locName: string) => {
+  const downloadLocationExcel = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
-    const locReports = reports.filter(r => targetNames.includes(r.location));
-    const headers = ["日付", "現場名", "請負先", "開始日", "職長", "作業者", "職種・人数", "外注", "リース(重機等)", "その他リース", "自社重機", "車両", "軽油L", "レギュラー購入分(円)", "宇野気石油 軽油L", "宇野気石油 レギュラーL", "ETC", "駐車場代", "雑費名", "雑費金額", "作業内容"];
-    const rows = locReports.map(r => {
+    const locReports = reports
+      .filter((r: any) => targetNames.includes(r.location))
+      .sort((a: any, b: any) => String(a.date || '').localeCompare(String(b.date || '')));
+
+    const costs = calculateCosts(locName);
+    const disposalData = getDisposalMonthlyBreakdown(locName);
+    const scrapData = getLocationMonthlyScrapData(locName);
+
+    const workbook = XLSX.utils.book_new();
+
+    const yenFormat = '¥#,##0;[Red]-¥#,##0';
+    const numberFormat = '#,##0';
+    const decimalFormat = '#,##0.00';
+    const percentFormat = '0.0%';
+
+    const setNumberFormat = (ws: any, cellAddress: string, format: string) => {
+      if (ws[cellAddress] && typeof ws[cellAddress].v === 'number') {
+        ws[cellAddress].z = format;
+      }
+    };
+
+    const setRowFormats = (
+      ws: any,
+      startRow: number,
+      endRow: number,
+      columns: number[],
+      format: string
+    ) => {
+      for (let r = startRow; r <= endRow; r++) {
+        columns.forEach((c) => {
+          const address = XLSX.utils.encode_cell({ r, c });
+          setNumberFormat(ws, address, format);
+        });
+      }
+    };
+
+    // ============================================================
+    // 1. 現場サマリー
+    // ============================================================
+    const costRate =
+      Number(costs.contractPrice || 0) > 0
+        ? Number(costs.total || 0) / Number(costs.contractPrice || 0)
+        : 0;
+
+    const summaryRows: any[][] = [
+      [`${locName}　現場完了・集計資料`, '', '', ''],
+      ['', '', '', ''],
+      ['【現場概要】', '', '', ''],
+      ['現場名', locName, '状態', costs.isFinished ? '完了' : '稼働中'],
+      ['請負先', costs.clientStr || '未登録', '開始日', costs.startDateStr || '未登録'],
+      ['日報件数', Number(costs.days || 0), '出力日', new Date().toLocaleDateString('ja-JP')],
+      ['', '', '', ''],
+      ['【収支サマリー】', '', '', ''],
+      ['請負金額', Number(costs.contractPrice || 0), '原価率', costRate],
+      ['経費合計', Number(costs.total || 0), 'スクラップ売却', Number(costs.scrapTotal || 0)],
+      ['利益（スクラップ込）', Number(costs.profit || 0), '利益（スクラップ除く）', Number(costs.profitWithoutScrap || 0)],
+      ['', '', '', ''],
+      ['【経費内訳】', '金額', '構成比', ''],
+      ['人件費', Number(costs.laborCost || 0), Number(costs.total || 0) ? Number(costs.laborCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['外注費', Number(costs.subCostTotal || 0), Number(costs.total || 0) ? Number(costs.subCostTotal || 0) / Number(costs.total || 0) : 0, ''],
+      ['リース', Number(costs.leaseCost || 0) + Number(costs.otherLeaseCost || 0), Number(costs.total || 0) ? (Number(costs.leaseCost || 0) + Number(costs.otherLeaseCost || 0)) / Number(costs.total || 0) : 0, ''],
+      ['自社重機', Number(costs.ownMachineCost || 0), Number(costs.total || 0) ? Number(costs.ownMachineCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['車両', Number(costs.vehicleCost || 0), Number(costs.total || 0) ? Number(costs.vehicleCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['処分費', Number(costs.disposalCost || 0), Number(costs.total || 0) ? Number(costs.disposalCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['燃料・レギュラー', Number(costs.fuelCost || 0) + Number(costs.regularCost || 0), Number(costs.total || 0) ? (Number(costs.fuelCost || 0) + Number(costs.regularCost || 0)) / Number(costs.total || 0) : 0, ''],
+      ['ETC', Number(costs.etcCost || 0), Number(costs.total || 0) ? Number(costs.etcCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['駐車場', Number(costs.parkingCost || 0), Number(costs.total || 0) ? Number(costs.parkingCost || 0) / Number(costs.total || 0) : 0, ''],
+      ['その他', Number(costs.otherCost || 0) + Number(costs.customExtraExpenseTotal || 0), Number(costs.total || 0) ? (Number(costs.otherCost || 0) + Number(costs.customExtraExpenseTotal || 0)) / Number(costs.total || 0) : 0, ''],
+      ['経費合計', Number(costs.total || 0), 1, '']
+    ];
+
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+    summaryWs['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+      { s: { r: 7, c: 0 }, e: { r: 7, c: 3 } }
+    ];
+    summaryWs['!cols'] = [
+      { wch: 24 },
+      { wch: 32 },
+      { wch: 24 },
+      { wch: 26 }
+    ];
+    summaryWs['!rows'] = [
+      { hpt: 28 },
+      { hpt: 8 },
+      { hpt: 22 },
+      { hpt: 22 },
+      { hpt: 22 },
+      { hpt: 22 },
+      { hpt: 8 },
+      { hpt: 22 }
+    ];
+
+    ['B9', 'B10', 'D10', 'B11', 'D11'].forEach((addr) =>
+      setNumberFormat(summaryWs, addr, yenFormat)
+    );
+    for (let r = 13; r <= 23; r++) {
+      setNumberFormat(summaryWs, `B${r + 1}`, yenFormat);
+      setNumberFormat(summaryWs, `C${r + 1}`, percentFormat);
+    }
+    setNumberFormat(summaryWs, 'D9', percentFormat);
+    setNumberFormat(summaryWs, 'B6', numberFormat);
+
+    XLSX.utils.book_append_sheet(workbook, summaryWs, '現場サマリー');
+
+    // ============================================================
+    // 2. 日報一覧
+    // ============================================================
+    const dailyHeaders = [
+      '日付', '職長', '作業者', '職種・人数', '外注',
+      'リース・重機', '自社重機', '車両',
+      '軽油L', 'レギュラー購入額', '宇野気石油 軽油L',
+      '宇野気石油 レギュラーL', 'ETC', '駐車場代',
+      '雑費名', '雑費金額', '作業内容', '日報原価概算'
+    ];
+
+    const dailyRows = locReports.map((r: any) => {
       const workers = Array.isArray(r.workers) ? r.workers : [];
       const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
       const machines = Array.isArray(r.machines) ? r.machines : [];
@@ -2211,21 +2327,278 @@ export default function AdminPage() {
       const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
       const vehicles = Array.isArray(r.vehicles) ? r.vehicles : [];
 
+      const dailyCost = calculateReportDailyCost(r);
+      const dailyTotal =
+        Number(dailyCost.lCost || 0) +
+        Number(dailyCost.subCost || 0) +
+        Number(dailyCost.leaseC || 0) +
+        Number(dailyCost.otherLeaseC || 0) +
+        Number(dailyCost.ownMachineC || 0) +
+        Number(dailyCost.vehicleC || 0) +
+        Number(dailyCost.dispC || 0) +
+        Number(dailyCost.fC || 0) +
+        Number(dailyCost.regularPrice || 0) +
+        Number(dailyCost.eC || 0) +
+        Number(dailyCost.pC || 0) +
+        Number(dailyCost.oC || 0);
+
       return [
-        r.date, r.location, r.client || '', r.startDate || '', r.manager, workers.join('/'), 
-        Object.entries(r.jobTypes || {}).map(([job, count]) => `${job}:${count}人`).join('/'),
-        subcontractors.map((s:any)=>`${s.company}(${s.task}:${s.count}人)`).join('/'),
-        [...machines, ...leaseHeavy, ...leaseAttach, ...leaseOther, ...ishikawaHeavy, ...ishikawaAttach, ...ishikawaOther, ...mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`)].join('/'),
-        otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join('/'),
-        ownMachines.join('/'),
-        vehicles.join('/'), 
-        r.fuel || 0, r.regularPrice || 0, r.unokeFuel || 0, r.unokeRegular || 0, r.etcPrice || 0, r.parkingPrice || 0,
-        r.otherItem || '', r.otherPrice || 0, `"${(r.workDescription || '').replace(/"/g, '""')}"`
+        r.date || '',
+        r.manager || '',
+        workers.join(' / '),
+        Object.entries(r.jobTypes || {})
+          .map(([job, count]) => `${job}:${count}人`)
+          .join(' / '),
+        subcontractors
+          .map((s: any) => `${s.company}（${s.task}:${s.count}人）`)
+          .join(' / '),
+        [
+          ...machines,
+          ...leaseHeavy,
+          ...leaseAttach,
+          ...leaseOther,
+          ...ishikawaHeavy,
+          ...ishikawaAttach,
+          ...ishikawaOther,
+          ...mokCustomMachines.map((m: any) => `${m.name}(${m.count}個)`),
+          ...otherLeases.map((ol: any) => `${ol.company}:${ol.name}(${ol.count}個)`)
+        ].join(' / '),
+        ownMachines.join(' / '),
+        vehicles.join(' / '),
+        Number(r.fuel || 0),
+        Number(r.regularPrice || 0),
+        Number(r.unokeFuel || 0),
+        Number(r.unokeRegular || 0),
+        Number(r.etcPrice || 0),
+        Number(r.parkingPrice || 0),
+        r.otherItem || '',
+        Number(r.otherPrice || 0),
+        r.workDescription || '',
+        dailyTotal
       ];
     });
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${locName}_日報データ.csv`; link.click();
+
+    const dailyTotalRow = [
+      '合計', '', '', '', '', '', '', '',
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[8] || 0), 0),
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[9] || 0), 0),
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[10] || 0), 0),
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[11] || 0), 0),
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[12] || 0), 0),
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[13] || 0), 0),
+      '',
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[15] || 0), 0),
+      '',
+      dailyRows.reduce((s: number, r: any[]) => s + Number(r[17] || 0), 0)
+    ];
+
+    const dailyWs = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows, dailyTotalRow]);
+    dailyWs['!cols'] = [
+      { wch: 12 }, { wch: 14 }, { wch: 30 }, { wch: 26 }, { wch: 34 },
+      { wch: 38 }, { wch: 28 }, { wch: 28 }, { wch: 10 }, { wch: 16 },
+      { wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
+      { wch: 14 }, { wch: 55 }, { wch: 18 }
+    ];
+    dailyWs['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: Math.max(dailyRows.length, 1), c: dailyHeaders.length - 1 }
+      })
+    };
+    setRowFormats(dailyWs, 1, dailyRows.length + 1, [8, 10, 11], decimalFormat);
+    setRowFormats(dailyWs, 1, dailyRows.length + 1, [9, 12, 13, 15, 17], yenFormat);
+
+    XLSX.utils.book_append_sheet(workbook, dailyWs, '日報一覧');
+
+    // ============================================================
+    // 3. 人員・外注集計
+    // ============================================================
+    const workerRows = (costs.workerAttendance || []).map((x: any) => [
+      x.name,
+      Number(x.days || 0)
+    ]);
+
+    const subRows = (costs.subcontractorBreakdown || []).map((x: any) => [
+      x.company,
+      x.task,
+      Number(x.count || 0),
+      Number(x.confirmedTotal || 0)
+    ]);
+
+    const customSubRows = (customSubcontractors[locName] || []).map((x: any) => [
+      x.company,
+      x.task || '一括請負',
+      '',
+      Number(x.price || 0)
+    ]);
+
+    const peopleSheetRows: any[][] = [
+      ['【作業員 稼働集計】', '', '', ''],
+      ['作業員名', '稼働日数', '', ''],
+      ...workerRows,
+      ['合計', workerRows.reduce((s: number, x: any[]) => s + Number(x[1] || 0), 0), '', ''],
+      ['', '', '', ''],
+      ['【外注費 集計】', '', '', ''],
+      ['会社名', '作業内容', '延べ人数', '確定金額'],
+      ...subRows,
+      ...customSubRows,
+      ['外注費合計', '', '', Number(costs.subCostTotal || 0)]
+    ];
+
+    const peopleWs = XLSX.utils.aoa_to_sheet(peopleSheetRows);
+    peopleWs['!cols'] = [
+      { wch: 26 }, { wch: 32 }, { wch: 14 }, { wch: 18 }
+    ];
+    Object.keys(peopleWs).forEach((addr) => {
+      if (addr.startsWith('D') && peopleWs[addr] && typeof peopleWs[addr].v === 'number') {
+        peopleWs[addr].z = yenFormat;
+      }
+    });
+    XLSX.utils.book_append_sheet(workbook, peopleWs, '人員・外注集計');
+
+    // ============================================================
+    // 4. 処分費集計
+    // ============================================================
+    const disposalRows: any[][] = [];
+    Object.entries(disposalData.bySite || {}).forEach(([siteName, siteData]: any) => {
+      Object.entries(siteData.months || {}).forEach(([ym, monthData]: any) => {
+        Object.values(monthData.days || {}).forEach((dayData: any) => {
+          (dayData.rows || []).forEach((row: any) => {
+            disposalRows.push([
+              siteName,
+              ym,
+              row.dateKey || '',
+              row.item || '',
+              Number(row.quantity || 0),
+              row.unit || '',
+              Number(row.confirmedTotal || 0)
+            ]);
+          });
+        });
+      });
+    });
+
+    const disposalSheetRows = [
+      ['処分場', '月', '日付', '品目', '数量', '単位', '確定金額'],
+      ...disposalRows,
+      [
+        '合計', '', '', '', '', '',
+        Number(costs.disposalCost || 0)
+      ]
+    ];
+
+    const disposalWs = XLSX.utils.aoa_to_sheet(disposalSheetRows);
+    disposalWs['!cols'] = [
+      { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 26 },
+      { wch: 12 }, { wch: 10 }, { wch: 18 }
+    ];
+    disposalWs['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: Math.max(disposalRows.length, 1), c: 6 }
+      })
+    };
+    setRowFormats(disposalWs, 1, disposalRows.length + 1, [4], decimalFormat);
+    setRowFormats(disposalWs, 1, disposalRows.length + 1, [6], yenFormat);
+
+    XLSX.utils.book_append_sheet(workbook, disposalWs, '処分費集計');
+
+    // ============================================================
+    // 5. スクラップ集計
+    // ============================================================
+    const scrapRows: any[][] = [];
+    Object.entries(scrapData || {}).forEach(([ym, monthData]: any) => {
+      Object.entries(monthData.sites || {}).forEach(([siteName, siteData]: any) => {
+        (siteData.rows || []).forEach((row: any) => {
+          scrapRows.push([
+            ym,
+            siteName,
+            row.dateKey || '',
+            row.item || '',
+            Number(row.quantity || 0),
+            row.unit || '',
+            Number(row.saleAmount || 0)
+          ]);
+        });
+
+        scrapRows.push([
+          ym,
+          `${siteName}（月計）`,
+          '',
+          '仕切書・月計',
+          '',
+          '',
+          Number(siteData.statementTotal || 0)
+        ]);
+      });
+    });
+
+    const scrapSheetRows = [
+      ['月', 'スクラップ場', '日付', '品目', '数量', '単位', '売却金額'],
+      ...scrapRows,
+      ['合計', '', '', '', '', '', Number(costs.scrapTotal || 0)]
+    ];
+
+    const scrapWs = XLSX.utils.aoa_to_sheet(scrapSheetRows);
+    scrapWs['!cols'] = [
+      { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 26 },
+      { wch: 12 }, { wch: 10 }, { wch: 18 }
+    ];
+    scrapWs['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: Math.max(scrapRows.length, 1), c: 6 }
+      })
+    };
+    setRowFormats(scrapWs, 1, scrapRows.length + 1, [4], decimalFormat);
+    setRowFormats(scrapWs, 1, scrapRows.length + 1, [6], yenFormat);
+
+    XLSX.utils.book_append_sheet(workbook, scrapWs, 'スクラップ集計');
+
+    // ============================================================
+    // 6. その他経費
+    // ============================================================
+    const extraRows: any[][] = [];
+
+    locReports.forEach((r: any) => {
+      if (Number(r.etcPrice || 0) !== 0) {
+        extraRows.push([r.date || '', 'ETC', 'ETC', Number(r.etcPrice || 0)]);
+      }
+      if (Number(r.parkingPrice || 0) !== 0) {
+        extraRows.push([r.date || '', '駐車場', '駐車場代', Number(r.parkingPrice || 0)]);
+      }
+      if (Number(r.otherPrice || 0) !== 0) {
+        extraRows.push([r.date || '', 'その他', r.otherItem || 'その他', Number(r.otherPrice || 0)]);
+      }
+    });
+
+    (costs.customExtraExpenseList || []).forEach((x: any) => {
+      extraRows.push(['管理側追加', 'その他', x.label || 'その他経費', Number(x.amount || 0)]);
+    });
+
+    const extraTotal = extraRows.reduce((s: number, r: any[]) => s + Number(r[3] || 0), 0);
+
+    const extraWs = XLSX.utils.aoa_to_sheet([
+      ['日付', '区分', '内容', '金額'],
+      ...extraRows,
+      ['合計', '', '', extraTotal]
+    ]);
+    extraWs['!cols'] = [
+      { wch: 14 }, { wch: 16 }, { wch: 36 }, { wch: 18 }
+    ];
+    setRowFormats(extraWs, 1, extraRows.length + 1, [3], yenFormat);
+
+    XLSX.utils.book_append_sheet(workbook, extraWs, 'その他経費');
+
+    workbook.Props = {
+      Title: `${locName} 現場完了・集計資料`,
+      Subject: '現場日報・原価集計',
+      Author: '株式会社大和',
+      CreatedDate: new Date()
+    };
+
+    const safeFileName = locName.replace(/[\\/:*?"<>|]/g, '_');
+    XLSX.writeFile(workbook, `${safeFileName}_現場完了集計.xlsx`);
   };
 
   const getDaysInMonth = (yearMonthStr: string) => {
@@ -6439,8 +6812,8 @@ export default function AdminPage() {
                   <div className="flex items-center gap-3 mt-4 flex-wrap">
                     <p className={`${authRole === 'admin' ? 'text-lg font-bold text-slate-700' : 'text-sm md:text-base text-slate-500'}`}>原価・収支および内訳明細</p>
                     {authRole === 'admin' && (
-                      <button onClick={() => downloadLocationCSV(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-2xs flex items-center gap-1">
-                        📥 CSV出力
+                      <button onClick={() => downloadLocationExcel(modalLocation)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-2xs flex items-center gap-1">
+                        📊 Excel出力
                       </button>
                     )}
                   </div>
