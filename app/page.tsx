@@ -18,6 +18,7 @@ export default function Home() {
   const [manager, setManager] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
+  const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
@@ -204,9 +205,25 @@ export default function Home() {
         delete next[workerName];
         return next;
       });
+      setWorkerHalfDay((prev) => {
+        const next = { ...prev };
+        delete next[workerName];
+        return next;
+      });
     } else {
       setSelectedWorkers([...selectedWorkers, workerName]);
     }
+  };
+
+  const toggleWorkerHalfDay = (workerName: string) => {
+    if (!selectedWorkers.includes(workerName)) {
+      setSelectedWorkers([...selectedWorkers, workerName]);
+    }
+
+    setWorkerHalfDay((prev) => ({
+      ...prev,
+      [workerName]: !prev[workerName]
+    }));
   };
 
   const changeWorkerOvertime = (workerName: string, delta: number) => {
@@ -344,12 +361,255 @@ export default function Home() {
     return total;
   };
 
+  const buildDailyReportCostSnapshot = (r: any) => {
+    const workerPrices: any = {};
+    let lCost = 0;
+
+    (Array.isArray(r.workers) ? r.workers : []).forEach((name: string) => {
+      const master = (settings.workers || []).find((x: any) => x.name === name);
+      const dailyPrice = Number(master?.price || 0);
+      const shiftHours = Number(master?.shiftHours || 8) === 7 ? 7 : 8;
+      const overtimeHours = Math.max(0, Number(r.workerOvertimeHours?.[name] || 0));
+      const isHalfDay = !!r.workerHalfDay?.[name];
+      const baseCost = isHalfDay ? Math.round(dailyPrice / 2) : dailyPrice;
+      const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
+      const total = baseCost + overtimeCost;
+
+      workerPrices[name] = {
+        dailyPrice,
+        shiftHours,
+        isHalfDay,
+        overtimeHours,
+        baseCost,
+        overtimeCost,
+        total
+      };
+
+      lCost += total;
+    });
+
+    let subCost = 0;
+    const subcontractorPrices: any = {};
+    (Array.isArray(r.subcontractors) ? r.subcontractors : []).forEach((sub: any) => {
+      const company = sub.company || '';
+      const task = sub.task || '';
+      const master = (settings.subcontractors || []).find(
+        (x: any) => x.company === company && x.task === task
+      );
+      const unitPrice =
+        sub.price !== undefined && sub.price !== null && sub.price !== ''
+          ? Number(sub.price)
+          : Number(master?.price || 0);
+      subcontractorPrices[`${company}__${task}`] = unitPrice;
+      subCost += Number(sub.count || 0) * unitPrice;
+    });
+
+    const masterPrices: any = {
+      leases: {},
+      leaseHeavy: {},
+      leaseAttach: {},
+      leaseOther: {},
+      ishikawaHeavy: {},
+      ishikawaAttach: {},
+      ishikawaOther: {},
+      companyMachines: {},
+      vehicles: {}
+    };
+
+    const getPrice = (key: string, name: string) => {
+      if (masterPrices[key]?.[name] !== undefined) {
+        return Number(masterPrices[key][name] || 0);
+      }
+      const price = Number((settings[key] || []).find((x: any) => x.name === name)?.price || 0);
+      if (!masterPrices[key]) masterPrices[key] = {};
+      masterPrices[key][name] = price;
+      return price;
+    };
+
+    let leaseC = 0;
+    let ishikawaLeaseDetail = 0;
+    let mokLeaseDetail = 0;
+
+    const machines = Array.isArray(r.machines) ? r.machines : [];
+    const leaseHeavyList = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+    const legacyMachines = leaseHeavyList.length === 0 ? machines : [];
+
+    (Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : []).forEach((name: string) => {
+      const p = getPrice('ishikawaHeavy', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    (Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : []).forEach((name: string) => {
+      const p = getPrice('ishikawaAttach', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    (Array.isArray(r.ishikawaOther) ? r.ishikawaOther : []).forEach((name: string) => {
+      const p = getPrice('ishikawaOther', name);
+      leaseC += p;
+      ishikawaLeaseDetail += p;
+    });
+    (Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : []).forEach((item: any) => {
+      const unitPrice =
+        item.price !== undefined && item.price !== null && item.price !== ''
+          ? Number(item.price)
+          : 0;
+      const cost = Number(item.count || 0) * unitPrice;
+      leaseC += cost;
+      ishikawaLeaseDetail += cost;
+    });
+
+    legacyMachines.forEach((name: string) => {
+      const p = getPrice('leases', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    leaseHeavyList.forEach((name: string) => {
+      const p = getPrice('leaseHeavy', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    (Array.isArray(r.leaseAttach) ? r.leaseAttach : []).forEach((name: string) => {
+      const p = getPrice('leaseAttach', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    (Array.isArray(r.leaseOther) ? r.leaseOther : []).forEach((name: string) => {
+      const p = getPrice('leaseOther', name);
+      leaseC += p;
+      mokLeaseDetail += p;
+    });
+    (Array.isArray(r.otherLeases) ? r.otherLeases : []).forEach((item: any) => {
+      const cost = Number(item.price || 0);
+      leaseC += cost;
+      mokLeaseDetail += cost;
+    });
+    (Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : []).forEach((item: any) => {
+      const master =
+        (settings.leaseHeavy || []).find((x: any) => x.name === item.name) ||
+        (settings.leaseAttach || []).find((x: any) => x.name === item.name) ||
+        (settings.leaseOther || []).find((x: any) => x.name === item.name);
+      const unitPrice =
+        item.price !== undefined && item.price !== null && item.price !== ''
+          ? Number(item.price)
+          : Number(master?.price || 0);
+      const cost = Number(item.count || 0) * unitPrice;
+      leaseC += cost;
+      mokLeaseDetail += cost;
+    });
+
+    let ownMachineC = 0;
+    (Array.isArray(r.ownMachines) ? r.ownMachines : []).forEach((name: string) => {
+      ownMachineC += getPrice('companyMachines', name);
+    });
+
+    let vehicleC = 0;
+    (Array.isArray(r.vehicles) ? r.vehicles : []).forEach((name: string) => {
+      vehicleC += getPrice('vehicles', name);
+    });
+
+    let dispC = 0;
+    const disposalPrices: any = {};
+    const disposalBreakdown: any = {};
+    (Array.isArray(r.disposals) ? r.disposals : []).forEach((item: any) => {
+      const disposalLocation = item.location || 'その他処分場';
+      const itemName = item.item || '品目未指定';
+      const master = (settings.disposalLocations || []).find(
+        (x: any) => x.location === disposalLocation && x.item === itemName
+      );
+      const unit = item.unit || master?.unit || 't';
+      const unitPrice =
+        item.price !== undefined && item.price !== null && item.price !== ''
+          ? Number(item.price)
+          : Number(master?.price || 0);
+      const quantity = Number(item.quantity || 0);
+      const total = quantity * unitPrice;
+
+      disposalPrices[`${disposalLocation}__${itemName}`] = { unitPrice, unit };
+      dispC += total;
+
+      if (!disposalBreakdown[disposalLocation]) {
+        disposalBreakdown[disposalLocation] = { items: {}, total: 0 };
+      }
+      disposalBreakdown[disposalLocation].total += total;
+      if (!disposalBreakdown[disposalLocation].items[itemName]) {
+        disposalBreakdown[disposalLocation].items[itemName] = {
+          quantity: 0,
+          price: unitPrice,
+          total: 0,
+          unit,
+          details: []
+        };
+      }
+      disposalBreakdown[disposalLocation].items[itemName].quantity += quantity;
+      disposalBreakdown[disposalLocation].items[itemName].total += total;
+      disposalBreakdown[disposalLocation].items[itemName].details.push({
+        date: r.date || '日付不明',
+        item: itemName,
+        quantity,
+        unit,
+        price: unitPrice,
+        total
+      });
+    });
+
+    let fuelCost = 0;
+    let fuelUnitPrice: number | null = null;
+    const normalized = normalizeSummaryDate(r.date || '');
+    const parts = normalized.split('-');
+    if (parts.length >= 2) {
+      const ym = `${parts[0]}-${parts[1]}`;
+      const fuelLocationKey =
+        r.location && String(r.location).includes('旧河北郡市クリーンセンター')
+          ? '旧河北郡市クリーンセンター等解体工事(石川県)'
+          : r.location;
+      const prices =
+        settings.fuelUnitPrices?.[fuelLocationKey] ||
+        settings.fuelUnitPrices?.[r.location] ||
+        {};
+      const unitPrice = prices?.[ym];
+      if (unitPrice !== '' && unitPrice !== undefined) {
+        fuelUnitPrice = Number(unitPrice);
+        fuelCost = Number(r.fuel || 0) * fuelUnitPrice;
+      }
+    }
+
+    return {
+      version: 1,
+      frozenAt: new Date().toISOString(),
+      workerPrices,
+      subcontractorPrices,
+      masterPrices,
+      disposalPrices,
+      fuelUnitPrice,
+      disposalBreakdown,
+      totals: {
+        lCost,
+        subCost,
+        leaseC,
+        otherLeaseC: 0,
+        ishikawaLeaseDetail,
+        mokLeaseDetail,
+        ownMachineC,
+        vehicleC,
+        dispC,
+        fC: fuelCost,
+        rawFuel: Number(r.fuel || 0),
+        regularPrice: Number(r.regularPrice || 0),
+        eC: Number(r.etcPrice || 0),
+        pC: Number(r.parkingPrice || 0),
+        oC: Number(r.otherPrice || 0)
+      }
+    };
+  };
+
   const calculateLocationCostSummary = (locName: string) => {
     const targetNames = getSummaryTargetLocationNames(locName);
     const locReports = reports.filter((r: any) => targetNames.includes(r.location));
 
     let labor = 0;
     let subcontractor = 0;
+    let snapshotSubcontractor = 0;
     let lease = 0;
     let ownMachine = 0;
     let vehicle = 0;
@@ -363,15 +623,32 @@ export default function Home() {
     const fuelLitersByMonth: any = {};
 
     locReports.forEach((r: any) => {
+      if (r?.costSnapshot?.totals) {
+        const t = r.costSnapshot.totals;
+        labor += Number(t.lCost || 0);
+        snapshotSubcontractor += Number(t.subCost || 0);
+        lease += Number(t.leaseC || 0) + Number(t.otherLeaseC || 0);
+        ownMachine += Number(t.ownMachineC || 0);
+        vehicle += Number(t.vehicleC || 0);
+        fuel += Number(t.fC || 0);
+        regular += Number(t.regularPrice || 0);
+        etc += Number(t.eC || 0);
+        parking += Number(t.pC || 0);
+        other += Number(t.oC || 0);
+        return;
+      }
+
+      // 旧日報（snapshot未保存）の互換計算
       // 人件費
       (Array.isArray(r.workers) ? r.workers : []).forEach((name: string) => {
         const workerMaster = (settings.workers || []).find((x: any) => x.name === name);
         const dailyPrice = Number(workerMaster?.price || 0);
         const shiftHours = Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
         const overtimeHours = Math.max(0, Number(r.workerOvertimeHours?.[name] || 0));
+        const baseCost = r.workerHalfDay?.[name] ? Math.round(dailyPrice / 2) : dailyPrice;
         const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
 
-        labor += dailyPrice + overtimeCost;
+        labor += baseCost + overtimeCost;
       });
 
       // 外注費（あとで業者・作業単位の確定額を反映）
@@ -467,14 +744,16 @@ export default function Home() {
 
     // 外注：業者・作業別の管理画面確定額を反映
     const subDetailOverrides = settings.subcontractorDetailOverrides?.[locName] || {};
-    subcontractor = Object.entries(subcontractorGroup).reduce((sum: number, [key, raw]: any) => {
-      const override = subDetailOverrides[key];
-      return sum + (
-        override !== '' && override !== undefined
-          ? Number(override)
-          : Number(raw || 0)
-      );
-    }, 0);
+    subcontractor =
+      snapshotSubcontractor +
+      Object.entries(subcontractorGroup).reduce((sum: number, [key, raw]: any) => {
+        const override = subDetailOverrides[key];
+        return sum + (
+          override !== '' && override !== undefined
+            ? Number(override)
+            : Number(raw || 0)
+        );
+      }, 0);
 
     // 管理画面から追加した一括外注
     const customSubsTotal = (settings.customSubcontractors?.[locName] || []).reduce(
@@ -612,14 +891,16 @@ export default function Home() {
     // 職長が徳本以外の場合、石川県や宇野気石油の選択状態をクリア・調整する
     const isIshikawaActive = manager === '徳本';
 
-    await fetch('/api/reports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const reportPayload: any = {
         date, location, manager, workers: selectedWorkers,
         workerOvertimeHours: Object.fromEntries(
           Object.entries(workerOvertimeHours)
             .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
+        ),
+        workerHalfDay: Object.fromEntries(
+          selectedWorkers
+            .filter((name) => !!workerHalfDay[name])
+            .map((name) => [name, true])
         ),
         jobTypes: jobTypesCount,
         subcontractors,
@@ -644,11 +925,21 @@ export default function Home() {
         otherItem, otherPrice: otherPrice || '0',
         disposals, scraps, workDescription: description,
         createdAt: new Date().toISOString()
-      })
+    };
+
+    // 送信時点の単価・原価を日報自身へ保存。
+    // 後からマスタ単価を変更しても、この日報の金額は変わらない。
+    reportPayload.costSnapshot = buildDailyReportCostSnapshot(reportPayload);
+
+    await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reportPayload)
     });
 
     setSelectedWorkers([]);
     setWorkerOvertimeHours({});
+    setWorkerHalfDay({});
     setJobTypesCount({});
     setSubcontractors([]);
     setLeaseHeavy([]);
@@ -840,7 +1131,12 @@ export default function Home() {
                     ? selectedWorkers
                         .map((name) => {
                           const overtime = Number(workerOvertimeHours[name] || 0);
-                          return overtime > 0 ? `${name}（残業${overtime}時間）` : name;
+                          const halfDay = !!workerHalfDay[name];
+                          const notes = [
+                            halfDay ? '半日' : '',
+                            overtime > 0 ? `残業${overtime}時間` : ''
+                          ].filter(Boolean);
+                          return notes.length > 0 ? `${name}（${notes.join('・')}）` : name;
                         })
                         .join(', ')
                     : 'なし'}
@@ -1111,25 +1407,40 @@ export default function Home() {
                    key={w.name}
                    className={`min-w-0 rounded-2xl border transition ${
                      selected
-                       ? 'bg-blue-50 border-blue-500 shadow-sm'
+                       ? 'bg-blue-100 border-blue-600 shadow-sm'
                        : 'bg-white border-slate-300'
                    }`}
                  >
-                   <button
-                     type="button"
-                     onClick={() => toggleWorkerSelection(w.name)}
-                     className="w-full min-w-0 px-2 pt-3 pb-2 text-center rounded-t-2xl active:bg-slate-100"
-                   >
-                     <div
-                       className={`text-[17px] leading-tight font-semibold break-words ${
-                         selected ? 'text-blue-900' : 'text-slate-900'
+                   <div className="flex items-start gap-1 px-2 pt-2.5">
+                     <button
+                       type="button"
+                       onClick={() => toggleWorkerSelection(w.name)}
+                       className="min-w-0 flex-1 px-1 py-1 text-center rounded-lg active:bg-slate-100"
+                     >
+                       <div
+                         className={`text-[17px] leading-tight font-semibold break-words ${
+                           selected ? 'text-blue-950' : 'text-slate-900'
+                         }`}
+                       >
+                         {w.name}
+                       </div>
+                     </button>
+
+                     <button
+                       type="button"
+                       onClick={() => toggleWorkerHalfDay(w.name)}
+                       aria-label={`${w.name}を半日勤務にする`}
+                       className={`shrink-0 px-2.5 h-8 rounded-lg border text-[12px] font-semibold transition ${
+                         workerHalfDay[w.name]
+                           ? 'bg-amber-500 border-amber-500 text-white'
+                           : 'bg-white border-slate-300 text-slate-600'
                        }`}
                      >
-                       {w.name}
-                     </div>
-                   </button>
+                       半日
+                     </button>
+                   </div>
 
-                   <div className="px-2 pb-3">
+                   <div className="px-2 pb-3 pt-1">
                      <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-1">
                        <button
                          type="button"
@@ -1141,7 +1452,7 @@ export default function Home() {
                          −
                        </button>
 
-                       <div className="min-w-0 text-center text-[13px] leading-tight font-medium text-slate-800 whitespace-nowrap">
+                       <div className="min-w-0 text-center text-[13px] leading-tight font-medium text-slate-500 whitespace-nowrap">
                          残業{overtime}時間
                        </div>
 
