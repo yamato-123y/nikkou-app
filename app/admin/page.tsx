@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 const formatAmount = (num: number | string, includeYen = true) => {
   const val = Number(num) || 0;
@@ -2231,6 +2231,108 @@ export default function AdminPage() {
       }
     };
 
+
+    // ============================================================
+    // Excel表示用 共通デザイン
+    // ※ xlsx-js-style を使い、背景色・フォント・罫線・配置を保存
+    // ============================================================
+    const excelFont = 'Yu Gothic';
+
+    const colors = {
+      navy: '1F4E78',
+      blue: '4472C4',
+      lightBlue: 'D9EAF7',
+      veryLightBlue: 'F4F8FC',
+      green: '70AD47',
+      lightGreen: 'E2F0D9',
+      orange: 'ED7D31',
+      lightOrange: 'FCE4D6',
+      gray: 'E7E6E6',
+      lightGray: 'F7F7F7',
+      dark: '1F2937',
+      white: 'FFFFFF',
+      border: 'C9D2DC'
+    };
+
+    const thinBorder = {
+      top: { style: 'thin', color: { rgb: colors.border } },
+      bottom: { style: 'thin', color: { rgb: colors.border } },
+      left: { style: 'thin', color: { rgb: colors.border } },
+      right: { style: 'thin', color: { rgb: colors.border } }
+    };
+
+    const applyStyle = (ws: any, address: string, style: any) => {
+      if (!ws[address]) return;
+      ws[address].s = {
+        ...(ws[address].s || {}),
+        ...style,
+        font: {
+          name: excelFont,
+          sz: 11,
+          color: { rgb: colors.dark },
+          ...(ws[address].s?.font || {}),
+          ...(style.font || {})
+        },
+        alignment: {
+          vertical: 'center',
+          ...(ws[address].s?.alignment || {}),
+          ...(style.alignment || {})
+        }
+      };
+    };
+
+    const styleRange = (ws: any, range: string, style: any) => {
+      const decoded = XLSX.utils.decode_range(range);
+      for (let r = decoded.s.r; r <= decoded.e.r; r++) {
+        for (let c = decoded.s.c; c <= decoded.e.c; c++) {
+          applyStyle(ws, XLSX.utils.encode_cell({ r, c }), style);
+        }
+      }
+    };
+
+    const styleUsedRange = (ws: any) => {
+      if (!ws['!ref']) return;
+      const decoded = XLSX.utils.decode_range(ws['!ref']);
+      for (let r = decoded.s.r; r <= decoded.e.r; r++) {
+        for (let c = decoded.s.c; c <= decoded.e.c; c++) {
+          const address = XLSX.utils.encode_cell({ r, c });
+          if (!ws[address]) continue;
+          applyStyle(ws, address, {
+            font: { name: excelFont, sz: 11, color: { rgb: colors.dark } },
+            alignment: {
+              vertical: 'center',
+              wrapText: true
+            }
+          });
+        }
+      }
+    };
+
+    const styleTableHeader = (ws: any, range: string) => {
+      styleRange(ws, range, {
+        fill: { fgColor: { rgb: colors.blue } },
+        font: { name: excelFont, sz: 11, bold: true, color: { rgb: colors.white } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: thinBorder
+      });
+    };
+
+    const styleTotalRow = (ws: any, range: string) => {
+      styleRange(ws, range, {
+        fill: { fgColor: { rgb: colors.lightGreen } },
+        font: { name: excelFont, sz: 11, bold: true, color: { rgb: colors.dark } },
+        border: thinBorder,
+        alignment: { vertical: 'center' }
+      });
+    };
+
+    const setBodyBorders = (ws: any, range: string) => {
+      styleRange(ws, range, {
+        border: thinBorder,
+        alignment: { vertical: 'center', wrapText: true }
+      });
+    };
+
     // ============================================================
     // 1. 現場サマリー
     // ============================================================
@@ -2273,21 +2375,18 @@ export default function AdminPage() {
       { s: { r: 7, c: 0 }, e: { r: 7, c: 3 } }
     ];
     summaryWs['!cols'] = [
-      { wch: 24 },
-      { wch: 32 },
-      { wch: 24 },
-      { wch: 26 }
+      { wch: 26 },
+      { wch: 34 },
+      { wch: 26 },
+      { wch: 28 }
     ];
-    summaryWs['!rows'] = [
-      { hpt: 28 },
-      { hpt: 8 },
-      { hpt: 22 },
-      { hpt: 22 },
-      { hpt: 22 },
-      { hpt: 22 },
-      { hpt: 8 },
-      { hpt: 22 }
-    ];
+    summaryWs['!rows'] = Array.from({ length: summaryRows.length }, (_, idx) => ({
+      hpt:
+        idx === 0 ? 38 :
+        idx === 1 || idx === 6 || idx === 11 ? 10 :
+        idx === 2 || idx === 7 || idx === 12 ? 28 :
+        25
+    }));
 
     ['B9', 'B10', 'D10', 'B11', 'D11'].forEach((addr) =>
       setNumberFormat(summaryWs, addr, yenFormat)
@@ -2298,6 +2397,86 @@ export default function AdminPage() {
     }
     setNumberFormat(summaryWs, 'D9', percentFormat);
     setNumberFormat(summaryWs, 'B6', numberFormat);
+
+    styleUsedRange(summaryWs);
+
+    // タイトル
+    styleRange(summaryWs, 'A1:D1', {
+      fill: { fgColor: { rgb: colors.navy } },
+      font: { name: excelFont, sz: 18, bold: true, color: { rgb: colors.white } },
+      alignment: { horizontal: 'center', vertical: 'center' }
+    });
+
+    // セクション見出し
+    ['A3:D3', 'A8:D8'].forEach((range) => {
+      styleRange(summaryWs, range, {
+        fill: { fgColor: { rgb: colors.lightBlue } },
+        font: { name: excelFont, sz: 12, bold: true, color: { rgb: colors.navy } },
+        alignment: { vertical: 'center' },
+        border: thinBorder
+      });
+    });
+
+    // 現場概要
+    styleRange(summaryWs, 'A4:D6', {
+      border: thinBorder,
+      alignment: { vertical: 'center', wrapText: true }
+    });
+    ['A4', 'C4', 'A5', 'C5', 'A6', 'C6'].forEach((addr) => {
+      applyStyle(summaryWs, addr, {
+        fill: { fgColor: { rgb: colors.lightGray } },
+        font: { name: excelFont, sz: 11, bold: true, color: { rgb: colors.dark } }
+      });
+    });
+
+    // 収支サマリー：重要数字が一目で分かる配色
+    styleRange(summaryWs, 'A9:D11', { border: thinBorder });
+    ['A9', 'C9', 'A10', 'C10', 'A11', 'C11'].forEach((addr) => {
+      applyStyle(summaryWs, addr, {
+        fill: { fgColor: { rgb: colors.lightGray } },
+        font: { name: excelFont, sz: 11, bold: true }
+      });
+    });
+    applyStyle(summaryWs, 'B9', {
+      fill: { fgColor: { rgb: colors.veryLightBlue } },
+      font: { name: excelFont, sz: 14, bold: true, color: { rgb: colors.navy } },
+      alignment: { horizontal: 'right' }
+    });
+    applyStyle(summaryWs, 'D9', {
+      fill: { fgColor: { rgb: colors.lightOrange } },
+      font: { name: excelFont, sz: 14, bold: true, color: { rgb: colors.orange } },
+      alignment: { horizontal: 'right' }
+    });
+    applyStyle(summaryWs, 'B10', {
+      fill: { fgColor: { rgb: colors.lightOrange } },
+      font: { name: excelFont, sz: 14, bold: true, color: { rgb: colors.orange } },
+      alignment: { horizontal: 'right' }
+    });
+    applyStyle(summaryWs, 'D10', {
+      fill: { fgColor: { rgb: colors.veryLightBlue } },
+      font: { name: excelFont, sz: 14, bold: true, color: { rgb: colors.navy } },
+      alignment: { horizontal: 'right' }
+    });
+    ['B11', 'D11'].forEach((addr) => {
+      applyStyle(summaryWs, addr, {
+        fill: { fgColor: { rgb: colors.lightGreen } },
+        font: { name: excelFont, sz: 14, bold: true, color: { rgb: colors.green } },
+        alignment: { horizontal: 'right' }
+      });
+    });
+
+    // 経費内訳表
+    styleTableHeader(summaryWs, 'A13:C13');
+    setBodyBorders(summaryWs, 'A14:C24');
+    styleRange(summaryWs, 'B14:C24', { alignment: { horizontal: 'right', vertical: 'center' } });
+    for (let r = 14; r <= 23; r++) {
+      if (r % 2 === 0) {
+        styleRange(summaryWs, `A${r}:C${r}`, {
+          fill: { fgColor: { rgb: colors.veryLightBlue } }
+        });
+      }
+    }
+    styleTotalRow(summaryWs, 'A24:C24');
 
     XLSX.utils.book_append_sheet(workbook, summaryWs, '現場サマリー');
 
@@ -2394,11 +2573,14 @@ export default function AdminPage() {
 
     const dailyWs = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows, dailyTotalRow]);
     dailyWs['!cols'] = [
-      { wch: 12 }, { wch: 14 }, { wch: 30 }, { wch: 26 }, { wch: 34 },
-      { wch: 38 }, { wch: 28 }, { wch: 28 }, { wch: 10 }, { wch: 16 },
-      { wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
-      { wch: 14 }, { wch: 55 }, { wch: 18 }
+      { wch: 12 }, { wch: 14 }, { wch: 28 }, { wch: 24 }, { wch: 30 },
+      { wch: 34 }, { wch: 25 }, { wch: 25 }, { wch: 10 }, { wch: 16 },
+      { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 13 }, { wch: 20 },
+      { wch: 15 }, { wch: 48 }, { wch: 18 }
     ];
+    dailyWs['!rows'] = Array.from({ length: dailyRows.length + 2 }, (_, idx) => ({
+      hpt: idx === 0 ? 34 : idx === dailyRows.length + 1 ? 30 : 28
+    }));
     dailyWs['!autofilter'] = {
       ref: XLSX.utils.encode_range({
         s: { r: 0, c: 0 },
@@ -2407,6 +2589,23 @@ export default function AdminPage() {
     };
     setRowFormats(dailyWs, 1, dailyRows.length + 1, [8, 10, 11], decimalFormat);
     setRowFormats(dailyWs, 1, dailyRows.length + 1, [9, 12, 13, 15, 17], yenFormat);
+
+    styleUsedRange(dailyWs);
+    styleTableHeader(dailyWs, `A1:R1`);
+    if (dailyRows.length > 0) {
+      setBodyBorders(dailyWs, `A2:R${dailyRows.length + 1}`);
+      for (let r = 2; r <= dailyRows.length + 1; r++) {
+        if (r % 2 === 0) {
+          styleRange(dailyWs, `A${r}:R${r}`, {
+            fill: { fgColor: { rgb: colors.veryLightBlue } }
+          });
+        }
+      }
+    }
+    styleTotalRow(dailyWs, `A${dailyRows.length + 2}:R${dailyRows.length + 2}`);
+    styleRange(dailyWs, `I2:R${dailyRows.length + 2}`, {
+      alignment: { vertical: 'center', wrapText: true }
+    });
 
     XLSX.utils.book_append_sheet(workbook, dailyWs, '日報一覧');
 
@@ -2447,13 +2646,44 @@ export default function AdminPage() {
 
     const peopleWs = XLSX.utils.aoa_to_sheet(peopleSheetRows);
     peopleWs['!cols'] = [
-      { wch: 26 }, { wch: 32 }, { wch: 14 }, { wch: 18 }
+      { wch: 28 }, { wch: 34 }, { wch: 16 }, { wch: 20 }
     ];
+    peopleWs['!rows'] = Array.from({ length: peopleSheetRows.length }, (_, idx) => ({
+      hpt: idx === 0 || peopleSheetRows[idx]?.[0] === '【外注費 集計】' ? 30 : 25
+    }));
     Object.keys(peopleWs).forEach((addr) => {
       if (addr.startsWith('D') && peopleWs[addr] && typeof peopleWs[addr].v === 'number') {
         peopleWs[addr].z = yenFormat;
       }
     });
+
+    styleUsedRange(peopleWs);
+    const workerHeaderRow = 2;
+    const workerTotalRow = workerRows.length + 3;
+    const subTitleRow = workerRows.length + 5;
+    const subHeaderRow = workerRows.length + 6;
+    const subTotalRow = peopleSheetRows.length;
+
+    styleRange(peopleWs, 'A1:D1', {
+      fill: { fgColor: { rgb: colors.lightBlue } },
+      font: { name: excelFont, sz: 13, bold: true, color: { rgb: colors.navy } },
+      border: thinBorder
+    });
+    styleTableHeader(peopleWs, `A${workerHeaderRow}:D${workerHeaderRow}`);
+    if (workerRows.length > 0) setBodyBorders(peopleWs, `A3:D${workerTotalRow - 1}`);
+    styleTotalRow(peopleWs, `A${workerTotalRow}:D${workerTotalRow}`);
+
+    styleRange(peopleWs, `A${subTitleRow}:D${subTitleRow}`, {
+      fill: { fgColor: { rgb: colors.lightBlue } },
+      font: { name: excelFont, sz: 13, bold: true, color: { rgb: colors.navy } },
+      border: thinBorder
+    });
+    styleTableHeader(peopleWs, `A${subHeaderRow}:D${subHeaderRow}`);
+    if (subTotalRow > subHeaderRow + 1) {
+      setBodyBorders(peopleWs, `A${subHeaderRow + 1}:D${subTotalRow - 1}`);
+    }
+    styleTotalRow(peopleWs, `A${subTotalRow}:D${subTotalRow}`);
+
     XLSX.utils.book_append_sheet(workbook, peopleWs, '人員・外注集計');
 
     // ============================================================
@@ -2489,9 +2719,12 @@ export default function AdminPage() {
 
     const disposalWs = XLSX.utils.aoa_to_sheet(disposalSheetRows);
     disposalWs['!cols'] = [
-      { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 26 },
-      { wch: 12 }, { wch: 10 }, { wch: 18 }
+      { wch: 30 }, { wch: 11 }, { wch: 13 }, { wch: 28 },
+      { wch: 13 }, { wch: 11 }, { wch: 20 }
     ];
+    disposalWs['!rows'] = Array.from({ length: disposalRows.length + 2 }, (_, idx) => ({
+      hpt: idx === 0 ? 32 : idx === disposalRows.length + 1 ? 30 : 25
+    }));
     disposalWs['!autofilter'] = {
       ref: XLSX.utils.encode_range({
         s: { r: 0, c: 0 },
@@ -2500,6 +2733,16 @@ export default function AdminPage() {
     };
     setRowFormats(disposalWs, 1, disposalRows.length + 1, [4], decimalFormat);
     setRowFormats(disposalWs, 1, disposalRows.length + 1, [6], yenFormat);
+
+    styleUsedRange(disposalWs);
+    styleTableHeader(disposalWs, 'A1:G1');
+    if (disposalRows.length > 0) {
+      setBodyBorders(disposalWs, `A2:G${disposalRows.length + 1}`);
+      for (let r = 2; r <= disposalRows.length + 1; r++) {
+        if (r % 2 === 0) styleRange(disposalWs, `A${r}:G${r}`, { fill: { fgColor: { rgb: colors.veryLightBlue } } });
+      }
+    }
+    styleTotalRow(disposalWs, `A${disposalRows.length + 2}:G${disposalRows.length + 2}`);
 
     XLSX.utils.book_append_sheet(workbook, disposalWs, '処分費集計');
 
@@ -2541,9 +2784,12 @@ export default function AdminPage() {
 
     const scrapWs = XLSX.utils.aoa_to_sheet(scrapSheetRows);
     scrapWs['!cols'] = [
-      { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 26 },
-      { wch: 12 }, { wch: 10 }, { wch: 18 }
+      { wch: 11 }, { wch: 32 }, { wch: 13 }, { wch: 28 },
+      { wch: 13 }, { wch: 11 }, { wch: 20 }
     ];
+    scrapWs['!rows'] = Array.from({ length: scrapRows.length + 2 }, (_, idx) => ({
+      hpt: idx === 0 ? 32 : idx === scrapRows.length + 1 ? 30 : 25
+    }));
     scrapWs['!autofilter'] = {
       ref: XLSX.utils.encode_range({
         s: { r: 0, c: 0 },
@@ -2552,6 +2798,16 @@ export default function AdminPage() {
     };
     setRowFormats(scrapWs, 1, scrapRows.length + 1, [4], decimalFormat);
     setRowFormats(scrapWs, 1, scrapRows.length + 1, [6], yenFormat);
+
+    styleUsedRange(scrapWs);
+    styleTableHeader(scrapWs, 'A1:G1');
+    if (scrapRows.length > 0) {
+      setBodyBorders(scrapWs, `A2:G${scrapRows.length + 1}`);
+      for (let r = 2; r <= scrapRows.length + 1; r++) {
+        if (r % 2 === 0) styleRange(scrapWs, `A${r}:G${r}`, { fill: { fgColor: { rgb: colors.veryLightBlue } } });
+      }
+    }
+    styleTotalRow(scrapWs, `A${scrapRows.length + 2}:G${scrapRows.length + 2}`);
 
     XLSX.utils.book_append_sheet(workbook, scrapWs, 'スクラップ集計');
 
@@ -2584,9 +2840,22 @@ export default function AdminPage() {
       ['合計', '', '', extraTotal]
     ]);
     extraWs['!cols'] = [
-      { wch: 14 }, { wch: 16 }, { wch: 36 }, { wch: 18 }
+      { wch: 15 }, { wch: 18 }, { wch: 40 }, { wch: 20 }
     ];
+    extraWs['!rows'] = Array.from({ length: extraRows.length + 2 }, (_, idx) => ({
+      hpt: idx === 0 ? 32 : idx === extraRows.length + 1 ? 30 : 25
+    }));
     setRowFormats(extraWs, 1, extraRows.length + 1, [3], yenFormat);
+
+    styleUsedRange(extraWs);
+    styleTableHeader(extraWs, 'A1:D1');
+    if (extraRows.length > 0) {
+      setBodyBorders(extraWs, `A2:D${extraRows.length + 1}`);
+      for (let r = 2; r <= extraRows.length + 1; r++) {
+        if (r % 2 === 0) styleRange(extraWs, `A${r}:D${r}`, { fill: { fgColor: { rgb: colors.veryLightBlue } } });
+      }
+    }
+    styleTotalRow(extraWs, `A${extraRows.length + 2}:D${extraRows.length + 2}`);
 
     XLSX.utils.book_append_sheet(workbook, extraWs, 'その他経費');
 
