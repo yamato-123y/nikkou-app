@@ -257,8 +257,6 @@ export default function AdminPage() {
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
-  const [subcontractorEstimateOpen, setSubcontractorEstimateOpen] = useState(false);
-  const [deletingCompletedSite, setDeletingCompletedSite] = useState<string | null>(null);
 
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
@@ -770,79 +768,6 @@ export default function AdminPage() {
     }
   };
 
-  const deleteCompletedSite = async (locName: string) => {
-    if (authRole !== 'admin' || deletingCompletedSite) return;
-
-    const finishedLoc = (settings.locations || []).find((l: any) => {
-      const name = typeof l === 'string' ? l : l?.name;
-      const isFinished = typeof l === 'object' ? !!l?.isFinished : false;
-      return name === locName && isFinished;
-    });
-
-    if (!finishedLoc) {
-      alert('完了済みの現場だけ削除できます。');
-      return;
-    }
-
-    const backupOk = confirm(
-      `⚠️ 現場データを完全削除します。\n\n` +
-      `【${locName}】\n\n` +
-      `この現場のExcel出力・Supabaseバックアップは済んでいますか？\n\n` +
-      `削除すると、この現場の日報・現場別原価情報・写真などは元に戻せません。\n` +
-      `社員・外注・車両・重機・処分場などのマスタと、他の現場は削除されません。`
-    );
-
-    if (!backupOk) return;
-
-    const typed = prompt(
-      `最終確認です。\n\n本当に削除する場合は、下の現場名をそのまま入力してください。\n\n${locName}`
-    );
-
-    if (typed !== locName) {
-      alert('現場名が一致しないため、削除を中止しました。');
-      return;
-    }
-
-    try {
-      setDeletingCompletedSite(locName);
-
-      const res = await fetch('/api/admin/delete-completed-site', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: locName,
-          confirmation: typed
-        })
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        alert(data?.error || '現場データの削除に失敗しました。');
-        return;
-      }
-
-      if (modalLocation === locName) {
-        setModalLocation(null);
-      }
-
-      await fetchData();
-
-      alert(
-        `削除しました。\n\n` +
-        `現場：${locName}\n` +
-        `削除した日報：${Number(data?.deletedReports || 0)}件\n` +
-        `削除した写真：${Number(data?.deletedPhotos || 0)}枚\n\n` +
-        `他の現場・マスタ登録情報は変更していません。`
-      );
-    } catch (e) {
-      console.error(e);
-      alert('通信エラーが発生しました。削除結果を確認してから再操作してください。');
-    } finally {
-      setDeletingCompletedSite(null);
-    }
-  };
-
   const handleCostOverrideChange = (locName: string, field: string, val: string) => {
     if (authRole === 'viewer') return;
     const newOverrides = {
@@ -1309,7 +1234,19 @@ export default function AdminPage() {
   const calculateReportDailyCost = (r: any) => {
     let lCost = 0;
     const workers = Array.isArray(r.workers) ? r.workers : [];
-    workers.forEach((w: string) => lCost += ((settings.workers || []).find((x:any) => x.name === w)?.price || 0));
+    const workerOvertimeHours = r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
+      ? r.workerOvertimeHours
+      : {};
+
+    workers.forEach((w: string) => {
+      const workerMaster = (settings.workers || []).find((x:any) => x.name === w);
+      const dailyPrice = Number(workerMaster?.price || 0);
+      const shiftHours = Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
+      const overtimeHours = Math.max(0, Number(workerOvertimeHours[w] || 0));
+      const overtimeCost = Math.round((dailyPrice / shiftHours) * overtimeHours);
+
+      lCost += dailyPrice + overtimeCost;
+    });
 
     let subCost = 0;
     const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
@@ -1853,6 +1790,7 @@ export default function AdminPage() {
     // 日付そのものは画面に出さず、「氏名：○日」だけを表示する。
     // 同じ日報内の重複や同日複数データがあっても、同じ現場・同じ人・同じ日は1日扱い。
     const workerAttendanceDateMap: { [name: string]: Set<string> } = {};
+    const workerOvertimeTotalMap: { [name: string]: number } = {};
 
     locMapped.forEach(r => {
       const dc = calculateReportDailyCost(r);
@@ -1871,6 +1809,14 @@ export default function AdminPage() {
           workerAttendanceDateMap[workerName] = new Set<string>();
         }
         workerAttendanceDateMap[workerName].add(attendanceDateKey);
+
+        const reportOvertimeMap =
+          r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
+            ? r.workerOvertimeHours
+            : {};
+        workerOvertimeTotalMap[workerName] =
+          Number(workerOvertimeTotalMap[workerName] || 0) +
+          Math.max(0, Number(reportOvertimeMap[workerName] || 0));
       });
 
       calcSub += dc.subCost;
@@ -2007,7 +1953,8 @@ export default function AdminPage() {
     const workerAttendance = Object.entries(workerAttendanceDateMap)
       .map(([name, dateSet]) => ({
         name,
-        days: dateSet.size
+        days: dateSet.size,
+        overtimeHours: Number(workerOvertimeTotalMap[name] || 0)
       }))
       .filter((entry: any) => entry.days > 0)
       .sort((a: any, b: any) => {
@@ -2689,7 +2636,8 @@ export default function AdminPage() {
     // ============================================================
     const workerRows = (costs.workerAttendance || []).map((x: any) => [
       x.name,
-      Number(x.days || 0)
+      Number(x.days || 0),
+      Number(x.overtimeHours || 0)
     ]);
 
     const subRows = (costs.subcontractorBreakdown || []).map((x: any) => [
@@ -2708,9 +2656,14 @@ export default function AdminPage() {
 
     const peopleSheetRows: any[][] = [
       ['【作業員 稼働集計】', '', '', ''],
-      ['作業員名', '稼働日数', '', ''],
-      ...workerRows,
-      ['合計', workerRows.reduce((s: number, x: any[]) => s + Number(x[1] || 0), 0), '', ''],
+      ['作業員名', '稼働日数', '残業時間', ''],
+      ...workerRows.map((x: any[]) => [x[0], x[1], x[2], '']),
+      [
+        '合計',
+        workerRows.reduce((s: number, x: any[]) => s + Number(x[1] || 0), 0),
+        workerRows.reduce((s: number, x: any[]) => s + Number(x[2] || 0), 0),
+        ''
+      ],
       ['', '', '', ''],
       ['【外注費 集計】', '', '', ''],
       ['会社名', '作業内容', '延べ人数', '確定金額'],
@@ -3824,24 +3777,8 @@ export default function AdminPage() {
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
-                <div className="grid grid-cols-1 gap-2 pt-1">
-                  <button
-                    onClick={() => setModalLocation(loc.name)}
-                    className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition"
-                  >
-                    🔍 詳細分析を見る
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteCompletedSite(loc.name)}
-                    disabled={deletingCompletedSite === loc.name}
-                    className="w-full bg-white hover:bg-rose-50 text-rose-700 border-2 border-rose-300 py-3 rounded-xl text-sm font-bold shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {deletingCompletedSite === loc.name ? '削除中…' : '🗑 現場データを削除'}
-                  </button>
-                  <div className="text-[11px] leading-relaxed text-rose-600 px-1">
-                    ※この完了現場の日報・現場別情報・写真のみ削除します。マスタや他現場は削除しません。
-                  </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
                 </div>
               </div>
             );
@@ -3883,17 +3820,7 @@ export default function AdminPage() {
                     <td className="py-5 px-4 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
                         {authRole !== 'viewer' && (
-                          <>
-                            <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
-                            <button
-                              type="button"
-                              onClick={() => deleteCompletedSite(loc.name)}
-                              disabled={deletingCompletedSite === loc.name}
-                              className="bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 px-3 py-2.5 rounded-xl font-bold transition shadow-sm text-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {deletingCompletedSite === loc.name ? '削除中…' : '🗑 削除'}
-                            </button>
-                          </>
+                          <button onClick={() => toggleLocationFinished(loc.name)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">未完了に戻す</button>
                         )}
                         <button onClick={() => setModalLocation(loc.name)} className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
                           詳細分析 →
@@ -4127,6 +4054,66 @@ export default function AdminPage() {
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
+                    ) : sec.key === 'workers' ? (
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
+                        <input
+                          type="text"
+                          placeholder="メンバー名"
+                          value={form.wName || ''}
+                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          onChange={e=>setForm({...form, wName: e.target.value})}
+                        />
+                        <input
+                          type="number"
+                          placeholder="日額"
+                          value={form.wPrice || ''}
+                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          onChange={e=>setForm({...form, wPrice: e.target.value})}
+                        />
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-sm font-bold text-slate-700 mb-2">所定勤務時間</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[8, 7].map((hours) => (
+                              <label
+                                key={hours}
+                                className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold transition ${
+                                  Number(form.wShiftHours || 8) === hours
+                                    ? 'bg-blue-50 border-blue-500 text-blue-800'
+                                    : 'bg-white border-slate-200 text-slate-700'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="new-worker-shift-hours"
+                                  value={hours}
+                                  checked={Number(form.wShiftHours || 8) === hours}
+                                  onChange={() => setForm({...form, wShiftHours: hours})}
+                                  className="accent-blue-600"
+                                />
+                                {hours}時間勤務
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            addMaster(
+                              'workers',
+                              {
+                                name: form.wName,
+                                price: Number(form.wPrice) || 0,
+                                shiftHours: Number(form.wShiftHours || 8)
+                              },
+                              ['wName', 'wPrice', 'wShiftHours']
+                            )
+                          }
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
+                        >
+                          ＋ 追加
+                        </button>
+                      </div>
                     ) : (
                       <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
@@ -4204,6 +4191,34 @@ export default function AdminPage() {
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           ) : (
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                          )}
+
+                          {sec.key === 'workers' && (
+                            <div className="rounded-xl border border-slate-200 bg-white p-3">
+                              <div className="text-xs font-bold text-slate-500 mb-2">所定勤務時間</div>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[8, 7].map((hours) => (
+                                  <label
+                                    key={hours}
+                                    className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer text-sm font-bold transition ${
+                                      Number(item.shiftHours || 8) === hours
+                                        ? 'bg-blue-50 border-blue-500 text-blue-800'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`worker-shift-${idx}`}
+                                      value={hours}
+                                      checked={Number(item.shiftHours || 8) === hours}
+                                      onChange={() => updateItemField(sec.key, idx, 'shiftHours', hours)}
+                                      className="accent-blue-600"
+                                    />
+                                    {hours}時間勤務
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
                           )}
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
@@ -7695,36 +7710,19 @@ export default function AdminPage() {
                         </div>
                       ) : item.isSubcontractor ? (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() => setSubcontractorEstimateOpen(!subcontractorEstimateOpen)}
-                              className="w-full p-3 md:p-4 flex items-center justify-between gap-3 text-left hover:bg-slate-100 transition"
-                            >
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm md:text-base font-extrabold text-slate-700">
-                                    概算の内訳
-                                  </div>
-                                  <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
-                                    {subcontractorEstimateOpen ? '▲ 閉じる' : '▼ 開く'}
-                                  </span>
-                                </div>
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 md:p-4">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <div>
+                                <div className="text-sm md:text-base font-extrabold text-slate-700">概算の内訳</div>
                                 <div className="text-xs md:text-sm text-slate-500 mt-0.5">
                                   日報で使用した外注を、業者ごとに集計しています。
                                 </div>
                               </div>
-
-                              <div className="shrink-0 text-right">
-                                <div className="text-xs text-slate-500">日報合計</div>
-                                <div className="text-sm md:text-base font-extrabold text-slate-900">
-                                  {formatAmount(modalData.reportEstimateSub || 0)}
-                                </div>
+                              <div className="text-sm md:text-base font-extrabold text-slate-900">
+                                日報合計 {formatAmount(modalData.reportEstimateSub || 0)}
                               </div>
-                            </button>
+                            </div>
 
-                            {subcontractorEstimateOpen && (
-                              <div className="px-3 pb-3 md:px-4 md:pb-4 pt-1 border-t border-slate-200">
                             {(modalData.subcontractorBreakdown || []).length === 0 ? (
                               <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
                                 日報由来の外注費はありません。
@@ -7813,8 +7811,6 @@ export default function AdminPage() {
                               ※各業者の「反映額」を変更すると、その金額が外注費の原価計算に使われます。
                               下の「請求書の金額」に全体金額を入力した場合は、そちらを最優先します。
                             </div>
-                              </div>
-                            )}
                           </div>
 
                           <div>
@@ -7896,6 +7892,11 @@ export default function AdminPage() {
                                       <span className="font-bold">{worker.name}</span>
                                       <span className="text-slate-400 mx-1">：</span>
                                       <span className="font-extrabold text-slate-900">{worker.days}日</span>
+                                      {Number(worker.overtimeHours || 0) > 0 && (
+                                        <span className="font-extrabold text-orange-700 ml-1">
+                                          ＋残業{Number(worker.overtimeHours || 0)}時間
+                                        </span>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
