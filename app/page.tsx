@@ -1101,60 +1101,53 @@ export default function Home() {
              <span className="font-black text-lg text-orange-600 block">👥 2. 作業員（複数選択可）</span>
              <p className="text-xs md:text-sm font-bold text-slate-500">※職長も現場で作業した場合は、ここでも選択してください。</p>
            </div>
-           <div className="space-y-2 pt-1">
+           <div className="grid grid-cols-2 gap-2.5 pt-1">
              {(settings.workers || []).map((w:any) => {
                const selected = selectedWorkers.includes(w.name);
                const overtime = Number(workerOvertimeHours[w.name] || 0);
-               const shiftHours = Number(w.shiftHours || 8) === 7 ? 7 : 8;
 
                return (
                  <div
                    key={w.name}
-                   className={`rounded-xl border transition ${
+                   className={`rounded-2xl border transition ${
                      selected
-                       ? 'bg-blue-50 border-blue-500'
+                       ? 'bg-blue-50 border-blue-500 shadow-sm'
                        : 'bg-white border-slate-300'
                    }`}
                  >
-                   <div className="flex items-center gap-2 p-2.5">
-                     <button
-                       type="button"
-                       onClick={() => toggleWorkerSelection(w.name)}
-                       className="min-w-0 flex-1 text-left rounded-lg px-1 py-1.5 active:bg-slate-100"
-                     >
-                       <div className={`text-[17px] leading-tight font-normal ${
-                         selected ? 'text-blue-900' : 'text-slate-900'
-                       }`}>
-                         {w.name}
-                       </div>
-                       <div className={`mt-1 text-[13px] leading-tight font-normal ${
-                         selected ? 'text-blue-700' : 'text-slate-600'
-                       }`}>
-                         {shiftHours}時間勤務
-                         {overtime > 0 ? `　残業 ${overtime}時間` : ''}
-                       </div>
-                     </button>
+                   <button
+                     type="button"
+                     onClick={() => toggleWorkerSelection(w.name)}
+                     className="w-full px-3 pt-3 pb-2 text-center rounded-t-2xl active:bg-slate-100"
+                   >
+                     <div className={`text-[16px] leading-snug font-medium break-words ${
+                       selected ? 'text-blue-900' : 'text-slate-900'
+                     }`}>
+                       {w.name}
+                     </div>
+                   </button>
 
-                     <div className="shrink-0 flex items-center gap-1.5">
+                   <div className="px-2.5 pb-3">
+                     <div className="flex items-center justify-center gap-1.5">
                        <button
                          type="button"
                          onClick={() => changeWorkerOvertime(w.name, -1)}
                          disabled={overtime <= 0}
                          aria-label={`${w.name}の残業時間を1時間減らす`}
-                         className="w-10 h-10 rounded-lg bg-white border border-slate-300 text-slate-700 text-xl font-normal disabled:opacity-30 active:bg-slate-100"
+                         className="w-10 h-10 shrink-0 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xl font-medium disabled:opacity-30 active:bg-slate-100"
                        >
                          −
                        </button>
 
-                       <div className="w-[58px] text-center text-[16px] font-normal text-slate-900">
-                         {overtime}時間
+                       <div className="min-w-0 flex-1 text-center text-[14px] leading-tight font-medium text-slate-900 whitespace-nowrap">
+                         残業{overtime}時間
                        </div>
 
                        <button
                          type="button"
                          onClick={() => changeWorkerOvertime(w.name, 1)}
                          aria-label={`${w.name}の残業時間を1時間増やす`}
-                         className="w-10 h-10 rounded-lg bg-orange-500 text-white text-xl font-normal border border-orange-500 active:bg-orange-600"
+                         className="w-10 h-10 shrink-0 rounded-xl bg-orange-500 text-white text-xl font-medium border border-orange-500 active:bg-orange-600"
                        >
                          ＋
                        </button>
