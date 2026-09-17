@@ -19,6 +19,7 @@ export default function Home() {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
+  const [workerOptionTarget, setWorkerOptionTarget] = useState<string | null>(null);
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
@@ -211,6 +212,9 @@ export default function Home() {
         delete next[workerName];
         return next;
       });
+      if (workerOptionTarget === workerName) {
+        setWorkerOptionTarget(null);
+      }
     } else {
       setSelectedWorkers([...selectedWorkers, workerName]);
     }
@@ -943,6 +947,7 @@ export default function Home() {
     setSelectedWorkers([]);
     setWorkerOvertimeHours({});
     setWorkerHalfDay({});
+    setWorkerOptionTarget(null);
     setJobTypesCount({});
     setSubcontractors([]);
     setLeaseHeavy([]);
@@ -1411,6 +1416,8 @@ export default function Home() {
              {(settings.workers || []).map((w:any) => {
                const selected = selectedWorkers.includes(w.name);
                const overtime = Number(workerOvertimeHours[w.name] || 0);
+               const isHalfDay = !!workerHalfDay[w.name];
+               const hasSpecial = isHalfDay || overtime > 0;
 
                return (
                  <div
@@ -1421,141 +1428,144 @@ export default function Home() {
                        : 'bg-white border-slate-300'
                    }`}
                  >
-                   <div className="relative px-2 pt-2.5">
-                     <button
-                       type="button"
-                       onClick={() => toggleWorkerSelection(w.name)}
-                       className={`w-full min-h-[58px] px-2 py-2.5 pr-[54px] text-center rounded-xl border transition ${
-                         selected
-                           ? 'bg-blue-200 border-blue-600 active:bg-blue-300'
-                           : 'bg-white border-transparent active:bg-slate-100'
+                   <button
+                     type="button"
+                     onClick={() => toggleWorkerSelection(w.name)}
+                     className={`w-full min-h-[72px] px-2 py-3 text-center rounded-2xl transition ${
+                       selected ? 'active:bg-blue-200' : 'active:bg-slate-100'
+                     }`}
+                   >
+                     <div
+                       className={`text-[19px] leading-tight font-semibold break-words ${
+                         selected ? 'text-blue-950' : 'text-slate-900'
                        }`}
                      >
-                       <div
-                         className={`text-[19px] leading-tight font-semibold break-words ${
-                           selected ? 'text-blue-950' : 'text-slate-900'
-                         }`}
-                       >
-                         {w.name}
+                       {selected ? '✓ ' : ''}{w.name}
+                     </div>
+
+                     {selected && hasSpecial && (
+                       <div className="mt-1.5 text-[13px] leading-tight font-medium text-slate-600">
+                         {[
+                           isHalfDay ? '半日' : '',
+                           overtime > 0 ? `残業${overtime}時間` : ''
+                         ].filter(Boolean).join('・')}
                        </div>
-                     </button>
+                     )}
+                   </button>
 
-                     <button
-                       type="button"
-                       onClick={() => toggleWorkerHalfDay(w.name)}
-                       aria-label={`${w.name}を半日勤務にする`}
-                       className={`absolute right-3 top-1/2 -translate-y-[34%] shrink-0 px-2.5 h-9 rounded-lg border text-[12px] font-semibold transition ${
-                         workerHalfDay[w.name]
-                           ? 'bg-amber-500 border-amber-500 text-white'
-                           : 'bg-white border-slate-300 text-slate-600'
-                       }`}
-                     >
-                       半日
-                     </button>
-                   </div>
-
-                   <div className="px-2 pb-3 pt-1">
-                     <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-1">
+                   {selected && (
+                     <div className="px-2 pb-2.5">
                        <button
                          type="button"
-                         onClick={() => changeWorkerOvertime(w.name, -1)}
-                         disabled={overtime <= 0}
-                         aria-label={`${w.name}の残業時間を1時間減らす`}
-                         className="w-9 h-10 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xl font-medium disabled:opacity-30 active:bg-slate-100"
+                         onClick={() => setWorkerOptionTarget(w.name)}
+                         className="w-full h-10 rounded-xl border border-slate-300 bg-white text-[14px] font-medium text-slate-700 active:bg-slate-100"
                        >
-                         −
-                       </button>
-
-                       <div className="min-w-0 text-center text-[13px] leading-tight font-medium text-slate-500 whitespace-nowrap">
-                         残業{overtime}時間
-                       </div>
-
-                       <button
-                         type="button"
-                         onClick={() => changeWorkerOvertime(w.name, 1)}
-                         aria-label={`${w.name}の残業時間を1時間増やす`}
-                         className="w-9 h-10 rounded-xl bg-orange-500 text-white text-xl font-medium border border-orange-500 active:bg-orange-600"
-                       >
-                         ＋
+                         勤務設定
                        </button>
                      </div>
-                   </div>
+                   )}
                  </div>
                );
              })}
            </div>
 
-           {(settings.jobTypes || []).length > 0 && (
-             <div className="border-t pt-5 space-y-3">
-               <span className="font-bold text-base text-slate-950 block">🏷️ 職種ごとの稼働人数入力</span>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                 {(settings.jobTypes || []).map((j: any) => (
-                   <div key={j.name} className="p-3 bg-slate-50 border-2 rounded-2xl flex items-center justify-between gap-3">
-                     <span className="font-bold text-sm text-slate-800">{j.name}</span>
-                     <div className="flex items-center gap-1.5">
-                       <input 
-                         type="number" 
-                         min="0"
-                         placeholder="0"
-                         className="w-24 p-2.5 border-2 rounded-xl text-center font-bold text-base bg-white"
-                         value={jobTypesCount[j.name] || ''}
-                         onChange={e => setJobTypesCount({ ...jobTypesCount, [j.name]: e.target.value })}
-                       />
-                       <span className="text-sm font-bold text-slate-600">人</span>
+           {workerOptionTarget && (() => {
+             const overtime = Number(workerOvertimeHours[workerOptionTarget] || 0);
+             const isHalfDay = !!workerHalfDay[workerOptionTarget];
+
+             return (
+               <div className="fixed inset-0 z-[100] bg-black/45 flex items-end sm:items-center justify-center p-3">
+                 <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+                   <div className="p-5 border-b border-slate-200">
+                     <div className="text-sm text-slate-500 mb-1">勤務設定</div>
+                     <div className="text-[24px] leading-tight font-semibold text-slate-900">
+                       {workerOptionTarget}
                      </div>
                    </div>
-                 ))}
+
+                   <div className="p-5 space-y-6">
+                     <div>
+                       <div className="text-[16px] font-medium text-slate-700 mb-3">
+                         勤務区分
+                       </div>
+                       <div className="grid grid-cols-2 gap-3">
+                         <button
+                           type="button"
+                           onClick={() =>
+                             setWorkerHalfDay((prev) => ({
+                               ...prev,
+                               [workerOptionTarget]: false
+                             }))
+                           }
+                           className={`h-14 rounded-2xl border-2 text-[17px] font-semibold transition ${
+                             !isHalfDay
+                               ? 'bg-blue-100 border-blue-600 text-blue-950'
+                               : 'bg-white border-slate-300 text-slate-700'
+                           }`}
+                         >
+                           通常勤務
+                         </button>
+
+                         <button
+                           type="button"
+                           onClick={() =>
+                             setWorkerHalfDay((prev) => ({
+                               ...prev,
+                               [workerOptionTarget]: true
+                             }))
+                           }
+                           className={`h-14 rounded-2xl border-2 text-[17px] font-semibold transition ${
+                             isHalfDay
+                               ? 'bg-amber-100 border-amber-500 text-amber-900'
+                               : 'bg-white border-slate-300 text-slate-700'
+                           }`}
+                         >
+                           半日
+                         </button>
+                       </div>
+                     </div>
+
+                     <div>
+                       <div className="text-[16px] font-medium text-slate-700 mb-3">
+                         残業時間
+                       </div>
+
+                       <div className="grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3">
+                         <button
+                           type="button"
+                           onClick={() => changeWorkerOvertime(workerOptionTarget, -1)}
+                           disabled={overtime <= 0}
+                           className="h-14 rounded-2xl border-2 border-slate-300 bg-slate-50 text-[28px] font-medium text-slate-600 disabled:opacity-30 active:bg-slate-100"
+                         >
+                           −
+                         </button>
+
+                         <div className="h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-[18px] font-semibold text-slate-700">
+                           残業{overtime}時間
+                         </div>
+
+                         <button
+                           type="button"
+                           onClick={() => changeWorkerOvertime(workerOptionTarget, 1)}
+                           className="h-14 rounded-2xl border-2 border-blue-500 bg-blue-50 text-[28px] font-medium text-blue-700 active:bg-blue-100"
+                         >
+                           ＋
+                         </button>
+                       </div>
+                     </div>
+
+                     <button
+                       type="button"
+                       onClick={() => setWorkerOptionTarget(null)}
+                       className="w-full h-14 rounded-2xl bg-slate-900 text-white text-[17px] font-semibold active:bg-slate-800"
+                     >
+                       設定を閉じる
+                     </button>
+                   </div>
+                 </div>
                </div>
-             </div>
-           )}
-
-           <div className="border-t pt-5 space-y-4">
-             <div className="flex justify-between items-center">
-               <span className="font-bold text-base text-slate-950">👤 外注・派遣作業員</span>
-               <button type="button" onClick={() => setSubcontractors([...subcontractors, {company: '', task: '', count: ''}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加</button>
-             </div>
-
-             {subcontractors.map((sub, index) => {
-               const availableTasks = (settings.subcontractors || []).filter((s:any) => s.company === sub.company).map((s:any) => s.task);
-
-               return (
-                 <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
-                   <div className="grid grid-cols-2 gap-3">
-                     <div>
-                       <label className="text-sm font-bold text-slate-950 block mb-1">外注会社名</label>
-                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.company} onChange={(e)=>{
-                         const updated = [...subcontractors]; 
-                         updated[index].company = e.target.value; 
-                         updated[index].task = '';
-                         setSubcontractors(updated);
-                       }}>
-                         <option value="">会社を選択...</option>
-                         {uniqueCompanies.map((comp:any)=><option key={comp} value={comp}>{comp}</option>)}
-                       </select>
-                     </div>
-                     <div>
-                       <label className="text-sm font-bold text-slate-950 block mb-1">作業内容</label>
-                       <select className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={sub.task} onChange={(e)=>{
-                         const updated = [...subcontractors]; updated[index].task = e.target.value; setSubcontractors(updated);
-                       }}>
-                         <option value="">内容を選択...</option>
-                         {availableTasks.map((t:any, idx:number)=><option key={idx} value={t}>{t}</option>)}
-                       </select>
-                     </div>
-                   </div>
-                   <div className="flex items-end gap-3">
-                     <div className="flex-1 min-w-0">
-                       <label className="text-sm font-bold text-slate-950 block mb-1">人数</label>
-                       <input type="number" placeholder="0" className="w-full max-w-full min-w-0 p-3 rounded-xl border-2 font-bold text-lg bg-white text-slate-950 box-border block" value={sub.count} onChange={(e)=>{
-                         const updated = [...subcontractors]; updated[index].count = e.target.value; setSubcontractors(updated);
-                       }}/>
-                     </div>
-                     <button type="button" onClick={() => setSubcontractors(subcontractors.filter((_,i)=>i!==index))} className="bg-red-100 text-red-700 px-4 py-3 rounded-xl font-bold text-sm hover:bg-red-200 transition shrink-0">削除</button>
-                   </div>
-                 </div>
-               );
-             })}
-           </div>
+             );
+           })()}
         </div>
 
         {/* 3. 重機・車両 */}
@@ -2188,7 +2198,7 @@ export default function Home() {
                事務所へ伝えたいことや、相談したいことがあれば入力してください。
              </div>
              <textarea
-               placeholder="〇〇について確認してほしい。など"
+               placeholder="例：追加で資材が必要です。／○○について事務所に確認お願いします。"
                value={officeMessage}
                onChange={e=>setOfficeMessage(e.target.value)}
                className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
