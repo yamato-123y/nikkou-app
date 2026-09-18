@@ -178,6 +178,7 @@ export default function Home() {
   // モーダル管理用ステート
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showPreviousCopyModal, setShowPreviousCopyModal] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -979,6 +980,127 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const normalizeReportForCopy = (r: any) => {
+    if (r?.data && typeof r.data === 'object') {
+      return { ...r.data, id: r.id || r.data.id };
+    }
+    return r || {};
+  };
+
+  const previousReportForLocation = (() => {
+    if (!location) return null;
+
+    const currentDate = String(date || '');
+
+    return reports
+      .map(normalizeReportForCopy)
+      .filter((r: any) => {
+        if (String(r.location || '') !== String(location)) return false;
+        if (!r.date) return false;
+        if (!currentDate) return true;
+        return String(r.date) <= currentDate;
+      })
+      .sort((a: any, b: any) => {
+        const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+        if (byDate !== 0) return byDate;
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      })[0] || null;
+  })();
+
+  const applyPreviousReportCopy = () => {
+    if (!previousReportForLocation) return;
+
+    const r: any = previousReportForLocation;
+
+    // よく繰り返す項目だけコピーする。
+    // 半日・残業・金額・処分・スクラップ・事務所への相談は、
+    // 前日のまま残ると入力ミスにつながるため意図的にコピーしない。
+    setManager(r.manager || '');
+    setSelectedWorkers(Array.isArray(r.workers) ? [...r.workers] : []);
+    setWorkerOvertimeHours({});
+    setWorkerHalfDay({});
+    setWorkerOptionTarget(null);
+
+    setJobTypesCount(
+      r.jobTypes && typeof r.jobTypes === 'object'
+        ? { ...r.jobTypes }
+        : {}
+    );
+
+    setSubcontractors(
+      Array.isArray(r.subcontractors)
+        ? r.subcontractors.map((x: any) => ({ ...x }))
+        : []
+    );
+
+    setLeaseHeavy(Array.isArray(r.leaseHeavy) ? [...r.leaseHeavy] : []);
+    setLeaseAttach(Array.isArray(r.leaseAttach) ? [...r.leaseAttach] : []);
+    setLeaseOther(Array.isArray(r.leaseOther) ? [...r.leaseOther] : []);
+
+    setIshikawaLeaseHeavy(
+      Array.isArray(r.ishikawaHeavy)
+        ? [...r.ishikawaHeavy]
+        : Array.isArray(r.ishikawaLeaseHeavy)
+          ? [...r.ishikawaLeaseHeavy]
+          : []
+    );
+    setIshikawaLeaseAttach(
+      Array.isArray(r.ishikawaAttach)
+        ? [...r.ishikawaAttach]
+        : Array.isArray(r.ishikawaLeaseAttach)
+          ? [...r.ishikawaLeaseAttach]
+          : []
+    );
+    setIshikawaLeaseOther(
+      Array.isArray(r.ishikawaOther)
+        ? [...r.ishikawaOther]
+        : Array.isArray(r.ishikawaLeaseOther)
+          ? [...r.ishikawaLeaseOther]
+          : []
+    );
+
+    setIshikawaCustomMachines(
+      Array.isArray(r.ishikawaCustomMachines)
+        ? r.ishikawaCustomMachines.map((x: any) => ({ ...x }))
+        : []
+    );
+
+    setMokCustomMachines(
+      Array.isArray(r.mokCustomMachines)
+        ? r.mokCustomMachines.map((x: any) => ({ ...x }))
+        : []
+    );
+
+    setOtherLeases(
+      Array.isArray(r.otherLeases)
+        ? r.otherLeases.map((x: any) => ({ ...x }))
+        : []
+    );
+
+    setSelectedOwnMachines(Array.isArray(r.ownMachines) ? [...r.ownMachines] : []);
+    setSelectedVehicles(Array.isArray(r.vehicles) ? [...r.vehicles] : []);
+
+    setDescription(r.workDescription || '');
+
+    // その日ごとに必ず確認してほしい項目は空にする
+    setFuel('');
+    setRegularPrice('');
+    setEtcPrice('');
+    setParkingPrice('');
+    setUnokeFuel('');
+    setUnokeRegular('');
+    setOtherItem('');
+    setOtherPrice('');
+    setDisposals([]);
+    setScraps([]);
+    setOfficeMessage('');
+
+    setShowPreviousCopyModal(false);
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
   const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
@@ -993,6 +1115,60 @@ export default function Home() {
       </div>
 
       {/* 送信内容確認ポップアップ */}
+
+      {/* 前回の日報コピー確認 */}
+      {showPreviousCopyModal && previousReportForLocation && (
+        <div
+          className="fixed inset-0 z-[110] bg-slate-950/55 flex items-end justify-center p-3"
+          onClick={() => setShowPreviousCopyModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-t-3xl rounded-b-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-200">
+              <div className="text-[21px] font-semibold text-slate-950">
+                📋 前回の日報をコピー
+              </div>
+              <div className="mt-2 text-[15px] text-slate-600 leading-relaxed">
+                {previousReportForLocation.date} の日報から、よく繰り返す項目をコピーします。
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4">
+                <div className="text-sm font-semibold text-blue-900 mb-2">コピーする内容</div>
+                <div className="text-[14px] leading-7 text-slate-700">
+                  職長・作業員・作業種別・外注・リース・重機・車両・本日の作業内容
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
+                <div className="text-sm font-semibold text-amber-900 mb-2">安全のためコピーしない内容</div>
+                <div className="text-[14px] leading-7 text-slate-700">
+                  半日・残業・燃料・ETC・駐車場・その他金額・処分・スクラップ・事務所への報告相談
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={applyPreviousReportCopy}
+                className="w-full h-14 rounded-2xl bg-blue-700 text-white text-[17px] font-semibold active:bg-blue-800"
+              >
+                この内容でコピーする
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPreviousCopyModal(false)}
+                className="w-full h-12 rounded-2xl bg-slate-100 text-slate-700 text-[16px] font-medium"
+              >
+                やめる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 現場別 現在原価・残額ポップアップ */}
       {showCostSummaryModal && location && selectedLocationCostSummary && (
@@ -1287,6 +1463,19 @@ export default function Home() {
                    );
                  })}
              </select>
+
+             {location && previousReportForLocation && (
+               <button
+                 type="button"
+                 onClick={() => setShowPreviousCopyModal(true)}
+                 className="mt-3 w-full rounded-2xl bg-blue-50 border-2 border-blue-300 text-blue-900 px-4 py-4 font-semibold text-[16px] shadow-sm active:bg-blue-100"
+               >
+                 📋 前回の日報をコピー
+                 <span className="block mt-1 text-[13px] font-medium text-blue-600">
+                   前回：{previousReportForLocation.date}
+                 </span>
+               </button>
+             )}
 
              {location && (
                <button
