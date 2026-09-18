@@ -264,6 +264,8 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
+  const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
+  const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
 
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
   const [disposalStartDate, setDisposalStartDate] = useState('');
@@ -565,6 +567,175 @@ export default function AdminPage() {
       window.removeEventListener('pointercancel', up);
     };
   }, [trialResourceDrag]);
+
+  const monthlyAttendanceRows = (() => {
+    const ym = attendanceYearMonth;
+    const [yearText, monthText] = ym.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+
+    const periodStartDate = new Date(year, month - 2, 21);
+    const periodEndDate = new Date(year, month - 1, 20);
+
+    const toYmd = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const periodStart = toYmd(periodStartDate);
+    const periodEnd = toYmd(periodEndDate);
+
+    const workerDayMap: Record<string, Record<string, { fraction: number; overtime: number; sites: Set<string> }>> = {};
+
+    reports.forEach((raw: any) => {
+      const r =
+        raw?.data && typeof raw.data === 'object'
+          ? { ...raw.data, id: raw.id || raw.data.id }
+          : raw || {};
+
+      const reportDate = String(r.date || '').replace(/\//g, '-');
+      if (!reportDate || reportDate < periodStart || reportDate > periodEnd) return;
+
+      const workers = Array.isArray(r.workers) ? r.workers : [];
+      const halfDayMap =
+        r.workerHalfDay && typeof r.workerHalfDay === 'object'
+          ? r.workerHalfDay
+          : {};
+      const overtimeMap =
+        r.workerOvertimeHours && typeof r.workerOvertimeHours === 'object'
+          ? r.workerOvertimeHours
+          : {};
+
+      workers.forEach((workerName: string) => {
+        if (!workerName) return;
+
+        if (!workerDayMap[workerName]) workerDayMap[workerName] = {};
+        if (!workerDayMap[workerName][reportDate]) {
+          workerDayMap[workerName][reportDate] = {
+            fraction: 0,
+            overtime: 0,
+            sites: new Set<string>()
+          };
+        }
+
+        const day = workerDayMap[workerName][reportDate];
+        const fraction = halfDayMap[workerName] ? 0.5 : 1;
+
+        // 同日に複数現場へ入った場合、勤務換算は最大1日まで。
+        day.fraction = Math.min(1, day.fraction + fraction);
+        day.overtime += Math.max(0, Number(overtimeMap[workerName] || 0));
+
+        if (r.location) day.sites.add(String(r.location));
+      });
+    });
+
+    const masterNames = (settings.workers || [])
+      .map((w: any) => w?.name)
+      .filter(Boolean);
+
+    const allNames = Array.from(
+      new Set([
+        ...masterNames,
+        ...Object.keys(workerDayMap)
+      ])
+    );
+
+    return allNames
+      .map((name: string) => {
+        const days = Object.entries(workerDayMap[name] || {})
+          .sort(([a], [b]) => a.localeCompare(b));
+
+        const attendanceDays = days.length;
+        const equivalentDays = days.reduce(
+          (sum, [, info]) => sum + Number(info.fraction || 0),
+          0
+        );
+        const halfDayCount = days.filter(([, info]) => Number(info.fraction || 0) === 0.5).length;
+        const overtimeHours = days.reduce(
+          (sum, [, info]) => sum + Number(info.overtime || 0),
+          0
+        );
+
+        const workerMaster = (settings.workers || []).find((w: any) => w.name === name);
+
+        return {
+          name,
+          isWeeklyPay: !!workerMaster?.isWeeklyPay,
+          attendanceDays,
+          halfDayCount,
+          equivalentDays,
+          overtimeHours,
+          details: days.map(([date, info]) => ({
+            date,
+            fraction: info.fraction,
+            overtime: info.overtime,
+            sites: Array.from(info.sites)
+          }))
+        };
+      })
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ja'));
+  })();
+
+  const exportMonthlyAttendanceExcel = () => {
+    const [yearText, monthText] = attendanceYearMonth.split('-');
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const start = new Date(year, month - 2, 21);
+    const end = new Date(year, month - 1, 20);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+
+    const rows = [
+      ['株式会社大和　月次勤怠'],
+      ['締め対象月', attendanceYearMonth],
+      ['集計期間', `${fmt(start)} ～ ${fmt(end)}（20日締め）`],
+      [],
+      ['作業員名', '支払区分', '出勤日数', '半日回数', '勤務換算日数', '残業時間'],
+      ...monthlyAttendanceRows.map((row: any) => [
+        row.name,
+        row.isWeeklyPay ? '週払い' : '月払い',
+        row.attendanceDays,
+        row.halfDayCount,
+        row.equivalentDays,
+        row.overtimeHours
+      ])
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    ws['!cols'] = [
+      { wch: 22 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 12 }
+    ];
+
+    ['A1', 'A5', 'B5', 'C5', 'D5', 'E5', 'F5'].forEach((cell) => {
+      if (ws[cell]) {
+        ws[cell].s = {
+          font: { name: 'Yu Gothic', bold: true },
+          alignment: { vertical: 'center', horizontal: cell === 'A1' ? 'left' : 'center' },
+          fill: cell === 'A1'
+            ? { fgColor: { rgb: 'DCE6F1' } }
+            : { fgColor: { rgb: 'E2E8F0' } },
+          border: {
+            top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+            right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+          }
+        };
+      }
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '月次勤怠');
+    XLSX.writeFile(wb, `月次勤怠_${attendanceYearMonth}.xlsx`);
+  };
 
   const handleLogin = (role: 'admin' | 'viewer') => {
     const targetPassword = role === 'viewer' ? viewerPassword : password;
@@ -4484,6 +4655,127 @@ export default function AdminPage() {
         )}
       </div>
 
+      {/* 月次勤怠（管理者のみ） */}
+      {authRole === 'admin' && (
+        <div className="bg-white p-4 md:p-7 rounded-3xl shadow-sm border border-slate-100 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900">📅 作業員 月次勤怠</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                20日締め（前月21日〜当月20日）で、日報から出勤日・半日・残業を自動集計します
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMonthlyAttendance(!showMonthlyAttendance)}
+              className="px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm font-bold"
+            >
+              {showMonthlyAttendance ? '閉じる ▲' : '勤怠を見る ▼'}
+            </button>
+          </div>
+
+          {showMonthlyAttendance && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <input
+                  type="month"
+                  value={attendanceYearMonth}
+                  onChange={(e) => setAttendanceYearMonth(e.target.value)}
+                  className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
+                />
+
+                <button
+                  type="button"
+                  onClick={exportMonthlyAttendanceExcel}
+                  className="px-4 py-3 rounded-xl bg-emerald-700 text-white text-sm font-bold shadow-sm"
+                >
+                  📊 Excel出力
+                </button>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="text-left px-4 py-3">作業員</th>
+                      <th className="text-center px-4 py-3">支払区分</th>
+                      <th className="text-center px-4 py-3">出勤日数</th>
+                      <th className="text-center px-4 py-3">半日回数</th>
+                      <th className="text-center px-4 py-3">勤務換算日数</th>
+                      <th className="text-center px-4 py-3">残業時間</th>
+                      <th className="text-left px-4 py-3">出勤日</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {monthlyAttendanceRows.map((row: any) => (
+                      <tr key={row.name}>
+                        <td className="px-4 py-3 font-semibold text-slate-900">
+                          {row.name}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {row.isWeeklyPay ? (
+                            <span className="inline-flex px-2.5 py-1 rounded-full bg-orange-100 border border-orange-300 text-orange-800 text-xs font-bold">
+                              週払い
+                            </span>
+                          ) : (
+                            <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                              月払い
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold">
+                          {row.attendanceDays}日
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {row.halfDayCount}回
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-blue-800">
+                          {row.equivalentDays}日
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-orange-700">
+                          {row.overtimeHours}時間
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <div className="flex flex-wrap gap-1.5">
+                            {row.details.length > 0 ? (
+                              row.details.map((d: any) => (
+                                <span
+                                  key={`${row.name}-${d.date}`}
+                                  title={d.sites.join(' / ')}
+                                  className={`inline-flex items-center px-2 py-1 rounded-lg border text-xs ${
+                                    d.fraction === 0.5
+                                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  {d.date.slice(8)}
+                                  {d.fraction === 0.5 ? ' 半日' : ''}
+                                  {d.overtime > 0 ? ` +${d.overtime}h` : ''}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400">なし</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="text-xs text-slate-500 leading-relaxed space-y-1">
+                <div>※ 大和の20日締めに合わせ、前月21日〜当月20日を1か月として集計します。</div>
+                <div>※ 同じ日に複数現場の日報へ入っている場合、勤務換算日数は最大1日として集計します。</div>
+                <div>※ 「週払い」は作業員マスタで対象者にチェックを入れると表示されます。</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-white p-4 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
@@ -4615,6 +4907,23 @@ export default function AdminPage() {
                           </div>
                         </div>
 
+                        <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                          form.wWeeklyPay
+                            ? 'bg-orange-50 border-orange-300 text-orange-900'
+                            : 'bg-white border-slate-200 text-slate-700'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={!!form.wWeeklyPay}
+                            onChange={(e) => setForm({...form, wWeeklyPay: e.target.checked})}
+                            className="w-5 h-5 accent-orange-600"
+                          />
+                          <div>
+                            <div className="text-sm font-bold">週払い対象</div>
+                            <div className="text-xs text-slate-500 mt-0.5">毎週払いの作業員はこちら</div>
+                          </div>
+                        </label>
+
                         <button
                           onClick={() =>
                             addMaster(
@@ -4622,9 +4931,10 @@ export default function AdminPage() {
                               {
                                 name: form.wName,
                                 price: Number(form.wPrice) || 0,
-                                shiftHours: Number(form.wShiftHours || 8)
+                                shiftHours: Number(form.wShiftHours || 8),
+                                isWeeklyPay: !!form.wWeeklyPay
                               },
-                              ['wName', 'wPrice', 'wShiftHours']
+                              ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay']
                             )
                           }
                           className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
@@ -4737,6 +5047,25 @@ export default function AdminPage() {
                                 ))}
                               </div>
                             </div>
+                          )}
+
+                          {sec.key === 'workers' && (
+                            <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                              item.isWeeklyPay
+                                ? 'bg-orange-50 border-orange-300 text-orange-900'
+                                : 'bg-white border-slate-200 text-slate-700'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={!!item.isWeeklyPay}
+                                onChange={(e) => updateItemField(sec.key, idx, 'isWeeklyPay', e.target.checked)}
+                                className="w-5 h-5 accent-orange-600"
+                              />
+                              <div>
+                                <div className="text-sm font-bold">週払い対象</div>
+                                <div className="text-xs text-slate-500 mt-0.5">チェックした作業員は勤怠表に「週払い」と表示</div>
+                              </div>
+                            </label>
                           )}
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
