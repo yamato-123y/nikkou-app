@@ -4370,9 +4370,9 @@ export default function AdminPage() {
 
       {/* 完了済の現場 一覧 */}
       <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-300 overflow-hidden`}>
-        <div className="bg-slate-500 px-4 md:px-8 py-4 md:py-5">
-          <h2 className="text-xl md:text-2xl font-bold text-white">📁 完了済の現場 一覧</h2>
-          <p className="text-sm md:text-base text-slate-100 mt-1">完了した現場の確認・詳細分析・削除を行います</p>
+        <div className="bg-slate-300 px-4 md:px-8 py-4 md:py-5">
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800">📁 完了済の現場 一覧</h2>
+          <p className="text-sm md:text-base text-slate-600 mt-1">完了した現場の確認・詳細分析・削除を行います</p>
         </div>
         <div className="p-4 md:p-8 space-y-5">
 
@@ -4536,10 +4536,10 @@ export default function AdminPage() {
 
       {/* 出勤確認表 */}
       <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
-        <div className="flex justify-between items-center flex-wrap gap-3 bg-blue-500 px-4 md:px-8 py-4 md:py-5">
+        <div className="flex justify-between items-center flex-wrap gap-3 bg-blue-200 px-4 md:px-8 py-4 md:py-5">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-white">📅 出勤確認表（スタッフ別カレンダー）</h2>
-            <p className="text-sm md:text-base text-blue-50 mt-1">誰が・いつ・どの現場に入ったか確認する画面です</p>
+            <h2 className="text-xl md:text-2xl font-bold text-blue-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
+            <p className="text-sm md:text-base text-blue-700 mt-1">誰が・いつ・どの現場に入ったか確認する画面です</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {showCalendarSection && (
@@ -4663,10 +4663,10 @@ export default function AdminPage() {
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 flex-wrap bg-emerald-500 px-4 md:px-7 py-4 md:py-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-white">👷 作業員 月次勤怠</h2>
-              <p className="text-sm md:text-base text-emerald-50 mt-1">
+              <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠</h2>
+              <p className="text-sm md:text-base text-emerald-700 mt-1">
                 20日締めの出勤・半日・残業・支払区分を確認します
               </p>
             </div>
@@ -4784,10 +4784,10 @@ export default function AdminPage() {
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
-          <div className="flex justify-between items-center flex-wrap gap-4 bg-violet-500 px-4 md:px-8 py-4 md:py-5">
+          <div className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-white">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
-              <p className="text-sm md:text-base text-violet-50 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
+              <h2 className="text-xl md:text-2xl font-bold text-violet-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
+              <p className="text-sm md:text-base text-violet-700 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
             </div>
             <button 
               onClick={() => setShowAdminSection(!showAdminSection)}
