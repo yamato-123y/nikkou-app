@@ -4369,8 +4369,12 @@ export default function AdminPage() {
       </div>
 
       {/* 完了済の現場 一覧 */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-slate-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5`}>
-        <h2 className="text-xl md:text-2xl font-bold text-slate-700">📁 完了済の現場 一覧</h2>
+      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-300 overflow-hidden`}>
+        <div className="bg-slate-700 px-4 md:px-8 py-4 md:py-5">
+          <h2 className="text-xl md:text-2xl font-bold text-white">📁 完了済の現場 一覧</h2>
+          <p className="text-sm md:text-base text-slate-200 mt-1">完了した現場の確認・詳細分析・削除を行います</p>
+        </div>
+        <div className="p-4 md:p-8 space-y-5">
 
         <div className="block md:hidden space-y-4">
           {finishedLocList.map((loc:any) => {
@@ -4527,14 +4531,15 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+        </div>
       </div>
 
       {/* 出勤確認表 */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-4`}>
-        <div className="flex justify-between items-center flex-wrap gap-3 border-b border-slate-100 pb-4">
+      <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
+        <div className="flex justify-between items-center flex-wrap gap-3 bg-blue-700 px-4 md:px-8 py-4 md:py-5">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
-            <p className="text-sm md:text-base text-slate-500 mt-0.5">どの日に・誰がどの現場に入っていたかチェックできます</p>
+            <h2 className="text-xl md:text-2xl font-bold text-white">📅 出勤確認表（スタッフ別カレンダー）</h2>
+            <p className="text-sm md:text-base text-blue-100 mt-1">誰が・いつ・どの現場に入ったか確認する画面です</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {showCalendarSection && (
@@ -4555,7 +4560,7 @@ export default function AdminPage() {
                 }
                 setShowCalendarSection(!showCalendarSection);
               }}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 rounded-xl font-bold text-sm md:text-base transition"
+              className="bg-white hover:bg-blue-50 text-blue-800 border border-blue-200 px-4 py-3 rounded-xl font-bold text-sm md:text-base transition shadow-sm"
             >
               {showCalendarSection ? '📅 出勤確認表を隠す ▲' : '📅 出勤確認表を開く ▼'}
             </button>
@@ -4563,7 +4568,7 @@ export default function AdminPage() {
         </div>
 
         {showCalendarSection && (
-          <div className="pt-2 animate-fadeIn">
+          <div className="p-4 md:p-8 pt-5 animate-fadeIn">
             {allStaffNames.length === 0 ? (
               <p className="text-base text-slate-500 text-center py-6">登録されているスタッフがいません</p>
             ) : (
@@ -4657,26 +4662,26 @@ export default function AdminPage() {
 
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-white p-4 md:p-7 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-emerald-700 px-4 md:px-7 py-4 md:py-5">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900">📅 作業員 月次勤怠</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                20日締め（前月21日〜当月20日）で、日報から出勤日・半日・残業を自動集計します
+              <h2 className="text-xl md:text-2xl font-bold text-white">👷 作業員 月次勤怠</h2>
+              <p className="text-sm md:text-base text-emerald-100 mt-1">
+                20日締めの出勤・半日・残業・支払区分を確認します
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => setShowMonthlyAttendance(!showMonthlyAttendance)}
-              className="px-4 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm font-bold"
+              className="px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-800 text-sm font-bold shadow-sm hover:bg-emerald-50"
             >
-              {showMonthlyAttendance ? '閉じる ▲' : '勤怠を見る ▼'}
+              {showMonthlyAttendance ? '勤怠を閉じる ▲' : '勤怠を見る ▼'}
             </button>
           </div>
 
           {showMonthlyAttendance && (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 p-4 md:p-7">
               <div className="flex items-center gap-3 flex-wrap">
                 <input
                   type="month"
@@ -4778,22 +4783,22 @@ export default function AdminPage() {
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-white p-4 md:p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
-          <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-200 pb-5">
+        <div className="bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
+          <div className="flex justify-between items-center flex-wrap gap-4 bg-violet-700 px-4 md:px-8 py-4 md:py-5">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
-              <p className="text-sm text-slate-500 mt-1">新規追加 → 登録済みデータを直接編集 → 「保存」の順で操作できます</p>
+              <h2 className="text-xl md:text-2xl font-bold text-white">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
+              <p className="text-sm md:text-base text-violet-100 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
             </div>
             <button 
               onClick={() => setShowAdminSection(!showAdminSection)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition"
+              className="bg-white hover:bg-violet-50 text-violet-800 border border-violet-200 px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
             >
-              {showAdminSection ? '📂 設定エリアを隠す ▲' : '📁 設定エリアを開く ▼'}
+              {showAdminSection ? '⚙️ 設定エリアを隠す ▲' : '⚙️ 設定エリアを開く ▼'}
             </button>
           </div>
 
           {showAdminSection && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pt-2 animate-fadeIn items-start">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 p-4 md:p-8 animate-fadeIn items-start">
               {[
                 { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
