@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
 
 const formatAmount = (num: number | string, includeYen = true) => {
@@ -330,6 +330,8 @@ export default function AdminPage() {
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
+  const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
+  const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(false);
   const [companyCalendars, setCompanyCalendars] = useState<any>(() => mergeCompanyCalendars({}));
@@ -5261,7 +5263,38 @@ export default function AdminPage() {
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white">
+              {/* 上部横スクロールバー */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 pt-2 pb-1">
+                <div className="text-[11px] text-slate-500 mb-1 text-center">
+                  ← 横にスクロールできます →
+                </div>
+                <div
+                  ref={attendanceTopScrollRef}
+                  onScroll={(e) => {
+                    if (attendanceTableScrollRef.current) {
+                      attendanceTableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                    }
+                  }}
+                  className="overflow-x-auto overflow-y-hidden h-5"
+                >
+                  <div
+                    style={{
+                      width: `${120 + (attendancePeriodInfo.dates.length * 68) + 605}px`,
+                      height: '1px'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div
+                ref={attendanceTableScrollRef}
+                onScroll={(e) => {
+                  if (attendanceTopScrollRef.current) {
+                    attendanceTopScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                  }
+                }}
+                className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
+              >
                 <table className="border-collapse text-[11px] min-w-max">
                   <thead>
                     <tr className="bg-slate-100">
