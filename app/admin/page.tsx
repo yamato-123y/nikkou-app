@@ -809,7 +809,7 @@ export default function AdminPage() {
 
     const workerDayMap: Record<
       string,
-      Record<string, { fraction: number; overtime: number; sites: Set<string> }>
+      Record<string, { fraction: number; overtime: number; holidayWorkHours: number; sites: Set<string> }>
     > = {};
 
     reports.forEach((raw: any) => {
@@ -839,6 +839,7 @@ export default function AdminPage() {
           workerDayMap[workerName][reportDate] = {
             fraction: 0,
             overtime: 0,
+            holidayWorkHours: 0,
             sites: new Set<string>()
           };
         }
@@ -848,6 +849,7 @@ export default function AdminPage() {
 
         day.fraction = Math.min(1, day.fraction + fraction);
         day.overtime += Math.max(0, Number(overtimeMap[workerName] || 0));
+        day.holidayWorkHours += Math.max(0, Number(r.workerHolidayWorkHours?.[workerName] || 0));
         if (r.location) day.sites.add(String(r.location));
       });
     });
@@ -888,6 +890,7 @@ export default function AdminPage() {
             attendanceFraction,
             manualStatus,
             overtime: Number(actual?.overtime || 0),
+            holidayWorkHours: Number(actual?.holidayWorkHours || 0),
             sites: actual ? Array.from(actual.sites) : [],
             isHoliday,
             isScheduled,
@@ -932,12 +935,19 @@ export default function AdminPage() {
                 (d) => d.isScheduled && d.attendanceFraction === 0
               ).length;
 
-        const holidayWorkDays =
-          calendarType === 'none'
-            ? 0
-            : dayDetails.filter(
-                (d) => d.isHoliday && d.attendanceFraction > 0
-              ).length;
+        const restHolidayWorkHours = dayDetails.reduce((sum, d) => {
+          if (Number(d.holidayWorkHours || 0) <= 0) return sum;
+          const [yy, mm, dd] = d.date.split('-').map(Number);
+          const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
+          return isSunday ? sum : sum + Number(d.holidayWorkHours || 0);
+        }, 0);
+
+        const legalHolidayWorkHours = dayDetails.reduce((sum, d) => {
+          if (Number(d.holidayWorkHours || 0) <= 0) return sum;
+          const [yy, mm, dd] = d.date.split('-').map(Number);
+          const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
+          return isSunday ? sum + Number(d.holidayWorkHours || 0) : sum;
+        }, 0);
 
         return {
           name,
@@ -950,7 +960,8 @@ export default function AdminPage() {
           scheduledDays,
           scheduledHours,
           absenceCandidates,
-          holidayWorkDays,
+          restHolidayWorkHours,
+          legalHolidayWorkHours,
           details: dayDetails
         };
       })
@@ -1112,11 +1123,11 @@ export default function AdminPage() {
       ...dates.map((d) => Number(d.slice(8))),
       '支払区分',
       'カレンダー',
-      '所定日数',
       '労働時間',
       '普通残業',
       '欠勤候補',
-      '休日出勤',
+      '休出',
+      '法出',
       '出勤日数'
     ];
 
@@ -1146,6 +1157,7 @@ export default function AdminPage() {
             const siteText = d.sites.map((site: string) => getLocationShortName(site)).join('・');
             const marks = [
               d.fraction === 0.5 ? '半日' : '',
+              d.holidayWorkHours > 0 ? `${d.holidayWorkHours}時間` : '',
               d.overtime > 0 ? `残${d.overtime}h` : ''
             ].filter(Boolean).join(' ');
             return [siteText, marks].filter(Boolean).join(' ');
@@ -1161,11 +1173,11 @@ export default function AdminPage() {
           : row.calendarType === 'trainee'
             ? '実習生'
             : '該当なし',
-        row.scheduledDays ?? '',
         row.scheduledHours ?? '',
         row.overtimeHours,
         row.absenceCandidates,
-        row.holidayWorkDays,
+        row.restHolidayWorkHours,
+        row.legalHolidayWorkHours,
         row.equivalentDays
       ]);
     });
@@ -5558,11 +5570,11 @@ export default function AdminPage() {
                       })}
                       <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">支払</th>
                       <th rowSpan={2} className="w-[32px] min-w-[32px] px-1 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">所定</th>
                       <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">時間</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">残業</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
                       <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
@@ -5693,6 +5705,11 @@ export default function AdminPage() {
                                   } ${isManagement ? 'cursor-pointer' : ''}`}
                                 >
                                   <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
+                                  {d.holidayWorkHours > 0 && (
+                                    <div className="text-[7px] font-bold text-rose-700 leading-none mt-0.5">
+                                      {d.holidayWorkHours}時間
+                                    </div>
+                                  )}
                                   {d.fraction === 0.5 && <div className="text-[7px] text-amber-700 leading-none">半</div>}
                                   {d.overtime > 0 && <div className="text-[7px] text-orange-700 leading-none">+{d.overtime}</div>}
                                 </td>
@@ -5713,9 +5730,6 @@ export default function AdminPage() {
                                   : 'なし'}
                             </td>
 
-                            <td className="px-0.5 border border-slate-300 text-center font-bold">
-                              {row.scheduledDays ?? '-'}
-                            </td>
                             <td className="px-0.5 border border-slate-300 text-center">
                               {row.scheduledHours !== null ? `${row.scheduledHours}h` : '-'}
                             </td>
@@ -5726,7 +5740,10 @@ export default function AdminPage() {
                               {row.calendarType === 'none' ? '-' : row.absenceCandidates}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700">
-                              {row.calendarType === 'none' ? '-' : row.holidayWorkDays}
+                              {row.restHolidayWorkHours > 0 ? `${row.restHolidayWorkHours}h` : '-'}
+                            </td>
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
+                              {row.legalHolidayWorkHours > 0 ? `${row.legalHolidayWorkHours}h` : '-'}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800">
                               {row.equivalentDays}
@@ -5741,6 +5758,7 @@ export default function AdminPage() {
 
               <div className="text-xs text-slate-500 leading-relaxed space-y-1">
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
+                <div>※ 休日出勤時間は日報の勤務設定で入力します。日曜日は「法出」、それ以外の休日は「休出」として時間集計します。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
                 <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
