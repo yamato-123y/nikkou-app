@@ -693,6 +693,17 @@ export default function AdminPage() {
     }
   };
 
+  const isStorageYardLocation = (loc: any) => {
+    const name = typeof loc === 'string' ? loc : loc?.name;
+    const type = typeof loc === 'string' ? '' : loc?.locationType;
+    return type === 'yard' || name === '置場';
+  };
+
+  const getStorageYardManager = (loc: any) => {
+    if (typeof loc === 'string') return '湯浅';
+    return loc?.yardManager || '湯浅';
+  };
+
   const getLocationShortName = (locationName: string) => {
     const master = (settings.locations || []).find((loc: any) => {
       const fullName = typeof loc === 'string' ? loc : loc?.name;
@@ -4782,7 +4793,7 @@ export default function AdminPage() {
                       onClick={() => setModalLocation(loc.name)}
                       className="w-full bg-blue-600 active:bg-blue-500 text-white py-3.5 rounded-xl text-sm font-bold shadow-sm transition"
                     >
-                      🔍 詳細分析を見る
+                      {isStorageYardLocation(loc) ? '📦 置場管理を見る' : '🔍 詳細分析を見る'}
                     </button>
                   </div>
                 </div>
@@ -4850,7 +4861,7 @@ export default function AdminPage() {
                   <div>経費<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.total)}</span></div>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">🔍 詳細分析を見る</button>
+                  <button onClick={() => setModalLocation(loc.name)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-bold shadow-xs transition">{isStorageYardLocation(loc) ? '📦 置場管理を見る' : '🔍 詳細分析を見る'}</button>
                 </div>
               </div>
             );
@@ -4938,8 +4949,15 @@ export default function AdminPage() {
                             現場完了
                           </button>
                         )}
-                        <button onClick={() => setModalLocation(loc.name)} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap">
-                          詳細分析 →
+                        <button
+                          onClick={() => setModalLocation(loc.name)}
+                          className={`px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap text-white ${
+                            isStorageYardLocation(loc)
+                              ? 'bg-amber-600 hover:bg-amber-500'
+                              : 'bg-blue-600 hover:bg-blue-500'
+                          }`}
+                        >
+                          {isStorageYardLocation(loc) ? '置場管理 →' : '詳細分析 →'}
                         </button>
                       </div>
                     </td>
@@ -5851,6 +5869,34 @@ export default function AdminPage() {
                         </div>
 
                         <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">区分</label>
+                          <select
+                            value={form.lLocationType || 'site'}
+                            onChange={e=>setForm({...form, lLocationType: e.target.value})}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          >
+                            <option value="site">工事現場</option>
+                            <option value="yard">置場</option>
+                          </select>
+                        </div>
+
+                        {(form.lLocationType || 'site') === 'yard' && (
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1">置場責任者</label>
+                            <select
+                              value={form.lYardManager || '湯浅'}
+                              onChange={e=>setForm({...form, lYardManager: e.target.value})}
+                              className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            >
+                              <option value="">未設定</option>
+                              {(settings.workers || []).map((w:any) => (
+                                <option key={w.name} value={w.name}>{w.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">
                             締め日 <span className="font-normal text-slate-400">（任意）</span>
                           </label>
@@ -5885,11 +5931,15 @@ export default function AdminPage() {
                               {
                                 name: form.lName,
                                 shortName: form.lShortName || '',
+                                locationType: form.lLocationType || 'site',
+                                yardManager: (form.lLocationType || 'site') === 'yard'
+                                  ? (form.lYardManager || '湯浅')
+                                  : '',
                                 closingDay: form.lClosingDay || '',
                                 price: Number(form.lPrice) || 0,
                                 isFinished: false
                               },
-                              ['lName', 'lShortName', 'lClosingDay', 'lPrice']
+                              ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lClosingDay', 'lPrice']
                             )
                           }
                           className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
@@ -6098,6 +6148,38 @@ export default function AdminPage() {
                                   className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
                                 />
                               </div>
+
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-500 mb-1">区分</div>
+                                <select
+                                  value={typeof item === 'string' ? (item === '置場' ? 'yard' : 'site') : (item.locationType || (item.name === '置場' ? 'yard' : 'site'))}
+                                  onChange={(e)=>updateItemField(sec.key, idx, 'locationType', e.target.value)}
+                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                >
+                                  <option value="site">工事現場</option>
+                                  <option value="yard">置場</option>
+                                </select>
+                              </div>
+
+                              {(
+                                typeof item === 'string'
+                                  ? item === '置場'
+                                  : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'yard')
+                              ) && (
+                                <div>
+                                  <div className="text-[11px] font-bold text-slate-500 mb-1">置場責任者</div>
+                                  <select
+                                    value={typeof item === 'string' ? '湯浅' : (item.yardManager || '湯浅')}
+                                    onChange={(e)=>updateItemField(sec.key, idx, 'yardManager', e.target.value)}
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                  >
+                                    <option value="">未設定</option>
+                                    {(settings.workers || []).map((w:any) => (
+                                      <option key={w.name} value={w.name}>{w.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
 
                               <div>
                                 <div className="text-[11px] font-bold text-slate-500 mb-1">
@@ -9286,8 +9368,172 @@ export default function AdminPage() {
         );
       })()}
 
+      {/* 置場専用モーダル：管理者モード */}
+      {modalLocation && authRole === 'admin' && (() => {
+        const yardLoc = (settings.locations || []).find(
+          (x:any) => (typeof x === 'string' ? x : x?.name) === modalLocation
+        );
+        if (!isStorageYardLocation(yardLoc)) return null;
+
+        const yardReports = reports
+          .map((raw:any) =>
+            raw?.data && typeof raw.data === 'object'
+              ? { ...raw.data, id: raw.id || raw.data.id }
+              : raw || {}
+          )
+          .filter((r:any) => r.location === modalLocation)
+          .sort((a:any,b:any) => String(b.date || '').localeCompare(String(a.date || '')));
+
+        const workerCounts: Record<string, number> = {};
+        yardReports.forEach((r:any) => {
+          (Array.isArray(r.workers) ? r.workers : []).forEach((name:string) => {
+            workerCounts[name] = (workerCounts[name] || 0) + 1;
+          });
+        });
+
+        const latestReports = yardReports.slice(0, 20);
+
+        return (
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto p-2 md:p-8"
+            onClick={() => setModalLocation(null)}
+          >
+            <div
+              className="bg-white rounded-3xl w-full max-w-[1250px] max-h-[94vh] overflow-y-auto shadow-2xl border border-slate-100 p-5 md:p-8 !pb-0 space-y-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-20 bg-white border-b border-slate-200 pb-4">
+                <button
+                  onClick={() => setModalLocation(null)}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold"
+                >
+                  閉じる
+                </button>
+                <div className="mt-4 flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight">
+                      📦 {modalLocation}
+                    </h2>
+                    <div className="text-base text-amber-700 font-bold mt-1">置場管理</div>
+                  </div>
+                  <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-3">
+                    <div className="text-xs font-bold text-amber-700">責任者</div>
+                    <div className="text-xl font-black text-slate-900 mt-1">{getStorageYardManager(yardLoc)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 md:p-5">
+                <div className="font-bold text-amber-900 text-lg">この画面について</div>
+                <div className="text-sm md:text-base text-amber-800 mt-1 leading-relaxed">
+                  置場は工事現場ではないため、請負金額・粗利・原価率ではなく、
+                  日報・出勤者・作業内容・報告事項を中心に確認します。
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-xs font-bold text-slate-500">日報件数</div>
+                  <div className="text-3xl font-black text-slate-900 mt-1">{yardReports.length}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-xs font-bold text-slate-500">直近の稼働日</div>
+                  <div className="text-lg font-black text-slate-900 mt-1">{yardReports[0]?.date || '－'}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-xs font-bold text-slate-500">出勤した作業員</div>
+                  <div className="text-3xl font-black text-slate-900 mt-1">{Object.keys(workerCounts).length}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-xs font-bold text-slate-500">責任者</div>
+                  <div className="text-lg font-black text-slate-900 mt-1">{getStorageYardManager(yardLoc)}</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                  <div className="font-bold text-slate-900">👷 置場の出勤状況</div>
+                  <div className="text-xs text-slate-500 mt-1">置場の日報に登録された出勤回数です</div>
+                </div>
+                <div className="p-4 flex flex-wrap gap-2">
+                  {Object.keys(workerCounts).length === 0 ? (
+                    <span className="text-sm text-slate-400">まだ出勤記録がありません</span>
+                  ) : (
+                    Object.entries(workerCounts)
+                      .sort((a:any,b:any)=>Number(b[1])-Number(a[1]))
+                      .map(([name,count]:any)=>(
+                        <span
+                          key={name}
+                          className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-sm font-bold text-blue-900"
+                        >
+                          {name}
+                          <span className="text-xs text-blue-600">{count}日</span>
+                        </span>
+                      ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-slate-900">📝 置場の日報一覧</div>
+                    <div className="text-xs text-slate-500 mt-1">最新20件</div>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {latestReports.length === 0 ? (
+                    <div className="p-5 text-sm text-slate-400">まだ置場の日報がありません</div>
+                  ) : (
+                    latestReports.map((r:any, idx:number)=>(
+                      <div key={r.id || `${r.date}-${idx}`} className="p-4 md:p-5">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="font-black text-slate-900">{r.date || '日付なし'}</div>
+                          <div className="text-sm font-bold text-blue-700">
+                            {(Array.isArray(r.workers) ? r.workers : []).join('・') || '作業員記録なし'}
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="text-xs font-bold text-slate-500">作業内容</div>
+                          <div className="mt-1 text-sm md:text-base text-slate-800 whitespace-pre-wrap">
+                            {r.workDescription || '作業内容の記載なし'}
+                          </div>
+                        </div>
+
+                        {(r.officeMessage || r.data?.officeMessage) && (
+                          <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
+                            <div className="text-xs font-bold text-amber-700">📢 事務所への報告・相談</div>
+                            <div className="text-sm text-amber-900 mt-1 whitespace-pre-wrap">
+                              {r.officeMessage || r.data?.officeMessage}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 bg-white pt-3 pb-5 border-t border-slate-100">
+                <button
+                  onClick={() => setModalLocation(null)}
+                  className="w-full rounded-2xl bg-slate-900 text-white py-4 text-base font-bold"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 現場詳細モーダル：管理者モード（既存機能・既存UIはそのまま） */}
-      {modalLocation && modalData && authRole === 'admin' && (
+      {modalLocation && modalData && authRole === 'admin' && !isStorageYardLocation(
+        (settings.locations || []).find(
+          (x:any) => (typeof x === 'string' ? x : x?.name) === modalLocation
+        )
+      ) && (
         <div
           className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}
           onClick={() => setModalLocation(null)}
