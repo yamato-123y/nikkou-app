@@ -2017,6 +2017,10 @@ export default function AdminPage() {
       editingReport.workerHalfDay && typeof editingReport.workerHalfDay === 'object'
         ? editingReport.workerHalfDay
         : {};
+    const holidayWorkMap =
+      editingReport.workerHolidayWorkHours && typeof editingReport.workerHolidayWorkHours === 'object'
+        ? editingReport.workerHolidayWorkHours
+        : {};
 
     // 過去日報の単価は変更せず、保存済みの当時単価を使って
     // 「半日」「残業」だけを再計算する。
@@ -2068,8 +2072,15 @@ export default function AdminPage() {
       };
     }
 
+    const cleanedHolidayWorkHours = Object.fromEntries(
+      Object.entries(holidayWorkMap).filter(
+        ([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0
+      )
+    );
+
     const payload = {
       ...editingReport,
+      workerHolidayWorkHours: cleanedHolidayWorkHours,
       costSnapshot: nextCostSnapshot,
       // 日報入力側で互換用に二重保持しているリース項目も編集内容に同期
       machines: Array.isArray(editingReport.leaseHeavy) ? editingReport.leaseHeavy : [],
@@ -8056,8 +8067,15 @@ export default function AdminPage() {
                       editingReport.workerHalfDay && typeof editingReport.workerHalfDay === 'object'
                         ? editingReport.workerHalfDay
                         : {};
+                    const holidayWorkMap =
+                      editingReport.workerHolidayWorkHours && typeof editingReport.workerHolidayWorkHours === 'object'
+                        ? editingReport.workerHolidayWorkHours
+                        : {};
                     const overtime = Math.max(0, Number(overtimeMap[w.name] || 0));
                     const isHalfDay = !!halfDayMap[w.name];
+                    const holidayWorkHours = Math.max(0, Number(holidayWorkMap[w.name] || 0));
+                    const isHolidayWork = holidayWorkHours > 0;
+                    const defaultHolidayHours = Number(w.shiftHours || 8) === 7 ? 7 : 8;
 
                     return (
                       <div
@@ -8080,17 +8098,20 @@ export default function AdminPage() {
 
                               const nextOvertime = { ...overtimeMap };
                               const nextHalfDay = { ...halfDayMap };
+                              const nextHolidayWork = { ...holidayWorkMap };
 
                               if (!e.target.checked) {
                                 delete nextOvertime[w.name];
                                 delete nextHalfDay[w.name];
+                                delete nextHolidayWork[w.name];
                               }
 
                               setEditingReport({
                                 ...editingReport,
                                 workers: updated,
                                 workerOvertimeHours: nextOvertime,
-                                workerHalfDay: nextHalfDay
+                                workerHalfDay: nextHalfDay,
+                                workerHolidayWorkHours: nextHolidayWork
                               });
                             }}
                             className="rounded text-blue-600 focus:ring-blue-500 w-5 h-5"
@@ -8102,93 +8123,180 @@ export default function AdminPage() {
 
                         {checked && (
                           <div className="mt-3 pt-3 border-t border-blue-200 space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium text-slate-600">勤務区分</span>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const next = { ...halfDayMap };
-                                    delete next[w.name];
-                                    setEditingReport({
-                                      ...editingReport,
-                                      workerHalfDay: next
-                                    });
-                                  }}
-                                  className={`px-3 py-2 rounded-xl border text-sm font-medium ${
-                                    !isHalfDay
-                                      ? 'bg-blue-100 border-blue-500 text-blue-900'
-                                      : 'bg-white border-slate-300 text-slate-600'
-                                  }`}
-                                >
-                                  通常
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditingReport({
-                                      ...editingReport,
-                                      workerHalfDay: {
-                                        ...halfDayMap,
-                                        [w.name]: true
-                                      }
-                                    })
-                                  }
-                                  className={`px-3 py-2 rounded-xl border text-sm font-medium ${
-                                    isHalfDay
-                                      ? 'bg-amber-100 border-amber-500 text-amber-900'
-                                      : 'bg-white border-slate-300 text-slate-600'
-                                  }`}
-                                >
-                                  半日
-                                </button>
-                              </div>
-                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-slate-600">勤務区分</span>
+                                <div className="grid grid-cols-3 gap-2 flex-1 max-w-[340px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextHalf = { ...halfDayMap };
+                                      const nextHoliday = { ...holidayWorkMap };
+                                      delete nextHalf[w.name];
+                                      delete nextHoliday[w.name];
+                                      setEditingReport({
+                                        ...editingReport,
+                                        workerHalfDay: nextHalf,
+                                        workerHolidayWorkHours: nextHoliday
+                                      });
+                                    }}
+                                    className={`px-2 py-2 rounded-xl border text-xs md:text-sm font-medium ${
+                                      !isHalfDay && !isHolidayWork
+                                        ? 'bg-blue-100 border-blue-500 text-blue-900'
+                                        : 'bg-white border-slate-300 text-slate-600'
+                                    }`}
+                                  >
+                                    通常
+                                  </button>
 
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium text-slate-600">残業</span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={overtime <= 0}
-                                  onClick={() => {
-                                    const nextValue = Math.max(0, overtime - 1);
-                                    const next = { ...overtimeMap };
-                                    if (nextValue === 0) {
-                                      delete next[w.name];
-                                    } else {
-                                      next[w.name] = nextValue;
-                                    }
-                                    setEditingReport({
-                                      ...editingReport,
-                                      workerOvertimeHours: next
-                                    });
-                                  }}
-                                  className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl text-slate-600 disabled:opacity-30"
-                                >
-                                  −
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextHoliday = { ...holidayWorkMap };
+                                      delete nextHoliday[w.name];
+                                      setEditingReport({
+                                        ...editingReport,
+                                        workerHalfDay: {
+                                          ...halfDayMap,
+                                          [w.name]: true
+                                        },
+                                        workerHolidayWorkHours: nextHoliday
+                                      });
+                                    }}
+                                    className={`px-2 py-2 rounded-xl border text-xs md:text-sm font-medium ${
+                                      isHalfDay && !isHolidayWork
+                                        ? 'bg-amber-100 border-amber-500 text-amber-900'
+                                        : 'bg-white border-slate-300 text-slate-600'
+                                    }`}
+                                  >
+                                    半日
+                                  </button>
 
-                                <div className="min-w-[88px] text-center text-sm font-medium text-slate-700">
-                                  残業{overtime}時間
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextHalf = { ...halfDayMap };
+                                      delete nextHalf[w.name];
+                                      setEditingReport({
+                                        ...editingReport,
+                                        workerHalfDay: nextHalf,
+                                        workerHolidayWorkHours: {
+                                          ...holidayWorkMap,
+                                          [w.name]: holidayWorkHours > 0
+                                            ? holidayWorkHours
+                                            : defaultHolidayHours
+                                        }
+                                      });
+                                    }}
+                                    className={`px-2 py-2 rounded-xl border text-xs md:text-sm font-medium ${
+                                      isHolidayWork
+                                        ? 'bg-rose-100 border-rose-500 text-rose-900'
+                                        : 'bg-white border-slate-300 text-slate-600'
+                                    }`}
+                                  >
+                                    休日出勤
+                                  </button>
                                 </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditingReport({
-                                      ...editingReport,
-                                      workerOvertimeHours: {
-                                        ...overtimeMap,
-                                        [w.name]: overtime + 1
-                                      }
-                                    })
-                                  }
-                                  className="w-10 h-10 rounded-xl border border-blue-400 bg-blue-50 text-xl text-blue-700"
-                                >
-                                  ＋
-                                </button>
                               </div>
+
+                              {isHolidayWork && (
+                                <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                                  <div>
+                                    <div className="text-sm font-medium text-rose-800">休日出勤の作業時間</div>
+                                    <div className="text-[11px] text-rose-600 mt-0.5">
+                                      日曜は法出、それ以外の休日は休出
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={holidayWorkHours <= 1}
+                                      onClick={() =>
+                                        setEditingReport({
+                                          ...editingReport,
+                                          workerHolidayWorkHours: {
+                                            ...holidayWorkMap,
+                                            [w.name]: Math.max(1, holidayWorkHours - 1)
+                                          }
+                                        })
+                                      }
+                                      className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl text-slate-600 disabled:opacity-30"
+                                    >
+                                      −
+                                    </button>
+
+                                    <div className="min-w-[76px] text-center text-sm font-bold text-rose-800">
+                                      {holidayWorkHours}時間
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      disabled={holidayWorkHours >= 24}
+                                      onClick={() =>
+                                        setEditingReport({
+                                          ...editingReport,
+                                          workerHolidayWorkHours: {
+                                            ...holidayWorkMap,
+                                            [w.name]: Math.min(24, holidayWorkHours + 1)
+                                          }
+                                        })
+                                      }
+                                      className="w-10 h-10 rounded-xl border border-rose-400 bg-white text-xl text-rose-700 disabled:opacity-30"
+                                    >
+                                      ＋
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {!isHolidayWork && (
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-sm font-medium text-slate-600">残業</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={overtime <= 0}
+                                      onClick={() => {
+                                        const nextValue = Math.max(0, overtime - 1);
+                                        const next = { ...overtimeMap };
+                                        if (nextValue === 0) {
+                                          delete next[w.name];
+                                        } else {
+                                          next[w.name] = nextValue;
+                                        }
+                                        setEditingReport({
+                                          ...editingReport,
+                                          workerOvertimeHours: next
+                                        });
+                                      }}
+                                      className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl text-slate-600 disabled:opacity-30"
+                                    >
+                                      −
+                                    </button>
+
+                                    <div className="min-w-[88px] text-center text-sm font-medium text-slate-700">
+                                      残業{overtime}時間
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setEditingReport({
+                                          ...editingReport,
+                                          workerOvertimeHours: {
+                                            ...overtimeMap,
+                                            [w.name]: overtime + 1
+                                          }
+                                        })
+                                      }
+                                      className="w-10 h-10 rounded-xl border border-blue-400 bg-blue-50 text-xl text-blue-700"
+                                    >
+                                      ＋
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
