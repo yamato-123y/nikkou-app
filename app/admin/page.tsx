@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import * as XLSX from 'xlsx-js-style';
 
 const formatAmount = (num: number | string, includeYen = true) => {
@@ -28,6 +28,70 @@ const formatInputNumber = (num: number | string) => {
 const getCurrentYearMonth = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const DEFAULT_COMPANY_CALENDARS: any = {
+  '2025-2026': {
+    yamato: {
+      label: '大和社員',
+      workHours: 8,
+      sourceFileName: '大和社員カレンダー 2025-2026.pdf',
+      pdfPath: '',
+      holidays: [
+        '2026-02-22','2026-02-23','2026-03-01','2026-03-07','2026-03-08','2026-03-15','2026-03-20',
+        '2026-03-21','2026-03-22','2026-03-28','2026-03-29','2026-04-05','2026-04-11','2026-04-12','2026-04-18','2026-04-19',
+        '2026-04-26','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-05-10','2026-05-16','2026-05-17',
+        '2026-05-23','2026-05-24','2026-05-30','2026-05-31','2026-06-06','2026-06-07','2026-06-13','2026-06-14','2026-06-20',
+        '2026-06-21','2026-06-27','2026-06-28','2026-07-05','2026-07-11','2026-07-12','2026-07-19','2026-07-20',
+        '2026-07-26','2026-08-01','2026-08-02','2026-08-09','2026-08-11','2026-08-13','2026-08-14','2026-08-15','2026-08-16',
+        '2026-08-22','2026-08-23','2026-08-29','2026-08-30','2026-09-05','2026-09-06','2026-09-12','2026-09-13','2026-09-20',
+        '2026-09-21','2026-09-22','2026-09-23','2026-09-27','2026-10-04','2026-10-11','2026-10-12','2026-10-18',
+        '2026-10-24','2026-10-25','2026-10-31','2026-11-01','2026-11-03','2026-11-07','2026-11-08','2026-11-14','2026-11-15'
+      ]
+    },
+    trainee: {
+      label: '実習生',
+      workHours: 7,
+      sourceFileName: '実習生カレンダー 2025-2026.pdf',
+      pdfPath: '',
+      holidays: [
+        '2026-02-22','2026-02-23','2026-03-01','2026-03-08','2026-03-15','2026-03-20',
+        '2026-03-21','2026-03-22','2026-04-05','2026-04-11','2026-04-12','2026-04-19',
+        '2026-04-26','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-05-10','2026-05-17',
+        '2026-05-24','2026-05-31','2026-06-06','2026-06-07','2026-06-13','2026-06-14',
+        '2026-06-21','2026-06-28','2026-07-05','2026-07-12','2026-07-19','2026-07-20',
+        '2026-07-26','2026-08-02','2026-08-09','2026-08-11','2026-08-13','2026-08-14','2026-08-15','2026-08-16',
+        '2026-08-23','2026-08-29','2026-08-30','2026-09-06','2026-09-12','2026-09-13','2026-09-20',
+        '2026-09-21','2026-09-22','2026-09-23','2026-09-27','2026-10-04','2026-10-11','2026-10-12','2026-10-18',
+        '2026-10-25','2026-10-31','2026-11-01','2026-11-03','2026-11-08','2026-11-14','2026-11-15'
+      ]
+    }
+  }
+};
+
+const mergeCompanyCalendars = (saved: any) => {
+  const result = JSON.parse(JSON.stringify(DEFAULT_COMPANY_CALENDARS));
+  Object.entries(saved || {}).forEach(([cycle, cycleValue]: any) => {
+    result[cycle] = {
+      ...(result[cycle] || {}),
+      ...(cycleValue || {}),
+      yamato: {
+        ...(result[cycle]?.yamato || {}),
+        ...(cycleValue?.yamato || {})
+      },
+      trainee: {
+        ...(result[cycle]?.trainee || {}),
+        ...(cycleValue?.trainee || {})
+      }
+    };
+  });
+  return result;
+};
+
+const getCalendarCycleForDate = (dateStr: string) => {
+  const [y, m] = String(dateStr || '').split('-').map(Number);
+  if (!y || !m) return '';
+  return m >= 11 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 };
 
 const getDayInfo = (dateStr: string) => {
@@ -267,6 +331,14 @@ export default function AdminPage() {
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
 
+  const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(false);
+  const [companyCalendars, setCompanyCalendars] = useState<any>(() => mergeCompanyCalendars({}));
+  const [companyCalendarCycle, setCompanyCalendarCycle] = useState('2025-2026');
+  const [companyCalendarPattern, setCompanyCalendarPattern] = useState<'yamato' | 'trainee'>('yamato');
+  const [companyCalendarEditMonth, setCompanyCalendarEditMonth] = useState('2026-09');
+  const [companyCalendarSaving, setCompanyCalendarSaving] = useState(false);
+  const [companyCalendarUploading, setCompanyCalendarUploading] = useState(false);
+
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
   const [disposalStartDate, setDisposalStartDate] = useState('');
   const [disposalEndDate, setDisposalEndDate] = useState('');
@@ -318,6 +390,7 @@ export default function AdminPage() {
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
           if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
           if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
+          setCompanyCalendars(mergeCompanyCalendars(sData.companyCalendars || {}));
         }
       }
     } catch (e) {  
@@ -568,26 +641,50 @@ export default function AdminPage() {
     };
   }, [trialResourceDrag]);
 
-  const monthlyAttendanceRows = (() => {
-    const ym = attendanceYearMonth;
+  const getAttendancePeriodInfo = (ym: string) => {
     const [yearText, monthText] = ym.split('-');
     const year = Number(yearText);
     const month = Number(monthText);
 
-    const periodStartDate = new Date(year, month - 2, 21);
-    const periodEndDate = new Date(year, month - 1, 20);
+    const start = new Date(year, month - 2, 21);
+    const end = new Date(year, month - 1, 20);
 
-    const toYmd = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
+    const toYmd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const dates: string[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      dates.push(toYmd(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return {
+      start,
+      end,
+      startYmd: toYmd(start),
+      endYmd: toYmd(end),
+      dates
     };
+  };
 
-    const periodStart = toYmd(periodStartDate);
-    const periodEnd = toYmd(periodEndDate);
+  const attendancePeriodInfo = getAttendancePeriodInfo(attendanceYearMonth);
 
-    const workerDayMap: Record<string, Record<string, { fraction: number; overtime: number; sites: Set<string> }>> = {};
+  const getCalendarEntryForWorker = (worker: any, dateStr: string) => {
+    const calendarType = worker?.calendarType || 'none';
+    if (calendarType === 'none') return null;
+
+    const cycle = getCalendarCycleForDate(dateStr);
+    return companyCalendars?.[cycle]?.[calendarType] || null;
+  };
+
+  const monthlyAttendanceRows = (() => {
+    const { startYmd, endYmd, dates } = attendancePeriodInfo;
+
+    const workerDayMap: Record<
+      string,
+      Record<string, { fraction: number; overtime: number; sites: Set<string> }>
+    > = {};
 
     reports.forEach((raw: any) => {
       const r =
@@ -596,7 +693,7 @@ export default function AdminPage() {
           : raw || {};
 
       const reportDate = String(r.date || '').replace(/\//g, '-');
-      if (!reportDate || reportDate < periodStart || reportDate > periodEnd) return;
+      if (!reportDate || reportDate < startYmd || reportDate > endYmd) return;
 
       const workers = Array.isArray(r.workers) ? r.workers : [];
       const halfDayMap =
@@ -623,10 +720,8 @@ export default function AdminPage() {
         const day = workerDayMap[workerName][reportDate];
         const fraction = halfDayMap[workerName] ? 0.5 : 1;
 
-        // 同日に複数現場へ入った場合、勤務換算は最大1日まで。
         day.fraction = Math.min(1, day.fraction + fraction);
         day.overtime += Math.max(0, Number(overtimeMap[workerName] || 0));
-
         if (r.location) day.sites.add(String(r.location));
       });
     });
@@ -636,92 +731,369 @@ export default function AdminPage() {
       .filter(Boolean);
 
     const allNames = Array.from(
-      new Set([
-        ...masterNames,
-        ...Object.keys(workerDayMap)
-      ])
+      new Set([...masterNames, ...Object.keys(workerDayMap)])
     );
 
     return allNames
       .map((name: string) => {
-        const days = Object.entries(workerDayMap[name] || {})
-          .sort(([a], [b]) => a.localeCompare(b));
+        const workerMaster =
+          (settings.workers || []).find((w: any) => w.name === name) || {
+            name,
+            calendarType: 'none'
+          };
 
-        const attendanceDays = days.length;
-        const equivalentDays = days.reduce(
-          (sum, [, info]) => sum + Number(info.fraction || 0),
+        const calendarType = workerMaster?.calendarType || 'none';
+        const dayDetails = dates.map((date) => {
+          const actual = workerDayMap[name]?.[date];
+          const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
+          const holidays = new Set(calendarEntry?.holidays || []);
+          const isCalendarLinked = !!calendarEntry;
+          const isHoliday = isCalendarLinked ? holidays.has(date) : false;
+          const isScheduled = isCalendarLinked ? !isHoliday : false;
+
+          return {
+            date,
+            fraction: Number(actual?.fraction || 0),
+            overtime: Number(actual?.overtime || 0),
+            sites: actual ? Array.from(actual.sites) : [],
+            isHoliday,
+            isScheduled,
+            isCalendarLinked
+          };
+        });
+
+        const attendanceDays = dayDetails.filter((d) => d.fraction > 0).length;
+        const equivalentDays = dayDetails.reduce(
+          (sum, d) => sum + Number(d.fraction || 0),
           0
         );
-        const halfDayCount = days.filter(([, info]) => Number(info.fraction || 0) === 0.5).length;
-        const overtimeHours = days.reduce(
-          (sum, [, info]) => sum + Number(info.overtime || 0),
+        const halfDayCount = dayDetails.filter((d) => d.fraction === 0.5).length;
+        const overtimeHours = dayDetails.reduce(
+          (sum, d) => sum + Number(d.overtime || 0),
           0
         );
 
-        const workerMaster = (settings.workers || []).find((w: any) => w.name === name);
+        const scheduledDays =
+          calendarType === 'none'
+            ? null
+            : dayDetails.filter((d) => d.isScheduled).length;
+
+        const calendarHours =
+          calendarType === 'none'
+            ? null
+            : Number(
+                dayDetails.find((d) => d.isCalendarLinked)
+                  ? getCalendarEntryForWorker(workerMaster, dayDetails.find((d) => d.isCalendarLinked)!.date)?.workHours
+                  : workerMaster?.shiftHours || 0
+              );
+
+        const scheduledHours =
+          scheduledDays === null || calendarHours === null
+            ? null
+            : scheduledDays * calendarHours;
+
+        const absenceCandidates =
+          calendarType === 'none'
+            ? 0
+            : dayDetails.filter((d) => d.isScheduled && d.fraction === 0).length;
+
+        const holidayWorkDays =
+          calendarType === 'none'
+            ? 0
+            : dayDetails.filter((d) => d.isHoliday && d.fraction > 0).length;
 
         return {
           name,
           isWeeklyPay: !!workerMaster?.isWeeklyPay,
+          calendarType,
           attendanceDays,
           halfDayCount,
           equivalentDays,
           overtimeHours,
-          details: days.map(([date, info]) => ({
-            date,
-            fraction: info.fraction,
-            overtime: info.overtime,
-            sites: Array.from(info.sites)
-          }))
+          scheduledDays,
+          scheduledHours,
+          absenceCandidates,
+          holidayWorkDays,
+          details: dayDetails
         };
       })
-      .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ja'));
+      .sort((a: any, b: any) => {
+        const order: any = { yamato: 0, trainee: 1, none: 2 };
+        const typeDiff = (order[a.calendarType] ?? 9) - (order[b.calendarType] ?? 9);
+        if (typeDiff !== 0) return typeDiff;
+        return a.name.localeCompare(b.name, 'ja');
+      });
   })();
 
+  const saveCompanyCalendars = async (nextCalendars = companyCalendars) => {
+    if (authRole !== 'admin') return;
+    try {
+      setCompanyCalendarSaving(true);
+      const newData = { ...settings, companyCalendars: nextCalendars };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('会社カレンダーの保存に失敗しました。');
+
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setCompanyCalendars(nextCalendars);
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert('会社カレンダーの保存に失敗しました。');
+    } finally {
+      setCompanyCalendarSaving(false);
+    }
+  };
+
+  const ensureCompanyCalendarCycle = (cycle: string) => {
+    setCompanyCalendars((prev: any) => {
+      if (prev?.[cycle]) return prev;
+      return {
+        ...prev,
+        [cycle]: {
+          yamato: {
+            label: '大和社員',
+            workHours: 8,
+            sourceFileName: '',
+            pdfPath: '',
+            holidays: []
+          },
+          trainee: {
+            label: '実習生',
+            workHours: 7,
+            sourceFileName: '',
+            pdfPath: '',
+            holidays: []
+          }
+        }
+      };
+    });
+  };
+
+  const toggleCompanyCalendarHoliday = (dateStr: string) => {
+    setCompanyCalendars((prev: any) => {
+      const cycleData = prev?.[companyCalendarCycle] || {};
+      const current = cycleData?.[companyCalendarPattern] || {
+        label: companyCalendarPattern === 'yamato' ? '大和社員' : '実習生',
+        workHours: companyCalendarPattern === 'yamato' ? 8 : 7,
+        holidays: []
+      };
+      const set = new Set(current.holidays || []);
+      if (set.has(dateStr)) set.delete(dateStr);
+      else set.add(dateStr);
+
+      return {
+        ...prev,
+        [companyCalendarCycle]: {
+          ...cycleData,
+          [companyCalendarPattern]: {
+            ...current,
+            holidays: Array.from(set).sort()
+          }
+        }
+      };
+    });
+  };
+
+  const uploadCompanyCalendarPdf = async (file: File | null) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      alert('PDFファイルを選択してください。');
+      return;
+    }
+
+    try {
+      setCompanyCalendarUploading(true);
+      const formData = new FormData();
+      formData.append('cycle', companyCalendarCycle);
+      formData.append('pattern', companyCalendarPattern);
+      formData.append('file', file);
+
+      const res = await fetch('/api/company-calendar-files', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'PDFアップロードに失敗しました。');
+
+      const current = companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern] || {};
+      const nextCalendars = {
+        ...companyCalendars,
+        [companyCalendarCycle]: {
+          ...(companyCalendars?.[companyCalendarCycle] || {}),
+          [companyCalendarPattern]: {
+            ...current,
+            label: companyCalendarPattern === 'yamato' ? '大和社員' : '実習生',
+            workHours: companyCalendarPattern === 'yamato' ? 8 : 7,
+            sourceFileName: file.name,
+            pdfPath: data.path || '',
+            holidays: current.holidays || []
+          }
+        }
+      };
+      setCompanyCalendars(nextCalendars);
+      await saveCompanyCalendars(nextCalendars);
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || 'PDFアップロードに失敗しました。');
+    } finally {
+      setCompanyCalendarUploading(false);
+    }
+  };
+
+  const openCompanyCalendarPdf = async () => {
+    const path =
+      companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.pdfPath;
+    if (!path) {
+      alert('保存済みPDFがありません。');
+      return;
+    }
+    const res = await fetch(
+      `/api/company-calendar-files?path=${encodeURIComponent(path)}`
+    );
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.url) {
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } else {
+      alert(data?.error || 'PDFを開けませんでした。');
+    }
+  };
+
   const exportMonthlyAttendanceExcel = () => {
-    const [yearText, monthText] = attendanceYearMonth.split('-');
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const start = new Date(year, month - 2, 21);
-    const end = new Date(year, month - 1, 20);
+    const { start, end, dates } = attendancePeriodInfo;
     const fmt = (d: Date) =>
       `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 
-    const rows = [
-      ['株式会社大和　月次勤怠'],
-      ['締め対象月', attendanceYearMonth],
+    const weekdayJa = ['日','月','火','水','木','金','土'];
+    const headers = [
+      '作業員',
+      ...dates.map((d) => Number(d.slice(8))),
+      '支払区分',
+      'カレンダー',
+      '所定日数',
+      '労働時間',
+      '普通残業',
+      '欠勤候補',
+      '休日出勤',
+      '出勤日数'
+    ];
+
+    const weekdayRow = [
+      '',
+      ...dates.map((d) => {
+        const [y,m,day] = d.split('-').map(Number);
+        return weekdayJa[new Date(y, m - 1, day).getDay()];
+      }),
+      '', '', '', '', '', '', '', ''
+    ];
+
+    const rows: any[][] = [
+      ['株式会社大和　出勤確認表'],
       ['集計期間', `${fmt(start)} ～ ${fmt(end)}（20日締め）`],
       [],
-      ['作業員名', '支払区分', '出勤日数', '半日回数', '勤務換算日数', '残業時間'],
-      ...monthlyAttendanceRows.map((row: any) => [
-        row.name,
-        row.isWeeklyPay ? '週払い' : '月払い',
-        row.attendanceDays,
-        row.halfDayCount,
-        row.equivalentDays,
-        row.overtimeHours
-      ])
+      headers,
+      weekdayRow
     ];
+
+    monthlyAttendanceRows.forEach((row: any) => {
+      const master = (settings.workers || []).find((w: any) => w.name === row.name);
+      rows.push([
+        row.name,
+        ...row.details.map((d: any) => {
+          if (d.fraction > 0) {
+            const siteText = d.sites.join('・');
+            const marks = [
+              d.fraction === 0.5 ? '半日' : '',
+              d.overtime > 0 ? `残${d.overtime}h` : ''
+            ].filter(Boolean).join(' ');
+            return [siteText, marks].filter(Boolean).join(' ');
+          }
+          if (row.calendarType !== 'none' && d.isHoliday) return '休';
+          if (row.calendarType !== 'none' && d.isScheduled) return '欠勤?';
+          return '';
+        }),
+        row.isWeeklyPay ? '週払い' : '月払い',
+        row.calendarType === 'yamato'
+          ? '大和社員'
+          : row.calendarType === 'trainee'
+            ? '実習生'
+            : '該当なし',
+        row.scheduledDays ?? '',
+        row.scheduledHours ?? '',
+        row.overtimeHours,
+        row.absenceCandidates,
+        row.holidayWorkDays,
+        row.equivalentDays
+      ]);
+    });
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    const dateCount = dates.length;
+    const summaryStartCol = 1 + dateCount;
 
+    ws['!freeze'] = { xSplit: 1, ySplit: 5 };
     ws['!cols'] = [
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 }
+      { wch: 16 },
+      ...dates.map(() => ({ wch: 9 })),
+      { wch: 11 },
+      { wch: 11 },
+      { wch: 10 },
+      { wch: 11 },
+      { wch: 11 },
+      { wch: 11 },
+      { wch: 11 },
+      { wch: 11 }
     ];
 
-    ['A1', 'A5', 'B5', 'C5', 'D5', 'E5', 'F5'].forEach((cell) => {
-      if (ws[cell]) {
-        ws[cell].s = {
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+
+    for (let c = 0; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: 3, c })];
+      if (cell) {
+        cell.s = {
           font: { name: 'Yu Gothic', bold: true },
-          alignment: { vertical: 'center', horizontal: cell === 'A1' ? 'left' : 'center' },
-          fill: cell === 'A1'
-            ? { fgColor: { rgb: 'DCE6F1' } }
-            : { fgColor: { rgb: 'E2E8F0' } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          fill: { fgColor: { rgb: c === 0 ? 'D9EAD3' : 'E2E8F0' } },
+          border: {
+            top: { style: 'thin', color: { rgb: '94A3B8' } },
+            bottom: { style: 'thin', color: { rgb: '94A3B8' } },
+            left: { style: 'thin', color: { rgb: '94A3B8' } },
+            right: { style: 'thin', color: { rgb: '94A3B8' } }
+          }
+        };
+      }
+    }
+
+    monthlyAttendanceRows.forEach((row: any, idx: number) => {
+      const excelRow = 5 + idx;
+      row.details.forEach((d: any, dateIdx: number) => {
+        const cell = ws[XLSX.utils.encode_cell({ r: excelRow, c: 1 + dateIdx })];
+        if (!cell) return;
+
+        let fill = 'FFFFFF';
+        let fontColor = '0F172A';
+
+        if (row.calendarType !== 'none' && d.isHoliday) {
+          fill = d.fraction > 0 ? 'FED7AA' : '374151';
+          fontColor = d.fraction > 0 ? '9A3412' : 'FFFFFF';
+        } else if (d.fraction === 0.5) {
+          fill = 'FEF3C7';
+        } else if (d.fraction > 0) {
+          fill = 'FFFFFF';
+        } else if (row.calendarType !== 'none' && d.isScheduled) {
+          fill = 'FEE2E2';
+          fontColor = 'B91C1C';
+        }
+
+        cell.s = {
+          font: { name: 'Yu Gothic', color: { rgb: fontColor } },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          fill: { fgColor: { rgb: fill } },
           border: {
             top: { style: 'thin', color: { rgb: 'CBD5E1' } },
             bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
@@ -729,13 +1101,14 @@ export default function AdminPage() {
             right: { style: 'thin', color: { rgb: 'CBD5E1' } }
           }
         };
-      }
+      });
     });
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '月次勤怠');
-    XLSX.writeFile(wb, `月次勤怠_${attendanceYearMonth}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, '出勤確認表');
+    XLSX.writeFile(wb, `出勤確認表_${attendanceYearMonth}.xlsx`);
   };
+
 
   const handleLogin = (role: 'admin' | 'viewer') => {
     const targetPassword = role === 'viewer' ? viewerPassword : password;
@@ -4660,6 +5033,181 @@ export default function AdminPage() {
         )}
       </div>
 
+      {/* 会社カレンダー管理（管理者のみ） */}
+      {authRole === 'admin' && (
+        <div className="bg-sky-50/50 rounded-3xl shadow-sm border-2 border-sky-200 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-sky-200 px-4 md:px-7 py-4 md:py-5">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-sky-900">🗓️ 会社カレンダー管理</h2>
+              <p className="text-sm md:text-base text-sky-700 mt-1">
+                大和社員・実習生の休日カレンダーを年度ごとに登録し、月次勤怠へ連動します
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowCompanyCalendarSection(!showCompanyCalendarSection)}
+              className="px-4 py-2.5 rounded-xl bg-white border border-sky-200 text-sky-800 text-sm font-bold shadow-sm"
+            >
+              {showCompanyCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを開く ▼'}
+            </button>
+          </div>
+
+          {showCompanyCalendarSection && (
+            <div className="p-4 md:p-7 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">年度</label>
+                  <input
+                    value={companyCalendarCycle}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCompanyCalendarCycle(value);
+                      ensureCompanyCalendarCycle(value);
+                    }}
+                    placeholder="例：2025-2026"
+                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">カレンダーパターン</label>
+                  <select
+                    value={companyCalendarPattern}
+                    onChange={(e) => setCompanyCalendarPattern(e.target.value as 'yamato' | 'trainee')}
+                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                  >
+                    <option value="yamato">① 大和社員</option>
+                    <option value="trainee">② 実習生</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">編集する月</label>
+                  <input
+                    type="month"
+                    value={companyCalendarEditMonth}
+                    onChange={(e) => setCompanyCalendarEditMonth(e.target.value)}
+                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white border border-sky-200 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm font-bold text-slate-700">年間PDF</div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.sourceFileName || '未登録'}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 flex-wrap">
+                    <label className="px-4 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold cursor-pointer">
+                      {companyCalendarUploading ? 'アップロード中...' : 'PDFをアップロード'}
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        disabled={companyCalendarUploading}
+                        className="hidden"
+                        onChange={(e) => uploadCompanyCalendarPdf(e.target.files?.[0] || null)}
+                      />
+                    </label>
+
+                    {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.pdfPath && (
+                      <button
+                        type="button"
+                        onClick={openCompanyCalendarPdf}
+                        className="px-4 py-2.5 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold"
+                      >
+                        PDFを確認
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 text-xs text-slate-500 leading-relaxed">
+                  ※ PDFは原本として保存します。給与・勤怠に影響するため、休日は下のカレンダーで最終確認してから保存してください。
+                </div>
+              </div>
+
+              {companyCalendarEditMonth && (() => {
+                const [y, m] = companyCalendarEditMonth.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                const dates = Array.from({ length: lastDay }, (_, i) =>
+                  `${y}-${String(m).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+                );
+                const holidays = new Set(
+                  companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.holidays || []
+                );
+
+                return (
+                  <div className="rounded-2xl bg-white border border-slate-200 p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          {companyCalendarEditMonth.replace('-', '年')}月
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          休日の日付をタップすると、休日／出勤日を切り替えられます
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-4 h-4 rounded bg-slate-800 inline-block"></span>休日
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-4 h-4 rounded bg-white border inline-block"></span>出勤日
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {['日','月','火','水','木','金','土'].map((w) => (
+                        <div key={w} className="text-center text-xs font-bold text-slate-500 py-1">{w}</div>
+                      ))}
+
+                      {Array.from({ length: new Date(y, m - 1, 1).getDay() }, (_, i) => (
+                        <div key={`blank-${i}`} />
+                      ))}
+
+                      {dates.map((dateStr) => {
+                        const day = Number(dateStr.slice(8));
+                        const holiday = holidays.has(dateStr);
+                        return (
+                          <button
+                            key={dateStr}
+                            type="button"
+                            onClick={() => toggleCompanyCalendarHoliday(dateStr)}
+                            className={`h-11 rounded-lg border text-sm font-bold transition ${
+                              holiday
+                                ? 'bg-slate-800 border-slate-800 text-white'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <button
+                type="button"
+                onClick={() => saveCompanyCalendars()}
+                disabled={companyCalendarSaving}
+                className="w-full md:w-auto px-6 py-3 rounded-xl bg-sky-700 text-white font-bold disabled:opacity-50"
+              >
+                {companyCalendarSaving ? '保存中...' : '会社カレンダーを保存'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
@@ -4667,7 +5215,7 @@ export default function AdminPage() {
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠</h2>
               <p className="text-sm md:text-base text-emerald-700 mt-1">
-                20日締めの出勤・半日・残業・支払区分を確認します
+                20日締め・会社カレンダー連動で、現在のExcelに近い形で確認します
               </p>
             </div>
 
@@ -4682,99 +5230,194 @@ export default function AdminPage() {
 
           {showMonthlyAttendance && (
             <div className="space-y-4 p-4 md:p-7">
-              <div className="flex items-center gap-3 flex-wrap">
-                <input
-                  type="month"
-                  value={attendanceYearMonth}
-                  onChange={(e) => setAttendanceYearMonth(e.target.value)}
-                  className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
-                />
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="month"
+                    value={attendanceYearMonth}
+                    onChange={(e) => setAttendanceYearMonth(e.target.value)}
+                    className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
+                  />
+                  <div className="text-sm text-slate-600">
+                    {attendancePeriodInfo.startYmd} ～ {attendancePeriodInfo.endYmd}
+                  </div>
+                </div>
 
                 <button
                   type="button"
                   onClick={exportMonthlyAttendanceExcel}
-                  className="px-4 py-3 rounded-xl bg-emerald-500 text-white text-sm font-bold shadow-sm"
+                  className="px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-bold shadow-sm"
                 >
                   📊 Excel出力
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full min-w-[820px] text-sm">
-                  <thead className="bg-slate-100 text-slate-700">
-                    <tr>
-                      <th className="text-left px-4 py-3">作業員</th>
-                      <th className="text-center px-4 py-3">支払区分</th>
-                      <th className="text-center px-4 py-3">出勤日数</th>
-                      <th className="text-center px-4 py-3">半日回数</th>
-                      <th className="text-center px-4 py-3">勤務換算日数</th>
-                      <th className="text-center px-4 py-3">残業時間</th>
-                      <th className="text-left px-4 py-3">出勤日</th>
+              <div className="flex flex-wrap gap-3 text-xs">
+                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-800 rounded"></span>会社休日</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span>休日出勤</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-amber-100 border border-amber-300 rounded"></span>半日</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white">
+                <table className="border-collapse text-[11px] min-w-max">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th rowSpan={2} className="sticky left-0 z-20 min-w-[120px] px-2 py-2 border border-slate-300 bg-emerald-100 text-left text-sm">
+                        作業員
+                      </th>
+                      {attendancePeriodInfo.dates.map((dateStr) => {
+                        const [y,m,d] = dateStr.split('-').map(Number);
+                        return (
+                          <th key={dateStr} className="w-[68px] min-w-[68px] px-1 py-1 border border-slate-300 text-center">
+                            {d}
+                          </th>
+                        );
+                      })}
+                      <th rowSpan={2} className="min-w-[80px] px-2 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="min-w-[90px] px-2 border border-slate-300">カレンダー</th>
+                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">所定日数</th>
+                      <th rowSpan={2} className="min-w-[80px] px-2 border border-slate-300">労働時間</th>
+                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">普通残業</th>
+                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">欠勤候補</th>
+                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">休日出勤</th>
+                      <th rowSpan={2} className="min-w-[75px] px-2 border border-slate-300">出勤日数</th>
+                    </tr>
+                    <tr className="bg-slate-50">
+                      {attendancePeriodInfo.dates.map((dateStr) => {
+                        const [y,m,d] = dateStr.split('-').map(Number);
+                        const weekday = ['日','月','火','水','木','金','土'][new Date(y, m - 1, d).getDay()];
+                        return (
+                          <th key={`${dateStr}-w`} className={`px-1 py-1 border border-slate-300 text-center ${
+                            weekday === '日' ? 'text-rose-600' : weekday === '土' ? 'text-blue-600' : 'text-slate-500'
+                          }`}>
+                            {weekday}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-200 bg-white">
-                    {monthlyAttendanceRows.map((row: any) => (
-                      <tr key={row.name}>
-                        <td className="px-4 py-3 font-semibold text-slate-900">
-                          {row.name}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {row.isWeeklyPay ? (
-                            <span className="inline-flex px-2.5 py-1 rounded-full bg-orange-100 border border-orange-300 text-orange-800 text-xs font-bold">
-                              週払い
-                            </span>
-                          ) : (
-                            <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                              月払い
-                            </span>
+                  <tbody>
+                    {monthlyAttendanceRows.map((row: any, index: number) => {
+                      const previousType = index > 0 ? monthlyAttendanceRows[index - 1].calendarType : null;
+                      const showGroup = previousType !== row.calendarType;
+                      const groupLabel =
+                        row.calendarType === 'yamato'
+                          ? '社員'
+                          : row.calendarType === 'trainee'
+                            ? '実習生'
+                            : '該当なし';
+
+                      return (
+                        <Fragment key={row.name}>
+                          {showGroup && (
+                            <tr>
+                              <td
+                                colSpan={attendancePeriodInfo.dates.length + 9}
+                                className={`px-3 py-2 border border-slate-300 font-bold text-sm ${
+                                  row.calendarType === 'yamato'
+                                    ? 'bg-blue-50 text-blue-900'
+                                    : row.calendarType === 'trainee'
+                                      ? 'bg-amber-50 text-amber-900'
+                                      : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {groupLabel}
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold">
-                          {row.attendanceDays}日
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {row.halfDayCount}回
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-blue-700">
-                          {row.equivalentDays}日
-                        </td>
-                        <td className="px-4 py-3 text-center font-bold text-orange-700">
-                          {row.overtimeHours}時間
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          <div className="flex flex-wrap gap-1.5">
-                            {row.details.length > 0 ? (
-                              row.details.map((d: any) => (
-                                <span
+
+                          <tr>
+                            <td className="sticky left-0 z-10 px-2 py-2 border border-slate-300 bg-white font-bold text-sm whitespace-nowrap">
+                              {row.name}
+                            </td>
+
+                            {row.details.map((d: any) => {
+                              const hasWork = d.fraction > 0;
+                              let bg = 'bg-white';
+                              let textColor = 'text-slate-700';
+
+                              if (row.calendarType !== 'none' && d.isHoliday) {
+                                if (hasWork) {
+                                  bg = 'bg-orange-100';
+                                  textColor = 'text-orange-900';
+                                } else {
+                                  bg = 'bg-slate-800';
+                                  textColor = 'text-white';
+                                }
+                              } else if (d.fraction === 0.5) {
+                                bg = 'bg-amber-100';
+                              } else if (!hasWork && row.calendarType !== 'none' && d.isScheduled) {
+                                bg = 'bg-rose-50';
+                                textColor = 'text-rose-700';
+                              }
+
+                              const label = hasWork
+                                ? d.sites.join('・') || '出勤'
+                                : row.calendarType !== 'none' && d.isHoliday
+                                  ? '休'
+                                  : row.calendarType !== 'none' && d.isScheduled
+                                    ? '欠勤?'
+                                    : '';
+
+                              return (
+                                <td
                                   key={`${row.name}-${d.date}`}
-                                  title={d.sites.join(' / ')}
-                                  className={`inline-flex items-center px-2 py-1 rounded-lg border text-xs ${
-                                    d.fraction === 0.5
-                                      ? 'bg-amber-50 border-amber-200 text-amber-800'
-                                      : 'bg-slate-50 border-slate-200 text-slate-700'
-                                  }`}
+                                  title={`${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`}
+                                  className={`w-[68px] min-w-[68px] h-[52px] px-1 py-1 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
                                 >
-                                  {d.date.slice(8)}
-                                  {d.fraction === 0.5 ? ' 半日' : ''}
-                                  {d.overtime > 0 ? ` +${d.overtime}h` : ''}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-slate-400">なし</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                                  <div className="max-w-[64px] truncate font-medium">{label}</div>
+                                  {d.fraction === 0.5 && <div className="text-[10px] text-amber-700">半日</div>}
+                                  {d.overtime > 0 && <div className="text-[10px] text-orange-700">+{d.overtime}h</div>}
+                                </td>
+                              );
+                            })}
+
+                            <td className="px-2 border border-slate-300 text-center">
+                              {row.isWeeklyPay ? (
+                                <span className="text-orange-700 font-bold">週払い</span>
+                              ) : '月払い'}
+                            </td>
+
+                            <td className="px-2 border border-slate-300 text-center font-medium">
+                              {row.calendarType === 'yamato'
+                                ? '大和社員'
+                                : row.calendarType === 'trainee'
+                                  ? '実習生'
+                                  : '該当なし'}
+                            </td>
+
+                            <td className="px-2 border border-slate-300 text-center font-bold">
+                              {row.scheduledDays ?? '-'}
+                            </td>
+                            <td className="px-2 border border-slate-300 text-center">
+                              {row.scheduledHours !== null ? `${row.scheduledHours}h` : '-'}
+                            </td>
+                            <td className="px-2 border border-slate-300 text-center font-bold text-orange-700">
+                              {row.overtimeHours}h
+                            </td>
+                            <td className="px-2 border border-slate-300 text-center font-bold text-rose-700">
+                              {row.calendarType === 'none' ? '-' : row.absenceCandidates}
+                            </td>
+                            <td className="px-2 border border-slate-300 text-center font-bold text-orange-700">
+                              {row.calendarType === 'none' ? '-' : row.holidayWorkDays}
+                            </td>
+                            <td className="px-2 border border-slate-300 text-center font-bold text-blue-800">
+                              {row.equivalentDays}
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               <div className="text-xs text-slate-500 leading-relaxed space-y-1">
-                <div>※ 大和の20日締めに合わせ、前月21日〜当月20日を1か月として集計します。</div>
-                <div>※ 同じ日に複数現場の日報へ入っている場合、勤務換算日数は最大1日として集計します。</div>
-                <div>※ 「週払い」は作業員マスタで対象者にチェックを入れると表示されます。</div>
+                <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
+                <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
+                <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
             </div>
           )}
@@ -4929,6 +5572,31 @@ export default function AdminPage() {
                           </div>
                         </label>
 
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <div className="text-sm font-bold text-slate-700 mb-2">会社カレンダー</div>
+                          <select
+                            value={form.wCalendarType || 'none'}
+                            onChange={(e) => {
+                              const calendarType = e.target.value;
+                              setForm({
+                                ...form,
+                                wCalendarType: calendarType,
+                                wShiftHours:
+                                  calendarType === 'yamato'
+                                    ? 8
+                                    : calendarType === 'trainee'
+                                      ? 7
+                                      : form.wShiftHours || 8
+                              });
+                            }}
+                            className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                          >
+                            <option value="yamato">① 大和社員</option>
+                            <option value="trainee">② 実習生</option>
+                            <option value="none">③ 該当なし</option>
+                          </select>
+                        </div>
+
                         <button
                           onClick={() =>
                             addMaster(
@@ -4937,9 +5605,10 @@ export default function AdminPage() {
                                 name: form.wName,
                                 price: Number(form.wPrice) || 0,
                                 shiftHours: Number(form.wShiftHours || 8),
-                                isWeeklyPay: !!form.wWeeklyPay
+                                isWeeklyPay: !!form.wWeeklyPay,
+                                calendarType: form.wCalendarType || 'none'
                               },
-                              ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay']
+                              ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType']
                             )
                           }
                           className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
@@ -5071,6 +5740,26 @@ export default function AdminPage() {
                                 <div className="text-xs text-slate-500 mt-0.5">チェックした作業員は勤怠表に「週払い」と表示</div>
                               </div>
                             </label>
+                          )}
+
+                          {sec.key === 'workers' && (
+                            <div className="rounded-xl border border-slate-200 bg-white p-3">
+                              <div className="text-xs font-bold text-slate-500 mb-2">会社カレンダー</div>
+                              <select
+                                value={item.calendarType || 'none'}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  updateItemField(sec.key, idx, 'calendarType', value);
+                                  if (value === 'yamato') updateItemField(sec.key, idx, 'shiftHours', 8);
+                                  if (value === 'trainee') updateItemField(sec.key, idx, 'shiftHours', 7);
+                                }}
+                                className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
+                              >
+                                <option value="yamato">① 大和社員</option>
+                                <option value="trainee">② 実習生</option>
+                                <option value="none">③ 該当なし</option>
+                              </select>
+                            </div>
                           )}
 
                           {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
