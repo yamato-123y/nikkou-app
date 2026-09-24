@@ -266,6 +266,42 @@ export default function Home() {
   const getLeaseQuantity = (list: string[], item: string) =>
     list.filter((x: string) => x === item).length;
 
+  const getWorkerDefaultHolidayHours = (workerName: string) => {
+    const master = (settings.workers || []).find((w:any) => w.name === workerName);
+    return Number(master?.shiftHours || 8) === 7 ? 7 : 8;
+  };
+
+  const isWorkerHolidayDate = (workerName: string, dateStr: string) => {
+    if (!dateStr) return false;
+
+    const [y, m, day] = dateStr.split('-').map(Number);
+    if (!y || !m || !day) return false;
+
+    // 日曜日は問答無用で法定休日扱い
+    if (new Date(y, m - 1, day).getDay() === 0) return true;
+
+    const worker = (settings.workers || []).find((w:any) => w.name === workerName);
+    const calendarType = worker?.calendarType || 'none';
+    if (calendarType === 'none') return false;
+
+    const cycle = m >= 11 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+    const holidays =
+      settings.companyCalendars?.[cycle]?.[calendarType]?.holidays || [];
+
+    return holidays.includes(dateStr);
+  };
+
+  const getEffectiveHolidayWorkHoursForSubmit = (workerName: string) => {
+    const explicit = Number(workerHolidayWorkHours[workerName] || 0);
+    if (explicit > 0) return explicit;
+
+    if (isWorkerHolidayDate(workerName, selectedDate)) {
+      return getWorkerDefaultHolidayHours(workerName);
+    }
+
+    return 0;
+  };
+
   const changeWorkerHolidayWorkHours = (workerName: string, delta: number) => {
     if (!selectedWorkers.includes(workerName)) {
       setSelectedWorkers([...selectedWorkers, workerName]);
@@ -947,8 +983,9 @@ export default function Home() {
             .map((name) => [name, true])
         ),
         workerHolidayWorkHours: Object.fromEntries(
-          Object.entries(workerHolidayWorkHours)
-            .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
+          selectedWorkers
+            .map((name) => [name, getEffectiveHolidayWorkHoursForSubmit(name)])
+            .filter(([, hours]) => Number(hours) > 0)
         ),
         jobTypes: jobTypesCount,
         subcontractors,
@@ -1442,7 +1479,7 @@ export default function Home() {
                         .map((name) => {
                           const overtime = Number(workerOvertimeHours[name] || 0);
                           const halfDay = !!workerHalfDay[name];
-                          const holidayHours = Number(workerHolidayWorkHours[name] || 0);
+                          const holidayHours = getEffectiveHolidayWorkHoursForSubmit(name);
                           const notes = [
                             halfDay ? '半日' : '',
                             holidayHours > 0 ? `休日出勤${holidayHours}時間` : '',
@@ -1734,7 +1771,13 @@ export default function Home() {
                const selected = selectedWorkers.includes(w.name);
                const overtime = Number(workerOvertimeHours[w.name] || 0);
                const isHalfDay = !!workerHalfDay[w.name];
-               const holidayHours = Number(workerHolidayWorkHours[w.name] || 0);
+               const explicitHolidayHours = Number(workerHolidayWorkHours[w.name] || 0);
+               const holidayHours =
+                 explicitHolidayHours > 0
+                   ? explicitHolidayHours
+                   : (selectedWorkers.includes(w.name) && isWorkerHolidayDate(w.name, selectedDate)
+                       ? getWorkerDefaultHolidayHours(w.name)
+                       : 0);
                const hasSpecial = isHalfDay || holidayHours > 0 || overtime > 0;
 
                return (
