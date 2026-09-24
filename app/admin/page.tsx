@@ -884,15 +884,31 @@ export default function AdminPage() {
           const attendanceFraction =
             fraction > 0 ? fraction : manualStatus === '管理' ? 1 : 0;
 
+          const explicitHolidayWorkHours = Number(actual?.holidayWorkHours || 0);
+          const [yy, mm, dd] = date.split('-').map(Number);
+          const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
+          const isAutoHolidayWork =
+            fraction > 0 && (isSunday || isHoliday);
+          const defaultHolidayHours =
+            Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
+          const effectiveHolidayWorkHours =
+            explicitHolidayWorkHours > 0
+              ? explicitHolidayWorkHours
+              : isAutoHolidayWork
+                ? defaultHolidayHours
+                : 0;
+
           return {
             date,
             fraction,
             attendanceFraction,
             manualStatus,
             overtime: Number(actual?.overtime || 0),
-            holidayWorkHours: Number(actual?.holidayWorkHours || 0),
+            holidayWorkHours: effectiveHolidayWorkHours,
+            holidayWorkHoursExplicit: explicitHolidayWorkHours > 0,
             sites: actual ? Array.from(actual.sites) : [],
             isHoliday,
+            isSunday,
             isScheduled,
             isCalendarLinked
           };
@@ -937,28 +953,22 @@ export default function AdminPage() {
 
         const restHolidayWorkDays = dayDetails.filter((d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return false;
-          const [yy, mm, dd] = d.date.split('-').map(Number);
-          return new Date(yy, mm - 1, dd).getDay() !== 0;
+          return !d.isSunday;
         }).length;
 
         const restHolidayWorkHours = dayDetails.reduce((sum, d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return sum;
-          const [yy, mm, dd] = d.date.split('-').map(Number);
-          const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
-          return isSunday ? sum : sum + Number(d.holidayWorkHours || 0);
+          return d.isSunday ? sum : sum + Number(d.holidayWorkHours || 0);
         }, 0);
 
         const legalHolidayWorkDays = dayDetails.filter((d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return false;
-          const [yy, mm, dd] = d.date.split('-').map(Number);
-          return new Date(yy, mm - 1, dd).getDay() === 0;
+          return !!d.isSunday;
         }).length;
 
         const legalHolidayWorkHours = dayDetails.reduce((sum, d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return sum;
-          const [yy, mm, dd] = d.date.split('-').map(Number);
-          const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
-          return isSunday ? sum + Number(d.holidayWorkHours || 0) : sum;
+          return d.isSunday ? sum + Number(d.holidayWorkHours || 0) : sum;
         }, 0);
 
         return {
@@ -2072,10 +2082,37 @@ export default function AdminPage() {
       };
     }
 
+    const reportDateText = String(editingReport.date || '').replace(/\//g, '-');
+    const [saveY, saveM, saveD] = reportDateText.split('-').map(Number);
+    const saveIsSunday =
+      !!saveY && !!saveM && !!saveD
+        ? new Date(saveY, saveM - 1, saveD).getDay() === 0
+        : false;
+
     const cleanedHolidayWorkHours = Object.fromEntries(
-      Object.entries(holidayWorkMap).filter(
-        ([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0
-      )
+      selectedWorkers
+        .map((name: string) => {
+          const explicit = Number(holidayWorkMap[name] || 0);
+          if (explicit > 0) return [name, explicit];
+
+          const worker = (settings.workers || []).find((w:any) => w.name === name);
+          const calendarType = worker?.calendarType || 'none';
+          const cycle =
+            saveM >= 11
+              ? `${saveY}-${saveY + 1}`
+              : `${saveY - 1}-${saveY}`;
+          const isCompanyHoliday =
+            calendarType !== 'none' &&
+            (settings.companyCalendars?.[cycle]?.[calendarType]?.holidays || [])
+              .includes(reportDateText);
+
+          if (saveIsSunday || isCompanyHoliday) {
+            return [name, Number(worker?.shiftHours || 8) === 7 ? 7 : 8];
+          }
+
+          return [name, 0];
+        })
+        .filter(([, hours]) => Number(hours) > 0)
     );
 
     const payload = {
@@ -5797,7 +5834,8 @@ export default function AdminPage() {
 
               <div className="text-xs text-slate-500 leading-relaxed space-y-1">
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
-                <div>※ 休日出勤時間は日報の勤務設定で入力します。日曜日は「法出」、それ以外の休日は「休出」として時間集計します。</div>
+                <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
+                <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
                 <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
@@ -8073,9 +8111,32 @@ export default function AdminPage() {
                         : {};
                     const overtime = Math.max(0, Number(overtimeMap[w.name] || 0));
                     const isHalfDay = !!halfDayMap[w.name];
-                    const holidayWorkHours = Math.max(0, Number(holidayWorkMap[w.name] || 0));
-                    const isHolidayWork = holidayWorkHours > 0;
                     const defaultHolidayHours = Number(w.shiftHours || 8) === 7 ? 7 : 8;
+                    const explicitHolidayWorkHours = Math.max(0, Number(holidayWorkMap[w.name] || 0));
+                    const reportDateText = String(editingReport.date || '').replace(/\//g, '-');
+                    const [editY, editM, editD] = reportDateText.split('-').map(Number);
+                    const editIsSunday =
+                      !!editY && !!editM && !!editD
+                        ? new Date(editY, editM - 1, editD).getDay() === 0
+                        : false;
+                    const editWorkerCalendarType = w.calendarType || 'none';
+                    const editCycle =
+                      editM >= 11
+                        ? `${editY}-${editY + 1}`
+                        : `${editY - 1}-${editY}`;
+                    const editCompanyHoliday =
+                      editWorkerCalendarType !== 'none' &&
+                      (settings.companyCalendars?.[editCycle]?.[editWorkerCalendarType]?.holidays || [])
+                        .includes(reportDateText);
+                    const inferredHolidayWork =
+                      checked && (editIsSunday || editCompanyHoliday);
+                    const holidayWorkHours =
+                      explicitHolidayWorkHours > 0
+                        ? explicitHolidayWorkHours
+                        : inferredHolidayWork
+                          ? defaultHolidayHours
+                          : 0;
+                    const isHolidayWork = holidayWorkHours > 0;
 
                     return (
                       <div
