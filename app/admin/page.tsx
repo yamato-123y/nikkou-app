@@ -5751,9 +5751,26 @@ export default function AdminPage() {
                                 value={item.calendarType || 'none'}
                                 onChange={(e) => {
                                   const value = e.target.value;
-                                  updateItemField(sec.key, idx, 'calendarType', value);
-                                  if (value === 'yamato') updateItemField(sec.key, idx, 'shiftHours', 8);
-                                  if (value === 'trainee') updateItemField(sec.key, idx, 'shiftHours', 7);
+
+                                  setSettings((prev: any) => {
+                                    const list = Array.isArray(prev?.[sec.key]) ? [...prev[sec.key]] : [];
+                                    const current = { ...(list[idx] || {}) };
+
+                                    current.calendarType = value;
+
+                                    if (value === 'yamato') {
+                                      current.shiftHours = 8;
+                                    } else if (value === 'trainee') {
+                                      current.shiftHours = 7;
+                                    }
+
+                                    list[idx] = current;
+
+                                    return {
+                                      ...prev,
+                                      [sec.key]: list
+                                    };
+                                  });
                                 }}
                                 className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
                               >
