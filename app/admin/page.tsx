@@ -5033,189 +5033,14 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* 会社カレンダー管理（管理者のみ） */}
-      {authRole === 'admin' && (
-        <div className="bg-sky-50/50 rounded-3xl shadow-sm border-2 border-sky-200 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 flex-wrap bg-sky-200 px-4 md:px-7 py-4 md:py-5">
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold text-sky-900">🗓️ 会社カレンダー管理</h2>
-              <p className="text-sm md:text-base text-sky-700 mt-1">
-                大和社員・実習生の休日カレンダーを年度ごとに登録し、月次勤怠へ連動します
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowCompanyCalendarSection(!showCompanyCalendarSection)}
-              className="px-4 py-2.5 rounded-xl bg-white border border-sky-200 text-sky-800 text-sm font-bold shadow-sm"
-            >
-              {showCompanyCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを開く ▼'}
-            </button>
-          </div>
-
-          {showCompanyCalendarSection && (
-            <div className="p-4 md:p-7 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1.5">年度</label>
-                  <input
-                    value={companyCalendarCycle}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setCompanyCalendarCycle(value);
-                      ensureCompanyCalendarCycle(value);
-                    }}
-                    placeholder="例：2025-2026"
-                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1.5">カレンダーパターン</label>
-                  <select
-                    value={companyCalendarPattern}
-                    onChange={(e) => setCompanyCalendarPattern(e.target.value as 'yamato' | 'trainee')}
-                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
-                  >
-                    <option value="yamato">① 大和社員</option>
-                    <option value="trainee">② 実習生</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1.5">編集する月</label>
-                  <input
-                    type="month"
-                    value={companyCalendarEditMonth}
-                    onChange={(e) => setCompanyCalendarEditMonth(e.target.value)}
-                    className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-white border border-sky-200 p-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="text-sm font-bold text-slate-700">年間PDF</div>
-                    <div className="text-sm text-slate-500 mt-1">
-                      {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.sourceFileName || '未登録'}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    <label className="px-4 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold cursor-pointer">
-                      {companyCalendarUploading ? 'アップロード中...' : 'PDFをアップロード'}
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        disabled={companyCalendarUploading}
-                        className="hidden"
-                        onChange={(e) => uploadCompanyCalendarPdf(e.target.files?.[0] || null)}
-                      />
-                    </label>
-
-                    {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.pdfPath && (
-                      <button
-                        type="button"
-                        onClick={openCompanyCalendarPdf}
-                        className="px-4 py-2.5 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold"
-                      >
-                        PDFを確認
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-3 text-xs text-slate-500 leading-relaxed">
-                  ※ PDFは原本として保存します。給与・勤怠に影響するため、休日は下のカレンダーで最終確認してから保存してください。
-                </div>
-              </div>
-
-              {companyCalendarEditMonth && (() => {
-                const [y, m] = companyCalendarEditMonth.split('-').map(Number);
-                const lastDay = new Date(y, m, 0).getDate();
-                const dates = Array.from({ length: lastDay }, (_, i) =>
-                  `${y}-${String(m).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
-                );
-                const holidays = new Set(
-                  companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.holidays || []
-                );
-
-                return (
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-                      <div>
-                        <div className="font-bold text-slate-900">
-                          {companyCalendarEditMonth.replace('-', '年')}月
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          休日の日付をタップすると、休日／出勤日を切り替えられます
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs">
-                        <span className="inline-flex items-center gap-1">
-                          <span className="w-4 h-4 rounded bg-slate-800 inline-block"></span>休日
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <span className="w-4 h-4 rounded bg-white border inline-block"></span>出勤日
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-1.5">
-                      {['日','月','火','水','木','金','土'].map((w) => (
-                        <div key={w} className="text-center text-xs font-bold text-slate-500 py-1">{w}</div>
-                      ))}
-
-                      {Array.from({ length: new Date(y, m - 1, 1).getDay() }, (_, i) => (
-                        <div key={`blank-${i}`} />
-                      ))}
-
-                      {dates.map((dateStr) => {
-                        const day = Number(dateStr.slice(8));
-                        const holiday = holidays.has(dateStr);
-                        return (
-                          <button
-                            key={dateStr}
-                            type="button"
-                            onClick={() => toggleCompanyCalendarHoliday(dateStr)}
-                            className={`h-11 rounded-lg border text-sm font-bold transition ${
-                              holiday
-                                ? 'bg-slate-800 border-slate-800 text-white'
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <button
-                type="button"
-                onClick={() => saveCompanyCalendars()}
-                disabled={companyCalendarSaving}
-                className="w-full md:w-auto px-6 py-3 rounded-xl bg-sky-700 text-white font-bold disabled:opacity-50"
-              >
-                {companyCalendarSaving ? '保存中...' : '会社カレンダーを保存'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
           <div className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠・会社カレンダー</h2>
               <p className="text-sm md:text-base text-emerald-700 mt-1">
-                20日締め・会社カレンダー連動で、現在のExcelに近い形で確認します
+                20日締めの勤怠と、大和社員・実習生の会社カレンダーをこの画面でまとめて確認します
               </p>
             </div>
 
@@ -5235,7 +5060,10 @@ export default function AdminPage() {
                   <input
                     type="month"
                     value={attendanceYearMonth}
-                    onChange={(e) => setAttendanceYearMonth(e.target.value)}
+                    onChange={(e) => {
+                      setAttendanceYearMonth(e.target.value);
+                      setCompanyCalendarEditMonth(e.target.value);
+                    }}
                     className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
                   />
                   <div className="text-sm text-slate-600">
@@ -5250,6 +5078,180 @@ export default function AdminPage() {
                 >
                   📊 Excel出力
                 </button>
+              </div>
+
+              {/* 月次勤怠内：会社カレンダー */}
+              <div className="rounded-2xl border-2 border-sky-200 bg-sky-50/60 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3 bg-sky-100">
+                  <div>
+                    <div className="text-base md:text-lg font-bold text-sky-900">🗓️ 会社カレンダー</div>
+                    <div className="text-xs md:text-sm text-sky-700 mt-0.5">
+                      月次勤怠の判定に使う休日カレンダーです
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCompanyCalendarSection(!showCompanyCalendarSection)}
+                    className="px-4 py-2 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold shadow-sm"
+                  >
+                    {showCompanyCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを確認・編集 ▼'}
+                  </button>
+                </div>
+
+                <div className="px-4 py-3 border-t border-sky-200 bg-white/70">
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="font-bold text-slate-700">現在の登録：</span>
+                    <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-bold">
+                      大和社員
+                    </span>
+                    <span className="inline-flex px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                      実習生
+                    </span>
+                    <span className="text-slate-500">
+                      ／ 表示月：{attendanceYearMonth}
+                    </span>
+                  </div>
+                </div>
+
+                {showCompanyCalendarSection && (
+                  <div className="p-4 md:p-5 space-y-5 border-t border-sky-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">年度</label>
+                        <input
+                          value={companyCalendarCycle}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCompanyCalendarCycle(value);
+                            ensureCompanyCalendarCycle(value);
+                          }}
+                          placeholder="例：2025-2026"
+                          className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">カレンダーパターン</label>
+                        <select
+                          value={companyCalendarPattern}
+                          onChange={(e) => setCompanyCalendarPattern(e.target.value as 'yamato' | 'trainee')}
+                          className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                        >
+                          <option value="yamato">① 大和社員</option>
+                          <option value="trainee">② 実習生</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-white border border-sky-200 p-4">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <div className="text-sm font-bold text-slate-700">年間カレンダーPDF</div>
+                          <div className="text-sm text-slate-500 mt-1">
+                            {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.sourceFileName || '未登録'}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 flex-wrap">
+                          <label className="px-4 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold cursor-pointer">
+                            {companyCalendarUploading ? 'アップロード中...' : 'PDFをアップロード'}
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              disabled={companyCalendarUploading}
+                              className="hidden"
+                              onChange={(e) => uploadCompanyCalendarPdf(e.target.files?.[0] || null)}
+                            />
+                          </label>
+
+                          {companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.pdfPath && (
+                            <button
+                              type="button"
+                              onClick={openCompanyCalendarPdf}
+                              className="px-4 py-2.5 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold"
+                            >
+                              PDFを確認
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {attendanceYearMonth && (() => {
+                      const [y, m] = attendanceYearMonth.split('-').map(Number);
+                      const lastDay = new Date(y, m, 0).getDate();
+                      const dates = Array.from({ length: lastDay }, (_, i) =>
+                        `${y}-${String(m).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+                      );
+                      const holidays = new Set(
+                        companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern]?.holidays || []
+                      );
+
+                      return (
+                        <div className="rounded-2xl bg-white border border-slate-200 p-4">
+                          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                            <div>
+                              <div className="font-bold text-slate-900">
+                                {y}年{m}月 ／ {companyCalendarPattern === 'yamato' ? '大和社員' : '実習生'}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                黒い日が会社休日です。日付をタップすると休日／出勤日を切り替えられます。
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="w-4 h-4 rounded bg-slate-800 inline-block"></span>休日
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="w-4 h-4 rounded bg-white border inline-block"></span>出勤日
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1.5">
+                            {['日','月','火','水','木','金','土'].map((w) => (
+                              <div key={w} className="text-center text-xs font-bold text-slate-500 py-1">{w}</div>
+                            ))}
+
+                            {Array.from({ length: new Date(y, m - 1, 1).getDay() }, (_, i) => (
+                              <div key={`blank-${i}`} />
+                            ))}
+
+                            {dates.map((dateStr) => {
+                              const day = Number(dateStr.slice(8));
+                              const holiday = holidays.has(dateStr);
+                              return (
+                                <button
+                                  key={dateStr}
+                                  type="button"
+                                  onClick={() => toggleCompanyCalendarHoliday(dateStr)}
+                                  className={`h-11 rounded-lg border text-sm font-bold transition ${
+                                    holiday
+                                      ? 'bg-slate-800 border-slate-800 text-white'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {day}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <button
+                      type="button"
+                      onClick={() => saveCompanyCalendars()}
+                      disabled={companyCalendarSaving}
+                      className="w-full md:w-auto px-6 py-3 rounded-xl bg-sky-700 text-white font-bold disabled:opacity-50"
+                    >
+                      {companyCalendarSaving ? '保存中...' : '会社カレンダーを保存'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-3 text-xs">
