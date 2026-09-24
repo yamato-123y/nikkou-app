@@ -645,7 +645,7 @@ export default function AdminPage() {
 
   const saveLocationBillingField = async (
     locationName: string,
-    field: 'clientName' | 'closingDay',
+    field: 'closingDay',
     value: string
   ) => {
     if (authRole !== 'admin') return;
@@ -688,7 +688,7 @@ export default function AdminPage() {
       setTimeout(() => setShowSaveToast(false), 1800);
     } catch (e) {
       console.error(e);
-      alert('請負先・締め日の保存に失敗しました。');
+      alert('締め日の保存に失敗しました。');
       fetchData();
     }
   };
@@ -4741,29 +4741,9 @@ export default function AdminPage() {
                 <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
                   <div>
                     <div className="text-[11px] font-bold text-slate-500 mb-1">請負先</div>
-                    <input
-                      type="text"
-                      value={loc.clientName || ''}
-                      placeholder="請負先"
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setSettings((prev: any) => ({
-                          ...prev,
-                          locations: (prev.locations || []).map((x: any) =>
-                            (typeof x === 'string' ? x : x?.name) === loc.name
-                              ? {
-                                  ...(typeof x === 'string'
-                                    ? { name: x, shortName: '', price: 0, isFinished: false }
-                                    : x),
-                                  clientName: value
-                                }
-                              : x
-                          )
-                        }));
-                      }}
-                      onBlur={(e) => saveLocationBillingField(loc.name, 'clientName', e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm font-bold"
-                    />
+                    <div className="text-sm font-bold text-slate-800">
+                      {c.clientStr || '－'}
+                    </div>
                   </div>
 
                   <div>
@@ -4838,35 +4818,9 @@ export default function AdminPage() {
                     </td>
 
                     <td className="py-5 px-3 align-middle">
-                      {authRole === 'viewer' ? (
-                        <span className="text-sm font-bold text-slate-700">
-                          {loc.clientName || '－'}
-                        </span>
-                      ) : (
-                        <input
-                          type="text"
-                          value={loc.clientName || ''}
-                          placeholder="請負先"
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setSettings((prev: any) => ({
-                              ...prev,
-                              locations: (prev.locations || []).map((x: any) =>
-                                (typeof x === 'string' ? x : x?.name) === loc.name
-                                  ? {
-                                      ...(typeof x === 'string'
-                                        ? { name: x, shortName: '', price: 0, isFinished: false }
-                                        : x),
-                                      clientName: value
-                                    }
-                                  : x
-                              )
-                            }));
-                          }}
-                          onBlur={(e) => saveLocationBillingField(loc.name, 'clientName', e.target.value)}
-                          className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        />
-                      )}
+                      <span className="text-sm font-bold text-slate-700 break-words">
+                        {c.clientStr || '－'}
+                      </span>
                     </td>
 
                     <td className="py-5 px-2 text-center align-middle">
@@ -5457,7 +5411,7 @@ export default function AdminPage() {
               </div>
 
               {/* 上部横スクロールバー */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 pt-2 pb-1">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 pt-2 pb-1 lg:hidden">
                 <div className="text-[11px] text-slate-500 mb-1 text-center">
                   画面幅が狭い場合のみ横スクロールできます
                 </div>
@@ -5472,7 +5426,7 @@ export default function AdminPage() {
                 >
                   <div
                     style={{
-                      width: `${70 + (attendancePeriodInfo.dates.length * 44) + 290}px`,
+                      width: `${54 + (attendancePeriodInfo.dates.length * 34) + 242}px`,
                       height: '1px'
                     }}
                   />
@@ -5491,25 +5445,25 @@ export default function AdminPage() {
                 <table className="border-collapse text-[8px] min-w-max lg:w-full">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 w-[70px] min-w-[70px] px-1 py-1.5 border border-slate-300 bg-emerald-100 text-left text-[11px]">
+                      <th rowSpan={2} className="sticky left-0 z-20 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         return (
-                          <th key={dateStr} className="w-[36px] min-w-[36px] px-0.5 py-1 border border-slate-300 text-center">
+                          <th key={dateStr} className="w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 text-center">
                             {d}
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="w-[38px] min-w-[38px] px-1 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="w-[40px] min-w-[40px] px-1 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">所定</th>
-                      <th rowSpan={2} className="w-[38px] min-w-[38px] px-1 border border-slate-300">時間</th>
-                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">残業</th>
-                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">欠勤</th>
-                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">休出</th>
-                      <th rowSpan={2} className="w-[36px] min-w-[36px] px-1 border border-slate-300">出勤</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="w-[32px] min-w-[32px] px-1 border border-slate-300">区分</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">所定</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">時間</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">残業</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -5557,7 +5511,7 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 w-[70px] min-w-[70px] max-w-[70px] px-1 py-1.5 border border-slate-300 bg-white font-bold text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">
+                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
                               {row.name}
                             </td>
 
@@ -5594,22 +5548,22 @@ export default function AdminPage() {
                                 <td
                                   key={`${row.name}-${d.date}`}
                                   title={`${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`}
-                                  className={`w-[36px] min-w-[36px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
+                                  className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
                                 >
-                                  <div className="max-w-[42px] truncate font-medium leading-tight">{label}</div>
-                                  {d.fraction === 0.5 && <div className="text-[8px] text-amber-700 leading-tight">半</div>}
-                                  {d.overtime > 0 && <div className="text-[8px] text-orange-700 leading-tight">+{d.overtime}</div>}
+                                  <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
+                                  {d.fraction === 0.5 && <div className="text-[7px] text-amber-700 leading-none">半</div>}
+                                  {d.overtime > 0 && <div className="text-[7px] text-orange-700 leading-none">+{d.overtime}</div>}
                                 </td>
                               );
                             })}
 
-                            <td className="px-1 border border-slate-300 text-center">
+                            <td className="px-0.5 border border-slate-300 text-center">
                               {row.isWeeklyPay ? (
                                 <span className="text-orange-700 font-bold">週払い</span>
                               ) : '月払い'}
                             </td>
 
-                            <td className="px-1 border border-slate-300 text-center font-medium">
+                            <td className="px-0.5 border border-slate-300 text-center font-medium">
                               {row.calendarType === 'yamato'
                                 ? '社員'
                                 : row.calendarType === 'trainee'
@@ -5617,22 +5571,22 @@ export default function AdminPage() {
                                   : 'なし'}
                             </td>
 
-                            <td className="px-1 border border-slate-300 text-center font-bold">
+                            <td className="px-0.5 border border-slate-300 text-center font-bold">
                               {row.scheduledDays ?? '-'}
                             </td>
-                            <td className="px-1 border border-slate-300 text-center">
+                            <td className="px-0.5 border border-slate-300 text-center">
                               {row.scheduledHours !== null ? `${row.scheduledHours}h` : '-'}
                             </td>
-                            <td className="px-1 border border-slate-300 text-center font-bold text-orange-700">
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700">
                               {row.overtimeHours}h
                             </td>
-                            <td className="px-1 border border-slate-300 text-center font-bold text-rose-700">
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
                               {row.calendarType === 'none' ? '-' : row.absenceCandidates}
                             </td>
-                            <td className="px-1 border border-slate-300 text-center font-bold text-orange-700">
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700">
                               {row.calendarType === 'none' ? '-' : row.holidayWorkDays}
                             </td>
-                            <td className="px-1 border border-slate-300 text-center font-bold text-blue-800">
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800">
                               {row.equivalentDays}
                             </td>
                           </tr>
@@ -5772,19 +5726,6 @@ export default function AdminPage() {
 
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">
-                            請負先 <span className="font-normal text-slate-400">（任意）</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="例：〇〇建設株式会社"
-                            value={form.lClientName || ''}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                            onChange={e=>setForm({...form, lClientName: e.target.value})}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1">
                             締め日 <span className="font-normal text-slate-400">（任意）</span>
                           </label>
                           <select
@@ -5818,12 +5759,11 @@ export default function AdminPage() {
                               {
                                 name: form.lName,
                                 shortName: form.lShortName || '',
-                                clientName: form.lClientName || '',
                                 closingDay: form.lClosingDay || '',
                                 price: Number(form.lPrice) || 0,
                                 isFinished: false
                               },
-                              ['lName', 'lShortName', 'lClientName', 'lClosingDay', 'lPrice']
+                              ['lName', 'lShortName', 'lClosingDay', 'lPrice']
                             )
                           }
                           className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
@@ -6029,19 +5969,6 @@ export default function AdminPage() {
                                   value={typeof item === 'string' ? '' : item.shortName || ''}
                                   onChange={(e)=>updateItemField(sec.key, idx, 'shortName', e.target.value)}
                                   placeholder="例：石川県"
-                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                                />
-                              </div>
-
-                              <div>
-                                <div className="text-[11px] font-bold text-slate-500 mb-1">
-                                  請負先 <span className="font-normal text-slate-400">（任意）</span>
-                                </div>
-                                <input
-                                  type="text"
-                                  value={typeof item === 'string' ? '' : item.clientName || ''}
-                                  onChange={(e)=>updateItemField(sec.key, idx, 'clientName', e.target.value)}
-                                  placeholder="例：〇〇建設株式会社"
                                   className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
                                 />
                               </div>
