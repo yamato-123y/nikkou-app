@@ -19,6 +19,7 @@ export default function Home() {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
+  const [workerHolidayWorkHours, setWorkerHolidayWorkHours] = useState<{[key: string]: number}>({});
   const [workerOptionTarget, setWorkerOptionTarget] = useState<string | null>(null);
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
@@ -216,6 +217,11 @@ export default function Home() {
         delete next[workerName];
         return next;
       });
+      setWorkerHolidayWorkHours((prev) => {
+        const next = { ...prev };
+        delete next[workerName];
+        return next;
+      });
       if (workerOptionTarget === workerName) {
         setWorkerOptionTarget(null);
       }
@@ -259,6 +265,35 @@ export default function Home() {
   // 同じ名称を数量分だけ配列に保持することで既存API・原価計算との互換性を保ちます。
   const getLeaseQuantity = (list: string[], item: string) =>
     list.filter((x: string) => x === item).length;
+
+  const changeWorkerHolidayWorkHours = (workerName: string, delta: number) => {
+    if (!selectedWorkers.includes(workerName)) {
+      setSelectedWorkers([...selectedWorkers, workerName]);
+    }
+
+    setWorkerHolidayWorkHours((prev) => {
+      const current = Number(prev[workerName] || 0);
+      const nextValue = Math.max(1, Math.min(24, current + delta));
+      return { ...prev, [workerName]: nextValue };
+    });
+  };
+
+  const selectWorkerHolidayWork = (workerName: string) => {
+    const master = (settings.workers || []).find((w:any) => w.name === workerName);
+    const defaultHours = Number(master?.shiftHours || 8) === 7 ? 7 : 8;
+
+    setWorkerHalfDay((prev) => ({ ...prev, [workerName]: false }));
+    setWorkerOvertimeHours((prev) => {
+      const next = { ...prev };
+      delete next[workerName];
+      return next;
+    });
+    setWorkerHolidayWorkHours((prev) => ({
+      ...prev,
+      [workerName]: Number(prev[workerName] || 0) > 0 ? Number(prev[workerName]) : defaultHours
+    }));
+  };
+
 
   const changeLeaseQuantity = (list: string[], item: string, delta: number, setter: Function) => {
     const current = getLeaseQuantity(list, item);
@@ -911,6 +946,10 @@ export default function Home() {
             .filter((name) => !!workerHalfDay[name])
             .map((name) => [name, true])
         ),
+        workerHolidayWorkHours: Object.fromEntries(
+          Object.entries(workerHolidayWorkHours)
+            .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
+        ),
         jobTypes: jobTypesCount,
         subcontractors,
         leaseHeavy, leaseAttach, leaseOther,
@@ -951,6 +990,7 @@ export default function Home() {
     setSelectedWorkers([]);
     setWorkerOvertimeHours({});
     setWorkerHalfDay({});
+    setWorkerHolidayWorkHours({});
     setWorkerOptionTarget(null);
     setJobTypesCount({});
     setSubcontractors([]);
@@ -1022,6 +1062,7 @@ export default function Home() {
     setSelectedWorkers(Array.isArray(r.workers) ? [...r.workers] : []);
     setWorkerOvertimeHours({});
     setWorkerHalfDay({});
+    setWorkerHolidayWorkHours({});
     setWorkerOptionTarget(null);
 
     setJobTypesCount(
@@ -1401,8 +1442,10 @@ export default function Home() {
                         .map((name) => {
                           const overtime = Number(workerOvertimeHours[name] || 0);
                           const halfDay = !!workerHalfDay[name];
+                          const holidayHours = Number(workerHolidayWorkHours[name] || 0);
                           const notes = [
                             halfDay ? '半日' : '',
+                            holidayHours > 0 ? `休日出勤${holidayHours}時間` : '',
                             overtime > 0 ? `残業${overtime}時間` : ''
                           ].filter(Boolean);
                           return notes.length > 0 ? `${name}（${notes.join('・')}）` : name;
@@ -1691,7 +1734,8 @@ export default function Home() {
                const selected = selectedWorkers.includes(w.name);
                const overtime = Number(workerOvertimeHours[w.name] || 0);
                const isHalfDay = !!workerHalfDay[w.name];
-               const hasSpecial = isHalfDay || overtime > 0;
+               const holidayHours = Number(workerHolidayWorkHours[w.name] || 0);
+               const hasSpecial = isHalfDay || holidayHours > 0 || overtime > 0;
 
                return (
                  <div
@@ -1721,6 +1765,7 @@ export default function Home() {
                        <div className="mt-1.5 text-[13px] leading-tight font-medium text-slate-600">
                          {[
                            isHalfDay ? '半日' : '',
+                           holidayHours > 0 ? `休日${holidayHours}時間` : '',
                            overtime > 0 ? `残業${overtime}時間` : ''
                          ].filter(Boolean).join('・')}
                        </div>
@@ -1746,6 +1791,8 @@ export default function Home() {
            {workerOptionTarget && (() => {
              const overtime = Number(workerOvertimeHours[workerOptionTarget] || 0);
              const isHalfDay = !!workerHalfDay[workerOptionTarget];
+             const holidayHours = Number(workerHolidayWorkHours[workerOptionTarget] || 0);
+             const isHolidayWork = holidayHours > 0;
 
              return (
                <div className="fixed inset-0 z-[100] bg-black/45 flex items-end sm:items-center justify-center p-3">
@@ -1762,17 +1809,22 @@ export default function Home() {
                        <div className="text-[16px] font-medium text-slate-700 mb-3">
                          勤務区分
                        </div>
-                       <div className="grid grid-cols-2 gap-3">
+                       <div className="grid grid-cols-3 gap-2">
                          <button
                            type="button"
-                           onClick={() =>
+                           onClick={() => {
                              setWorkerHalfDay((prev) => ({
                                ...prev,
                                [workerOptionTarget]: false
-                             }))
-                           }
-                           className={`h-14 rounded-2xl border-2 text-[17px] font-semibold transition ${
-                             !isHalfDay
+                             }));
+                             setWorkerHolidayWorkHours((prev) => {
+                               const next = { ...prev };
+                               delete next[workerOptionTarget];
+                               return next;
+                             });
+                           }}
+                           className={`h-14 rounded-2xl border-2 text-[14px] font-semibold transition ${
+                             !isHalfDay && !isHolidayWork
                                ? 'bg-blue-100 border-blue-600 text-blue-950'
                                : 'bg-white border-slate-300 text-slate-700'
                            }`}
@@ -1782,51 +1834,101 @@ export default function Home() {
 
                          <button
                            type="button"
-                           onClick={() =>
+                           onClick={() => {
                              setWorkerHalfDay((prev) => ({
                                ...prev,
                                [workerOptionTarget]: true
-                             }))
-                           }
-                           className={`h-14 rounded-2xl border-2 text-[17px] font-semibold transition ${
-                             isHalfDay
+                             }));
+                             setWorkerHolidayWorkHours((prev) => {
+                               const next = { ...prev };
+                               delete next[workerOptionTarget];
+                               return next;
+                             });
+                           }}
+                           className={`h-14 rounded-2xl border-2 text-[14px] font-semibold transition ${
+                             isHalfDay && !isHolidayWork
                                ? 'bg-amber-100 border-amber-500 text-amber-900'
                                : 'bg-white border-slate-300 text-slate-700'
                            }`}
                          >
                            半日
                          </button>
+
+                         <button
+                           type="button"
+                           onClick={() => selectWorkerHolidayWork(workerOptionTarget)}
+                           className={`h-14 rounded-2xl border-2 text-[13px] font-semibold transition ${
+                             isHolidayWork
+                               ? 'bg-rose-100 border-rose-500 text-rose-900'
+                               : 'bg-white border-slate-300 text-slate-700'
+                           }`}
+                         >
+                           休日出勤
+                         </button>
                        </div>
                      </div>
 
-                     <div>
-                       <div className="text-[16px] font-medium text-slate-700 mb-3">
-                         残業時間
+                     {isHolidayWork && (
+                       <div>
+                         <div className="text-[16px] font-medium text-slate-700 mb-3">
+                           休日出勤の作業時間
+                         </div>
+                         <div className="grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3">
+                           <button
+                             type="button"
+                             onClick={() => changeWorkerHolidayWorkHours(workerOptionTarget, -1)}
+                             disabled={holidayHours <= 1}
+                             className="h-14 rounded-2xl border-2 border-slate-300 bg-slate-50 text-[28px] font-medium text-slate-600 disabled:opacity-30 active:bg-slate-100"
+                           >
+                             −
+                           </button>
+                           <div className="h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-[18px] font-semibold text-rose-800">
+                             {holidayHours}時間
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => changeWorkerHolidayWorkHours(workerOptionTarget, 1)}
+                             className="h-14 rounded-2xl border-2 border-rose-500 bg-rose-50 text-[28px] font-medium text-rose-700 active:bg-rose-100"
+                           >
+                             ＋
+                           </button>
+                         </div>
+                         <div className="mt-2 text-xs leading-relaxed text-slate-500">
+                           日曜日は「法出」、それ以外の休日は「休出」として月次勤怠に集計されます。
+                         </div>
                        </div>
+                     )}
 
-                       <div className="grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3">
-                         <button
-                           type="button"
-                           onClick={() => changeWorkerOvertime(workerOptionTarget, -1)}
-                           disabled={overtime <= 0}
-                           className="h-14 rounded-2xl border-2 border-slate-300 bg-slate-50 text-[28px] font-medium text-slate-600 disabled:opacity-30 active:bg-slate-100"
-                         >
-                           −
-                         </button>
-
-                         <div className="h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-[18px] font-semibold text-slate-700">
-                           残業{overtime}時間
+                     {!isHolidayWork && (
+                       <div>
+                         <div className="text-[16px] font-medium text-slate-700 mb-3">
+                           残業時間
                          </div>
 
-                         <button
-                           type="button"
-                           onClick={() => changeWorkerOvertime(workerOptionTarget, 1)}
-                           className="h-14 rounded-2xl border-2 border-blue-500 bg-blue-50 text-[28px] font-medium text-blue-700 active:bg-blue-100"
-                         >
-                           ＋
-                         </button>
+                         <div className="grid grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3">
+                           <button
+                             type="button"
+                             onClick={() => changeWorkerOvertime(workerOptionTarget, -1)}
+                             disabled={overtime <= 0}
+                             className="h-14 rounded-2xl border-2 border-slate-300 bg-slate-50 text-[28px] font-medium text-slate-600 disabled:opacity-30 active:bg-slate-100"
+                           >
+                             −
+                           </button>
+
+                           <div className="h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-[18px] font-semibold text-slate-700">
+                             残業{overtime}時間
+                           </div>
+
+                           <button
+                             type="button"
+                             onClick={() => changeWorkerOvertime(workerOptionTarget, 1)}
+                             className="h-14 rounded-2xl border-2 border-blue-500 bg-blue-50 text-[28px] font-medium text-blue-700 active:bg-blue-100"
+                           >
+                             ＋
+                           </button>
+                         </div>
                        </div>
-                     </div>
+                     )}
 
                      <button
                        type="button"
@@ -2674,7 +2776,7 @@ export default function Home() {
                事務所へ伝えたいことや、相談したいことがあれば入力してください。
              </div>
              <textarea
-               placeholder="例：追加で資材が必要です。／○○について事務所に確認お願いします。"
+               placeholder="〇〇について確認したい。など"
                value={officeMessage}
                onChange={e=>setOfficeMessage(e.target.value)}
                className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
