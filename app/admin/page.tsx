@@ -643,6 +643,18 @@ export default function AdminPage() {
     };
   }, [trialResourceDrag]);
 
+  const getLocationShortName = (locationName: string) => {
+    const master = (settings.locations || []).find((loc: any) => {
+      const fullName = typeof loc === 'string' ? loc : loc?.name;
+      return fullName === locationName;
+    });
+
+    if (!master || typeof master === 'string') return locationName;
+
+    const shortName = String(master.shortName || '').trim();
+    return shortName || locationName;
+  };
+
   const getAttendancePeriodInfo = (ym: string) => {
     const [yearText, monthText] = ym.split('-');
     const year = Number(yearText);
@@ -1008,7 +1020,7 @@ export default function AdminPage() {
         row.name,
         ...row.details.map((d: any) => {
           if (d.fraction > 0) {
-            const siteText = d.sites.join('・');
+            const siteText = d.sites.map((site: string) => getLocationShortName(site)).join('・');
             const marks = [
               d.fraction === 0.5 ? '半日' : '',
               d.overtime > 0 ? `残${d.overtime}h` : ''
@@ -5266,7 +5278,7 @@ export default function AdminPage() {
               {/* 上部横スクロールバー */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 pt-2 pb-1">
                 <div className="text-[11px] text-slate-500 mb-1 text-center">
-                  ← 横にスクロールできます →
+                  画面幅が狭い場合のみ横スクロールできます
                 </div>
                 <div
                   ref={attendanceTopScrollRef}
@@ -5279,7 +5291,7 @@ export default function AdminPage() {
                 >
                   <div
                     style={{
-                      width: `${120 + (attendancePeriodInfo.dates.length * 68) + 605}px`,
+                      width: `${78 + (attendancePeriodInfo.dates.length * 36) + 355}px`,
                       height: '1px'
                     }}
                   />
@@ -5295,28 +5307,28 @@ export default function AdminPage() {
                 }}
                 className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
               >
-                <table className="border-collapse text-[11px] min-w-max">
+                <table className="border-collapse text-[9px] min-w-max lg:w-full">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 min-w-[120px] px-2 py-2 border border-slate-300 bg-emerald-100 text-left text-sm">
+                      <th rowSpan={2} className="sticky left-0 z-20 w-[78px] min-w-[78px] px-1 py-1.5 border border-slate-300 bg-emerald-100 text-left text-[11px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         return (
-                          <th key={dateStr} className="w-[68px] min-w-[68px] px-1 py-1 border border-slate-300 text-center">
+                          <th key={dateStr} className="w-[36px] min-w-[36px] px-0.5 py-1 border border-slate-300 text-center">
                             {d}
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="min-w-[80px] px-2 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="min-w-[90px] px-2 border border-slate-300">カレンダー</th>
-                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">所定日数</th>
-                      <th rowSpan={2} className="min-w-[80px] px-2 border border-slate-300">労働時間</th>
-                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">普通残業</th>
-                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">欠勤候補</th>
-                      <th rowSpan={2} className="min-w-[70px] px-2 border border-slate-300">休日出勤</th>
-                      <th rowSpan={2} className="min-w-[75px] px-2 border border-slate-300">出勤日数</th>
+                      <th rowSpan={2} className="w-[45px] min-w-[45px] px-1 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="w-[52px] min-w-[52px] px-1 border border-slate-300">区分</th>
+                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">所定</th>
+                      <th rowSpan={2} className="w-[46px] min-w-[46px] px-1 border border-slate-300">時間</th>
+                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">残業</th>
+                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">欠勤</th>
+                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[44px] min-w-[44px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -5364,7 +5376,7 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 px-2 py-2 border border-slate-300 bg-white font-bold text-sm whitespace-nowrap">
+                            <td className="sticky left-0 z-10 w-[78px] min-w-[78px] max-w-[78px] px-1 py-1.5 border border-slate-300 bg-white font-bold text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">
                               {row.name}
                             </td>
 
@@ -5388,8 +5400,9 @@ export default function AdminPage() {
                                 textColor = 'text-rose-700';
                               }
 
+                              const displaySites = d.sites.map((site: string) => getLocationShortName(site));
                               const label = hasWork
-                                ? d.sites.join('・') || '出勤'
+                                ? displaySites.join('・') || '出勤'
                                 : row.calendarType !== 'none' && d.isHoliday
                                   ? '休'
                                   : row.calendarType !== 'none' && d.isScheduled
@@ -5400,11 +5413,11 @@ export default function AdminPage() {
                                 <td
                                   key={`${row.name}-${d.date}`}
                                   title={`${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`}
-                                  className={`w-[68px] min-w-[68px] h-[52px] px-1 py-1 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
+                                  className={`w-[36px] min-w-[36px] max-w-[36px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
                                 >
-                                  <div className="max-w-[64px] truncate font-medium">{label}</div>
-                                  {d.fraction === 0.5 && <div className="text-[10px] text-amber-700">半日</div>}
-                                  {d.overtime > 0 && <div className="text-[10px] text-orange-700">+{d.overtime}h</div>}
+                                  <div className="max-w-[34px] truncate font-medium leading-tight">{label}</div>
+                                  {d.fraction === 0.5 && <div className="text-[8px] text-amber-700 leading-tight">半</div>}
+                                  {d.overtime > 0 && <div className="text-[8px] text-orange-700 leading-tight">+{d.overtime}</div>}
                                 </td>
                               );
                             })}
@@ -5417,10 +5430,10 @@ export default function AdminPage() {
 
                             <td className="px-2 border border-slate-300 text-center font-medium">
                               {row.calendarType === 'yamato'
-                                ? '大和社員'
+                                ? '社員'
                                 : row.calendarType === 'trainee'
-                                  ? '実習生'
-                                  : '該当なし'}
+                                  ? '実習'
+                                  : 'なし'}
                             </td>
 
                             <td className="px-2 border border-slate-300 text-center font-bold">
@@ -5546,6 +5559,64 @@ export default function AdminPage() {
                       <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      </div>
+                    ) : sec.key === 'locations' ? (
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">正式な現場名</label>
+                          <input
+                            type="text"
+                            placeholder="例：旧河北郡市クリーンセンター等解体工事(石川県)"
+                            value={form.lName || ''}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            onChange={e=>setForm({...form, lName: e.target.value})}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">
+                            略称名 <span className="font-normal text-slate-400">（任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="例：石川県"
+                            value={form.lShortName || ''}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            onChange={e=>setForm({...form, lShortName: e.target.value})}
+                          />
+                          <div className="text-[11px] text-slate-500 mt-1">
+                            月次勤怠では略称名を優先表示します。未入力なら正式名を表示します。
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">請負金額（税抜）</label>
+                          <input
+                            type="number"
+                            placeholder="請負金額（税抜）"
+                            value={form.lPrice || ''}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            onChange={e=>setForm({...form, lPrice: e.target.value})}
+                          />
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            addMaster(
+                              'locations',
+                              {
+                                name: form.lName,
+                                shortName: form.lShortName || '',
+                                price: Number(form.lPrice) || 0,
+                                isFinished: false
+                              },
+                              ['lName', 'lShortName', 'lPrice']
+                            )
+                          }
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
+                        >
+                          ＋ 追加
+                        </button>
                       </div>
                     ) : sec.key === 'workers' ? (
                       <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
@@ -5722,6 +5793,31 @@ export default function AdminPage() {
                               </div>
                               <div className="pt-1">
                                 <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位 (例: kg, t)" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                              </div>
+                            </div>
+                          ) : sec.key === 'locations' ? (
+                            <div className="space-y-2">
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-500 mb-1">正式な現場名</div>
+                                <input
+                                  type="text"
+                                  value={typeof item === 'string' ? item : item.name || ''}
+                                  onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)}
+                                  placeholder="正式な現場名"
+                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                />
+                              </div>
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-500 mb-1">
+                                  略称名 <span className="font-normal text-slate-400">（月次勤怠用・任意）</span>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={typeof item === 'string' ? '' : item.shortName || ''}
+                                  onChange={(e)=>updateItemField(sec.key, idx, 'shortName', e.target.value)}
+                                  placeholder="例：石川県"
+                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                />
                               </div>
                             </div>
                           ) : sec.isNoPrice ? (
