@@ -295,7 +295,7 @@ export default function Home() {
     const explicit = Number(workerHolidayWorkHours[workerName] || 0);
     if (explicit > 0) return explicit;
 
-    if (isWorkerHolidayDate(workerName, selectedDate)) {
+    if (isWorkerHolidayDate(workerName, date)) {
       return getWorkerDefaultHolidayHours(workerName);
     }
 
@@ -1775,7 +1775,7 @@ export default function Home() {
                const holidayHours =
                  explicitHolidayHours > 0
                    ? explicitHolidayHours
-                   : (selectedWorkers.includes(w.name) && isWorkerHolidayDate(w.name, selectedDate)
+                   : (selectedWorkers.includes(w.name) && isWorkerHolidayDate(w.name, date)
                        ? getWorkerDefaultHolidayHours(w.name)
                        : 0);
                const hasSpecial = isHalfDay || holidayHours > 0 || overtime > 0;
