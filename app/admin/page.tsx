@@ -5291,7 +5291,7 @@ export default function AdminPage() {
                 >
                   <div
                     style={{
-                      width: `${78 + (attendancePeriodInfo.dates.length * 36) + 355}px`,
+                      width: `${70 + (attendancePeriodInfo.dates.length * 44) + 290}px`,
                       height: '1px'
                     }}
                   />
@@ -5307,10 +5307,10 @@ export default function AdminPage() {
                 }}
                 className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
               >
-                <table className="border-collapse text-[9px] min-w-max lg:w-full">
+                <table className="border-collapse text-[8px] min-w-max lg:w-full">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 w-[78px] min-w-[78px] px-1 py-1.5 border border-slate-300 bg-emerald-100 text-left text-[11px]">
+                      <th rowSpan={2} className="sticky left-0 z-20 w-[70px] min-w-[70px] px-1 py-1.5 border border-slate-300 bg-emerald-100 text-left text-[11px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -5321,14 +5321,14 @@ export default function AdminPage() {
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="w-[45px] min-w-[45px] px-1 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="w-[52px] min-w-[52px] px-1 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">所定</th>
-                      <th rowSpan={2} className="w-[46px] min-w-[46px] px-1 border border-slate-300">時間</th>
-                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">残業</th>
-                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">欠勤</th>
-                      <th rowSpan={2} className="w-[42px] min-w-[42px] px-1 border border-slate-300">休出</th>
-                      <th rowSpan={2} className="w-[44px] min-w-[44px] px-1 border border-slate-300">出勤</th>
+                      <th rowSpan={2} className="w-[38px] min-w-[38px] px-1 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="w-[40px] min-w-[40px] px-1 border border-slate-300">区分</th>
+                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">所定</th>
+                      <th rowSpan={2} className="w-[38px] min-w-[38px] px-1 border border-slate-300">時間</th>
+                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">残業</th>
+                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">欠勤</th>
+                      <th rowSpan={2} className="w-[34px] min-w-[34px] px-1 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[36px] min-w-[36px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -5376,7 +5376,7 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 w-[78px] min-w-[78px] max-w-[78px] px-1 py-1.5 border border-slate-300 bg-white font-bold text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">
+                            <td className="sticky left-0 z-10 w-[70px] min-w-[70px] max-w-[70px] px-1 py-1.5 border border-slate-300 bg-white font-bold text-[10px] whitespace-nowrap overflow-hidden text-ellipsis">
                               {row.name}
                             </td>
 
@@ -5413,22 +5413,22 @@ export default function AdminPage() {
                                 <td
                                   key={`${row.name}-${d.date}`}
                                   title={`${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`}
-                                  className={`w-[36px] min-w-[36px] max-w-[36px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
+                                  className={`w-[36px] min-w-[36px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
                                 >
-                                  <div className="max-w-[34px] truncate font-medium leading-tight">{label}</div>
+                                  <div className="max-w-[42px] truncate font-medium leading-tight">{label}</div>
                                   {d.fraction === 0.5 && <div className="text-[8px] text-amber-700 leading-tight">半</div>}
                                   {d.overtime > 0 && <div className="text-[8px] text-orange-700 leading-tight">+{d.overtime}</div>}
                                 </td>
                               );
                             })}
 
-                            <td className="px-2 border border-slate-300 text-center">
+                            <td className="px-1 border border-slate-300 text-center">
                               {row.isWeeklyPay ? (
                                 <span className="text-orange-700 font-bold">週払い</span>
                               ) : '月払い'}
                             </td>
 
-                            <td className="px-2 border border-slate-300 text-center font-medium">
+                            <td className="px-1 border border-slate-300 text-center font-medium">
                               {row.calendarType === 'yamato'
                                 ? '社員'
                                 : row.calendarType === 'trainee'
@@ -5436,22 +5436,22 @@ export default function AdminPage() {
                                   : 'なし'}
                             </td>
 
-                            <td className="px-2 border border-slate-300 text-center font-bold">
+                            <td className="px-1 border border-slate-300 text-center font-bold">
                               {row.scheduledDays ?? '-'}
                             </td>
-                            <td className="px-2 border border-slate-300 text-center">
+                            <td className="px-1 border border-slate-300 text-center">
                               {row.scheduledHours !== null ? `${row.scheduledHours}h` : '-'}
                             </td>
-                            <td className="px-2 border border-slate-300 text-center font-bold text-orange-700">
+                            <td className="px-1 border border-slate-300 text-center font-bold text-orange-700">
                               {row.overtimeHours}h
                             </td>
-                            <td className="px-2 border border-slate-300 text-center font-bold text-rose-700">
+                            <td className="px-1 border border-slate-300 text-center font-bold text-rose-700">
                               {row.calendarType === 'none' ? '-' : row.absenceCandidates}
                             </td>
-                            <td className="px-2 border border-slate-300 text-center font-bold text-orange-700">
+                            <td className="px-1 border border-slate-300 text-center font-bold text-orange-700">
                               {row.calendarType === 'none' ? '-' : row.holidayWorkDays}
                             </td>
-                            <td className="px-2 border border-slate-300 text-center font-bold text-blue-800">
+                            <td className="px-1 border border-slate-300 text-center font-bold text-blue-800">
                               {row.equivalentDays}
                             </td>
                           </tr>
