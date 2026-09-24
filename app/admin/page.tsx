@@ -935,12 +935,24 @@ export default function AdminPage() {
                 (d) => d.isScheduled && d.attendanceFraction === 0
               ).length;
 
+        const restHolidayWorkDays = dayDetails.filter((d) => {
+          if (Number(d.holidayWorkHours || 0) <= 0) return false;
+          const [yy, mm, dd] = d.date.split('-').map(Number);
+          return new Date(yy, mm - 1, dd).getDay() !== 0;
+        }).length;
+
         const restHolidayWorkHours = dayDetails.reduce((sum, d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return sum;
           const [yy, mm, dd] = d.date.split('-').map(Number);
           const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
           return isSunday ? sum : sum + Number(d.holidayWorkHours || 0);
         }, 0);
+
+        const legalHolidayWorkDays = dayDetails.filter((d) => {
+          if (Number(d.holidayWorkHours || 0) <= 0) return false;
+          const [yy, mm, dd] = d.date.split('-').map(Number);
+          return new Date(yy, mm - 1, dd).getDay() === 0;
+        }).length;
 
         const legalHolidayWorkHours = dayDetails.reduce((sum, d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return sum;
@@ -960,7 +972,9 @@ export default function AdminPage() {
           scheduledDays,
           scheduledHours,
           absenceCandidates,
+          restHolidayWorkDays,
           restHolidayWorkHours,
+          legalHolidayWorkDays,
           legalHolidayWorkHours,
           details: dayDetails
         };
@@ -1176,8 +1190,12 @@ export default function AdminPage() {
         row.scheduledHours ?? '',
         row.overtimeHours,
         row.absenceCandidates,
-        row.restHolidayWorkHours,
-        row.legalHolidayWorkHours,
+        row.restHolidayWorkDays > 0 || row.restHolidayWorkHours > 0
+          ? `${row.restHolidayWorkDays}日\n${row.restHolidayWorkHours}h`
+          : '',
+        row.legalHolidayWorkDays > 0 || row.legalHolidayWorkHours > 0
+          ? `${row.legalHolidayWorkDays}日\n${row.legalHolidayWorkHours}h`
+          : '',
         row.equivalentDays
       ]);
     });
@@ -5739,11 +5757,21 @@ export default function AdminPage() {
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
                               {row.calendarType === 'none' ? '-' : row.absenceCandidates}
                             </td>
-                            <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700">
-                              {row.restHolidayWorkHours > 0 ? `${row.restHolidayWorkHours}h` : '-'}
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700 leading-tight">
+                              {row.restHolidayWorkDays > 0 || row.restHolidayWorkHours > 0 ? (
+                                <div className="flex flex-col items-center justify-center">
+                                  <span>{row.restHolidayWorkDays}日</span>
+                                  <span>{row.restHolidayWorkHours}h</span>
+                                </div>
+                              ) : '-'}
                             </td>
-                            <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
-                              {row.legalHolidayWorkHours > 0 ? `${row.legalHolidayWorkHours}h` : '-'}
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700 leading-tight">
+                              {row.legalHolidayWorkDays > 0 || row.legalHolidayWorkHours > 0 ? (
+                                <div className="flex flex-col items-center justify-center">
+                                  <span>{row.legalHolidayWorkDays}日</span>
+                                  <span>{row.legalHolidayWorkHours}h</span>
+                                </div>
+                              ) : '-'}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800">
                               {row.equivalentDays}
