@@ -23,6 +23,9 @@ export default function Home() {
   const [jobTypesCount, setJobTypesCount] = useState<{[key: string]: string}>({});
 
   const [subcontractors, setSubcontractors] = useState<{company: string, task: string, count: string}[]>([]);
+  const [subcontractorCompanySelect, setSubcontractorCompanySelect] = useState('');
+  const [subcontractorTaskSelect, setSubcontractorTaskSelect] = useState('');
+  const [subcontractorCountSelect, setSubcontractorCountSelect] = useState(1);
 
   // 通常（南大阪建機等）のリース
   const [leaseHeavy, setLeaseHeavy] = useState<string[]>([]);
@@ -1101,6 +1104,48 @@ export default function Home() {
     }, 50);
   };
 
+  const addSelectedSubcontractor = () => {
+    if (!subcontractorCompanySelect) {
+      alert('外注会社を選択してください。');
+      return;
+    }
+    if (!subcontractorTaskSelect) {
+      alert('作業内容を選択してください。');
+      return;
+    }
+
+    const addCount = Math.max(1, Number(subcontractorCountSelect || 1));
+
+    setSubcontractors((prev) => {
+      const existing = prev.find(
+        (x) =>
+          x.company === subcontractorCompanySelect &&
+          x.task === subcontractorTaskSelect
+      );
+
+      if (existing) {
+        return prev.map((x) =>
+          x.company === subcontractorCompanySelect &&
+          x.task === subcontractorTaskSelect
+            ? { ...x, count: String(Number(x.count || 0) + addCount) }
+            : x
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          company: subcontractorCompanySelect,
+          task: subcontractorTaskSelect,
+          count: String(addCount)
+        }
+      ];
+    });
+
+    setSubcontractorTaskSelect('');
+    setSubcontractorCountSelect(1);
+  };
+
   const getSubcontractorCount = (company: string, task: string) => {
     const found = subcontractors.find(
       (x) => x.company === company && x.task === task
@@ -1798,13 +1843,13 @@ export default function Home() {
         </div>
 
         {/* 3. 外注会社・作業内容 */}
-        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
-          <div className="border-b pb-3 space-y-1">
+        <div className="bg-white p-5 rounded-3xl border shadow-sm space-y-4">
+          <div className="border-b pb-3">
             <span className="font-black text-lg text-orange-600 block">
               🏢 3. 外注会社・作業内容
             </span>
-            <p className="text-xs md:text-sm font-bold text-slate-500">
-              管理画面で登録した外注会社・作業内容から選択してください。
+            <p className="text-xs md:text-sm font-medium text-slate-500 mt-1">
+              外注会社を選び、作業内容と人数を入力してください。
             </p>
           </div>
 
@@ -1814,143 +1859,187 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
-              {Array.from(
-                new Set(
-                  (settings.subcontractors || [])
-                    .map((s: any) => s.company)
-                    .filter(Boolean)
-                )
-              ).map((company: any) => {
-                const companyItems = (settings.subcontractors || []).filter(
-                  (s: any) => s.company === company
-                );
-
-                return (
-                  <div
-                    key={company}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2"
-                  >
-                    <div className="text-[16px] font-semibold text-slate-900 px-1">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  外注会社
+                </label>
+                <select
+                  value={subcontractorCompanySelect}
+                  onChange={(e) => {
+                    setSubcontractorCompanySelect(e.target.value);
+                    setSubcontractorTaskSelect('');
+                    setSubcontractorCountSelect(1);
+                  }}
+                  className="w-full h-12 px-3 rounded-xl border-2 border-slate-300 bg-white text-[16px] font-medium text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="">会社を選択</option>
+                  {Array.from(
+                    new Set(
+                      (settings.subcontractors || [])
+                        .map((s: any) => s.company)
+                        .filter(Boolean)
+                    )
+                  ).map((company: any) => (
+                    <option key={company} value={company}>
                       {company}
-                    </div>
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    <div className="grid grid-cols-1 gap-2">
-                      {companyItems.map((item: any, index: number) => {
-                        const count = getSubcontractorCount(
-                          item.company,
-                          item.task
-                        );
-                        const selected = count > 0;
-
-                        return (
-                          <div
+              {subcontractorCompanySelect && (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      作業内容
+                    </label>
+                    <select
+                      value={subcontractorTaskSelect}
+                      onChange={(e) => setSubcontractorTaskSelect(e.target.value)}
+                      className="w-full h-12 px-3 rounded-xl border-2 border-slate-300 bg-white text-[16px] font-medium text-slate-900 outline-none focus:border-blue-500"
+                    >
+                      <option value="">作業内容を選択</option>
+                      {(settings.subcontractors || [])
+                        .filter(
+                          (s: any) => s.company === subcontractorCompanySelect
+                        )
+                        .map((item: any, index: number) => (
+                          <option
                             key={`${item.company}__${item.task}__${index}`}
-                            className={`rounded-2xl border-2 p-3 transition ${
-                              selected
-                                ? 'bg-blue-50 border-blue-500'
-                                : 'bg-white border-slate-200'
-                            }`}
+                            value={item.task}
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  changeSubcontractorCount(
-                                    item.company,
-                                    item.task,
-                                    selected ? -count : 1
-                                  )
-                                }
-                                className="min-w-0 flex-1 text-left py-1"
-                              >
-                                <div
-                                  className={`text-[16px] leading-snug font-medium ${
-                                    selected
-                                      ? 'text-blue-950'
-                                      : 'text-slate-900'
-                                  }`}
-                                >
-                                  {selected ? '✓ ' : ''}
-                                  {item.task || '作業内容未設定'}
-                                </div>
-                              </button>
+                            {item.task || '作業内容未設定'}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
 
-                              {selected ? (
-                                <div className="shrink-0 flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      changeSubcontractorCount(
-                                        item.company,
-                                        item.task,
-                                        -1
-                                      )
-                                    }
-                                    className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl font-medium text-slate-600 active:bg-slate-100"
-                                    aria-label={`${item.company} ${item.task} の人数を1人減らす`}
-                                  >
-                                    −
-                                  </button>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      人数
+                    </label>
+                    <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSubcontractorCountSelect((v) =>
+                            Math.max(1, Number(v || 1) - 1)
+                          )
+                        }
+                        disabled={subcontractorCountSelect <= 1}
+                        className="h-12 rounded-xl border border-slate-300 bg-slate-50 text-xl font-medium text-slate-600 disabled:opacity-30 active:bg-slate-100"
+                      >
+                        −
+                      </button>
 
-                                  <div className="min-w-[52px] text-center text-[15px] font-semibold text-slate-800">
-                                    {count}人
-                                  </div>
+                      <div className="h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-[17px] font-semibold text-slate-800">
+                        {subcontractorCountSelect}人
+                      </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      changeSubcontractorCount(
-                                        item.company,
-                                        item.task,
-                                        1
-                                      )
-                                    }
-                                    className="w-10 h-10 rounded-xl border border-blue-400 bg-blue-50 text-xl font-medium text-blue-700 active:bg-blue-100"
-                                    aria-label={`${item.company} ${item.task} の人数を1人増やす`}
-                                  >
-                                    ＋
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    changeSubcontractorCount(
-                                      item.company,
-                                      item.task,
-                                      1
-                                    )
-                                  }
-                                  className="shrink-0 px-4 h-10 rounded-xl bg-slate-100 border border-slate-300 text-sm font-medium text-slate-700 active:bg-slate-200"
-                                >
-                                  選択
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSubcontractorCountSelect((v) =>
+                            Number(v || 0) + 1
+                          )
+                        }
+                        className="h-12 rounded-xl border border-blue-300 bg-blue-50 text-xl font-medium text-blue-700 active:bg-blue-100"
+                      >
+                        ＋
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+
+                  <button
+                    type="button"
+                    onClick={addSelectedSubcontractor}
+                    disabled={!subcontractorTaskSelect}
+                    className="w-full h-12 rounded-xl bg-blue-700 text-white text-[16px] font-semibold disabled:opacity-40 active:bg-blue-800"
+                  >
+                    ＋ 外注を追加
+                  </button>
+                </>
+              )}
             </div>
           )}
 
           {subcontractors.length > 0 && (
-            <div className="rounded-2xl bg-blue-50 border border-blue-200 p-3">
-              <div className="text-xs font-semibold text-blue-700 mb-1">
-                選択中
+            <div className="pt-3 border-t border-slate-200 space-y-2">
+              <div className="text-sm font-semibold text-slate-700">
+                選択中の外注
               </div>
-              <div className="text-sm font-medium text-slate-800 leading-relaxed">
-                {subcontractors
-                  .filter((s) => Number(s.count || 0) > 0)
-                  .map(
-                    (s) =>
-                      `${s.company}／${s.task}：${Number(s.count || 0)}人`
-                  )
-                  .join('、')}
-              </div>
+
+              {subcontractors
+                .filter((s) => Number(s.count || 0) > 0)
+                .map((s, index) => (
+                  <div
+                    key={`${s.company}__${s.task}__${index}`}
+                    className="rounded-2xl bg-blue-50 border border-blue-200 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-semibold text-slate-900 break-words">
+                          {s.company}
+                        </div>
+                        <div className="text-[14px] text-slate-600 mt-0.5 break-words">
+                          {s.task}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSubcontractors((prev) =>
+                            prev.filter(
+                              (x) =>
+                                !(
+                                  x.company === s.company &&
+                                  x.task === s.task
+                                )
+                            )
+                          )
+                        }
+                        className="shrink-0 px-2.5 h-9 rounded-lg bg-white border border-red-200 text-red-600 text-sm font-medium"
+                      >
+                        削除
+                      </button>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSubcontractorCount(
+                            s.company,
+                            s.task,
+                            -1
+                          )
+                        }
+                        className="h-10 rounded-xl border border-slate-300 bg-white text-xl font-medium text-slate-600 active:bg-slate-100"
+                      >
+                        −
+                      </button>
+
+                      <div className="h-10 rounded-xl bg-white border border-blue-200 flex items-center justify-center text-[15px] font-semibold text-slate-800">
+                        {Number(s.count || 0)}人
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSubcontractorCount(
+                            s.company,
+                            s.task,
+                            1
+                          )
+                        }
+                        className="h-10 rounded-xl border border-blue-300 bg-white text-xl font-medium text-blue-700 active:bg-blue-100"
+                      >
+                        ＋
+                      </button>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
         </div>
@@ -2585,7 +2674,7 @@ export default function Home() {
                事務所へ伝えたいことや、相談したいことがあれば入力してください。
              </div>
              <textarea
-               placeholder="〇〇について確認したい。など"
+               placeholder="例：追加で資材が必要です。／○○について事務所に確認お願いします。"
                value={officeMessage}
                onChange={e=>setOfficeMessage(e.target.value)}
                className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
