@@ -643,6 +643,56 @@ export default function AdminPage() {
     };
   }, [trialResourceDrag]);
 
+  const saveLocationBillingField = async (
+    locationName: string,
+    field: 'clientName' | 'closingDay',
+    value: string
+  ) => {
+    if (authRole !== 'admin') return;
+
+    try {
+      const nextLocations = (settings.locations || []).map((loc: any) => {
+        const locName = typeof loc === 'string' ? loc : loc?.name;
+        if (locName !== locationName) return loc;
+
+        const base =
+          typeof loc === 'string'
+            ? { name: loc, shortName: '', price: 0, isFinished: false }
+            : { ...loc };
+
+        return {
+          ...base,
+          [field]: value
+        };
+      });
+
+      const newData = {
+        ...settings,
+        locations: nextLocations
+      };
+
+      setSettings(newData);
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+
+      if (!res.ok) {
+        throw new Error('保存に失敗しました。');
+      }
+
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1800);
+    } catch (e) {
+      console.error(e);
+      alert('請負先・締め日の保存に失敗しました。');
+      fetchData();
+    }
+  };
+
   const getLocationShortName = (locationName: string) => {
     const master = (settings.locations || []).find((loc: any) => {
       const fullName = typeof loc === 'string' ? loc : loc?.name;
@@ -4688,6 +4738,66 @@ export default function AdminPage() {
                     </span>
                   </div>
                 </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-500 mb-1">請負先</div>
+                    <input
+                      type="text"
+                      value={loc.clientName || ''}
+                      placeholder="請負先"
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSettings((prev: any) => ({
+                          ...prev,
+                          locations: (prev.locations || []).map((x: any) =>
+                            (typeof x === 'string' ? x : x?.name) === loc.name
+                              ? {
+                                  ...(typeof x === 'string'
+                                    ? { name: x, shortName: '', price: 0, isFinished: false }
+                                    : x),
+                                  clientName: value
+                                }
+                              : x
+                          )
+                        }));
+                      }}
+                      onBlur={(e) => saveLocationBillingField(loc.name, 'clientName', e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-500 mb-1">締め日</div>
+                    <select
+                      value={loc.closingDay || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSettings((prev: any) => ({
+                          ...prev,
+                          locations: (prev.locations || []).map((x: any) =>
+                            (typeof x === 'string' ? x : x?.name) === loc.name
+                              ? {
+                                  ...(typeof x === 'string'
+                                    ? { name: x, shortName: '', price: 0, isFinished: false }
+                                    : x),
+                                  closingDay: value
+                                }
+                              : x
+                          )
+                        }));
+                        saveLocationBillingField(loc.name, 'closingDay', value);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm font-bold"
+                    >
+                      <option value="">未設定</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <option key={day} value={String(day)}>{day}日締め</option>
+                      ))}
+                      <option value="末日">末日締め</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 text-xs md:text-sm gap-1 bg-white p-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-center">
                   <div>請負<span className="text-slate-900 font-bold block text-base mt-1">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></span></div>
                   <div>日数<span className="text-slate-900 font-bold block text-base mt-1">{c.days}日</span></div>
@@ -4708,12 +4818,14 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-4 w-[35%]">現場名</th>
-                <th className="py-4 px-4 w-[12%]">請負金額</th>
-                <th className="py-4 px-4 w-[10%]">稼働日数</th>
-                <th className="py-4 px-4 w-[12%]">合計経費</th>
-                <th className="py-4 px-4 w-[16%]">粗利（売却益込）</th>
-                <th className="py-4 px-4 w-[15%] text-center">ステータス / アクション</th>
+                <th className="py-4 px-3 w-[23%]">現場名</th>
+                <th className="py-4 px-3 w-[13%]">請負先</th>
+                <th className="py-4 px-3 w-[8%] text-center">締め日</th>
+                <th className="py-4 px-3 w-[11%]">請負金額</th>
+                <th className="py-4 px-3 w-[7%]">稼働日数</th>
+                <th className="py-4 px-3 w-[11%]">合計経費</th>
+                <th className="py-4 px-3 w-[14%]">粗利（売却益込）</th>
+                <th className="py-4 px-3 w-[13%] text-center">ステータス / アクション</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-lg font-medium">
@@ -4721,16 +4833,85 @@ export default function AdminPage() {
                 const c = calculateCosts(loc.name);
                 return (
                   <tr key={loc.name} className="hover:bg-slate-50/80 transition">
-                    <td className="py-5 px-4 align-middle">
-                      <span className="font-bold text-xl break-all leading-snug text-blue-600">{loc.name}</span>
+                    <td className="py-5 px-3 align-middle">
+                      <span className="font-bold text-lg break-all leading-snug text-blue-600">{loc.name}</span>
                     </td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></td>
-                    <td className="py-5 px-4 text-slate-800 font-bold align-middle">{c.days} 日</td>
-                    <td className="py-5 px-4 text-slate-900 font-bold align-middle">{formatAmount(c.total)}</td>
-                    <td className={`py-5 px-4 font-bold text-2xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+
+                    <td className="py-5 px-3 align-middle">
+                      {authRole === 'viewer' ? (
+                        <span className="text-sm font-bold text-slate-700">
+                          {loc.clientName || '－'}
+                        </span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={loc.clientName || ''}
+                          placeholder="請負先"
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSettings((prev: any) => ({
+                              ...prev,
+                              locations: (prev.locations || []).map((x: any) =>
+                                (typeof x === 'string' ? x : x?.name) === loc.name
+                                  ? {
+                                      ...(typeof x === 'string'
+                                        ? { name: x, shortName: '', price: 0, isFinished: false }
+                                        : x),
+                                      clientName: value
+                                    }
+                                  : x
+                              )
+                            }));
+                          }}
+                          onBlur={(e) => saveLocationBillingField(loc.name, 'clientName', e.target.value)}
+                          className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        />
+                      )}
+                    </td>
+
+                    <td className="py-5 px-2 text-center align-middle">
+                      {authRole === 'viewer' ? (
+                        <span className="text-sm font-bold text-slate-700">
+                          {loc.closingDay ? `${loc.closingDay}日` : '－'}
+                        </span>
+                      ) : (
+                        <select
+                          value={loc.closingDay || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSettings((prev: any) => ({
+                              ...prev,
+                              locations: (prev.locations || []).map((x: any) =>
+                                (typeof x === 'string' ? x : x?.name) === loc.name
+                                  ? {
+                                      ...(typeof x === 'string'
+                                        ? { name: x, shortName: '', price: 0, isFinished: false }
+                                        : x),
+                                      closingDay: value
+                                    }
+                                  : x
+                              )
+                            }));
+                            saveLocationBillingField(loc.name, 'closingDay', value);
+                          }}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-1 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        >
+                          <option value="">未設定</option>
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                            <option key={day} value={String(day)}>{day}日</option>
+                          ))}
+                          <option value="末日">末日</option>
+                        </select>
+                      )}
+                    </td>
+
+                    <td className="py-5 px-3 text-slate-800 font-bold align-middle">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></td>
+                    <td className="py-5 px-3 text-slate-800 font-bold align-middle">{c.days} 日</td>
+                    <td className="py-5 px-3 text-slate-900 font-bold align-middle">{formatAmount(c.total)}</td>
+                    <td className={`py-5 px-3 font-bold text-xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                       {formatAmount(c.profit)}
                     </td>
-                    <td className="py-5 px-4 text-center align-middle">
+                    <td className="py-5 px-3 text-center align-middle">
                       <div className="flex items-center justify-center gap-2 flex-nowrap">
                         {authRole !== 'viewer' && (
                           <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 shadow-2xs transition">
@@ -4747,7 +4928,7 @@ export default function AdminPage() {
               })}
               {activeLocList.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-slate-400 text-base">稼働中の現場はありません</td>
+                  <td colSpan={8} className="text-center py-6 text-slate-400 text-base">稼働中の現場はありません</td>
                 </tr>
               )}
             </tbody>
@@ -5590,6 +5771,36 @@ export default function AdminPage() {
                         </div>
 
                         <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">
+                            請負先 <span className="font-normal text-slate-400">（任意）</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="例：〇〇建設株式会社"
+                            value={form.lClientName || ''}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            onChange={e=>setForm({...form, lClientName: e.target.value})}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1">
+                            締め日 <span className="font-normal text-slate-400">（任意）</span>
+                          </label>
+                          <select
+                            value={form.lClosingDay || ''}
+                            onChange={e=>setForm({...form, lClosingDay: e.target.value})}
+                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          >
+                            <option value="">未設定</option>
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                              <option key={day} value={String(day)}>{day}日締め</option>
+                            ))}
+                            <option value="末日">末日締め</option>
+                          </select>
+                        </div>
+
+                        <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">請負金額（税抜）</label>
                           <input
                             type="number"
@@ -5607,10 +5818,12 @@ export default function AdminPage() {
                               {
                                 name: form.lName,
                                 shortName: form.lShortName || '',
+                                clientName: form.lClientName || '',
+                                closingDay: form.lClosingDay || '',
                                 price: Number(form.lPrice) || 0,
                                 isFinished: false
                               },
-                              ['lName', 'lShortName', 'lPrice']
+                              ['lName', 'lShortName', 'lClientName', 'lClosingDay', 'lPrice']
                             )
                           }
                           className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
@@ -5818,6 +6031,36 @@ export default function AdminPage() {
                                   placeholder="例：石川県"
                                   className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
                                 />
+                              </div>
+
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-500 mb-1">
+                                  請負先 <span className="font-normal text-slate-400">（任意）</span>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={typeof item === 'string' ? '' : item.clientName || ''}
+                                  onChange={(e)=>updateItemField(sec.key, idx, 'clientName', e.target.value)}
+                                  placeholder="例：〇〇建設株式会社"
+                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                />
+                              </div>
+
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-500 mb-1">
+                                  締め日 <span className="font-normal text-slate-400">（任意）</span>
+                                </div>
+                                <select
+                                  value={typeof item === 'string' ? '' : item.closingDay || ''}
+                                  onChange={(e)=>updateItemField(sec.key, idx, 'closingDay', e.target.value)}
+                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                >
+                                  <option value="">未設定</option>
+                                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                    <option key={day} value={String(day)}>{day}日締め</option>
+                                  ))}
+                                  <option value="末日">末日締め</option>
+                                </select>
                               </div>
                             </div>
                           ) : sec.isNoPrice ? (
