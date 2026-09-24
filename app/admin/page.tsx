@@ -330,7 +330,6 @@ export default function AdminPage() {
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
-  const [workerRuleEffectiveDates, setWorkerRuleEffectiveDates] = useState<{[name: string]: string}>({});
 
   const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(false);
   const [companyCalendars, setCompanyCalendars] = useState<any>(() => mergeCompanyCalendars({}));
@@ -671,35 +670,8 @@ export default function AdminPage() {
 
   const attendancePeriodInfo = getAttendancePeriodInfo(attendanceYearMonth);
 
-  const getWorkerRuleForDate = (worker: any, dateStr: string) => {
-    const history = Array.isArray(worker?.ruleHistory)
-      ? [...worker.ruleHistory]
-          .filter((h: any) => h?.effectiveFrom)
-          .sort((a: any, b: any) => String(a.effectiveFrom).localeCompare(String(b.effectiveFrom)))
-      : [];
-
-    const applicable = history
-      .filter((h: any) => String(h.effectiveFrom) <= String(dateStr))
-      .pop();
-
-    if (applicable) {
-      return {
-        calendarType: applicable.calendarType || 'none',
-        shiftHours: Number(applicable.shiftHours || 8) === 7 ? 7 : 8,
-        isWeeklyPay: !!applicable.isWeeklyPay
-      };
-    }
-
-    return {
-      calendarType: worker?.calendarType || 'none',
-      shiftHours: Number(worker?.shiftHours || 8) === 7 ? 7 : 8,
-      isWeeklyPay: !!worker?.isWeeklyPay
-    };
-  };
-
   const getCalendarEntryForWorker = (worker: any, dateStr: string) => {
-    const rule = getWorkerRuleForDate(worker, dateStr);
-    const calendarType = rule.calendarType || 'none';
+    const calendarType = worker?.calendarType || 'none';
     if (calendarType === 'none') return null;
 
     const cycle = getCalendarCycleForDate(dateStr);
@@ -770,14 +742,12 @@ export default function AdminPage() {
             calendarType: 'none'
           };
 
-        const periodEndRule = getWorkerRuleForDate(workerMaster, endYmd);
-        const calendarType = periodEndRule.calendarType || 'none';
+        const calendarType = workerMaster?.calendarType || 'none';
         const dayDetails = dates.map((date) => {
           const actual = workerDayMap[name]?.[date];
-          const rule = getWorkerRuleForDate(workerMaster, date);
           const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
           const holidays = new Set(calendarEntry?.holidays || []);
-          const isCalendarLinked = rule.calendarType !== 'none' && !!calendarEntry;
+          const isCalendarLinked = !!calendarEntry;
           const isHoliday = isCalendarLinked ? holidays.has(date) : false;
           const isScheduled = isCalendarLinked ? !isHoliday : false;
 
@@ -786,9 +756,6 @@ export default function AdminPage() {
             fraction: Number(actual?.fraction || 0),
             overtime: Number(actual?.overtime || 0),
             sites: actual ? Array.from(actual.sites) : [],
-            calendarType: rule.calendarType,
-            shiftHours: rule.shiftHours,
-            isWeeklyPay: rule.isWeeklyPay,
             isHoliday,
             isScheduled,
             isCalendarLinked
@@ -806,34 +773,38 @@ export default function AdminPage() {
           0
         );
 
-        const hasCalendarLinkedDays = dayDetails.some((d) => d.isCalendarLinked);
-
         const scheduledDays =
-          hasCalendarLinkedDays
-            ? dayDetails.filter((d) => d.isScheduled).length
-            : null;
+          calendarType === 'none'
+            ? null
+            : dayDetails.filter((d) => d.isScheduled).length;
+
+        const calendarHours =
+          calendarType === 'none'
+            ? null
+            : Number(
+                dayDetails.find((d) => d.isCalendarLinked)
+                  ? getCalendarEntryForWorker(workerMaster, dayDetails.find((d) => d.isCalendarLinked)!.date)?.workHours
+                  : workerMaster?.shiftHours || 0
+              );
 
         const scheduledHours =
-          hasCalendarLinkedDays
-            ? dayDetails.reduce(
-                (sum, d) => sum + (d.isScheduled ? Number(d.shiftHours || 0) : 0),
-                0
-              )
-            : null;
+          scheduledDays === null || calendarHours === null
+            ? null
+            : scheduledDays * calendarHours;
 
         const absenceCandidates =
-          hasCalendarLinkedDays
-            ? dayDetails.filter((d) => d.isScheduled && d.fraction === 0).length
-            : 0;
+          calendarType === 'none'
+            ? 0
+            : dayDetails.filter((d) => d.isScheduled && d.fraction === 0).length;
 
         const holidayWorkDays =
-          hasCalendarLinkedDays
-            ? dayDetails.filter((d) => d.isHoliday && d.fraction > 0).length
-            : 0;
+          calendarType === 'none'
+            ? 0
+            : dayDetails.filter((d) => d.isHoliday && d.fraction > 0).length;
 
         return {
           name,
-          isWeeklyPay: !!periodEndRule.isWeeklyPay,
+          isWeeklyPay: !!workerMaster?.isWeeklyPay,
           calendarType,
           attendanceDays,
           halfDayCount,
@@ -1168,96 +1139,9 @@ export default function AdminPage() {
         await freezeExistingReportsIfNeeded();
       }
 
-      let targetList = customList !== undefined ? customList : settings[key];
+      const targetList = customList !== undefined ? customList : settings[key];
       
       const oldList = originalSettings[key] || [];
-
-      // 作業員の勤務ルールは適用開始日付きの履歴として保存する。
-      // 過去は過去の設定、適用開始日以降だけ新しい設定を使う。
-      if (key === 'workers') {
-        const today = new Date().toISOString().slice(0, 10);
-
-        targetList = (targetList || []).map((newItem: any, idx: number) => {
-          const oldItem = oldList[idx];
-
-          if (!oldItem) {
-            const initialRule = {
-              effectiveFrom: workerRuleEffectiveDates[newItem?.name] || today,
-              calendarType: newItem?.calendarType || 'none',
-              shiftHours: Number(newItem?.shiftHours || 8) === 7 ? 7 : 8,
-              isWeeklyPay: !!newItem?.isWeeklyPay
-            };
-
-            return {
-              ...newItem,
-              ruleHistory:
-                Array.isArray(newItem?.ruleHistory) && newItem.ruleHistory.length > 0
-                  ? newItem.ruleHistory
-                  : [initialRule]
-            };
-          }
-
-          const oldRule = {
-            calendarType: oldItem?.calendarType || 'none',
-            shiftHours: Number(oldItem?.shiftHours || 8) === 7 ? 7 : 8,
-            isWeeklyPay: !!oldItem?.isWeeklyPay
-          };
-
-          const newRule = {
-            calendarType: newItem?.calendarType || 'none',
-            shiftHours: Number(newItem?.shiftHours || 8) === 7 ? 7 : 8,
-            isWeeklyPay: !!newItem?.isWeeklyPay
-          };
-
-          let history = Array.isArray(oldItem?.ruleHistory)
-            ? [...oldItem.ruleHistory]
-            : [];
-
-          // この機能導入前の設定を、過去側の基準値として残す。
-          if (history.length === 0) {
-            history.push({
-              effectiveFrom: '1900-01-01',
-              ...oldRule
-            });
-          }
-
-          const changed =
-            oldRule.calendarType !== newRule.calendarType ||
-            oldRule.shiftHours !== newRule.shiftHours ||
-            oldRule.isWeeklyPay !== newRule.isWeeklyPay;
-
-          if (changed) {
-            const effectiveFrom =
-              workerRuleEffectiveDates[newItem?.name] || today;
-
-            const historyItem = {
-              effectiveFrom,
-              ...newRule
-            };
-
-            const sameDateIndex = history.findIndex(
-              (h: any) => String(h?.effectiveFrom) === effectiveFrom
-            );
-
-            if (sameDateIndex >= 0) {
-              history[sameDateIndex] = historyItem;
-            } else {
-              history.push(historyItem);
-            }
-
-            history = history.sort(
-              (a: any, b: any) =>
-                String(a.effectiveFrom).localeCompare(String(b.effectiveFrom))
-            );
-          }
-
-          return {
-            ...newItem,
-            ruleHistory: history
-          };
-        });
-      }
-
       const newList = targetList || [];
       const locationUpdates: { oldName: string; newName: string }[] = [];
       const subUpdates: { oldComp: string; oldTask: string; newComp: string; newTask: string }[] = [];
@@ -1365,14 +1249,7 @@ export default function AdminPage() {
 
       setSettings(newData);
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      if (key === 'workers') {
-        setWorkerRuleEffectiveDates({});
-      }
-      alert(
-        key === 'workers'
-          ? '保存しました！勤務ルールは適用開始日ごとの履歴として保存しました。'
-          : '保存しました！過去の日報の名称も自動で更新されました。'
-      );
+      alert('保存しました！過去の日報の名称も自動で更新されました。');
       fetchData();
     } catch (e) {
       console.error(e);
@@ -5901,47 +5778,6 @@ export default function AdminPage() {
                                 <option value="trainee">② 実習生</option>
                                 <option value="none">③ 該当なし</option>
                               </select>
-                            </div>
-                          )}
-
-                          {sec.key === 'workers' && (
-                            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2">
-                              <div>
-                                <div className="text-xs font-bold text-blue-800 mb-1">変更の適用開始日</div>
-                                <input
-                                  type="date"
-                                  value={workerRuleEffectiveDates[item.name] || '2026-09-24'}
-                                  onChange={(e) =>
-                                    setWorkerRuleEffectiveDates((prev) => ({
-                                      ...prev,
-                                      [item.name]: e.target.value
-                                    }))
-                                  }
-                                  className="w-full p-2.5 rounded-xl border-2 border-blue-200 bg-white text-sm font-bold"
-                                />
-                                <div className="text-[11px] text-slate-500 mt-1">
-                                  会社カレンダー・7/8時間勤務・週払いを変更した場合、この日から新設定になります。
-                                </div>
-                              </div>
-
-                              {Array.isArray(item.ruleHistory) && item.ruleHistory.length > 0 && (
-                                <div className="pt-2 border-t border-blue-100">
-                                  <div className="text-[11px] font-bold text-slate-500 mb-1">設定履歴</div>
-                                  <div className="space-y-1">
-                                    {[...item.ruleHistory]
-                                      .sort((a:any,b:any) => String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)))
-                                      .slice(0, 4)
-                                      .map((h:any, hIdx:number) => (
-                                        <div key={hIdx} className="text-[11px] text-slate-600">
-                                          {h.effectiveFrom}〜　
-                                          {h.calendarType === 'yamato' ? '大和社員' : h.calendarType === 'trainee' ? '実習生' : '該当なし'}
-                                          ・{Number(h.shiftHours || 8) === 7 ? 7 : 8}時間
-                                          ・{h.isWeeklyPay ? '週払い' : '月払い'}
-                                        </div>
-                                      ))}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           )}
 
