@@ -705,6 +705,57 @@ export default function AdminPage() {
     return shortName || locationName;
   };
 
+  const saveManualAttendanceStatus = async (
+    workerName: string,
+    dateStr: string,
+    status: '管理' | ''
+  ) => {
+    if (authRole !== 'admin') return;
+
+    try {
+      const current = settings.manualAttendanceOverrides || {};
+      const workerMap = { ...(current[workerName] || {}) };
+
+      if (status) {
+        workerMap[dateStr] = status;
+      } else {
+        delete workerMap[dateStr];
+      }
+
+      const nextOverrides = {
+        ...current,
+        [workerName]: workerMap
+      };
+
+      if (Object.keys(workerMap).length === 0) {
+        delete nextOverrides[workerName];
+      }
+
+      const newData = {
+        ...settings,
+        manualAttendanceOverrides: nextOverrides
+      };
+
+      setSettings(newData);
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+
+      if (!res.ok) throw new Error('手動勤怠の保存に失敗しました。');
+
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1600);
+    } catch (e) {
+      console.error(e);
+      alert('「管理」の保存に失敗しました。');
+      fetchData();
+    }
+  };
+
   const getAttendancePeriodInfo = (ym: string) => {
     const [yearText, monthText] = ym.split('-');
     const year = Number(yearText);
@@ -814,10 +865,17 @@ export default function AdminPage() {
           const isCalendarLinked = !!calendarEntry;
           const isHoliday = isCalendarLinked ? holidays.has(date) : false;
           const isScheduled = isCalendarLinked ? !isHoliday : false;
+          const manualStatus =
+            settings.manualAttendanceOverrides?.[name]?.[date] || '';
+          const fraction = Number(actual?.fraction || 0);
+          const attendanceFraction =
+            fraction > 0 ? fraction : manualStatus === '管理' ? 1 : 0;
 
           return {
             date,
-            fraction: Number(actual?.fraction || 0),
+            fraction,
+            attendanceFraction,
+            manualStatus,
             overtime: Number(actual?.overtime || 0),
             sites: actual ? Array.from(actual.sites) : [],
             isHoliday,
@@ -826,9 +884,9 @@ export default function AdminPage() {
           };
         });
 
-        const attendanceDays = dayDetails.filter((d) => d.fraction > 0).length;
+        const attendanceDays = dayDetails.filter((d) => d.attendanceFraction > 0).length;
         const equivalentDays = dayDetails.reduce(
-          (sum, d) => sum + Number(d.fraction || 0),
+          (sum, d) => sum + Number(d.attendanceFraction || 0),
           0
         );
         const halfDayCount = dayDetails.filter((d) => d.fraction === 0.5).length;
@@ -859,12 +917,16 @@ export default function AdminPage() {
         const absenceCandidates =
           calendarType === 'none'
             ? 0
-            : dayDetails.filter((d) => d.isScheduled && d.fraction === 0).length;
+            : dayDetails.filter(
+                (d) => d.isScheduled && d.attendanceFraction === 0
+              ).length;
 
         const holidayWorkDays =
           calendarType === 'none'
             ? 0
-            : dayDetails.filter((d) => d.isHoliday && d.fraction > 0).length;
+            : dayDetails.filter(
+                (d) => d.isHoliday && d.attendanceFraction > 0
+              ).length;
 
         return {
           name,
@@ -1077,6 +1139,7 @@ export default function AdminPage() {
             ].filter(Boolean).join(' ');
             return [siteText, marks].filter(Boolean).join(' ');
           }
+          if (d.manualStatus === '管理') return '管理';
           if (row.calendarType !== 'none' && d.isHoliday) return '休';
           if (row.calendarType !== 'none' && d.isScheduled) return '欠勤?';
           return '';
@@ -1142,9 +1205,12 @@ export default function AdminPage() {
         let fill = 'FFFFFF';
         let fontColor = '0F172A';
 
-        if (row.calendarType !== 'none' && d.isHoliday) {
-          fill = d.fraction > 0 ? 'FED7AA' : '374151';
-          fontColor = d.fraction > 0 ? '9A3412' : 'FFFFFF';
+        if (d.manualStatus === '管理' && d.fraction === 0) {
+          fill = 'DBEAFE';
+          fontColor = '1D4ED8';
+        } else if (row.calendarType !== 'none' && d.isHoliday) {
+          fill = d.attendanceFraction > 0 ? 'FED7AA' : '374151';
+          fontColor = d.attendanceFraction > 0 ? '9A3412' : 'FFFFFF';
         } else if (d.fraction === 0.5) {
           fill = 'FEF3C7';
         } else if (d.fraction > 0) {
@@ -5403,11 +5469,27 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-800 rounded"></span>会社休日</span>
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span>休日出勤</span>
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-amber-100 border border-amber-300 rounded"></span>半日</span>
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
+
+                <div className="ml-1 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5">
+                  <span className="text-blue-800 font-bold">手動出勤：</span>
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', '管理');
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    title="「欠勤?」のセルへドラッグしてください"
+                    className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-blue-400 bg-white px-3 py-1.5 font-bold text-blue-700 shadow-sm"
+                  >
+                    管理
+                  </div>
+                  <span className="text-slate-500">→「欠勤?」へドラッグ</span>
+                </div>
               </div>
 
               {/* 上部横スクロールバー */}
@@ -5516,12 +5598,23 @@ export default function AdminPage() {
                             </td>
 
                             {row.details.map((d: any) => {
-                              const hasWork = d.fraction > 0;
+                              const hasReportWork = d.fraction > 0;
+                              const isManagement = d.manualStatus === '管理' && !hasReportWork;
+                              const hasAttendance = d.attendanceFraction > 0;
+                              const canDropManagement =
+                                !hasReportWork &&
+                                !isManagement &&
+                                row.calendarType !== 'none' &&
+                                d.isScheduled;
+
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
 
-                              if (row.calendarType !== 'none' && d.isHoliday) {
-                                if (hasWork) {
+                              if (isManagement) {
+                                bg = 'bg-blue-100';
+                                textColor = 'text-blue-800';
+                              } else if (row.calendarType !== 'none' && d.isHoliday) {
+                                if (hasAttendance) {
                                   bg = 'bg-orange-100';
                                   textColor = 'text-orange-900';
                                 } else {
@@ -5530,25 +5623,56 @@ export default function AdminPage() {
                                 }
                               } else if (d.fraction === 0.5) {
                                 bg = 'bg-amber-100';
-                              } else if (!hasWork && row.calendarType !== 'none' && d.isScheduled) {
+                              } else if (!hasAttendance && row.calendarType !== 'none' && d.isScheduled) {
                                 bg = 'bg-rose-50';
                                 textColor = 'text-rose-700';
                               }
 
                               const displaySites = d.sites.map((site: string) => getLocationShortName(site));
-                              const label = hasWork
+                              const label = hasReportWork
                                 ? displaySites.join('・') || '出勤'
-                                : row.calendarType !== 'none' && d.isHoliday
-                                  ? '休'
-                                  : row.calendarType !== 'none' && d.isScheduled
-                                    ? '欠勤?'
-                                    : '';
+                                : isManagement
+                                  ? '管理'
+                                  : row.calendarType !== 'none' && d.isHoliday
+                                    ? '休'
+                                    : row.calendarType !== 'none' && d.isScheduled
+                                      ? '欠勤?'
+                                      : '';
 
                               return (
                                 <td
                                   key={`${row.name}-${d.date}`}
-                                  title={`${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`}
-                                  className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor}`}
+                                  title={
+                                    isManagement
+                                      ? `${d.date} / 管理（クリックで解除）`
+                                      : canDropManagement
+                                        ? `${d.date} / 「管理」をここへドラッグできます`
+                                        : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`
+                                  }
+                                  onDragOver={(e) => {
+                                    if (canDropManagement) {
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = 'copy';
+                                    }
+                                  }}
+                                  onDrop={(e) => {
+                                    if (!canDropManagement) return;
+                                    e.preventDefault();
+                                    if (e.dataTransfer.getData('text/plain') === '管理') {
+                                      saveManualAttendanceStatus(row.name, d.date, '管理');
+                                    }
+                                  }}
+                                  onClick={() => {
+                                    if (
+                                      isManagement &&
+                                      confirm(`${row.name} / ${d.date} の「管理」を解除して「欠勤?」に戻しますか？`)
+                                    ) {
+                                      saveManualAttendanceStatus(row.name, d.date, '');
+                                    }
+                                  }}
+                                  className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
+                                    canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
+                                  } ${isManagement ? 'cursor-pointer' : ''}`}
                                 >
                                   <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
                                   {d.fraction === 0.5 && <div className="text-[7px] text-amber-700 leading-none">半</div>}
@@ -5599,6 +5723,8 @@ export default function AdminPage() {
 
               <div className="text-xs text-slate-500 leading-relaxed space-y-1">
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
+                <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
+                <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
