@@ -1101,6 +1101,46 @@ export default function Home() {
     }, 50);
   };
 
+  const getSubcontractorCount = (company: string, task: string) => {
+    const found = subcontractors.find(
+      (x) => x.company === company && x.task === task
+    );
+    return Math.max(0, Number(found?.count || 0));
+  };
+
+  const changeSubcontractorCount = (company: string, task: string, delta: number) => {
+    setSubcontractors((prev) => {
+      const current = prev.find(
+        (x) => x.company === company && x.task === task
+      );
+      const currentCount = Math.max(0, Number(current?.count || 0));
+      const nextCount = Math.max(0, currentCount + delta);
+
+      if (nextCount === 0) {
+        return prev.filter(
+          (x) => !(x.company === company && x.task === task)
+        );
+      }
+
+      if (current) {
+        return prev.map((x) =>
+          x.company === company && x.task === task
+            ? { ...x, count: String(nextCount) }
+            : x
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          company,
+          task,
+          count: String(nextCount)
+        }
+      ];
+    });
+  };
+
   const uniqueCompanies = Array.from(new Set((settings.subcontractors || []).map((s:any) => s.company).filter(Boolean)));
   const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
@@ -1757,10 +1797,168 @@ export default function Home() {
            })()}
         </div>
 
-        {/* 3. 重機・車両 */}
+        {/* 3. 外注会社・作業内容 */}
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
+          <div className="border-b pb-3 space-y-1">
+            <span className="font-black text-lg text-orange-600 block">
+              🏢 3. 外注会社・作業内容
+            </span>
+            <p className="text-xs md:text-sm font-bold text-slate-500">
+              管理画面で登録した外注会社・作業内容から選択してください。
+            </p>
+          </div>
+
+          {(settings.subcontractors || []).length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-medium text-slate-500">
+              外注会社の登録がありません。
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {Array.from(
+                new Set(
+                  (settings.subcontractors || [])
+                    .map((s: any) => s.company)
+                    .filter(Boolean)
+                )
+              ).map((company: any) => {
+                const companyItems = (settings.subcontractors || []).filter(
+                  (s: any) => s.company === company
+                );
+
+                return (
+                  <div
+                    key={company}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2"
+                  >
+                    <div className="text-[16px] font-semibold text-slate-900 px-1">
+                      {company}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      {companyItems.map((item: any, index: number) => {
+                        const count = getSubcontractorCount(
+                          item.company,
+                          item.task
+                        );
+                        const selected = count > 0;
+
+                        return (
+                          <div
+                            key={`${item.company}__${item.task}__${index}`}
+                            className={`rounded-2xl border-2 p-3 transition ${
+                              selected
+                                ? 'bg-blue-50 border-blue-500'
+                                : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  changeSubcontractorCount(
+                                    item.company,
+                                    item.task,
+                                    selected ? -count : 1
+                                  )
+                                }
+                                className="min-w-0 flex-1 text-left py-1"
+                              >
+                                <div
+                                  className={`text-[16px] leading-snug font-medium ${
+                                    selected
+                                      ? 'text-blue-950'
+                                      : 'text-slate-900'
+                                  }`}
+                                >
+                                  {selected ? '✓ ' : ''}
+                                  {item.task || '作業内容未設定'}
+                                </div>
+                              </button>
+
+                              {selected ? (
+                                <div className="shrink-0 flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      changeSubcontractorCount(
+                                        item.company,
+                                        item.task,
+                                        -1
+                                      )
+                                    }
+                                    className="w-10 h-10 rounded-xl border border-slate-300 bg-white text-xl font-medium text-slate-600 active:bg-slate-100"
+                                    aria-label={`${item.company} ${item.task} の人数を1人減らす`}
+                                  >
+                                    −
+                                  </button>
+
+                                  <div className="min-w-[52px] text-center text-[15px] font-semibold text-slate-800">
+                                    {count}人
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      changeSubcontractorCount(
+                                        item.company,
+                                        item.task,
+                                        1
+                                      )
+                                    }
+                                    className="w-10 h-10 rounded-xl border border-blue-400 bg-blue-50 text-xl font-medium text-blue-700 active:bg-blue-100"
+                                    aria-label={`${item.company} ${item.task} の人数を1人増やす`}
+                                  >
+                                    ＋
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    changeSubcontractorCount(
+                                      item.company,
+                                      item.task,
+                                      1
+                                    )
+                                  }
+                                  className="shrink-0 px-4 h-10 rounded-xl bg-slate-100 border border-slate-300 text-sm font-medium text-slate-700 active:bg-slate-200"
+                                >
+                                  選択
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {subcontractors.length > 0 && (
+            <div className="rounded-2xl bg-blue-50 border border-blue-200 p-3">
+              <div className="text-xs font-semibold text-blue-700 mb-1">
+                選択中
+              </div>
+              <div className="text-sm font-medium text-slate-800 leading-relaxed">
+                {subcontractors
+                  .filter((s) => Number(s.count || 0) > 0)
+                  .map(
+                    (s) =>
+                      `${s.company}／${s.task}：${Number(s.count || 0)}人`
+                  )
+                  .join('、')}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 4. 重機・車両 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
            <div className="border-b pb-3">
-             <span className="font-black text-lg text-orange-600">🚜 3. 重機・車両（複数選択可）</span>
+             <span className="font-black text-lg text-orange-600">🚜 4. 重機・車両（複数選択可）</span>
            </div>
 
            {/* 自社保有 */}
@@ -2170,10 +2368,10 @@ export default function Home() {
 
         </div>
 
-        {/* 4. 燃料・経費 */}
+        {/* 5. 燃料・経費 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="border-b pb-3">
-             <span className="font-black text-lg text-orange-600">⛽ 4. 燃料・経費</span>
+             <span className="font-black text-lg text-orange-600">⛽ 5. 燃料・経費</span>
            </div>
 
            <div>
@@ -2214,10 +2412,10 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 5. 処分場への搬出 */}
+        {/* 6. 処分場への搬出 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="flex justify-between items-center border-b pb-3">
-             <span className="font-black text-lg text-orange-600">🗑️ 5. 処分場への搬出</span>
+             <span className="font-black text-lg text-orange-600">🗑️ 6. 処分場への搬出</span>
              <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
 
@@ -2282,10 +2480,10 @@ export default function Home() {
            })}
         </div>
 
-        {/* 6. スクラップの搬出 */}
+        {/* 7. スクラップの搬出 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="flex justify-between items-center border-b pb-3">
-             <span className="font-black text-lg text-orange-600">♻️ 6. スクラップの搬出</span>
+             <span className="font-black text-lg text-orange-600">♻️ 7. スクラップの搬出</span>
              <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 'kg'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
 
@@ -2363,10 +2561,10 @@ export default function Home() {
            </div>
         </div>
 
-        {/* 7. 本日の作業内容 */}
+        {/* 8. 本日の作業内容 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="border-b pb-3">
-             <span className="font-black text-lg text-orange-600">📝 7. 本日の作業内容</span>
+             <span className="font-black text-lg text-orange-600">📝 8. 本日の作業内容</span>
            </div>
 
            <div>
