@@ -330,6 +330,13 @@ export default function AdminPage() {
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
+
+  // 石川県の出張カウントは「数えるためだけ」の一時チェック。
+  // Supabaseには保存せず、この画面を開いている間だけ保持する。
+  const [travelAllowanceMarks, setTravelAllowanceMarks] = useState<{
+    [workerName: string]: { [dateStr: string]: boolean }
+  }>({});
+
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
   const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -722,55 +729,31 @@ export default function AdminPage() {
     return fullName.includes('石川県') || shortName === '石川県' || shortName.includes('石川');
   };
 
-  const saveTravelAllowanceMark = async (
+  const toggleTravelAllowanceMark = (
     workerName: string,
-    dateStr: string,
-    enabled: boolean
+    dateStr: string
   ) => {
-    if (authRole !== 'admin') return;
+    setTravelAllowanceMarks((prev) => {
+      const workerMap = { ...(prev[workerName] || {}) };
+      const nextEnabled = !workerMap[dateStr];
 
-    try {
-      const current = settings.travelAllowanceMarks || {};
-      const workerMap = { ...(current[workerName] || {}) };
-
-      if (enabled) {
+      if (nextEnabled) {
         workerMap[dateStr] = true;
       } else {
         delete workerMap[dateStr];
       }
 
-      const nextMarks = {
-        ...current,
+      const next = {
+        ...prev,
         [workerName]: workerMap
       };
 
       if (Object.keys(workerMap).length === 0) {
-        delete nextMarks[workerName];
+        delete next[workerName];
       }
 
-      const newData = {
-        ...settings,
-        travelAllowanceMarks: nextMarks
-      };
-
-      setSettings(newData);
-
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newData)
-      });
-
-      if (!res.ok) throw new Error('出張カウントの保存に失敗しました。');
-
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1400);
-    } catch (e) {
-      console.error(e);
-      alert('出張カウントの保存に失敗しました。');
-      fetchData();
-    }
+      return next;
+    });
   };
 
   const saveManualAttendanceStatus = async (
@@ -820,6 +803,57 @@ export default function AdminPage() {
     } catch (e) {
       console.error(e);
       alert('「管理」の保存に失敗しました。');
+      fetchData();
+    }
+  };
+
+  const savePaidLeaveStatus = async (
+    workerName: string,
+    dateStr: string,
+    status: '有給' | '午前有給' | '午後有給' | ''
+  ) => {
+    if (authRole !== 'admin') return;
+
+    try {
+      const current = settings.paidLeaveOverrides || {};
+      const workerMap = { ...(current[workerName] || {}) };
+
+      if (status) {
+        workerMap[dateStr] = status;
+      } else {
+        delete workerMap[dateStr];
+      }
+
+      const nextOverrides = {
+        ...current,
+        [workerName]: workerMap
+      };
+
+      if (Object.keys(workerMap).length === 0) {
+        delete nextOverrides[workerName];
+      }
+
+      const newData = {
+        ...settings,
+        paidLeaveOverrides: nextOverrides
+      };
+
+      setSettings(newData);
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+
+      if (!res.ok) throw new Error('有給情報の保存に失敗しました。');
+
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1400);
+    } catch (e) {
+      console.error(e);
+      alert('有給情報の保存に失敗しました。');
       fetchData();
     }
   };
@@ -937,6 +971,8 @@ export default function AdminPage() {
           const isScheduled = isCalendarLinked ? !isHoliday : false;
           const manualStatus =
             settings.manualAttendanceOverrides?.[name]?.[date] || '';
+          const paidLeaveStatus =
+            settings.paidLeaveOverrides?.[name]?.[date] || '';
           const fraction = Number(actual?.fraction || 0);
           const attendanceFraction =
             fraction > 0 ? fraction : manualStatus === '管理' ? 1 : 0;
@@ -960,13 +996,14 @@ export default function AdminPage() {
             fraction > 0 &&
             sites.some((site: string) => isIshikawaAttendanceSite(site));
           const travelAllowanceMarked =
-            !!settings.travelAllowanceMarks?.[name]?.[date];
+            !!travelAllowanceMarks?.[name]?.[date];
 
           return {
             date,
             fraction,
             attendanceFraction,
             manualStatus,
+            paidLeaveStatus,
             overtime: Number(actual?.overtime || 0),
             holidayWorkHours: effectiveHolidayWorkHours,
             holidayWorkHoursExplicit: explicitHolidayWorkHours > 0,
@@ -1014,7 +1051,10 @@ export default function AdminPage() {
           calendarType === 'none'
             ? 0
             : dayDetails.filter(
-                (d) => d.isScheduled && d.attendanceFraction === 0
+                (d) =>
+                  d.isScheduled &&
+                  d.attendanceFraction === 0 &&
+                  !d.paidLeaveStatus
               ).length;
 
         const restHolidayWorkDays = dayDetails.filter((d) => {
@@ -1255,12 +1295,21 @@ export default function AdminPage() {
               d.fraction === 0.5 ? '半日' : '',
               d.holidayWorkHours > 0 ? `${d.holidayWorkHours}時間` : '',
               d.overtime > 0 ? `残${d.overtime}h` : '',
+              d.paidLeaveStatus || '',
               d.travelAllowanceMarked ? '出張✓' : ''
             ].filter(Boolean).join(' ');
             return [siteText, marks].filter(Boolean).join(' ');
           }
-          if (d.manualStatus === '管理') return '管理';
-          if (row.calendarType !== 'none' && d.isHoliday) return '休';
+
+          if (d.manualStatus === '管理') {
+            return ['管理', d.paidLeaveStatus || ''].filter(Boolean).join(' ');
+          }
+
+          if (row.calendarType !== 'none' && d.isHoliday) {
+            return ['休', d.paidLeaveStatus || ''].filter(Boolean).join(' ');
+          }
+
+          if (d.paidLeaveStatus) return d.paidLeaveStatus;
           if (row.calendarType !== 'none' && d.isScheduled) return '欠勤?';
           return '';
         }),
@@ -1334,6 +1383,9 @@ export default function AdminPage() {
         if (d.isIshikawaWork) {
           fill = d.travelAllowanceMarked ? 'BFDBFE' : 'E0F2FE';
           fontColor = '075985';
+        } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理') {
+          fill = 'F3E8FF';
+          fontColor = '6B21A8';
         } else if (d.manualStatus === '管理' && d.fraction === 0) {
           fill = 'DBEAFE';
           fontColor = '1D4ED8';
@@ -1444,30 +1496,17 @@ export default function AdminPage() {
 
       if (locationUpdates.length > 0 || subUpdates.length > 0) {
         let hasChanges = false;
-        const updatedReports = reports.map((raw: any) => {
+        const updatedReports = reports.map(r => {
           let reportChanged = false;
-
-          // /api/reports の返却形式が
-          // ① 日報データがそのまま入っている形式
-          // ② { id, data: {...日報データ...} } の形式
-          // のどちらでも過去日報を更新できるようにする。
-          const isWrapped =
-            raw?.data &&
-            typeof raw.data === 'object' &&
-            !Array.isArray(raw.data);
-
-          let reportData = isWrapped
-            ? { ...raw.data }
-            : { ...raw };
+          let newR = { ...r };
 
           locationUpdates.forEach(u => {
-            if (reportData.location === u.oldName) {
-              reportData.location = u.newName;
+            if (newR.location === u.oldName) {
+              newR.location = u.newName;
               reportChanged = true;
             }
-
-            if (Array.isArray(reportData.disposals)) {
-              reportData.disposals = reportData.disposals.map((d: any) => {
+            if (Array.isArray(newR.disposals)) {
+              newR.disposals = newR.disposals.map((d: any) => {
                 if (d.location === u.oldName) {
                   reportChanged = true;
                   return { ...d, location: u.newName };
@@ -1475,9 +1514,8 @@ export default function AdminPage() {
                 return d;
               });
             }
-
-            if (Array.isArray(reportData.scraps)) {
-              reportData.scraps = reportData.scraps.map((sc: any) => {
+            if (Array.isArray(newR.scraps)) {
+              newR.scraps = newR.scraps.map((sc: any) => {
                 if (sc.location === u.oldName) {
                   reportChanged = true;
                   return { ...sc, location: u.newName };
@@ -1488,8 +1526,8 @@ export default function AdminPage() {
           });
 
           subUpdates.forEach(su => {
-            if (Array.isArray(reportData.subcontractors)) {
-              reportData.subcontractors = reportData.subcontractors.map((sub: any) => {
+            if (Array.isArray(newR.subcontractors)) {
+              newR.subcontractors = newR.subcontractors.map((sub: any) => {
                 if (sub.company === su.oldComp && sub.task === su.oldTask) {
                   reportChanged = true;
                   return { ...sub, company: su.newComp, task: su.newTask };
@@ -1499,36 +1537,22 @@ export default function AdminPage() {
             }
           });
 
-          if (!reportChanged) return raw;
-
-          hasChanges = true;
-
-          return {
-            raw,
-            reportData,
-            targetId: raw.id || raw._id || reportData.id || reportData._id,
-            changed: true
-          };
+          if (reportChanged) {
+            hasChanges = true;
+            return newR;
+          }
+          return r;
         });
 
         if (hasChanges) {
-          for (const item of updatedReports) {
-            if (!item?.changed) continue;
-
-            const targetId = item.targetId;
-            if (!targetId) continue;
-
-            const resReport = await fetch('/api/reports', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ...item.reportData,
-                id: targetId
-              })
-            });
-
-            if (!resReport.ok) {
-              throw new Error(`過去日報の現場名更新に失敗しました。ID: ${targetId}`);
+          for (const r of updatedReports) {
+            const targetId = r.id || r._id;
+            if (targetId) {
+              await fetch('/api/reports', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...r, id: targetId })
+              });
             }
           }
         }
@@ -1536,11 +1560,7 @@ export default function AdminPage() {
 
       setSettings(newData);
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      alert(
-        key === 'locations' && locationUpdates.length > 0
-          ? '保存しました！過去の日報の現場名も新しい名称へ更新しました。'
-          : '保存しました！過去の日報の名称も自動で更新されました。'
-      );
+      alert('保存しました！過去の日報の名称も自動で更新されました。');
       fetchData();
     } catch (e) {
       console.error(e);
@@ -5698,7 +5718,28 @@ export default function AdminPage() {
                   >
                     管理
                   </div>
-                  <span className="text-slate-500">→「欠勤?」へドラッグ</span>
+                  <span className="text-slate-500">→「欠勤?」へ</span>
+                </div>
+
+                <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
+                  <span className="text-violet-800 font-bold">有給：</span>
+
+                  {(['有給', '午前有給', '午後有給'] as const).map((leaveType) => (
+                    <div
+                      key={leaveType}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', leaveType);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      title="どの日付セルにもドラッグできます"
+                      className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-violet-300 bg-white px-2 py-1.5 font-bold text-violet-700 shadow-sm"
+                    >
+                      {leaveType}
+                    </div>
+                  ))}
+
+                  <span className="text-slate-500">→どのセルにも可</span>
                 </div>
               </div>
 
@@ -5811,6 +5852,7 @@ export default function AdminPage() {
                             {row.details.map((d: any) => {
                               const hasReportWork = d.fraction > 0;
                               const isManagement = d.manualStatus === '管理' && !hasReportWork;
+                              const paidLeaveStatus = d.paidLeaveStatus || '';
                               const hasAttendance = d.attendanceFraction > 0;
                               const isIshikawaWork = !!d.isIshikawaWork;
                               const travelMarked = !!d.travelAllowanceMarked;
@@ -5826,6 +5868,9 @@ export default function AdminPage() {
                               if (isIshikawaWork) {
                                 bg = travelMarked ? 'bg-sky-200' : 'bg-sky-100';
                                 textColor = 'text-sky-900';
+                              } else if (paidLeaveStatus && !hasReportWork && !isManagement) {
+                                bg = 'bg-violet-50';
+                                textColor = 'text-violet-900';
                               } else if (isManagement) {
                                 bg = 'bg-blue-100';
                                 textColor = 'text-blue-800';
@@ -5851,38 +5896,56 @@ export default function AdminPage() {
                                   ? '管理'
                                   : row.calendarType !== 'none' && d.isHoliday
                                     ? '休'
-                                    : row.calendarType !== 'none' && d.isScheduled
-                                      ? '欠勤?'
-                                      : '';
+                                    : paidLeaveStatus
+                                      ? ''
+                                      : row.calendarType !== 'none' && d.isScheduled
+                                        ? '欠勤?'
+                                        : '';
 
                               return (
                                 <td
                                   key={`${row.name}-${d.date}`}
                                   title={
                                     isIshikawaWork
-                                      ? `${d.date} / 石川県 / ${travelMarked ? '出張カウント済み（クリックで解除）' : 'クリックで出張カウント'}`
+                                      ? `${d.date} / 石川県 / ${travelMarked ? '出張カウント済み（クリックで解除・保存なし）' : 'クリックで出張カウント（保存なし）'}`
                                       : isManagement
                                         ? `${d.date} / 管理（クリックで解除）`
                                         : canDropManagement
-                                          ? `${d.date} / 「管理」をここへドラッグできます`
-                                          : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}`
+                                          ? `${d.date} / 「管理」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                          : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
                                   onDragOver={(e) => {
-                                    if (canDropManagement) {
-                                      e.preventDefault();
-                                      e.dataTransfer.dropEffect = 'copy';
-                                    }
+                                    // 有給3種はどのセルにもドロップ可能。
+                                    // 管理はonDrop側で「欠勤?」相当のセルだけに制限する。
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'copy';
                                   }}
                                   onDrop={(e) => {
-                                    if (!canDropManagement) return;
                                     e.preventDefault();
-                                    if (e.dataTransfer.getData('text/plain') === '管理') {
-                                      saveManualAttendanceStatus(row.name, d.date, '管理');
+                                    const dropped = e.dataTransfer.getData('text/plain');
+
+                                    if (dropped === '管理') {
+                                      if (canDropManagement) {
+                                        saveManualAttendanceStatus(row.name, d.date, '管理');
+                                      }
+                                      return;
+                                    }
+
+                                    if (
+                                      dropped === '有給' ||
+                                      dropped === '午前有給' ||
+                                      dropped === '午後有給'
+                                    ) {
+                                      savePaidLeaveStatus(
+                                        row.name,
+                                        d.date,
+                                        dropped as '有給' | '午前有給' | '午後有給'
+                                      );
                                     }
                                   }}
                                   onClick={() => {
                                     if (isIshikawaWork) {
-                                      saveTravelAllowanceMark(row.name, d.date, !travelMarked);
+                                      toggleTravelAllowanceMark(row.name, d.date);
                                       return;
                                     }
 
@@ -5900,6 +5963,27 @@ export default function AdminPage() {
                                   }`}
                                 >
                                   <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
+
+                                  {paidLeaveStatus && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          confirm(
+                                            `${row.name} / ${d.date} の「${paidLeaveStatus}」を解除しますか？\n日報データは変更されません。`
+                                          )
+                                        ) {
+                                          savePaidLeaveStatus(row.name, d.date, '');
+                                        }
+                                      }}
+                                      title="クリックで有給表示を解除"
+                                      className="mt-0.5 max-w-[32px] truncate rounded bg-violet-100 px-0.5 text-[7px] font-black leading-tight text-violet-800"
+                                    >
+                                      {paidLeaveStatus}
+                                    </button>
+                                  )}
+
                                   {isIshikawaWork && travelMarked && (
                                     <div className="text-[7px] font-black text-sky-700 leading-none mt-0.5">出張✓</div>
                                   )}
@@ -5971,8 +6055,10 @@ export default function AdminPage() {
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
-                <div>※ 石川県の勤務日は薄い水色で表示します。セルをクリックすると「出張✓」になり、右側の「出張」に1日としてカウントします。もう一度クリックすると解除できます。</div>
+                <div>※ 石川県の勤務日は薄い水色で表示します。セルをクリックすると「出張✓」として数えられます。このチェックは数えやすくするためだけの一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
+                <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
+                <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
                 <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
