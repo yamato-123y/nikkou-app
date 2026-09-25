@@ -419,6 +419,21 @@ export default function AdminPage() {
 
   useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
 
+  // 未保存の勤怠・原価・請負先/開始日がある状態で、
+  // ブラウザ更新・タブを閉じる・別ページへ移動しようとした時に警告する。
+  useEffect(() => {
+    const hasUnsavedChanges = attendanceChangesDirty || financialDirty || projectMetaDirty;
+    if (!hasUnsavedChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [attendanceChangesDirty, financialDirty, projectMetaDirty]);
+
   useEffect(() => {
     if (modalLocation) {
       loadSitePhotos(modalLocation);
