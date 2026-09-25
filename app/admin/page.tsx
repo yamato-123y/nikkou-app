@@ -5563,12 +5563,31 @@ export default function AdminPage() {
 
       {/* 出勤確認表 */}
       <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
-        <div className="flex justify-between items-center flex-wrap gap-3 bg-blue-200 px-4 md:px-8 py-4 md:py-5">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            if (!showCalendarSection) {
+              setCalendarYearMonth(getCurrentYearMonth());
+            }
+            setShowCalendarSection(!showCalendarSection);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (!showCalendarSection) {
+                setCalendarYearMonth(getCurrentYearMonth());
+              }
+              setShowCalendarSection(!showCalendarSection);
+            }
+          }}
+          className="flex justify-between items-center flex-wrap gap-3 bg-blue-200 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
+        >
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-blue-900">📅 出勤確認表（スタッフ別カレンダー）</h2>
             <p className="text-sm md:text-base text-blue-700 mt-1">誰が・いつ・どの現場に入ったか確認する画面です</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             {showCalendarSection && (
               <div className="flex items-center gap-2">
                 <span className="text-sm md:text-base font-bold text-slate-700">表示月:</span>
@@ -5690,7 +5709,18 @@ export default function AdminPage() {
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowMonthlyAttendance(!showMonthlyAttendance)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowMonthlyAttendance(!showMonthlyAttendance);
+              }
+            }}
+            className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5 cursor-pointer select-none"
+          >
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠・会社カレンダー</h2>
               <p className="text-sm md:text-base text-emerald-700 mt-1">
@@ -5700,7 +5730,10 @@ export default function AdminPage() {
 
             <button
               type="button"
-              onClick={() => setShowMonthlyAttendance(!showMonthlyAttendance)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMonthlyAttendance(!showMonthlyAttendance);
+              }}
               className="px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-700 text-sm font-bold shadow-sm hover:bg-emerald-50"
             >
               {showMonthlyAttendance ? '勤怠を閉じる ▲' : '勤怠を見る ▼'}
@@ -6484,13 +6517,27 @@ export default function AdminPage() {
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
-          <div className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowAdminSection(!showAdminSection)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowAdminSection(!showAdminSection);
+              }
+            }}
+            className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
+          >
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-violet-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
               <p className="text-sm md:text-base text-violet-700 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
             </div>
             <button 
-              onClick={() => setShowAdminSection(!showAdminSection)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAdminSection(!showAdminSection);
+              }}
               className="bg-white hover:bg-violet-50 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
             >
               {showAdminSection ? '⚙️ 設定エリアを隠す ▲' : '⚙️ 設定エリアを開く ▼'}
@@ -6498,30 +6545,80 @@ export default function AdminPage() {
           </div>
 
           {showAdminSection && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 p-4 md:p-8 animate-fadeIn items-start">
+            <div className="p-4 md:p-8 animate-fadeIn">
+              <div className="mb-7 rounded-2xl border border-violet-200 bg-white p-4 md:p-5 shadow-sm">
+                <div className="mb-4">
+                  <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
+                  <p className="text-sm text-slate-600 mt-1">下の項目を押すと、そのマスタ登録欄まで移動します。</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {[
+                    { title: '👷 人・基本情報', tone: 'blue', items: [
+                      ['作業員', 'workers'], ['職長', 'managers'], ['職種', 'jobTypes'], ['現場', 'locations']
+                    ] },
+                    { title: '🏢 外注・自社保有', tone: 'emerald', items: [
+                      ['外注会社', 'subcontractors'], ['自社車両', 'vehicles'], ['自社重機', 'companyMachines']
+                    ] },
+                    { title: '🚜 リース', tone: 'amber', items: [
+                      ['重機リース', 'leaseHeavy'], ['アタッチメント', 'leaseAttach'], ['その他機器', 'leaseOther']
+                    ] },
+                    { title: '🗾 石川県用', tone: 'indigo', items: [
+                      ['重機', 'ishikawaHeavy'], ['アタッチメント', 'ishikawaAttach'], ['その他機器', 'ishikawaOther']
+                    ] },
+                    { title: '🗑️ 処分・売却', tone: 'rose', items: [
+                      ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
+                    ] },
+                  ].map((group:any) => (
+                    <div key={group.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+                      <div className="font-extrabold text-slate-800 mb-2.5">{group.title}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.items.map(([label, key]: string[]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => document.getElementById(`master-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                            className="bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 px-3 py-2 rounded-lg text-sm font-bold transition shadow-sm"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 text-xs md:text-sm text-slate-500 bg-violet-50 rounded-xl px-3 py-2.5">
+                  💡 登録の流れ：①「新規追加」に入力 → ②「＋追加」 → ③ 右上の「💾 保存」
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               {[
-                { title: "🏢 現場名一覧", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
-                { title: "👤 職長一覧", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
-                { title: "👥 作業メンバー＆日額単価", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
-                { title: "🏷️ 職種一覧", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
-                { title: "🏢 外注会社・作業内容・単価", key: "subcontractors", isSub: true },
-                { title: "🚚 自社車両＆日額単価", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
-                { title: "🚜 自社重機＆日額単価", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🚜 リース：重機＆日額単価", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
-                { title: "⚙️ リース：アタッチメント＆日額単価", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-                { title: "🛠️ リース：その他 機械・機器＆日額単価", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
-                { title: "🗾 （石川県）重機＆日額単価", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true },
-                { title: "🗾 （石川県）アタッチメント＆日額単価", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
-                { title: "🗑️ 処分場マスタ＆単価", key: "disposalLocations", isDisp: true },
-                { title: "♻️ スクラップマスタ", key: "scrapLocations", isScrap: true },
-              ].map((sec, idx) => (
-                <div key={idx} className={`p-4 md:p-5 rounded-2xl border space-y-5 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
+                { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
+                { title: "👥 作業メンバー＆日額単価", description: "作業員名、日額、勤務時間、社員・実習生などの区分を登録します。", category: "人・基本情報", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
+                { title: "🏷️ 職種一覧", description: "日報で使用する作業内容・職種名を登録します。", category: "人・基本情報", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
+                { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
+                { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
+                { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
+                { title: "🚜 リース：重機＆日額単価", description: "通常現場で借りるリース重機の日額を登録します。", category: "リース", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
+                { title: "⚙️ リース：アタッチメント＆日額単価", description: "通常現場で借りるアタッチメントの日額を登録します。", category: "リース", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
+                { title: "🛠️ リース：その他 機械・機器＆日額単価", description: "通常現場で借りるその他の機械・機器の日額を登録します。", category: "リース", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
+                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額を登録します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true },
+                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額を登録します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true },
+                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額を登録します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
+                { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
+                { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
+              ].map((sec:any, idx) => (
+                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-4 md:p-5 rounded-2xl border space-y-5 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="space-y-4">
                     <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200/80">
                       <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">{sec.category}</span>
+                        </div>
                         <h3 className={`font-extrabold text-base md:text-lg leading-snug ${sec.isIshikawa ? 'text-indigo-800' : 'text-slate-800'}`}>{sec.title}</h3>
-                        <p className="text-xs text-slate-500 mt-1">登録済み {(settings[sec.key] || []).length} 件</p>
+                        <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
+                        <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                       </div>
                       <button 
                         onClick={() => saveMaster(sec.key)} 
@@ -7036,6 +7133,7 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           )}
         </div>
