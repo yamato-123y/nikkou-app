@@ -1201,9 +1201,23 @@ export default function AdminPage() {
         };
       })
       .sort((a: any, b: any) => {
-        const order: any = { yamato: 0, trainee: 1, none: 2 };
-        const typeDiff = (order[a.calendarType] ?? 9) - (order[b.calendarType] ?? 9);
+        // 区分（社員 → 実習生 → 該当なし）は固定し、
+        // 各区分の中は「マスタ情報 > 作業員」の登録順をそのまま使う。
+        // マスタの並び順を上下変更して保存すると、この月次勤怠表にも反映される。
+        const groupOrder: any = { yamato: 0, trainee: 1, none: 2 };
+        const typeDiff =
+          (groupOrder[a.calendarType] ?? 9) - (groupOrder[b.calendarType] ?? 9);
         if (typeDiff !== 0) return typeDiff;
+
+        const masterWorkers = Array.isArray(settings.workers) ? settings.workers : [];
+        const aIndex = masterWorkers.findIndex((w: any) => w?.name === a.name);
+        const bIndex = masterWorkers.findIndex((w: any) => w?.name === b.name);
+
+        // 過去日報にだけ残っていて現在の作業員マスタにいない人は、
+        // 各区分の最後に回す。
+        if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
+        if (aIndex >= 0) return -1;
+        if (bIndex >= 0) return 1;
         return a.name.localeCompare(b.name, 'ja');
       });
   })();
