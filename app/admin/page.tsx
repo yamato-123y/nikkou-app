@@ -425,10 +425,15 @@ export default function AdminPage() {
       const locReports = reports.filter((r: any) => targetNames.includes(r.location));
       const clients = Array.from(new Set(locReports.map((r: any) => r.client).filter(Boolean)));
       const startDates = Array.from(new Set(locReports.map((r: any) => r.startDate).filter(Boolean))).sort();
+      const locationMaster = (settings.locations || []).find((loc: any) =>
+        (typeof loc === 'string' ? loc : loc?.name) === modalLocation
+      );
+      const masterClient = typeof locationMaster === 'object' ? String(locationMaster?.clientName || '').trim() : '';
+      const masterStartDate = typeof locationMaster === 'object' ? String(locationMaster?.startDate || '').trim() : '';
 
       setProjectMetaEdit({
-        client: clients.join(', ') || '',
-        startDate: startDates[0] || ''
+        client: masterClient || clients.join(', ') || '',
+        startDate: masterStartDate || startDates[0] || ''
       });
       setProjectMetaDirty(false);
     } else {
@@ -2226,6 +2231,38 @@ export default function AdminPage() {
       setProjectMetaSaving(true);
       const targetNames = getTargetLocationNames(modalLocation);
 
+      // 現場マスタにも保存する。日報がまだ0件の現場でも、請負先・開始日を保持できるようにする。
+      const nextLocations = (settings.locations || []).map((loc: any) => {
+        const locName = typeof loc === 'string' ? loc : loc?.name;
+        if (locName !== modalLocation) return loc;
+
+        const base =
+          typeof loc === 'string'
+            ? { name: loc, shortName: '', price: 0, isFinished: false }
+            : { ...loc };
+
+        return {
+          ...base,
+          clientName: projectMetaEdit.client,
+          startDate: projectMetaEdit.startDate
+        };
+      });
+
+      const settingsRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locations: nextLocations })
+      });
+
+      if (!settingsRes.ok) {
+        throw new Error('請負先・開始日の設定保存に失敗しました');
+      }
+
+      const nextSettings = { ...settings, locations: nextLocations };
+      setSettings(nextSettings);
+      setOriginalSettings(JSON.parse(JSON.stringify(nextSettings)));
+
+      // 既存の日報がある現場は、従来通り日報側にも反映する。
       const updatedReports = reports.map((r: any) => {
         if (!targetNames.includes(r.location)) return r;
         return {
@@ -2248,7 +2285,7 @@ export default function AdminPage() {
         });
 
         if (!res.ok) {
-          throw new Error('請負先・開始日の保存に失敗しました');
+          throw new Error('請負先・開始日の日報反映に失敗しました');
         }
       }
 
@@ -3735,8 +3772,8 @@ export default function AdminPage() {
       reportEstimatedProfit,
       reportEstimatedProfitWithoutScrap,
       reportsWithIndex: locMapped,
-      clientStr: clients.join(', ') || '',
-      startDateStr: startDates[0] || '',
+      clientStr: String(matchedLocObj?.clientName || '').trim() || clients.join(', ') || '',
+      startDateStr: String(matchedLocObj?.startDate || '').trim() || startDates[0] || '',
       totalFuelLitering,
       totalRegularLitering,
       totalUnokeFuelLitering,
@@ -5956,28 +5993,28 @@ export default function AdminPage() {
                 }}
                 className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
               >
-                <table className="border-collapse text-[8px] w-full min-w-[1260px]">
+                <table className="border-collapse text-[8px] min-w-max lg:w-full">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 w-[44px] min-w-[44px] max-w-[44px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
+                      <th rowSpan={2} className="sticky left-0 z-20 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         return (
-                          <th key={dateStr} className="w-[33px] min-w-[33px] px-0.5 py-1 border border-slate-300 text-center">
+                          <th key={dateStr} className="w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 text-center">
                             {d}
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-0.5 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">時間</th>
-                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">残業</th>
-                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">欠勤</th>
-                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">休出</th>
-                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">法出</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">出勤</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="w-[32px] min-w-[32px] px-1 border border-slate-300">区分</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">時間</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">残業</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -6025,7 +6062,7 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 w-[44px] min-w-[44px] max-w-[44px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
+                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
                               {row.name}
                             </td>
 
@@ -6171,7 +6208,7 @@ export default function AdminPage() {
                                       saveManualAttendanceStatus(row.name, d.date, '');
                                     }
                                   }}
-                                  className={`w-[33px] min-w-[33px] max-w-[33px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
+                                  className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
                                     canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
                                   } ${(isManagement || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
@@ -6184,7 +6221,7 @@ export default function AdminPage() {
                                   }`}
                                 >
                                   <div className="flex flex-col items-center justify-center gap-0.5">
-                                    <div className="max-w-[36px] truncate font-medium leading-tight text-[8px]">
+                                    <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
                                     {canDragHoliday && (
