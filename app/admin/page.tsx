@@ -331,10 +331,11 @@ export default function AdminPage() {
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
 
-  // 石川県の出張カウントは「数えるためだけ」の一時チェック。
+  // 月次勤怠の現場クリックカウントは「数えるためだけ」の一時チェック。
   // Supabaseには保存せず、この画面を開いている間だけ保持する。
+  // 値はクリック順（1, 2, 3...）。解除すると後ろの番号を自動で詰める。
   const [travelAllowanceMarks, setTravelAllowanceMarks] = useState<{
-    [workerName: string]: { [dateStr: string]: boolean }
+    [workerName: string]: { [dateStr: string]: number }
   }>({});
 
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
@@ -735,12 +736,22 @@ export default function AdminPage() {
   ) => {
     setTravelAllowanceMarks((prev) => {
       const workerMap = { ...(prev[workerName] || {}) };
-      const nextEnabled = !workerMap[dateStr];
+      const currentNumber = Number(workerMap[dateStr] || 0);
 
-      if (nextEnabled) {
-        workerMap[dateStr] = true;
-      } else {
+      if (currentNumber > 0) {
         delete workerMap[dateStr];
+
+        // 例: 1,2,3 の「2」を解除したら、3 を 2 に詰める。
+        Object.keys(workerMap).forEach((key) => {
+          const value = Number(workerMap[key] || 0);
+          if (value > currentNumber) workerMap[key] = value - 1;
+        });
+      } else {
+        const maxNumber = Math.max(
+          0,
+          ...Object.values(workerMap).map((value) => Number(value || 0))
+        );
+        workerMap[dateStr] = maxNumber + 1;
       }
 
       const next = {
@@ -1131,8 +1142,9 @@ export default function AdminPage() {
           const isIshikawaWork =
             fraction > 0 &&
             sites.some((site: string) => isIshikawaAttendanceSite(site));
-          const travelAllowanceMarked =
-            !!travelAllowanceMarks?.[name]?.[date];
+          const travelAllowanceMarkNumber =
+            Number(travelAllowanceMarks?.[name]?.[date] || 0);
+          const travelAllowanceMarked = travelAllowanceMarkNumber > 0;
 
           return {
             date,
@@ -1146,6 +1158,7 @@ export default function AdminPage() {
             sites,
             isIshikawaWork,
             travelAllowanceMarked,
+            travelAllowanceMarkNumber,
             isHoliday,
             isSunday,
             isScheduled,
@@ -1217,7 +1230,7 @@ export default function AdminPage() {
         }, 0);
 
         const travelAllowanceDays = dayDetails.filter(
-          (d) => d.isIshikawaWork && d.travelAllowanceMarked
+          (d) => d.travelAllowanceMarked
         ).length;
 
         const paidLeaveEquivalent = dayDetails.reduce((sum, d) => {
@@ -1411,7 +1424,7 @@ export default function AdminPage() {
       '欠勤候補',
       '休出',
       '法出',
-      '出張',
+      'カウント',
       '出勤日数'
     ];
 
@@ -1444,7 +1457,7 @@ export default function AdminPage() {
               d.holidayWorkHours > 0 ? `${d.holidayWorkHours}時間` : '',
               d.overtime > 0 ? `残${d.overtime}h` : '',
               d.paidLeaveStatus || '',
-              d.travelAllowanceMarked ? '出張✓' : ''
+              d.travelAllowanceMarked ? String(d.travelAllowanceMarkNumber || '') : ''
             ].filter(Boolean).join(' ');
             return [siteText, marks].filter(Boolean).join(' ');
           }
@@ -1523,6 +1536,11 @@ export default function AdminPage() {
 
     monthlyAttendanceRows.forEach((row: any, idx: number) => {
       const excelRow = 5 + idx;
+      const markedSiteNames = new Set<string>(
+        row.details
+          .filter((detail: any) => Number(detail.travelAllowanceMarkNumber || 0) > 0)
+          .flatMap((detail: any) => detail.sites || [])
+      );
       row.details.forEach((d: any, dateIdx: number) => {
         const cell = ws[XLSX.utils.encode_cell({ r: excelRow, c: 1 + dateIdx })];
         if (!cell) return;
@@ -1530,8 +1548,8 @@ export default function AdminPage() {
         let fill = 'FFFFFF';
         let fontColor = '0F172A';
 
-        if (d.isIshikawaWork) {
-          fill = d.travelAllowanceMarked ? 'BFDBFE' : 'E0F2FE';
+        if (d.sites?.some((site: string) => markedSiteNames.has(site))) {
+          fill = 'BFDBFE';
           fontColor = '075985';
         } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理') {
           fill = 'F3E8FF';
@@ -5880,7 +5898,7 @@ export default function AdminPage() {
                 <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-4 h-4 bg-sky-100 border border-sky-300 rounded"></span>
-                  石川県（クリックで出張カウント）
+                  現場クリック（1・2・3…でカウント）
                 </span>
 
                 <div className="ml-1 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5">
@@ -5979,7 +5997,7 @@ export default function AdminPage() {
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出張</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">カウント</th>
                       <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
@@ -6037,8 +6055,16 @@ export default function AdminPage() {
                               const isManagement = d.manualStatus === '管理' && !hasReportWork;
                               const paidLeaveStatus = d.paidLeaveStatus || '';
                               const hasAttendance = d.attendanceFraction > 0;
-                              const isIshikawaWork = !!d.isIshikawaWork;
-                              const travelMarked = !!d.travelAllowanceMarked;
+                              const travelMarkNumber = Number(d.travelAllowanceMarkNumber || 0);
+                              const travelMarked = travelMarkNumber > 0;
+                              const selectedSiteNames = new Set<string>(
+                                row.details
+                                  .filter((detail: any) => Number(detail.travelAllowanceMarkNumber || 0) > 0)
+                                  .flatMap((detail: any) => detail.sites || [])
+                              );
+                              const isSelectedSite =
+                                hasReportWork &&
+                                d.sites.some((site: string) => selectedSiteNames.has(site));
                               const isShiftedHoliday = !!d.holidayMove;
                               const canDragHoliday =
                                 row.calendarType !== 'none' &&
@@ -6053,8 +6079,8 @@ export default function AdminPage() {
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
 
-                              if (isIshikawaWork) {
-                                bg = travelMarked ? 'bg-sky-200' : 'bg-sky-100';
+                              if (isSelectedSite) {
+                                bg = 'bg-sky-200';
                                 textColor = 'text-sky-900';
                               } else if (paidLeaveStatus && !hasReportWork && !isManagement) {
                                 bg = 'bg-violet-50';
@@ -6094,8 +6120,8 @@ export default function AdminPage() {
                                 <td
                                   key={`${row.name}-${d.date}`}
                                   title={
-                                    isIshikawaWork
-                                      ? `${d.date} / 石川県 / ${travelMarked ? '出張カウント済み（クリックで解除・保存なし）' : 'クリックで出張カウント（保存なし）'}`
+                                    hasReportWork && d.sites.length > 0
+                                      ? `${d.date} / ${d.sites.join(' / ')} / ${travelMarked ? `カウント ${travelMarkNumber}（クリックで解除・保存なし）` : 'クリックでカウント（保存なし）'}`
                                       : isShiftedHoliday
                                         ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）`
                                         : isManagement
@@ -6152,7 +6178,7 @@ export default function AdminPage() {
                                     }
                                   }}
                                   onClick={() => {
-                                    if (isIshikawaWork) {
+                                    if (hasReportWork && d.sites.length > 0) {
                                       toggleTravelAllowanceMark(row.name, d.date);
                                       return;
                                     }
@@ -6166,10 +6192,10 @@ export default function AdminPage() {
                                   }}
                                   className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
                                     canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
-                                  } ${(isManagement || isIshikawaWork) ? 'cursor-pointer' : ''} ${
+                                  } ${(isManagement || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
                                   } ${
-                                    isIshikawaWork && travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
+                                    travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
                                   }`}
                                 >
                                   <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
@@ -6210,8 +6236,8 @@ export default function AdminPage() {
                                     </button>
                                   )}
 
-                                  {isIshikawaWork && travelMarked && (
-                                    <div className="text-[7px] font-black text-sky-700 leading-none mt-0.5">出張✓</div>
+                                  {travelMarked && (
+                                    <div className="text-[8px] font-black text-sky-700 leading-none mt-0.5">{travelMarkNumber}</div>
                                   )}
                                   {d.holidayWorkHours > 0 && (
                                     <div className="text-[7px] font-bold text-rose-700 leading-none mt-0.5">
@@ -6264,7 +6290,7 @@ export default function AdminPage() {
                               ) : '-'}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-sky-700">
-                              {row.travelAllowanceDays > 0 ? `${row.travelAllowanceDays}日` : '-'}
+                              {row.travelAllowanceDays > 0 ? row.travelAllowanceDays : '-'}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800 leading-tight">
                               <div className="flex flex-col items-center justify-center">
@@ -6286,7 +6312,7 @@ export default function AdminPage() {
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
-                <div>※ 石川県の勤務日は薄い水色で表示します。セルをクリックすると「出張✓」として数えられます。このチェックは数えやすくするためだけの一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
+                <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
                 <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。振替元は通常出勤日、振替先は休日として扱います（日曜日の法出判定は固定）。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
