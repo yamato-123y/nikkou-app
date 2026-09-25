@@ -5896,12 +5896,12 @@ export default function AdminPage() {
                       e.dataTransfer.setData('text/plain', '管理');
                       e.dataTransfer.effectAllowed = 'copy';
                     }}
-                    title="「欠勤?」のセルへドラッグしてください"
+                    title="「欠勤?」または「休」のセルへドラッグしてください"
                     className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-blue-400 bg-white px-3 py-1.5 font-bold text-blue-700 shadow-sm"
                   >
                     管理
                   </div>
-                  <span className="text-slate-500">→「欠勤?」へ</span>
+                  <span className="text-slate-500">→「欠勤?」・「休」へ</span>
                 </div>
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
@@ -6089,7 +6089,7 @@ export default function AdminPage() {
                                 !hasReportWork &&
                                 !isManagement &&
                                 row.calendarType !== 'none' &&
-                                d.isScheduled;
+                                (d.isScheduled || d.isHoliday);
 
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
@@ -6367,7 +6367,7 @@ export default function AdminPage() {
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
-                <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
+                <div>※ 現場管理・安全パトロール等で日報を送信しない日は、上の「管理」を「欠勤?」または「休」のセルへドラッグしてください。「管理」として1日出勤に集計します。</div>
                 <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。日曜日も移動できます。現場が入っている日へ移した場合は、この月次勤怠表の中だけで「休」と勤務セルを入れ替えて表示します。元の日報・現場情報は一切変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
