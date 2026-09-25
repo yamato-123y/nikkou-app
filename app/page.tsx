@@ -183,6 +183,8 @@ export default function Home() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showPreviousCopyModal, setShowPreviousCopyModal] = useState(false);
+  // 日報の二重送信防止。送信中は確認画面の操作をロックする。
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -966,88 +968,103 @@ export default function Home() {
 
   // 確認モーダル内での「この内容で送信する」ボタン
   const handleConfirmedSubmit = async () => {
-    setShowConfirmModal(false);
+    if (isSubmitting) return;
 
-    // 職長が徳本以外の場合、石川県や宇野気石油の選択状態をクリア・調整する
-    const isIshikawaActive = manager === '徳本';
+    try {
+      setIsSubmitting(true);
 
-    const reportPayload: any = {
-        date, location, manager, workers: selectedWorkers,
-        workerOvertimeHours: Object.fromEntries(
-          Object.entries(workerOvertimeHours)
-            .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
-        ),
-        workerHalfDay: Object.fromEntries(
-          selectedWorkers
-            .filter((name) => !!workerHalfDay[name])
-            .map((name) => [name, true])
-        ),
-        workerHolidayWorkHours: Object.fromEntries(
-          selectedWorkers
-            .map((name) => [name, getEffectiveHolidayWorkHoursForSubmit(name)])
-            .filter(([, hours]) => Number(hours) > 0)
-        ),
-        jobTypes: jobTypesCount,
-        subcontractors,
-        leaseHeavy, leaseAttach, leaseOther,
-        ishikawaHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
-        ishikawaAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
-        ishikawaOther: isIshikawaActive ? ishikawaLeaseOther : [],
-        ishikawaLeaseHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
-        ishikawaLeaseAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
-        ishikawaLeaseOther: isIshikawaActive ? ishikawaLeaseOther : [],
-        ishikawaCustomMachines: isIshikawaActive ? ishikawaCustomMachines : [],
-        machines: leaseHeavy,
-        mokCustomMachines,
-        otherLeases,         
-        ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
-        fuel: fuel || '0', 
-        regularPrice: regularPrice || '0',
-        etcPrice: etcPrice || '0', 
-        parkingPrice: parkingPrice || '0',
-        unokeFuel: isIshikawaActive ? (unokeFuel || '0') : '0',
-        unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
-        otherItem, otherPrice: otherPrice || '0',
-        disposals, scraps,
-        workDescription: description,
-        officeMessage,
-        createdAt: new Date().toISOString()
-    };
+      // 職長が徳本以外の場合、石川県や宇野気石油の選択状態をクリア・調整する
+      const isIshikawaActive = manager === '徳本';
 
-    // 送信時点の単価・原価を日報自身へ保存。
-    // 後からマスタ単価を変更しても、この日報の金額は変わらない。
-    reportPayload.costSnapshot = buildDailyReportCostSnapshot(reportPayload);
+      const reportPayload: any = {
+          date, location, manager, workers: selectedWorkers,
+          workerOvertimeHours: Object.fromEntries(
+            Object.entries(workerOvertimeHours)
+              .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
+          ),
+          workerHalfDay: Object.fromEntries(
+            selectedWorkers
+              .filter((name) => !!workerHalfDay[name])
+              .map((name) => [name, true])
+          ),
+          workerHolidayWorkHours: Object.fromEntries(
+            selectedWorkers
+              .map((name) => [name, getEffectiveHolidayWorkHoursForSubmit(name)])
+              .filter(([, hours]) => Number(hours) > 0)
+          ),
+          jobTypes: jobTypesCount,
+          subcontractors,
+          leaseHeavy, leaseAttach, leaseOther,
+          ishikawaHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+          ishikawaAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+          ishikawaOther: isIshikawaActive ? ishikawaLeaseOther : [],
+          ishikawaLeaseHeavy: isIshikawaActive ? ishikawaLeaseHeavy : [],
+          ishikawaLeaseAttach: isIshikawaActive ? ishikawaLeaseAttach : [],
+          ishikawaLeaseOther: isIshikawaActive ? ishikawaLeaseOther : [],
+          ishikawaCustomMachines: isIshikawaActive ? ishikawaCustomMachines : [],
+          machines: leaseHeavy,
+          mokCustomMachines,
+          otherLeases,         
+          ownMachines: selectedOwnMachines, vehicles: selectedVehicles, 
+          fuel: fuel || '0', 
+          regularPrice: regularPrice || '0',
+          etcPrice: etcPrice || '0', 
+          parkingPrice: parkingPrice || '0',
+          unokeFuel: isIshikawaActive ? (unokeFuel || '0') : '0',
+          unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
+          otherItem, otherPrice: otherPrice || '0',
+          disposals, scraps,
+          workDescription: description,
+          officeMessage,
+          createdAt: new Date().toISOString()
+      };
 
-    await fetch('/api/reports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reportPayload)
-    });
+      // 送信時点の単価・原価を日報自身へ保存。
+      // 後からマスタ単価を変更しても、この日報の金額は変わらない。
+      reportPayload.costSnapshot = buildDailyReportCostSnapshot(reportPayload);
 
-    setSelectedWorkers([]);
-    setWorkerOvertimeHours({});
-    setWorkerHalfDay({});
-    setWorkerHolidayWorkHours({});
-    setWorkerOptionTarget(null);
-    setJobTypesCount({});
-    setSubcontractors([]);
-    setLeaseHeavy([]);
-    setLeaseAttach([]);
-    setLeaseOther([]);
-    setIshikawaLeaseHeavy([]);
-    setIshikawaLeaseAttach([]);
-    setIshikawaLeaseOther([]);
-    setIshikawaCustomMachines([]);
-    setMokCustomMachines([]);
-    setOtherLeases([]);
-    setSelectedOwnMachines([]); 
-    setSelectedVehicles([]);
-    setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
-    setUnokeFuel(''); setUnokeRegular('');
-    setOtherItem(''); setOtherPrice('');
-    setDisposals([]); setScraps([]); setDescription(''); setOfficeMessage('');
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportPayload)
+      });
 
-    setShowSuccessModal(true);
+      if (!res.ok) {
+        throw new Error('日報の送信に失敗しました。');
+      }
+
+      // 正常に保存できた時だけ入力内容をクリアする。
+      setSelectedWorkers([]);
+      setWorkerOvertimeHours({});
+      setWorkerHalfDay({});
+      setWorkerHolidayWorkHours({});
+      setWorkerOptionTarget(null);
+      setJobTypesCount({});
+      setSubcontractors([]);
+      setLeaseHeavy([]);
+      setLeaseAttach([]);
+      setLeaseOther([]);
+      setIshikawaLeaseHeavy([]);
+      setIshikawaLeaseAttach([]);
+      setIshikawaLeaseOther([]);
+      setIshikawaCustomMachines([]);
+      setMokCustomMachines([]);
+      setOtherLeases([]);
+      setSelectedOwnMachines([]); 
+      setSelectedVehicles([]);
+      setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
+      setUnokeFuel(''); setUnokeRegular('');
+      setOtherItem(''); setOtherPrice('');
+      setDisposals([]); setScraps([]); setDescription(''); setOfficeMessage('');
+
+      setShowConfirmModal(false);
+      setShowSuccessModal(true);
+    } catch (e) {
+      console.error(e);
+      alert('日報の送信に失敗しました。入力内容は残っています。通信状況を確認して、もう一度送信してください。');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleContinue = () => {
@@ -1546,16 +1563,26 @@ export default function Home() {
               <button 
                 type="button" 
                 onClick={() => setShowConfirmModal(false)} 
-                className="flex-1 bg-slate-200 text-slate-900 py-3.5 rounded-2xl font-bold text-base hover:bg-slate-300 transition"
+                disabled={isSubmitting}
+                className={`flex-1 py-3.5 rounded-2xl font-bold text-base transition ${
+                  isSubmitting
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                }`}
               >
                 修正する
               </button>
               <button 
                 type="button" 
-                onClick={handleConfirmedSubmit} 
-                className="flex-1 bg-[#E56312] text-white py-3.5 rounded-2xl font-bold text-base shadow hover:bg-orange-700 transition"
+                onClick={handleConfirmedSubmit}
+                disabled={isSubmitting}
+                className={`flex-1 text-white py-3.5 rounded-2xl font-bold text-base shadow transition ${
+                  isSubmitting
+                    ? 'bg-orange-300 cursor-not-allowed'
+                    : 'bg-[#E56312] hover:bg-orange-700'
+                }`}
               >
-                この内容で送信
+                {isSubmitting ? '送信中…' : 'この内容で送信'}
               </button>
             </div>
           </div>
