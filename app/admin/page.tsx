@@ -5956,28 +5956,28 @@ export default function AdminPage() {
                 }}
                 className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
               >
-                <table className="border-collapse text-[8px] min-w-max lg:w-full">
+                <table className="border-collapse text-[8px] w-full min-w-[1260px]">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
+                      <th rowSpan={2} className="sticky left-0 z-20 w-[44px] min-w-[44px] max-w-[44px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         return (
-                          <th key={dateStr} className="w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 text-center">
+                          <th key={dateStr} className="w-[33px] min-w-[33px] px-0.5 py-1 border border-slate-300 text-center">
                             {d}
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="w-[32px] min-w-[32px] px-1 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">時間</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">残業</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">支払</th>
+                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-0.5 border border-slate-300">区分</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">時間</th>
+                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">残業</th>
+                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">欠勤</th>
+                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">休出</th>
+                      <th rowSpan={2} className="w-[26px] min-w-[26px] px-0.5 border border-slate-300">法出</th>
+                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-0.5 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
@@ -6025,7 +6025,7 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
+                            <td className="sticky left-0 z-10 w-[44px] min-w-[44px] max-w-[44px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
                               {row.name}
                             </td>
 
@@ -6171,7 +6171,7 @@ export default function AdminPage() {
                                       saveManualAttendanceStatus(row.name, d.date, '');
                                     }
                                   }}
-                                  className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
+                                  className={`w-[33px] min-w-[33px] max-w-[33px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
                                     canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
                                   } ${(isManagement || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
@@ -6184,7 +6184,7 @@ export default function AdminPage() {
                                   }`}
                                 >
                                   <div className="flex flex-col items-center justify-center gap-0.5">
-                                    <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
+                                    <div className="max-w-[36px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
                                     {canDragHoliday && (
