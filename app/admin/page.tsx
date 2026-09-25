@@ -1377,7 +1377,6 @@ export default function AdminPage() {
       '欠勤候補',
       '休出',
       '法出',
-      'カウント',
       '出勤日数'
     ];
 
@@ -1387,7 +1386,7 @@ export default function AdminPage() {
         const [y,m,day] = d.split('-').map(Number);
         return weekdayJa[new Date(y, m - 1, day).getDay()];
       }),
-      '', '', '', '', '', '', '', '', ''
+      '', '', '', '', '', '', '', ''
     ];
 
     const rows: any[][] = [
@@ -1442,7 +1441,6 @@ export default function AdminPage() {
         row.legalHolidayWorkDays > 0 || row.legalHolidayWorkHours > 0
           ? `${row.legalHolidayWorkDays}日\n${row.legalHolidayWorkHours}h`
           : '',
-        row.travelAllowanceDays > 0 ? `${row.travelAllowanceDays}日` : '',
         row.paidLeaveEquivalent > 0
           ? `${row.equivalentDays}日\n有給${row.paidLeaveEquivalent}`
           : `${row.equivalentDays}日`
@@ -1460,7 +1458,6 @@ export default function AdminPage() {
       { wch: 11 },
       { wch: 11 },
       { wch: 10 },
-      { wch: 11 },
       { wch: 11 },
       { wch: 11 },
       { wch: 11 },
@@ -5980,7 +5977,6 @@ export default function AdminPage() {
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
                       <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">カウント</th>
                       <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
@@ -6312,9 +6308,6 @@ export default function AdminPage() {
                                   <span>{row.legalHolidayWorkHours}h</span>
                                 </div>
                               ) : '-'}
-                            </td>
-                            <td className="px-0.5 border border-slate-300 text-center font-bold text-sky-700">
-                              {row.travelAllowanceDays > 0 ? row.travelAllowanceDays : '-'}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800 leading-tight">
                               <div className="flex flex-col items-center justify-center">
