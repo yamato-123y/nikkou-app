@@ -339,6 +339,9 @@ export default function AdminPage() {
   }>({});
   // 月次勤怠の休日振替：ドラッグが効きにくい環境でも使えるよう、クリック選択も併用する。
   const [selectedHolidayMove, setSelectedHolidayMove] = useState<{ workerName: string; fromDate: string } | null>(null);
+  // 月次勤怠の手動変更は、操作ごとに保存せず最後にまとめて保存する。
+  const [attendanceChangesDirty, setAttendanceChangesDirty] = useState(false);
+  const [attendanceChangesSaving, setAttendanceChangesSaving] = useState(false);
 
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
   const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -769,55 +772,24 @@ export default function AdminPage() {
     });
   };
 
-  const saveManualAttendanceStatus = async (
+  const saveManualAttendanceStatus = (
     workerName: string,
     dateStr: string,
     status: '管理' | ''
   ) => {
     if (authRole !== 'admin') return;
 
-    try {
-      const current = settings.manualAttendanceOverrides || {};
-      const workerMap = { ...(current[workerName] || {}) };
+    const current = settings.manualAttendanceOverrides || {};
+    const workerMap = { ...(current[workerName] || {}) };
 
-      if (status) {
-        workerMap[dateStr] = status;
-      } else {
-        delete workerMap[dateStr];
-      }
+    if (status) workerMap[dateStr] = status;
+    else delete workerMap[dateStr];
 
-      const nextOverrides = {
-        ...current,
-        [workerName]: workerMap
-      };
+    const nextOverrides = { ...current, [workerName]: workerMap };
+    if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
 
-      if (Object.keys(workerMap).length === 0) {
-        delete nextOverrides[workerName];
-      }
-
-      const newData = {
-        ...settings,
-        manualAttendanceOverrides: nextOverrides
-      };
-
-      setSettings(newData);
-
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newData)
-      });
-
-      if (!res.ok) throw new Error('手動勤怠の保存に失敗しました。');
-
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1600);
-    } catch (e) {
-      console.error(e);
-      alert('「管理」の保存に失敗しました。');
-      fetchData();
-    }
+    setSettings((prev: any) => ({ ...prev, manualAttendanceOverrides: nextOverrides }));
+    setAttendanceChangesDirty(true);
   };
 
   const getWorkerHolidayMoves = (workerName: string) => {
@@ -840,151 +812,120 @@ export default function AdminPage() {
     return baseHoliday;
   };
 
-  const saveWorkerHolidayMove = async (
+  const saveWorkerHolidayMove = (
     workerName: string,
     fromDate: string,
     toDate: string
   ) => {
     if (authRole !== 'admin' || !workerName || !fromDate || !toDate || fromDate === toDate) return;
 
-    try {
-      const allMoves = { ...(settings.workerHolidayMoves || {}) };
-      const currentMoves = Array.isArray(allMoves[workerName])
-        ? allMoves[workerName].map((x: any) => ({ ...x }))
-        : [];
+    const allMoves = { ...(settings.workerHolidayMoves || {}) };
+    const currentMoves = Array.isArray(allMoves[workerName])
+      ? allMoves[workerName].map((x: any) => ({ ...x }))
+      : [];
 
-      // すでに振替先になっている「休」をさらに移動する場合、元の休日を引き継ぐ。
-      const chainedIndex = currentMoves.findIndex((x: any) => x.to === fromDate);
-      let nextMoves: any[];
+    const chainedIndex = currentMoves.findIndex((x: any) => x.to === fromDate);
+    let nextMoves: any[];
 
-      if (chainedIndex >= 0) {
-        nextMoves = currentMoves.map((x: any, idx: number) =>
-          idx === chainedIndex ? { ...x, to: toDate } : x
-        );
-      } else {
-        nextMoves = [
-          ...currentMoves.filter((x: any) => x.from !== fromDate),
-          { from: fromDate, to: toDate }
-        ];
-      }
-
-      // 同じ振替先へ重複登録しない。
-      nextMoves = nextMoves.filter(
-        (x: any, idx: number, arr: any[]) =>
-          arr.findIndex((y: any) => y.from === x.from && y.to === x.to) === idx
+    if (chainedIndex >= 0) {
+      nextMoves = currentMoves.map((x: any, idx: number) =>
+        idx === chainedIndex ? { ...x, to: toDate } : x
       );
-
-      const nextAllMoves = {
-        ...allMoves,
-        [workerName]: nextMoves
-      };
-
-      const newData = {
-        ...settings,
-        workerHolidayMoves: nextAllMoves
-      };
-      setSettings(newData);
-
-      // サーバー側が既存settingsとマージするため、変更キーだけ送る。
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workerHolidayMoves: nextAllMoves })
-      });
-      if (!res.ok) throw new Error('休日振替の保存に失敗しました。');
-
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1400);
-    } catch (e) {
-      console.error(e);
-      alert('休日振替の保存に失敗しました。');
-      fetchData();
+    } else {
+      nextMoves = [
+        ...currentMoves.filter((x: any) => x.from !== fromDate),
+        { from: fromDate, to: toDate }
+      ];
     }
+
+    nextMoves = nextMoves.filter(
+      (x: any, idx: number, arr: any[]) =>
+        arr.findIndex((y: any) => y.from === x.from && y.to === x.to) === idx
+    );
+
+    const nextAllMoves = { ...allMoves, [workerName]: nextMoves };
+    setSettings((prev: any) => ({ ...prev, workerHolidayMoves: nextAllMoves }));
+    setAttendanceChangesDirty(true);
   };
 
-  const resetWorkerHolidayMove = async (workerName: string, targetDate: string) => {
+  const resetWorkerHolidayMove = (workerName: string, targetDate: string) => {
     if (authRole !== 'admin') return;
 
-    try {
-      const allMoves = { ...(settings.workerHolidayMoves || {}) };
-      const currentMoves = Array.isArray(allMoves[workerName]) ? allMoves[workerName] : [];
-      const nextMoves = currentMoves.filter((x: any) => x.to !== targetDate);
-      const nextAllMoves = { ...allMoves };
+    const allMoves = { ...(settings.workerHolidayMoves || {}) };
+    const currentMoves = Array.isArray(allMoves[workerName]) ? allMoves[workerName] : [];
+    const nextMoves = currentMoves.filter((x: any) => x.to !== targetDate);
+    const nextAllMoves = { ...allMoves };
 
-      if (nextMoves.length > 0) nextAllMoves[workerName] = nextMoves;
-      else delete nextAllMoves[workerName];
+    if (nextMoves.length > 0) nextAllMoves[workerName] = nextMoves;
+    else delete nextAllMoves[workerName];
 
-      const newData = { ...settings, workerHolidayMoves: nextAllMoves };
-      setSettings(newData);
-
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workerHolidayMoves: nextAllMoves })
-      });
-      if (!res.ok) throw new Error('休日振替の解除に失敗しました。');
-
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1400);
-    } catch (e) {
-      console.error(e);
-      alert('休日振替の解除に失敗しました。');
-      fetchData();
-    }
+    setSettings((prev: any) => ({ ...prev, workerHolidayMoves: nextAllMoves }));
+    setAttendanceChangesDirty(true);
   };
 
-  const savePaidLeaveStatus = async (
+  const savePaidLeaveStatus = (
     workerName: string,
     dateStr: string,
     status: '有給' | '午前有給' | '午後有給' | ''
   ) => {
     if (authRole !== 'admin') return;
 
+    const current = settings.paidLeaveOverrides || {};
+    const workerMap = { ...(current[workerName] || {}) };
+
+    if (status) workerMap[dateStr] = status;
+    else delete workerMap[dateStr];
+
+    const nextOverrides = { ...current, [workerName]: workerMap };
+    if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
+
+    setSettings((prev: any) => ({ ...prev, paidLeaveOverrides: nextOverrides }));
+    setAttendanceChangesDirty(true);
+  };
+
+  const saveAttendanceChanges = async () => {
+    if (authRole !== 'admin' || !attendanceChangesDirty || attendanceChangesSaving) return;
+
     try {
-      const current = settings.paidLeaveOverrides || {};
-      const workerMap = { ...(current[workerName] || {}) };
-
-      if (status) {
-        workerMap[dateStr] = status;
-      } else {
-        delete workerMap[dateStr];
-      }
-
-      const nextOverrides = {
-        ...current,
-        [workerName]: workerMap
+      setAttendanceChangesSaving(true);
+      const payload = {
+        manualAttendanceOverrides: settings.manualAttendanceOverrides || {},
+        workerHolidayMoves: settings.workerHolidayMoves || {},
+        paidLeaveOverrides: settings.paidLeaveOverrides || {}
       };
-
-      if (Object.keys(workerMap).length === 0) {
-        delete nextOverrides[workerName];
-      }
-
-      const newData = {
-        ...settings,
-        paidLeaveOverrides: nextOverrides
-      };
-
-      setSettings(newData);
 
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // 有給だけを送信。日報や他の設定には触れない。
-        body: JSON.stringify({ paidLeaveOverrides: nextOverrides })
+        body: JSON.stringify(payload)
       });
+      if (!res.ok) throw new Error('勤怠変更の保存に失敗しました。');
 
-      if (!res.ok) throw new Error('有給情報の保存に失敗しました。');
-
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setOriginalSettings((prev: any) => ({ ...prev, ...payload }));
+      setAttendanceChangesDirty(false);
+      setSelectedHolidayMove(null);
       setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1400);
+      setTimeout(() => setShowSaveToast(false), 1800);
     } catch (e) {
       console.error(e);
-      alert('有給情報の保存に失敗しました。');
-      fetchData();
+      alert('勤怠変更の保存に失敗しました。画面上の変更は残っています。もう一度「変更を保存」を押してください。');
+    } finally {
+      setAttendanceChangesSaving(false);
     }
+  };
+
+  const cancelAttendanceChanges = () => {
+    if (!attendanceChangesDirty) return;
+    if (!confirm('まだ保存していない勤怠変更をすべて取り消しますか？')) return;
+
+    setSettings((prev: any) => ({
+      ...prev,
+      manualAttendanceOverrides: originalSettings.manualAttendanceOverrides || {},
+      workerHolidayMoves: originalSettings.workerHolidayMoves || {},
+      paidLeaveOverrides: originalSettings.paidLeaveOverrides || {}
+    }));
+    setSelectedHolidayMove(null);
+    setAttendanceChangesDirty(false);
   };
 
   const getAttendancePeriodInfo = (ym: string) => {
@@ -5942,6 +5883,36 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {authRole === 'admin' && (
+                <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
+                  attendanceChangesDirty
+                    ? 'border-amber-300 bg-amber-50'
+                    : 'border-emerald-200 bg-emerald-50'
+                }`}>
+                  <div className={`text-sm font-bold ${attendanceChangesDirty ? 'text-amber-800' : 'text-emerald-700'}`}>
+                    {attendanceChangesDirty ? '● 未保存の勤怠変更があります' : '✓ 勤怠変更は保存済みです'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelAttendanceChanges}
+                      disabled={!attendanceChangesDirty || attendanceChangesSaving}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      変更を取り消す
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveAttendanceChanges}
+                      disabled={!attendanceChangesDirty || attendanceChangesSaving}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {attendanceChangesSaving ? '保存中…' : '勤怠変更を保存'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* 上部横スクロールバー */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-2 pt-2 pb-1 lg:hidden">
                 <div className="text-[11px] text-slate-500 mb-1 text-center">
@@ -6358,6 +6329,7 @@ export default function AdminPage() {
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
                 <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
+                <div>※ 休日振替・有給・管理の変更は操作中は画面内だけに反映されます。最後に上の「勤怠変更を保存」を押すと、まとめて1回保存されます。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
