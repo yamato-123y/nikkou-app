@@ -10,7 +10,7 @@ const supabaseKey =
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ★ Supabaseに現在残しているkeyと必ず同じ文字にする
-const SETTINGS_KEY = 'アプリ設定';
+const SETTINGS_KEY = 'app_settings';
 
 export async function GET() {
   try {
