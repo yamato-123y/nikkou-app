@@ -337,6 +337,8 @@ export default function AdminPage() {
   const [travelAllowanceMarks, setTravelAllowanceMarks] = useState<{
     [workerName: string]: { [dateStr: string]: number }
   }>({});
+  // 月次勤怠の休日振替：ドラッグが効きにくい環境でも使えるよう、クリック選択も併用する。
+  const [selectedHolidayMove, setSelectedHolidayMove] = useState<{ workerName: string; fromDate: string } | null>(null);
 
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
   const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -5915,7 +5917,7 @@ export default function AdminPage() {
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
                   <span className="font-bold text-slate-700">休日振替：</span>
-                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（日曜日も可・現場セルとも表内だけで入替）</span>
+                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（または「休」をクリック→移動先をクリック）（日曜日も可・現場セルとも表内だけで入替）</span>
                 </div>
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
@@ -6104,7 +6106,7 @@ export default function AdminPage() {
                                 : isManagement
                                   ? '管理'
                                   : row.calendarType !== 'none' && d.isHoliday
-                                    ? '休'
+                                    ? ''
                                     : paidLeaveStatus
                                       ? ''
                                       : row.calendarType !== 'none' && d.isScheduled
@@ -6164,6 +6166,18 @@ export default function AdminPage() {
                                     }
                                   }}
                                   onClick={() => {
+                                    // 「休」をクリック選択した後は、同じ作業員の移動先セルをクリックでも振替できる。
+                                    if (
+                                      selectedHolidayMove &&
+                                      selectedHolidayMove.workerName === row.name &&
+                                      selectedHolidayMove.fromDate !== d.date
+                                    ) {
+                                      const fromDate = selectedHolidayMove.fromDate;
+                                      setSelectedHolidayMove(null);
+                                      saveWorkerHolidayMove(row.name, fromDate, d.date);
+                                      return;
+                                    }
+
                                     if (hasReportWork && d.sites.length > 0) {
                                       toggleTravelAllowanceMark(row.name, d.date);
                                       return;
@@ -6182,6 +6196,10 @@ export default function AdminPage() {
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
                                   } ${
                                     travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
+                                  } ${
+                                    selectedHolidayMove?.workerName === row.name && selectedHolidayMove.fromDate !== d.date
+                                      ? 'hover:ring-2 hover:ring-inset hover:ring-emerald-400'
+                                      : ''
                                   }`}
                                 >
                                   <div className="flex flex-col items-center justify-center gap-0.5">
@@ -6191,16 +6209,30 @@ export default function AdminPage() {
                                     {canDragHoliday && (
                                       <div
                                         draggable
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const sameSelected =
+                                            selectedHolidayMove?.workerName === row.name &&
+                                            selectedHolidayMove?.fromDate === d.date;
+                                          setSelectedHolidayMove(
+                                            sameSelected ? null : { workerName: row.name, fromDate: d.date }
+                                          );
+                                        }}
                                         onDragStart={(e) => {
                                           e.stopPropagation();
+                                          setSelectedHolidayMove(null);
                                           e.dataTransfer.setData(
                                             'text/plain',
                                             `HOLIDAY_MOVE:${row.name}:${d.date}`
                                           );
                                           e.dataTransfer.effectAllowed = 'move';
                                         }}
-                                        title="この「休」をつかんで、同じ作業員の別日にドラッグしてください（日曜日・現場セルも可）"
-                                        className="cursor-grab active:cursor-grabbing select-none rounded bg-slate-900 px-1 py-0.5 text-[7px] font-black leading-none text-white"
+                                        title="この『休』を別日にドラッグ。うまくドラッグできない場合は『休』をクリック→移動先をクリックでも可"
+                                        className={`select-none rounded px-1 py-1 text-[8px] font-black leading-none text-white cursor-grab active:cursor-grabbing ${
+                                          selectedHolidayMove?.workerName === row.name && selectedHolidayMove?.fromDate === d.date
+                                            ? 'bg-emerald-600 ring-2 ring-emerald-300'
+                                            : 'bg-slate-900'
+                                        } ${hasReportWork ? '' : 'min-w-[24px]'}`}
                                       >
                                         休
                                       </div>
