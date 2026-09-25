@@ -342,6 +342,8 @@ export default function AdminPage() {
   // 月次勤怠の手動変更は、操作ごとに保存せず最後にまとめて保存する。
   const [attendanceChangesDirty, setAttendanceChangesDirty] = useState(false);
   const [attendanceChangesSaving, setAttendanceChangesSaving] = useState(false);
+  // 月次勤怠表の作業員並び順を、区分内だけドラッグで変更する。
+  const [draggedAttendanceWorker, setDraggedAttendanceWorker] = useState<{ name: string; calendarType: string } | null>(null);
 
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
   const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -896,7 +898,10 @@ export default function AdminPage() {
       const payload = {
         manualAttendanceOverrides: settings.manualAttendanceOverrides || {},
         workerHolidayMoves: settings.workerHolidayMoves || {},
-        paidLeaveOverrides: settings.paidLeaveOverrides || {}
+        paidLeaveOverrides: settings.paidLeaveOverrides || {},
+        attendanceWorkerOrder: Array.isArray(settings.attendanceWorkerOrder)
+          ? settings.attendanceWorkerOrder
+          : []
       };
 
       const res = await fetch('/api/settings', {
@@ -927,7 +932,10 @@ export default function AdminPage() {
       ...prev,
       manualAttendanceOverrides: originalSettings.manualAttendanceOverrides || {},
       workerHolidayMoves: originalSettings.workerHolidayMoves || {},
-      paidLeaveOverrides: originalSettings.paidLeaveOverrides || {}
+      paidLeaveOverrides: originalSettings.paidLeaveOverrides || {},
+      attendanceWorkerOrder: Array.isArray(originalSettings.attendanceWorkerOrder)
+        ? originalSettings.attendanceWorkerOrder
+        : []
     }));
     setSelectedHolidayMove(null);
     setAttendanceChangesDirty(false);
@@ -1214,12 +1222,19 @@ export default function AdminPage() {
           (groupOrder[a.calendarType] ?? 9) - (groupOrder[b.calendarType] ?? 9);
         if (typeDiff !== 0) return typeDiff;
 
+        const customOrder = Array.isArray(settings.attendanceWorkerOrder)
+          ? settings.attendanceWorkerOrder
+          : [];
+        const customA = customOrder.indexOf(a.name);
+        const customB = customOrder.indexOf(b.name);
+        if (customA >= 0 && customB >= 0) return customA - customB;
+
         const masterWorkers = Array.isArray(settings.workers) ? settings.workers : [];
         const aIndex = masterWorkers.findIndex((w: any) => w?.name === a.name);
         const bIndex = masterWorkers.findIndex((w: any) => w?.name === b.name);
 
-        // 過去日報にだけ残っていて現在の作業員マスタにいない人は、
-        // 各区分の最後に回す。
+        // まだ表内で並び替えていない人は、マスタ情報の登録順を使う。
+        // 過去日報にだけ残っていて現在の作業員マスタにいない人は各区分の最後へ。
         if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
         if (aIndex >= 0) return -1;
         if (bIndex >= 0) return 1;
@@ -6062,8 +6077,77 @@ export default function AdminPage() {
                           )}
 
                           <tr>
-                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">
-                              {row.name}
+                            <td
+                              className={`sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis ${
+                                draggedAttendanceWorker?.name === row.name ? 'opacity-50' : ''
+                              }`}
+                              onDragOver={(e) => {
+                                if (draggedAttendanceWorker && draggedAttendanceWorker.calendarType === row.calendarType) {
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (!draggedAttendanceWorker) return;
+                                if (draggedAttendanceWorker.calendarType !== row.calendarType) {
+                                  setDraggedAttendanceWorker(null);
+                                  return;
+                                }
+                                if (draggedAttendanceWorker.name === row.name) {
+                                  setDraggedAttendanceWorker(null);
+                                  return;
+                                }
+
+                                const sameGroup = monthlyAttendanceRows
+                                  .filter((x: any) => x.calendarType === row.calendarType)
+                                  .map((x: any) => x.name);
+                                const fromIndex = sameGroup.indexOf(draggedAttendanceWorker.name);
+                                const toIndex = sameGroup.indexOf(row.name);
+                                if (fromIndex < 0 || toIndex < 0) {
+                                  setDraggedAttendanceWorker(null);
+                                  return;
+                                }
+
+                                const reorderedGroup = [...sameGroup];
+                                const [moved] = reorderedGroup.splice(fromIndex, 1);
+                                reorderedGroup.splice(toIndex, 0, moved);
+
+                                const currentByGroup = ['yamato', 'trainee', 'none'].flatMap((type) => {
+                                  if (type === row.calendarType) return reorderedGroup;
+                                  return monthlyAttendanceRows
+                                    .filter((x: any) => x.calendarType === type)
+                                    .map((x: any) => x.name);
+                                });
+                                const knownNames = new Set(currentByGroup);
+                                const masterExtras = (Array.isArray(settings.workers) ? settings.workers : [])
+                                  .map((w: any) => w?.name)
+                                  .filter((name: string) => name && !knownNames.has(name));
+
+                                setSettings((prev: any) => ({
+                                  ...prev,
+                                  attendanceWorkerOrder: [...currentByGroup, ...masterExtras]
+                                }));
+                                setAttendanceChangesDirty(true);
+                                setDraggedAttendanceWorker(null);
+                              }}
+                            >
+                              <div className="flex items-center gap-0.5 min-w-0">
+                                <span
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setDraggedAttendanceWorker({ name: row.name, calendarType: row.calendarType });
+                                    e.dataTransfer.setData('text/plain', `ATTENDANCE_WORKER:${row.name}`);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                  }}
+                                  onDragEnd={() => setDraggedAttendanceWorker(null)}
+                                  title="ドラッグして同じ区分内の順番を変更"
+                                  className="shrink-0 cursor-grab active:cursor-grabbing text-slate-400 select-none"
+                                >
+                                  ⋮⋮
+                                </span>
+                                <span className="min-w-0 overflow-hidden text-ellipsis">{row.name}</span>
+                              </div>
                             </td>
 
                             {row.details.map((d: any) => {
