@@ -830,14 +830,8 @@ export default function AdminPage() {
     dateStr: string,
     baseHoliday: boolean
   ) => {
-    const [y, m, day] = String(dateStr).split('-').map(Number);
-    const isSunday = !!y && !!m && !!day
-      ? new Date(y, m - 1, day).getDay() === 0
-      : false;
-
-    // 法出は「日曜日」固定。個人の休日振替では日曜の法出判定は外さない。
-    if (isSunday) return true;
-
+    // 月次勤怠表だけの個人別休日振替。日曜日も他の会社休日と同じように移動できる。
+    // 日報そのものは変更せず、この表の休日判定だけを差し替える。
     const moves = getWorkerHolidayMoves(worker?.name || '');
     if (moves.some((x: any) => x.to === dateStr)) return true;
     if (moves.some((x: any) => x.from === dateStr)) return false;
@@ -850,12 +844,6 @@ export default function AdminPage() {
     toDate: string
   ) => {
     if (authRole !== 'admin' || !workerName || !fromDate || !toDate || fromDate === toDate) return;
-
-    const [fy, fm, fd] = fromDate.split('-').map(Number);
-    if (fy && fm && fd && new Date(fy, fm - 1, fd).getDay() === 0) {
-      alert('日曜日は「法出」の判定日として固定しているため、休日振替の移動対象にはできません。');
-      return;
-    }
 
     try {
       const allMoves = { ...(settings.workerHolidayMoves || {}) };
@@ -1101,8 +1089,15 @@ export default function AdminPage() {
           };
 
         const calendarType = workerMaster?.calendarType || 'none';
+        const holidayMovesForWorker = getWorkerHolidayMoves(name);
+
         const dayDetails = dates.map((date) => {
-          const actual = workerDayMap[name]?.[date];
+          // 休日を別日に振り替えた場合、月次勤怠表の中だけで勤務セルも入れ替えて表示する。
+          // workerDayMap（= 日報から作った元データ）は一切変更しない。
+          const moveFrom = holidayMovesForWorker.find((x: any) => x.from === date);
+          const moveTo = holidayMovesForWorker.find((x: any) => x.to === date);
+          const displayActualDate = moveFrom?.to || moveTo?.from || date;
+          const actual = workerDayMap[name]?.[displayActualDate];
           const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
           const holidays = new Set(calendarEntry?.holidays || []);
           const isCalendarLinked = !!calendarEntry;
@@ -1111,7 +1106,7 @@ export default function AdminPage() {
             ? isEffectiveWorkerHoliday(workerMaster, date, baseHoliday)
             : false;
           const isScheduled = isCalendarLinked ? !isHoliday : false;
-          const holidayMoves = getWorkerHolidayMoves(name);
+          const holidayMoves = holidayMovesForWorker;
           const holidayMove = holidayMoves.find((x: any) => x.to === date) || null;
           const holidayMovedFrom = holidayMoves.find((x: any) => x.from === date) || null;
           const manualStatus =
@@ -1126,11 +1121,11 @@ export default function AdminPage() {
           const [yy, mm, dd] = date.split('-').map(Number);
           const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
           const isAutoHolidayWork =
-            fraction > 0 && (isSunday || isHoliday);
+            fraction > 0 && isHoliday;
           const defaultHolidayHours =
             Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
           const effectiveHolidayWorkHours =
-            (isSunday || isHoliday)
+            isHoliday
               ? (explicitHolidayWorkHours > 0
                   ? explicitHolidayWorkHours
                   : isAutoHolidayWork
@@ -1148,6 +1143,7 @@ export default function AdminPage() {
 
           return {
             date,
+            displayActualDate,
             fraction,
             attendanceFraction,
             manualStatus,
@@ -5919,7 +5915,7 @@ export default function AdminPage() {
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
                   <span className="font-bold text-slate-700">休日振替：</span>
-                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ</span>
+                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（日曜日も可・現場セルとも表内だけで入替）</span>
                 </div>
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
@@ -6068,8 +6064,7 @@ export default function AdminPage() {
                               const isShiftedHoliday = !!d.holidayMove;
                               const canDragHoliday =
                                 row.calendarType !== 'none' &&
-                                d.isHoliday &&
-                                !d.isSunday;
+                                d.isHoliday;
                               const canDropManagement =
                                 !hasReportWork &&
                                 !isManagement &&
@@ -6123,22 +6118,13 @@ export default function AdminPage() {
                                     hasReportWork && d.sites.length > 0
                                       ? `${d.date} / ${d.sites.join(' / ')} / ${travelMarked ? `カウント ${travelMarkNumber}（クリックで解除・保存なし）` : 'クリックでカウント（保存なし）'}`
                                       : isShiftedHoliday
-                                        ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）`
+                                        ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）※月次勤怠表内だけの入替`
                                         : isManagement
                                           ? `${d.date} / 管理（クリックで解除）`
                                         : canDropManagement
                                           ? `${d.date} / 「管理」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
-                                  draggable={canDragHoliday}
-                                  onDragStart={(e) => {
-                                    if (!canDragHoliday) return;
-                                    e.dataTransfer.setData(
-                                      'text/plain',
-                                      `HOLIDAY_MOVE:${row.name}:${d.date}`
-                                    );
-                                    e.dataTransfer.effectAllowed = 'move';
-                                  }}
                                   onDragOver={(e) => {
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'copy';
@@ -6198,7 +6184,28 @@ export default function AdminPage() {
                                     travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
                                   }`}
                                 >
-                                  <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
+                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                    <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
+                                      {label}
+                                    </div>
+                                    {canDragHoliday && (
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => {
+                                          e.stopPropagation();
+                                          e.dataTransfer.setData(
+                                            'text/plain',
+                                            `HOLIDAY_MOVE:${row.name}:${d.date}`
+                                          );
+                                          e.dataTransfer.effectAllowed = 'move';
+                                        }}
+                                        title="この「休」をつかんで、同じ作業員の別日にドラッグしてください（日曜日・現場セルも可）"
+                                        className="cursor-grab active:cursor-grabbing select-none rounded bg-slate-900 px-1 py-0.5 text-[7px] font-black leading-none text-white"
+                                      >
+                                        休
+                                      </div>
+                                    )}
+                                  </div>
 
                                   {isShiftedHoliday && (
                                     <button
@@ -6314,7 +6321,7 @@ export default function AdminPage() {
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
-                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。振替元は通常出勤日、振替先は休日として扱います（日曜日の法出判定は固定）。</div>
+                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。日曜日も移動できます。現場が入っている日へ移した場合は、この月次勤怠表の中だけで「休」と勤務セルを入れ替えて表示します。元の日報・現場情報は一切変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
