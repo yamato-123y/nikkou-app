@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  '';
 
-const SETTINGS_KEY = 'app_settings';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ★ Supabaseに現在残しているkeyと必ず同じ文字にする
+const SETTINGS_KEY = 'アプリ設定';
 
 export async function GET() {
   try {
@@ -15,15 +20,24 @@ export async function GET() {
       .eq('key', SETTINGS_KEY)
       .maybeSingle();
 
-    if (error || !data) {
+    if (error) {
+      console.error('GET settings error:', error);
+      return NextResponse.json({}, { status: 500 });
+    }
+
+    if (!data) {
       return NextResponse.json({});
     }
 
-    const settingsData = typeof data.value === 'object' ? data.value : JSON.parse(data.value || '{}');
+    const settingsData =
+      typeof data.value === 'object'
+        ? data.value
+        : JSON.parse(data.value || '{}');
+
     return NextResponse.json(settingsData);
   } catch (err) {
-    console.error('GET Exception:', err);
-    return NextResponse.json({});
+    console.error('GET settings exception:', err);
+    return NextResponse.json({}, { status: 500 });
   }
 }
 
@@ -31,45 +45,68 @@ export async function POST(request: Request) {
   try {
     const newSettings = await request.json();
 
-    // 1. 既存のデータを取得する
-    const { data: existingData } = await supabase
+    // 現在の設定を取得
+    const { data: existingData, error: readError } = await supabase
       .from('settings')
       .select('value')
       .eq('key', SETTINGS_KEY)
       .maybeSingle();
 
-    let currentSettings = {};
-    if (existingData && existingData.value) {
-      currentSettings = typeof existingData.value === 'object' ? existingData.value : JSON.parse(existingData.value || '{}');
+    if (readError) {
+      console.error('POST settings read error:', readError);
+      return NextResponse.json(
+        { success: false, error: readError.message },
+        { status: 500 }
+      );
     }
 
-    // 2. 既存のデータと新しく送られてきたデータを安全にマージ（結合）する
-    // 送信されてきたキー（例: locations, workers など）のみを上書きし、含まれていないキーやデータは保持する
+    let currentSettings: any = {};
+
+    if (existingData?.value) {
+      currentSettings =
+        typeof existingData.value === 'object'
+          ? existingData.value
+          : JSON.parse(existingData.value || '{}');
+    }
+
+    // 今まで通り、既存設定を残しながら上書き
     const mergedSettings = {
       ...currentSettings,
       ...newSettings,
     };
 
-    // 3. 一度削除して最新化する代わりに、安全にupsert（存在すれば更新、なければ挿入）またはdelete/insertを行う
-    await supabase
+    // ★ DELETE → INSERT はしない
+    // keyがあればUPDATE、なければINSERT
+    const { error: saveError } = await supabase
       .from('settings')
-      .delete()
-      .eq('key', SETTINGS_KEY);
+      .upsert(
+        {
+          key: SETTINGS_KEY,
+          value: mergedSettings,
+        },
+        {
+          onConflict: 'key',
+        }
+      );
 
-    const { error } = await supabase
-      .from('settings')
-      .insert([
-        { key: SETTINGS_KEY, value: mergedSettings }
-      ]);
-
-    if (error) {
-      console.error('POST Error:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (saveError) {
+      console.error('POST settings save error:', saveError);
+      return NextResponse.json(
+        { success: false, error: saveError.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('POST Exception:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    console.error('POST settings exception:', err);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: err?.message || '設定の保存に失敗しました。',
+      },
+      { status: 500 }
+    );
   }
 }
