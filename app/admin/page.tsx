@@ -807,6 +807,133 @@ export default function AdminPage() {
     }
   };
 
+  const getWorkerHolidayMoves = (workerName: string) => {
+    const raw = settings.workerHolidayMoves?.[workerName];
+    return Array.isArray(raw)
+      ? raw.filter((x: any) => x?.from && x?.to)
+      : [];
+  };
+
+  const isEffectiveWorkerHoliday = (
+    worker: any,
+    dateStr: string,
+    baseHoliday: boolean
+  ) => {
+    const [y, m, day] = String(dateStr).split('-').map(Number);
+    const isSunday = !!y && !!m && !!day
+      ? new Date(y, m - 1, day).getDay() === 0
+      : false;
+
+    // 法出は「日曜日」固定。個人の休日振替では日曜の法出判定は外さない。
+    if (isSunday) return true;
+
+    const moves = getWorkerHolidayMoves(worker?.name || '');
+    if (moves.some((x: any) => x.to === dateStr)) return true;
+    if (moves.some((x: any) => x.from === dateStr)) return false;
+    return baseHoliday;
+  };
+
+  const saveWorkerHolidayMove = async (
+    workerName: string,
+    fromDate: string,
+    toDate: string
+  ) => {
+    if (authRole !== 'admin' || !workerName || !fromDate || !toDate || fromDate === toDate) return;
+
+    const [fy, fm, fd] = fromDate.split('-').map(Number);
+    if (fy && fm && fd && new Date(fy, fm - 1, fd).getDay() === 0) {
+      alert('日曜日は「法出」の判定日として固定しているため、休日振替の移動対象にはできません。');
+      return;
+    }
+
+    try {
+      const allMoves = { ...(settings.workerHolidayMoves || {}) };
+      const currentMoves = Array.isArray(allMoves[workerName])
+        ? allMoves[workerName].map((x: any) => ({ ...x }))
+        : [];
+
+      // すでに振替先になっている「休」をさらに移動する場合、元の休日を引き継ぐ。
+      const chainedIndex = currentMoves.findIndex((x: any) => x.to === fromDate);
+      let nextMoves: any[];
+
+      if (chainedIndex >= 0) {
+        nextMoves = currentMoves.map((x: any, idx: number) =>
+          idx === chainedIndex ? { ...x, to: toDate } : x
+        );
+      } else {
+        nextMoves = [
+          ...currentMoves.filter((x: any) => x.from !== fromDate),
+          { from: fromDate, to: toDate }
+        ];
+      }
+
+      // 同じ振替先へ重複登録しない。
+      nextMoves = nextMoves.filter(
+        (x: any, idx: number, arr: any[]) =>
+          arr.findIndex((y: any) => y.from === x.from && y.to === x.to) === idx
+      );
+
+      const nextAllMoves = {
+        ...allMoves,
+        [workerName]: nextMoves
+      };
+
+      const newData = {
+        ...settings,
+        workerHolidayMoves: nextAllMoves
+      };
+      setSettings(newData);
+
+      // サーバー側が既存settingsとマージするため、変更キーだけ送る。
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workerHolidayMoves: nextAllMoves })
+      });
+      if (!res.ok) throw new Error('休日振替の保存に失敗しました。');
+
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1400);
+    } catch (e) {
+      console.error(e);
+      alert('休日振替の保存に失敗しました。');
+      fetchData();
+    }
+  };
+
+  const resetWorkerHolidayMove = async (workerName: string, targetDate: string) => {
+    if (authRole !== 'admin') return;
+
+    try {
+      const allMoves = { ...(settings.workerHolidayMoves || {}) };
+      const currentMoves = Array.isArray(allMoves[workerName]) ? allMoves[workerName] : [];
+      const nextMoves = currentMoves.filter((x: any) => x.to !== targetDate);
+      const nextAllMoves = { ...allMoves };
+
+      if (nextMoves.length > 0) nextAllMoves[workerName] = nextMoves;
+      else delete nextAllMoves[workerName];
+
+      const newData = { ...settings, workerHolidayMoves: nextAllMoves };
+      setSettings(newData);
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workerHolidayMoves: nextAllMoves })
+      });
+      if (!res.ok) throw new Error('休日振替の解除に失敗しました。');
+
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1400);
+    } catch (e) {
+      console.error(e);
+      alert('休日振替の解除に失敗しました。');
+      fetchData();
+    }
+  };
+
   const savePaidLeaveStatus = async (
     workerName: string,
     dateStr: string,
@@ -843,7 +970,8 @@ export default function AdminPage() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newData)
+        // 有給だけを送信。日報や他の設定には触れない。
+        body: JSON.stringify({ paidLeaveOverrides: nextOverrides })
       });
 
       if (!res.ok) throw new Error('有給情報の保存に失敗しました。');
@@ -967,8 +1095,14 @@ export default function AdminPage() {
           const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
           const holidays = new Set(calendarEntry?.holidays || []);
           const isCalendarLinked = !!calendarEntry;
-          const isHoliday = isCalendarLinked ? holidays.has(date) : false;
+          const baseHoliday = isCalendarLinked ? holidays.has(date) : false;
+          const isHoliday = isCalendarLinked
+            ? isEffectiveWorkerHoliday(workerMaster, date, baseHoliday)
+            : false;
           const isScheduled = isCalendarLinked ? !isHoliday : false;
+          const holidayMoves = getWorkerHolidayMoves(name);
+          const holidayMove = holidayMoves.find((x: any) => x.to === date) || null;
+          const holidayMovedFrom = holidayMoves.find((x: any) => x.from === date) || null;
           const manualStatus =
             settings.manualAttendanceOverrides?.[name]?.[date] || '';
           const paidLeaveStatus =
@@ -985,11 +1119,13 @@ export default function AdminPage() {
           const defaultHolidayHours =
             Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
           const effectiveHolidayWorkHours =
-            explicitHolidayWorkHours > 0
-              ? explicitHolidayWorkHours
-              : isAutoHolidayWork
-                ? defaultHolidayHours
-                : 0;
+            (isSunday || isHoliday)
+              ? (explicitHolidayWorkHours > 0
+                  ? explicitHolidayWorkHours
+                  : isAutoHolidayWork
+                    ? defaultHolidayHours
+                    : 0)
+              : 0;
 
           const sites = actual ? Array.from(actual.sites) : [];
           const isIshikawaWork =
@@ -1013,7 +1149,10 @@ export default function AdminPage() {
             isHoliday,
             isSunday,
             isScheduled,
-            isCalendarLinked
+            isCalendarLinked,
+            baseHoliday,
+            holidayMove,
+            holidayMovedFrom
           };
         });
 
@@ -1081,6 +1220,14 @@ export default function AdminPage() {
           (d) => d.isIshikawaWork && d.travelAllowanceMarked
         ).length;
 
+        const paidLeaveEquivalent = dayDetails.reduce((sum, d) => {
+          if (d.paidLeaveStatus === '有給') return sum + 1;
+          if (d.paidLeaveStatus === '午前有給' || d.paidLeaveStatus === '午後有給') {
+            return sum + 0.5;
+          }
+          return sum;
+        }, 0);
+
         return {
           name,
           isWeeklyPay: !!workerMaster?.isWeeklyPay,
@@ -1097,6 +1244,7 @@ export default function AdminPage() {
           legalHolidayWorkDays,
           legalHolidayWorkHours,
           travelAllowanceDays,
+          paidLeaveEquivalent,
           details: dayDetails
         };
       })
@@ -1329,7 +1477,9 @@ export default function AdminPage() {
           ? `${row.legalHolidayWorkDays}日\n${row.legalHolidayWorkHours}h`
           : '',
         row.travelAllowanceDays > 0 ? `${row.travelAllowanceDays}日` : '',
-        row.equivalentDays
+        row.paidLeaveEquivalent > 0
+          ? `${row.equivalentDays}日\n有給${row.paidLeaveEquivalent}`
+          : `${row.equivalentDays}日`
       ]);
     });
 
@@ -1496,17 +1646,30 @@ export default function AdminPage() {
 
       if (locationUpdates.length > 0 || subUpdates.length > 0) {
         let hasChanges = false;
-        const updatedReports = reports.map(r => {
+        const updatedReports = reports.map((raw: any) => {
           let reportChanged = false;
-          let newR = { ...r };
+
+          // /api/reports の返却形式が
+          // ① 日報データがそのまま入っている形式
+          // ② { id, data: {...日報データ...} } の形式
+          // のどちらでも過去日報を更新できるようにする。
+          const isWrapped =
+            raw?.data &&
+            typeof raw.data === 'object' &&
+            !Array.isArray(raw.data);
+
+          let reportData = isWrapped
+            ? { ...raw.data }
+            : { ...raw };
 
           locationUpdates.forEach(u => {
-            if (newR.location === u.oldName) {
-              newR.location = u.newName;
+            if (reportData.location === u.oldName) {
+              reportData.location = u.newName;
               reportChanged = true;
             }
-            if (Array.isArray(newR.disposals)) {
-              newR.disposals = newR.disposals.map((d: any) => {
+
+            if (Array.isArray(reportData.disposals)) {
+              reportData.disposals = reportData.disposals.map((d: any) => {
                 if (d.location === u.oldName) {
                   reportChanged = true;
                   return { ...d, location: u.newName };
@@ -1514,8 +1677,9 @@ export default function AdminPage() {
                 return d;
               });
             }
-            if (Array.isArray(newR.scraps)) {
-              newR.scraps = newR.scraps.map((sc: any) => {
+
+            if (Array.isArray(reportData.scraps)) {
+              reportData.scraps = reportData.scraps.map((sc: any) => {
                 if (sc.location === u.oldName) {
                   reportChanged = true;
                   return { ...sc, location: u.newName };
@@ -1526,8 +1690,8 @@ export default function AdminPage() {
           });
 
           subUpdates.forEach(su => {
-            if (Array.isArray(newR.subcontractors)) {
-              newR.subcontractors = newR.subcontractors.map((sub: any) => {
+            if (Array.isArray(reportData.subcontractors)) {
+              reportData.subcontractors = reportData.subcontractors.map((sub: any) => {
                 if (sub.company === su.oldComp && sub.task === su.oldTask) {
                   reportChanged = true;
                   return { ...sub, company: su.newComp, task: su.newTask };
@@ -1537,22 +1701,36 @@ export default function AdminPage() {
             }
           });
 
-          if (reportChanged) {
-            hasChanges = true;
-            return newR;
-          }
-          return r;
+          if (!reportChanged) return raw;
+
+          hasChanges = true;
+
+          return {
+            raw,
+            reportData,
+            targetId: raw.id || raw._id || reportData.id || reportData._id,
+            changed: true
+          };
         });
 
         if (hasChanges) {
-          for (const r of updatedReports) {
-            const targetId = r.id || r._id;
-            if (targetId) {
-              await fetch('/api/reports', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...r, id: targetId })
-              });
+          for (const item of updatedReports) {
+            if (!item?.changed) continue;
+
+            const targetId = item.targetId;
+            if (!targetId) continue;
+
+            const resReport = await fetch('/api/reports', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...item.reportData,
+                id: targetId
+              })
+            });
+
+            if (!resReport.ok) {
+              throw new Error(`過去日報の現場名更新に失敗しました。ID: ${targetId}`);
             }
           }
         }
@@ -5721,6 +5899,11 @@ export default function AdminPage() {
                   <span className="text-slate-500">→「欠勤?」へ</span>
                 </div>
 
+                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
+                  <span className="font-bold text-slate-700">休日振替：</span>
+                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ</span>
+                </div>
+
                 <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
                   <span className="text-violet-800 font-bold">有給：</span>
 
@@ -5729,7 +5912,7 @@ export default function AdminPage() {
                       key={leaveType}
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', leaveType);
+                        e.dataTransfer.setData('text/plain', `PAID_LEAVE:${leaveType}`);
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
                       title="どの日付セルにもドラッグできます"
@@ -5856,6 +6039,11 @@ export default function AdminPage() {
                               const hasAttendance = d.attendanceFraction > 0;
                               const isIshikawaWork = !!d.isIshikawaWork;
                               const travelMarked = !!d.travelAllowanceMarked;
+                              const isShiftedHoliday = !!d.holidayMove;
+                              const canDragHoliday =
+                                row.calendarType !== 'none' &&
+                                d.isHoliday &&
+                                !d.isSunday;
                               const canDropManagement =
                                 !hasReportWork &&
                                 !isManagement &&
@@ -5908,15 +6096,24 @@ export default function AdminPage() {
                                   title={
                                     isIshikawaWork
                                       ? `${d.date} / 石川県 / ${travelMarked ? '出張カウント済み（クリックで解除・保存なし）' : 'クリックで出張カウント（保存なし）'}`
-                                      : isManagement
-                                        ? `${d.date} / 管理（クリックで解除）`
+                                      : isShiftedHoliday
+                                        ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）`
+                                        : isManagement
+                                          ? `${d.date} / 管理（クリックで解除）`
                                         : canDropManagement
                                           ? `${d.date} / 「管理」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
+                                  draggable={canDragHoliday}
+                                  onDragStart={(e) => {
+                                    if (!canDragHoliday) return;
+                                    e.dataTransfer.setData(
+                                      'text/plain',
+                                      `HOLIDAY_MOVE:${row.name}:${d.date}`
+                                    );
+                                    e.dataTransfer.effectAllowed = 'move';
+                                  }}
                                   onDragOver={(e) => {
-                                    // 有給3種はどのセルにもドロップ可能。
-                                    // 管理はonDrop側で「欠勤?」相当のセルだけに制限する。
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'copy';
                                   }}
@@ -5931,16 +6128,27 @@ export default function AdminPage() {
                                       return;
                                     }
 
-                                    if (
-                                      dropped === '有給' ||
-                                      dropped === '午前有給' ||
-                                      dropped === '午後有給'
-                                    ) {
-                                      savePaidLeaveStatus(
-                                        row.name,
-                                        d.date,
-                                        dropped as '有給' | '午前有給' | '午後有給'
-                                      );
+                                    if (dropped.startsWith('PAID_LEAVE:')) {
+                                      const leaveType = dropped.replace('PAID_LEAVE:', '');
+                                      if (
+                                        leaveType === '有給' ||
+                                        leaveType === '午前有給' ||
+                                        leaveType === '午後有給'
+                                      ) {
+                                        savePaidLeaveStatus(
+                                          row.name,
+                                          d.date,
+                                          leaveType as '有給' | '午前有給' | '午後有給'
+                                        );
+                                      }
+                                      return;
+                                    }
+
+                                    if (dropped.startsWith('HOLIDAY_MOVE:')) {
+                                      const [, sourceWorker, fromDate] = dropped.split(':');
+                                      if (sourceWorker === row.name && fromDate && fromDate !== d.date) {
+                                        saveWorkerHolidayMove(row.name, fromDate, d.date);
+                                      }
                                     }
                                   }}
                                   onClick={() => {
@@ -5959,10 +6167,28 @@ export default function AdminPage() {
                                   className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
                                     canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
                                   } ${(isManagement || isIshikawaWork) ? 'cursor-pointer' : ''} ${
+                                    canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
+                                  } ${
                                     isIshikawaWork && travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
                                   }`}
                                 >
                                   <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">{label}</div>
+
+                                  {isShiftedHoliday && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (confirm(`${row.name} / ${d.date} の振替休日を元の日へ戻しますか？`)) {
+                                          resetWorkerHolidayMove(row.name, d.date);
+                                        }
+                                      }}
+                                      title="クリックで休日振替を元に戻す"
+                                      className="mt-0.5 max-w-[32px] truncate rounded bg-slate-200 px-0.5 text-[7px] font-black leading-tight text-slate-700"
+                                    >
+                                      振替休
+                                    </button>
+                                  )}
 
                                   {paidLeaveStatus && (
                                     <button
@@ -6040,8 +6266,13 @@ export default function AdminPage() {
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-sky-700">
                               {row.travelAllowanceDays > 0 ? `${row.travelAllowanceDays}日` : '-'}
                             </td>
-                            <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800">
-                              {row.equivalentDays}
+                            <td className="px-0.5 border border-slate-300 text-center font-bold text-blue-800 leading-tight">
+                              <div className="flex flex-col items-center justify-center">
+                                <span>{row.equivalentDays}日</span>
+                                {row.paidLeaveEquivalent > 0 && (
+                                  <span className="text-violet-700">有給{row.paidLeaveEquivalent}</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         </Fragment>
@@ -6057,7 +6288,9 @@ export default function AdminPage() {
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 石川県の勤務日は薄い水色で表示します。セルをクリックすると「出張✓」として数えられます。このチェックは数えやすくするためだけの一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない出勤日は、上の「管理」を「欠勤?」セルへドラッグしてください。「管理」として1日出勤に集計します。</div>
+                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。振替元は通常出勤日、振替先は休日として扱います（日曜日の法出判定は固定）。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
+                <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
                 <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
