@@ -30,6 +30,13 @@ const getCurrentYearMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// 20日締めの月次勤怠用。21日になったら翌月締めのページを初期表示する。
+const getCurrentAttendanceYearMonth = () => {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() + (now.getDate() >= 21 ? 1 : 0), 1);
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const DEFAULT_COMPANY_CALENDARS: any = {
   '2025-2026': {
     yamato: {
@@ -329,7 +336,7 @@ export default function AdminPage() {
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
-  const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentYearMonth());
+  const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
   // 月次勤怠の現場クリックカウントは「数えるためだけ」の一時チェック。
   // Supabaseには保存せず、この画面を開いている間だけ保持する。
@@ -1304,15 +1311,24 @@ export default function AdminPage() {
             ? null
             : scheduledDays * calendarHours;
 
-        const absenceCandidates =
+        // 右側の「欠勤」は、手動で「欠勤」を置いた日を必ずカウントする。
+        // それ以外は従来どおり、会社カレンダー上の出勤日に勤務記録がない日を欠勤候補として数える。
+        const manualAbsenceDays = dayDetails.filter(
+          (d) => d.manualStatus === '欠勤'
+        ).length;
+
+        const automaticAbsenceCandidates =
           calendarType === 'none'
             ? 0
             : dayDetails.filter(
                 (d) =>
+                  d.manualStatus !== '欠勤' &&
                   d.isScheduled &&
                   d.attendanceFraction === 0 &&
                   !d.paidLeaveStatus
               ).length;
+
+        const absenceCandidates = manualAbsenceDays + automaticAbsenceCandidates;
 
         const restHolidayWorkDays = dayDetails.filter((d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return false;
@@ -6185,37 +6201,37 @@ export default function AdminPage() {
                     attendanceTopScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
                   }
                 }}
-                className="overflow-x-auto rounded-2xl border border-slate-300 bg-white"
+                className="max-h-[72vh] overflow-auto rounded-2xl border border-slate-300 bg-white"
               >
                 <table className="border-collapse text-[8px] min-w-max lg:w-full">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 z-20 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
+                      <th rowSpan={2} className="sticky left-0 top-0 z-40 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-emerald-100 text-left text-[9px]">
                         作業員
                       </th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         return (
-                          <th key={dateStr} className="w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 text-center">
+                          <th key={dateStr} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 bg-slate-100 text-center">
                             {d}
                           </th>
                         );
                       })}
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">支払</th>
-                      <th rowSpan={2} className="w-[32px] min-w-[32px] px-1 border border-slate-300">区分</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">時間</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">残業</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">欠勤</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">休出</th>
-                      <th rowSpan={2} className="w-[28px] min-w-[28px] px-1 border border-slate-300">法出</th>
-                      <th rowSpan={2} className="w-[30px] min-w-[30px] px-1 border border-slate-300">出勤</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-1 border border-slate-300 bg-slate-100">支払</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[32px] min-w-[32px] px-1 border border-slate-300 bg-slate-100">区分</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-1 border border-slate-300 bg-slate-100">時間</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">残業</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">欠勤</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">休出</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">法出</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-1 border border-slate-300 bg-slate-100">出勤</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         const weekday = ['日','月','火','水','木','金','土'][new Date(y, m - 1, d).getDay()];
                         return (
-                          <th key={`${dateStr}-w`} className={`px-1 py-1 border border-slate-300 text-center ${
+                          <th key={`${dateStr}-w`} className={`sticky top-[25px] z-30 px-1 py-1 border border-slate-300 bg-slate-50 text-center ${
                             weekday === '日' ? 'text-rose-600' : weekday === '土' ? 'text-blue-600' : 'text-slate-500'
                           }`}>
                             {weekday}
