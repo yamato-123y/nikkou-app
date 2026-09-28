@@ -797,7 +797,7 @@ export default function AdminPage() {
   const saveManualAttendanceStatus = (
     workerName: string,
     dateStr: string,
-    status: '管理' | 'サンセイ' | ''
+    status: '管理' | 'サンセイ' | '欠勤' | ''
   ) => {
     if (authRole !== 'admin') return;
 
@@ -810,7 +810,23 @@ export default function AdminPage() {
     const nextOverrides = { ...current, [workerName]: workerMap };
     if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
 
-    setSettings((prev: any) => ({ ...prev, manualAttendanceOverrides: nextOverrides }));
+    // 「欠勤」と有給は同じ日に重ならないようにする。
+    if (status === '欠勤') {
+      const currentPaidLeave = settings.paidLeaveOverrides || {};
+      const paidLeaveWorkerMap = { ...(currentPaidLeave[workerName] || {}) };
+      delete paidLeaveWorkerMap[dateStr];
+      const nextPaidLeave = { ...currentPaidLeave };
+      if (Object.keys(paidLeaveWorkerMap).length > 0) nextPaidLeave[workerName] = paidLeaveWorkerMap;
+      else delete nextPaidLeave[workerName];
+
+      setSettings((prev: any) => ({
+        ...prev,
+        manualAttendanceOverrides: nextOverrides,
+        paidLeaveOverrides: nextPaidLeave
+      }));
+    } else {
+      setSettings((prev: any) => ({ ...prev, manualAttendanceOverrides: nextOverrides }));
+    }
     setAttendanceChangesDirty(true);
   };
 
@@ -901,8 +917,100 @@ export default function AdminPage() {
     const nextOverrides = { ...current, [workerName]: workerMap };
     if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
 
-    setSettings((prev: any) => ({ ...prev, paidLeaveOverrides: nextOverrides }));
+    // 有給を設定した日は、手動の「欠勤」があれば解除する。
+    if (status) {
+      const currentManual = settings.manualAttendanceOverrides || {};
+      const manualWorkerMap = { ...(currentManual[workerName] || {}) };
+      if (manualWorkerMap[dateStr] === '欠勤') {
+        delete manualWorkerMap[dateStr];
+      }
+      const nextManual = { ...currentManual };
+      if (Object.keys(manualWorkerMap).length > 0) nextManual[workerName] = manualWorkerMap;
+      else delete nextManual[workerName];
+
+      setSettings((prev: any) => ({
+        ...prev,
+        paidLeaveOverrides: nextOverrides,
+        manualAttendanceOverrides: nextManual
+      }));
+    } else {
+      setSettings((prev: any) => ({ ...prev, paidLeaveOverrides: nextOverrides }));
+    }
     setAttendanceChangesDirty(true);
+  };
+
+  const buildAttendanceChangeHistoryEntries = () => {
+    const savedAt = new Date().toISOString();
+    const entries: any[] = [];
+    const makeId = (suffix: string) => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${suffix}`;
+
+    const oldManual = originalSettings.manualAttendanceOverrides || {};
+    const newManual = settings.manualAttendanceOverrides || {};
+    const manualWorkers = new Set([...Object.keys(oldManual), ...Object.keys(newManual)]);
+    manualWorkers.forEach((workerName: string) => {
+      const oldMap = oldManual[workerName] || {};
+      const newMap = newManual[workerName] || {};
+      const dates = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+      dates.forEach((date: string) => {
+        const before = oldMap[date] || '';
+        const after = newMap[date] || '';
+        if (before === after) return;
+        const detail = !before && after
+          ? `「${after}」を設定`
+          : before && !after
+            ? `「${before}」を解除`
+            : `「${before}」から「${after}」へ変更`;
+        entries.push({ id: makeId(`${workerName}-${date}-manual`), savedAt, workerName, date, category: '手動勤怠', detail });
+      });
+    });
+
+    const oldPaid = originalSettings.paidLeaveOverrides || {};
+    const newPaid = settings.paidLeaveOverrides || {};
+    const paidWorkers = new Set([...Object.keys(oldPaid), ...Object.keys(newPaid)]);
+    paidWorkers.forEach((workerName: string) => {
+      const oldMap = oldPaid[workerName] || {};
+      const newMap = newPaid[workerName] || {};
+      const dates = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+      dates.forEach((date: string) => {
+        const before = oldMap[date] || '';
+        const after = newMap[date] || '';
+        if (before === after) return;
+        const detail = !before && after
+          ? `「${after}」を設定`
+          : before && !after
+            ? `「${before}」を解除`
+            : `「${before}」から「${after}」へ変更`;
+        entries.push({ id: makeId(`${workerName}-${date}-paid`), savedAt, workerName, date, category: '有給', detail });
+      });
+    });
+
+    const oldMoves = originalSettings.workerHolidayMoves || {};
+    const newMoves = settings.workerHolidayMoves || {};
+    const moveWorkers = new Set([...Object.keys(oldMoves), ...Object.keys(newMoves)]);
+    moveWorkers.forEach((workerName: string) => {
+      const oldByFrom = Object.fromEntries((Array.isArray(oldMoves[workerName]) ? oldMoves[workerName] : []).map((x: any) => [x.from, x.to]));
+      const newByFrom = Object.fromEntries((Array.isArray(newMoves[workerName]) ? newMoves[workerName] : []).map((x: any) => [x.from, x.to]));
+      const fromDates = new Set([...Object.keys(oldByFrom), ...Object.keys(newByFrom)]);
+      fromDates.forEach((fromDate: string) => {
+        const before = oldByFrom[fromDate] || '';
+        const after = newByFrom[fromDate] || '';
+        if (before === after) return;
+        const detail = !before && after
+          ? `休日を ${fromDate} → ${after} に振替`
+          : before && !after
+            ? `休日振替 ${fromDate} → ${before} を解除`
+            : `休日振替を ${fromDate} → ${before} から ${fromDate} → ${after} に変更`;
+        entries.push({ id: makeId(`${workerName}-${fromDate}-holiday`), savedAt, workerName, date: fromDate, category: '休日振替', detail });
+      });
+    });
+
+    const oldOrder = Array.isArray(originalSettings.attendanceWorkerOrder) ? originalSettings.attendanceWorkerOrder : [];
+    const newOrder = Array.isArray(settings.attendanceWorkerOrder) ? settings.attendanceWorkerOrder : [];
+    if (JSON.stringify(oldOrder) !== JSON.stringify(newOrder)) {
+      entries.push({ id: makeId('order'), savedAt, workerName: '全体', date: '', category: '表示順', detail: '作業員の表示順を変更' });
+    }
+
+    return entries;
   };
 
   const saveAttendanceChanges = async () => {
@@ -910,13 +1018,38 @@ export default function AdminPage() {
 
     try {
       setAttendanceChangesSaving(true);
+
+      // 共有履歴は保存時に確定させる。保存直前に最新設定を読み、他の人の履歴をできるだけ取りこぼさない。
+      const historyEntries = buildAttendanceChangeHistoryEntries();
+      let latestHistory = Array.isArray(settings.attendanceChangeHistory)
+        ? settings.attendanceChangeHistory
+        : [];
+      try {
+        const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+        if (latestRes.ok) {
+          const latestSettings = await latestRes.json();
+          latestHistory = Array.isArray(latestSettings?.attendanceChangeHistory)
+            ? latestSettings.attendanceChangeHistory
+            : latestHistory;
+        }
+      } catch (historyFetchError) {
+        console.warn('勤怠変更履歴の最新取得に失敗しました。現在画面の履歴を使います。', historyFetchError);
+      }
+
+      const attendanceChangeHistory = [...historyEntries, ...latestHistory]
+        .filter((item: any, index: number, arr: any[]) =>
+          item?.id && arr.findIndex((x: any) => x?.id === item.id) === index
+        )
+        .slice(0, 200);
+
       const payload = {
         manualAttendanceOverrides: settings.manualAttendanceOverrides || {},
         workerHolidayMoves: settings.workerHolidayMoves || {},
         paidLeaveOverrides: settings.paidLeaveOverrides || {},
         attendanceWorkerOrder: Array.isArray(settings.attendanceWorkerOrder)
           ? settings.attendanceWorkerOrder
-          : []
+          : [],
+        attendanceChangeHistory
       };
 
       const res = await fetch('/api/settings', {
@@ -926,6 +1059,7 @@ export default function AdminPage() {
       });
       if (!res.ok) throw new Error('勤怠変更の保存に失敗しました。');
 
+      setSettings((prev: any) => ({ ...prev, attendanceChangeHistory: payload.attendanceChangeHistory }));
       setOriginalSettings((prev: any) => ({ ...prev, ...payload }));
       setAttendanceChangesDirty(false);
       setSelectedHolidayMove(null);
@@ -4777,6 +4911,47 @@ export default function AdminPage() {
       .filter(Boolean)
   )).sort() : [];
 
+  const renderAttendanceTools = () => (
+    <div className="flex flex-wrap items-center gap-3 text-xs">
+      <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-800 rounded"></span>会社休日</span>
+      <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span>休日出勤</span>
+      <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-amber-100 border border-amber-300 rounded"></span>半日</span>
+      <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="w-4 h-4 bg-sky-100 border border-sky-300 rounded"></span>
+        現場クリック（1・2・3…でカウント）
+      </span>
+
+      <div className="ml-1 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5">
+        <span className="text-blue-800 font-bold">手動勤怠：</span>
+        <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', '管理'); e.dataTransfer.effectAllowed = 'copy'; }} title="「欠勤?」または「休」のセルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-blue-400 bg-white px-3 py-1.5 font-bold text-blue-700 shadow-sm">管理</div>
+        <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', 'サンセイ'); e.dataTransfer.effectAllowed = 'copy'; }} title="日報が入っていない日付セルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-emerald-400 bg-white px-3 py-1.5 font-bold text-emerald-700 shadow-sm">サンセイ</div>
+        <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', '欠勤'); e.dataTransfer.effectAllowed = 'copy'; }} title="日報がない出勤日のセルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-rose-400 bg-white px-3 py-1.5 font-bold text-rose-700 shadow-sm">欠勤</div>
+        <span className="text-slate-500">→ 日報がないセルへ</span>
+      </div>
+
+      <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
+        <span className="font-bold text-slate-700">休日振替：</span>
+        <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（または「休」をクリック→移動先をクリック）（日曜日も可・現場セルとも表内だけで入替）</span>
+      </div>
+
+      <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
+        <span className="text-violet-800 font-bold">有給：</span>
+        {(['有給', '午前有給', '午後有給'] as const).map((leaveType) => (
+          <div key={leaveType} draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', `PAID_LEAVE:${leaveType}`); e.dataTransfer.effectAllowed = 'copy'; }} title="どの日付セルにもドラッグできます" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-violet-300 bg-white px-2 py-1.5 font-bold text-violet-700 shadow-sm">{leaveType}</div>
+        ))}
+        <span className="text-slate-500">→どのセルにも可</span>
+      </div>
+    </div>
+  );
+
+  const formatAttendanceHistoryTime = (value: string) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg relative">
       {showSaveToast && (
@@ -5948,69 +6123,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-slate-800 rounded"></span>会社休日</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></span>休日出勤</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-amber-100 border border-amber-300 rounded"></span>半日</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-4 h-4 bg-rose-100 border border-rose-300 rounded"></span>欠勤候補</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="w-4 h-4 bg-sky-100 border border-sky-300 rounded"></span>
-                  現場クリック（1・2・3…でカウント）
-                </span>
-
-                <div className="ml-1 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-2 py-1.5">
-                  <span className="text-blue-800 font-bold">手動出勤：</span>
-                  <div
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', '管理');
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    title="「欠勤?」または「休」のセルへドラッグしてください"
-                    className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-blue-400 bg-white px-3 py-1.5 font-bold text-blue-700 shadow-sm"
-                  >
-                    管理
-                  </div>
-                  <div
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', 'サンセイ');
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    title="日報が入っていない日付セルへドラッグしてください"
-                    className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-emerald-400 bg-white px-3 py-1.5 font-bold text-emerald-700 shadow-sm"
-                  >
-                    サンセイ
-                  </div>
-                  <span className="text-slate-500">→ 日報がないセルへ</span>
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
-                  <span className="font-bold text-slate-700">休日振替：</span>
-                  <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（または「休」をクリック→移動先をクリック）（日曜日も可・現場セルとも表内だけで入替）</span>
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
-                  <span className="text-violet-800 font-bold">有給：</span>
-
-                  {(['有給', '午前有給', '午後有給'] as const).map((leaveType) => (
-                    <div
-                      key={leaveType}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', `PAID_LEAVE:${leaveType}`);
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      title="どの日付セルにもドラッグできます"
-                      className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-violet-300 bg-white px-2 py-1.5 font-bold text-violet-700 shadow-sm"
-                    >
-                      {leaveType}
-                    </div>
-                  ))}
-
-                  <span className="text-slate-500">→どのセルにも可</span>
-                </div>
-              </div>
+              {renderAttendanceTools()}
 
               {authRole === 'admin' && (
                 <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
@@ -6220,6 +6333,7 @@ export default function AdminPage() {
                               const hasReportWork = d.fraction > 0;
                               const isManagement = d.manualStatus === '管理' && !hasReportWork;
                               const isSansei = d.manualStatus === 'サンセイ' && !hasReportWork;
+                              const isAbsence = d.manualStatus === '欠勤' && !hasReportWork;
                               const paidLeaveStatus = d.paidLeaveStatus || '';
                               const hasAttendance = d.attendanceFraction > 0;
                               const travelMarkNumber = Number(d.travelAllowanceMarkNumber || 0);
@@ -6240,12 +6354,21 @@ export default function AdminPage() {
                                 !hasReportWork &&
                                 !isManagement &&
                                 !isSansei &&
+                                !isAbsence &&
                                 row.calendarType !== 'none' &&
                                 (d.isScheduled || d.isHoliday);
                               const canDropSansei =
                                 !hasReportWork &&
                                 !isManagement &&
-                                !isSansei;
+                                !isSansei &&
+                                !isAbsence;
+                              const canDropAbsence =
+                                !hasReportWork &&
+                                !isManagement &&
+                                !isSansei &&
+                                !isAbsence &&
+                                !paidLeaveStatus &&
+                                !d.isHoliday;
 
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
@@ -6262,6 +6385,9 @@ export default function AdminPage() {
                               } else if (isSansei) {
                                 bg = 'bg-emerald-100';
                                 textColor = 'text-emerald-800';
+                              } else if (isAbsence) {
+                                bg = 'bg-rose-100';
+                                textColor = 'text-rose-800';
                               } else if (d.isHoliday) {
                                 if (hasAttendance) {
                                   bg = 'bg-orange-100';
@@ -6284,7 +6410,9 @@ export default function AdminPage() {
                                   ? '管理'
                                   : isSansei
                                     ? 'サンセイ'
-                                    : d.isHoliday
+                                    : isAbsence
+                                      ? '欠勤'
+                                      : d.isHoliday
                                       ? ''
                                       : paidLeaveStatus
                                         ? ''
@@ -6304,10 +6432,12 @@ export default function AdminPage() {
                                           ? `${d.date} / 管理（クリックで解除）`
                                         : isSansei
                                           ? `${d.date} / サンセイ（クリックで解除）`
+                                        : isAbsence
+                                          ? `${d.date} / 欠勤（クリックで解除）`
                                         : canDropManagement
-                                          ? `${d.date} / 「管理」または「サンセイ」をここへドラッグできます。有給はどのセルにもドラッグできます`
-                                        : canDropSansei
-                                          ? `${d.date} / 「サンセイ」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                          ? `${d.date} / 「管理」「サンセイ」「欠勤」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                        : canDropSansei || canDropAbsence
+                                          ? `${d.date} / 「サンセイ」または「欠勤」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
                                   onDragOver={(e) => {
@@ -6328,6 +6458,13 @@ export default function AdminPage() {
                                     if (dropped === 'サンセイ') {
                                       if (canDropSansei) {
                                         saveManualAttendanceStatus(row.name, d.date, 'サンセイ');
+                                      }
+                                      return;
+                                    }
+
+                                    if (dropped === '欠勤') {
+                                      if (canDropAbsence) {
+                                        saveManualAttendanceStatus(row.name, d.date, '欠勤');
                                       }
                                       return;
                                     }
@@ -6386,11 +6523,19 @@ export default function AdminPage() {
                                       confirm(`${row.name} / ${d.date} の「サンセイ」を解除しますか？`)
                                     ) {
                                       saveManualAttendanceStatus(row.name, d.date, '');
+                                      return;
+                                    }
+
+                                    if (
+                                      isAbsence &&
+                                      confirm(`${row.name} / ${d.date} の「欠勤」を解除しますか？`)
+                                    ) {
+                                      saveManualAttendanceStatus(row.name, d.date, '');
                                     }
                                   }}
                                   className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
-                                    canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
-                                  } ${(isManagement || isSansei || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
+                                    canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : canDropAbsence ? 'hover:ring-2 hover:ring-inset hover:ring-rose-400' : ''
+                                  } ${(isManagement || isSansei || isAbsence || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
                                   } ${
                                     travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
@@ -6404,7 +6549,7 @@ export default function AdminPage() {
                                     <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
-                                    {row.calendarType === 'none' && d.isHoliday && !hasReportWork && !isManagement && !isSansei && (
+                                    {row.calendarType === 'none' && d.isHoliday && !hasReportWork && !isManagement && !isSansei && !isAbsence && (
                                       <div
                                         title="日曜日・日本の祝日（表示用）"
                                         className="select-none rounded bg-slate-900 px-1 py-1 text-[8px] font-black leading-none text-white min-w-[24px]"
@@ -6550,18 +6695,54 @@ export default function AdminPage() {
                 </table>
               </div>
 
+              {/* カレンダー下部にも上部と同じ操作欄を表示 */}
+              <div className="pt-2 border-t border-slate-200">{renderAttendanceTools()}</div>
+
+              {/* 保存済みの勤怠変更履歴。Supabaseのsettingsに保存するため、複数端末で共有される。 */}
+              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <div>
+                    <div className="font-black text-slate-800">🕘 勤怠変更履歴（共有）</div>
+                    <div className="mt-0.5 text-[11px] text-slate-500">「勤怠変更を保存」を押した内容を、新しい順に表示します。</div>
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-500">最新30件</div>
+                </div>
+                <div className="max-h-80 overflow-y-auto px-4 py-3">
+                  {(Array.isArray(settings.attendanceChangeHistory) ? settings.attendanceChangeHistory : []).length === 0 ? (
+                    <div className="py-4 text-center text-sm text-slate-400">まだ保存済みの変更履歴はありません。</div>
+                  ) : (
+                    <div className="relative ml-2 border-l-2 border-slate-200 pl-5 space-y-4">
+                      {(settings.attendanceChangeHistory || []).slice(0, 30).map((item: any, idx: number) => (
+                        <div key={item?.id || `${item?.savedAt || 'history'}-${idx}`} className="relative">
+                          <span className="absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow" />
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="text-[11px] font-bold text-slate-400">{formatAttendanceHistoryTime(item?.savedAt || '')}</span>
+                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{item?.category || '変更'}</span>
+                          </div>
+                          <div className="mt-1 text-sm leading-relaxed text-slate-700">
+                            <span className="font-black text-slate-900">{item?.workerName || '不明'}</span>
+                            {item?.date ? <span className="text-slate-500"> ・ {item.date}</span> : null}
+                            <span> ・ {item?.detail || ''}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="text-xs text-slate-500 leading-relaxed space-y-1">
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
-                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を対象セルへドラッグしてください。どちらも1日出勤として集計します。</div>
+                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を、欠勤日は「欠勤」を対象セルへドラッグしてください。「管理」「サンセイ」は1日出勤として集計し、「欠勤」は出勤には加算しません。</div>
                 <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。日曜日も移動できます。現場が入っている日へ移した場合は、この月次勤怠表の中だけで「休」と勤務セルを入れ替えて表示します。元の日報・現場情報は一切変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
-                <div>※ 「管理」「サンセイ」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
-                <div>※ 休日振替・有給・管理・サンセイの変更は操作中は画面内だけに反映されます。最後に上の「勤怠変更を保存」を押すと、まとめて1回保存されます。</div>
+                <div>※ 「管理」「サンセイ」「欠勤」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
+                <div>※ 休日振替・有給・管理・サンセイ・欠勤の変更は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
