@@ -1308,10 +1308,32 @@ export default function Home() {
   const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
 
-  const reporterOptions = Array.from(new Set([
-    ...(settings.managers || []).map((m:any) => String(m?.name || '').trim()),
-    ...(settings.workers || []).map((w:any) => String(w?.name || '').trim())
-  ].filter(Boolean))) as string[];
+  // 日報の報告者は、現場で日報を送信する対象者だけに限定する。
+  // 並び順も固定して、不要な実習生名などが候補に出ないようにする。
+  const reporterOptions = [
+    '岩橋',
+    '寺岡',
+    '塩澤',
+    '徳本',
+    '吉田',
+    '湯浅',
+    '島村',
+    '鳥羽',
+    '嶋田'
+  ];
+
+  // 以前この端末に対象外の報告者が保存されていた場合は、
+  // 一度だけ選び直してもらう。
+  useEffect(() => {
+    if (!reporter || reporterOptions.includes(reporter)) return;
+    setReporter('');
+    setIsReporterEditing(true);
+    try {
+      window.localStorage.removeItem('yamato_daily_reporter');
+    } catch (e) {
+      console.error('対象外の報告者設定を解除できませんでした。', e);
+    }
+  }, [reporter]);
 
   const saveReporterToDevice = (name: string) => {
     setReporter(name);
