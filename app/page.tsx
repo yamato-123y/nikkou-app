@@ -1509,6 +1509,18 @@ export default function Home() {
                 </span>
               </div>
 
+              {Object.keys(jobTypesCount).length > 0 && (
+                <div>
+                  <span className="font-bold text-slate-500 block text-xs">作業種別・人数</span>
+                  <span className="font-bold text-slate-800">
+                    {Object.entries(jobTypesCount)
+                      .filter(([, count]) => Number(count) > 0)
+                      .map(([job, count]) => `${job} ${count}名`)
+                      .join(' / ') || 'なし'}
+                  </span>
+                </div>
+              )}
+
               {(leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 || (manager === '徳本' && (ishikawaLeaseHeavy.length > 0 || ishikawaLeaseAttach.length > 0 || ishikawaLeaseOther.length > 0 || ishikawaCustomMachines.length > 0)) || selectedOwnMachines.length > 0 || selectedVehicles.length > 0 || otherLeases.length > 0) && (
                 <div>
                   <span className="font-bold text-slate-500 block text-xs">重機・車両・リース</span>
@@ -2012,6 +2024,62 @@ export default function Home() {
                </div>
              );
            })()}
+        </div>
+
+        {/* 作業種別・人数（作業員の内訳） */}
+        <div className="bg-white p-5 rounded-3xl border shadow-sm space-y-4">
+          <div className="border-b pb-3">
+            <span className="font-black text-lg text-orange-600 block">
+              🏷️ 作業種別・人数
+            </span>
+            <p className="text-xs md:text-sm font-medium text-slate-500 mt-1">
+              本日の作業員の内訳を入力してください。（例：解体工 3名・土工 2名・オペ 1名）
+            </p>
+          </div>
+
+          {(settings.jobTypes || []).length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm font-medium text-slate-500">
+              職種マスタの登録がありません。管理画面の「職種一覧」から登録してください。
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {(settings.jobTypes || []).map((j: any) => {
+                const jobName = typeof j === 'string' ? j : j?.name;
+                if (!jobName) return null;
+                return (
+                  <label
+                    key={jobName}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2"
+                  >
+                    <span className="block text-[15px] font-bold text-slate-800">{jobName}</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={jobTypesCount[jobName] || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setJobTypesCount((prev) => {
+                            const next = { ...prev };
+                            if (value === '' || Number(value) <= 0) {
+                              delete next[jobName];
+                            } else {
+                              next[jobName] = value;
+                            }
+                            return next;
+                          });
+                        }}
+                        className="w-full h-12 px-3 rounded-xl border-2 border-slate-300 bg-white text-center text-[18px] font-black text-slate-900 outline-none focus:border-blue-500"
+                      />
+                      <span className="shrink-0 text-sm font-bold text-slate-600">名</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 3. 外注会社・作業内容 */}
