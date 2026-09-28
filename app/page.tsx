@@ -16,6 +16,9 @@ export default function Home() {
 
   const [location, setLocation] = useState('');
   const [manager, setManager] = useState('');
+  // この端末の報告者。初回に選択し、以後は localStorage に記憶する。
+  const [reporter, setReporter] = useState('');
+  const [isReporterEditing, setIsReporterEditing] = useState(false);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
@@ -185,6 +188,21 @@ export default function Home() {
   const [showPreviousCopyModal, setShowPreviousCopyModal] = useState(false);
   // 日報の二重送信防止。送信中は確認画面の操作をロックする。
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedReporter = window.localStorage.getItem('yamato_daily_reporter') || '';
+      if (savedReporter) {
+        setReporter(savedReporter);
+        setIsReporterEditing(false);
+      } else {
+        setIsReporterEditing(true);
+      }
+    } catch (e) {
+      console.error('報告者の端末保存を読み込めませんでした。', e);
+      setIsReporterEditing(true);
+    }
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -955,6 +973,11 @@ export default function Home() {
   // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!reporter) {
+      alert('最初に報告者を選択してください。');
+      setIsReporterEditing(true);
+      return;
+    }
     if (!location) {
       alert('現場名を選択してください。');
       return;
@@ -977,7 +1000,7 @@ export default function Home() {
       const isIshikawaActive = manager === '徳本';
 
       const reportPayload: any = {
-          date, location, manager, workers: selectedWorkers,
+          date, location, manager, reporter, workers: selectedWorkers,
           workerOvertimeHours: Object.fromEntries(
             Object.entries(workerOvertimeHours)
               .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
@@ -1285,6 +1308,22 @@ export default function Home() {
   const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
 
+  const reporterOptions = Array.from(new Set([
+    ...(settings.managers || []).map((m:any) => String(m?.name || '').trim()),
+    ...(settings.workers || []).map((w:any) => String(w?.name || '').trim())
+  ].filter(Boolean))) as string[];
+
+  const saveReporterToDevice = (name: string) => {
+    setReporter(name);
+    if (!name) return;
+    try {
+      window.localStorage.setItem('yamato_daily_reporter', name);
+    } catch (e) {
+      console.error('報告者を端末に保存できませんでした。', e);
+    }
+    setIsReporterEditing(false);
+  };
+
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
 
@@ -1292,6 +1331,51 @@ export default function Home() {
       <div className="bg-[#1e293b] text-white p-6 rounded-2xl text-center shadow-md">
         <h1 className="text-2xl font-black">📱 現場日報入力</h1>
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
+      </div>
+
+      {/* この端末の報告者：初回だけ選択し、次回以降は端末に記憶 */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        {!reporter || isReporterEditing ? (
+          <div className="space-y-3">
+            <div>
+              <div className="font-black text-slate-900">👤 この端末の報告者</div>
+              <div className="text-xs font-bold text-slate-500 mt-1">初回だけ選択してください。次回から自動で表示されます。</div>
+            </div>
+            <select
+              value={reporter}
+              onChange={(e) => saveReporterToDevice(e.target.value)}
+              className="w-full p-3.5 border-2 rounded-xl font-bold text-base bg-white text-slate-950"
+            >
+              <option value="">報告者を選択してください</option>
+              {reporterOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            {reporter && (
+              <button
+                type="button"
+                onClick={() => setIsReporterEditing(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold"
+              >
+                変更せず戻る
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-500">この端末の報告者</div>
+              <div className="font-black text-lg text-slate-950 truncate">👤 {reporter}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsReporterEditing(true)}
+              className="shrink-0 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold"
+            >
+              変更
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 送信内容確認ポップアップ */}
@@ -1483,6 +1567,11 @@ export default function Home() {
 
             {/* 確認項目リスト */}
             <div className="bg-slate-50 p-4 rounded-2xl border space-y-3 text-sm overflow-y-auto flex-1">
+              <div>
+                <span className="font-bold text-slate-500 block text-xs">報告者</span>
+                <span className="font-black text-slate-950">{reporter || '未設定'}</span>
+              </div>
+
               <div>
                 <span className="font-bold text-slate-500 block text-xs">日付 / 現場 / 職長</span>
                 <span className="font-black text-slate-950">{date} / {location} ({manager})</span>
