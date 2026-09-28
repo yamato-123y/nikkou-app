@@ -3003,7 +3003,7 @@ export default function Home() {
                事務所へ伝えたいことや、相談したいことがあれば入力してください。
              </div>
              <textarea
-               placeholder="〇〇について確認したい。など"
+               placeholder="〇〇について確認したい。よく使う機械をリストに追加してほしい。など"
                value={officeMessage}
                onChange={e=>setOfficeMessage(e.target.value)}
                className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
