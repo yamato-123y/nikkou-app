@@ -7557,6 +7557,8 @@ export default function AdminPage() {
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                                 {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
+
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
                               </div>
 
                               <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
@@ -7729,6 +7731,8 @@ export default function AdminPage() {
                                 {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                                 {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
+
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
                               </div>
 
                               <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
@@ -7888,6 +7892,8 @@ export default function AdminPage() {
                         {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
                         {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
                         <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
+
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
                       </div>
 
                       <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
@@ -9073,6 +9079,12 @@ export default function AdminPage() {
                       <option value="">選択なし</option>
                       {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1.5">報告者（送信者）</label>
+                    <div className="w-full p-3.5 border border-violet-200 rounded-2xl text-sm bg-violet-50 font-extrabold text-violet-700 shadow-2xs">
+                      📨 {editingReport.reporter || editingReport.data?.reporter || '未記録'}
+                    </div>
                   </div>
                 </div>
               </div>
