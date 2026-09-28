@@ -6677,7 +6677,7 @@ export default function AdminPage() {
                               {row.overtimeHours}h
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
-                              {row.calendarType === 'none' ? '-' : row.absenceCandidates}
+                              {row.absenceCandidates}
                             </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700 leading-tight">
                               {row.restHolidayWorkDays > 0 || row.restHolidayWorkHours > 0 ? (
