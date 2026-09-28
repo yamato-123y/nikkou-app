@@ -797,7 +797,7 @@ export default function AdminPage() {
   const saveManualAttendanceStatus = (
     workerName: string,
     dateStr: string,
-    status: '管理' | ''
+    status: '管理' | 'サンセイ' | ''
   ) => {
     if (authRole !== 'admin') return;
 
@@ -1072,10 +1072,14 @@ export default function AdminPage() {
           const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
           const holidays = new Set(calendarEntry?.holidays || []);
           const isCalendarLinked = !!calendarEntry;
-          const baseHoliday = isCalendarLinked ? holidays.has(date) : false;
+          const [displayY, displayM, displayD] = date.split('-').map(Number);
+          const isJapaneseSunday = new Date(displayY, displayM - 1, displayD).getDay() === 0;
+          const isJapaneseHoliday = getDayInfo(date).isHoliday;
+          const noneCategoryHoliday = calendarType === 'none' && (isJapaneseSunday || isJapaneseHoliday);
+          const baseHoliday = isCalendarLinked ? holidays.has(date) : noneCategoryHoliday;
           const isHoliday = isCalendarLinked
             ? isEffectiveWorkerHoliday(workerMaster, date, baseHoliday)
-            : false;
+            : noneCategoryHoliday;
           const isScheduled = isCalendarLinked ? !isHoliday : false;
           const holidayMoves = holidayMovesForWorker;
           const holidayMove = holidayMoves.find((x: any) => x.to === date) || null;
@@ -1086,17 +1090,17 @@ export default function AdminPage() {
             settings.paidLeaveOverrides?.[name]?.[date] || '';
           const fraction = Number(actual?.fraction || 0);
           const attendanceFraction =
-            fraction > 0 ? fraction : manualStatus === '管理' ? 1 : 0;
+            fraction > 0 ? fraction : (manualStatus === '管理' || manualStatus === 'サンセイ') ? 1 : 0;
 
           const explicitHolidayWorkHours = Number(actual?.holidayWorkHours || 0);
           const [yy, mm, dd] = date.split('-').map(Number);
           const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
           const isAutoHolidayWork =
-            fraction > 0 && isHoliday;
+            fraction > 0 && isCalendarLinked && isHoliday;
           const defaultHolidayHours =
             Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
           const effectiveHolidayWorkHours =
-            isHoliday
+            (isCalendarLinked && isHoliday)
               ? (explicitHolidayWorkHours > 0
                   ? explicitHolidayWorkHours
                   : isAutoHolidayWork
@@ -1449,11 +1453,11 @@ export default function AdminPage() {
             return [siteText, marks].filter(Boolean).join(' ');
           }
 
-          if (d.manualStatus === '管理') {
-            return ['管理', d.paidLeaveStatus || ''].filter(Boolean).join(' ');
+          if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ') {
+            return [d.manualStatus, d.paidLeaveStatus || ''].filter(Boolean).join(' ');
           }
 
-          if (row.calendarType !== 'none' && d.isHoliday) {
+          if (d.isHoliday) {
             return ['休', d.paidLeaveStatus || ''].filter(Boolean).join(' ');
           }
 
@@ -1536,13 +1540,16 @@ export default function AdminPage() {
         if (d.sites?.some((site: string) => markedSiteNames.has(site))) {
           fill = 'BFDBFE';
           fontColor = '075985';
-        } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理') {
+        } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理' && d.manualStatus !== 'サンセイ') {
           fill = 'F3E8FF';
           fontColor = '6B21A8';
         } else if (d.manualStatus === '管理' && d.fraction === 0) {
           fill = 'DBEAFE';
           fontColor = '1D4ED8';
-        } else if (row.calendarType !== 'none' && d.isHoliday) {
+        } else if (d.manualStatus === 'サンセイ' && d.fraction === 0) {
+          fill = 'D1FAE5';
+          fontColor = '047857';
+        } else if (d.isHoliday) {
           fill = d.attendanceFraction > 0 ? 'FED7AA' : '374151';
           fontColor = d.attendanceFraction > 0 ? '9A3412' : 'FFFFFF';
         } else if (d.fraction === 0.5) {
@@ -5964,7 +5971,18 @@ export default function AdminPage() {
                   >
                     管理
                   </div>
-                  <span className="text-slate-500">→「欠勤?」・「休」へ</span>
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', 'サンセイ');
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    title="日報が入っていない日付セルへドラッグしてください"
+                    className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-emerald-400 bg-white px-3 py-1.5 font-bold text-emerald-700 shadow-sm"
+                  >
+                    サンセイ
+                  </div>
+                  <span className="text-slate-500">→ 日報がないセルへ</span>
                 </div>
 
                 <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
@@ -6201,6 +6219,7 @@ export default function AdminPage() {
                             {row.details.map((d: any) => {
                               const hasReportWork = d.fraction > 0;
                               const isManagement = d.manualStatus === '管理' && !hasReportWork;
+                              const isSansei = d.manualStatus === 'サンセイ' && !hasReportWork;
                               const paidLeaveStatus = d.paidLeaveStatus || '';
                               const hasAttendance = d.attendanceFraction > 0;
                               const travelMarkNumber = Number(d.travelAllowanceMarkNumber || 0);
@@ -6220,8 +6239,13 @@ export default function AdminPage() {
                               const canDropManagement =
                                 !hasReportWork &&
                                 !isManagement &&
+                                !isSansei &&
                                 row.calendarType !== 'none' &&
                                 (d.isScheduled || d.isHoliday);
+                              const canDropSansei =
+                                !hasReportWork &&
+                                !isManagement &&
+                                !isSansei;
 
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
@@ -6235,7 +6259,10 @@ export default function AdminPage() {
                               } else if (isManagement) {
                                 bg = 'bg-blue-100';
                                 textColor = 'text-blue-800';
-                              } else if (row.calendarType !== 'none' && d.isHoliday) {
+                              } else if (isSansei) {
+                                bg = 'bg-emerald-100';
+                                textColor = 'text-emerald-800';
+                              } else if (d.isHoliday) {
                                 if (hasAttendance) {
                                   bg = 'bg-orange-100';
                                   textColor = 'text-orange-900';
@@ -6255,13 +6282,15 @@ export default function AdminPage() {
                                 ? displaySites.join('・') || '出勤'
                                 : isManagement
                                   ? '管理'
-                                  : row.calendarType !== 'none' && d.isHoliday
-                                    ? ''
-                                    : paidLeaveStatus
+                                  : isSansei
+                                    ? 'サンセイ'
+                                    : d.isHoliday
                                       ? ''
-                                      : row.calendarType !== 'none' && d.isScheduled
-                                        ? '欠勤?'
-                                        : '';
+                                      : paidLeaveStatus
+                                        ? ''
+                                        : row.calendarType !== 'none' && d.isScheduled
+                                          ? '欠勤?'
+                                          : '';
 
                               return (
                                 <td
@@ -6273,8 +6302,12 @@ export default function AdminPage() {
                                         ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）※月次勤怠表内だけの入替`
                                         : isManagement
                                           ? `${d.date} / 管理（クリックで解除）`
+                                        : isSansei
+                                          ? `${d.date} / サンセイ（クリックで解除）`
                                         : canDropManagement
-                                          ? `${d.date} / 「管理」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                          ? `${d.date} / 「管理」または「サンセイ」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                        : canDropSansei
+                                          ? `${d.date} / 「サンセイ」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
                                   onDragOver={(e) => {
@@ -6288,6 +6321,13 @@ export default function AdminPage() {
                                     if (dropped === '管理') {
                                       if (canDropManagement) {
                                         saveManualAttendanceStatus(row.name, d.date, '管理');
+                                      }
+                                      return;
+                                    }
+
+                                    if (dropped === 'サンセイ') {
+                                      if (canDropSansei) {
+                                        saveManualAttendanceStatus(row.name, d.date, 'サンセイ');
                                       }
                                       return;
                                     }
@@ -6335,14 +6375,22 @@ export default function AdminPage() {
 
                                     if (
                                       isManagement &&
-                                      confirm(`${row.name} / ${d.date} の「管理」を解除して「欠勤?」に戻しますか？`)
+                                      confirm(`${row.name} / ${d.date} の「管理」を解除しますか？`)
+                                    ) {
+                                      saveManualAttendanceStatus(row.name, d.date, '');
+                                      return;
+                                    }
+
+                                    if (
+                                      isSansei &&
+                                      confirm(`${row.name} / ${d.date} の「サンセイ」を解除しますか？`)
                                     ) {
                                       saveManualAttendanceStatus(row.name, d.date, '');
                                     }
                                   }}
                                   className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
                                     canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''
-                                  } ${(isManagement || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
+                                  } ${(isManagement || isSansei || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
                                   } ${
                                     travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
@@ -6356,6 +6404,14 @@ export default function AdminPage() {
                                     <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
+                                    {row.calendarType === 'none' && d.isHoliday && !hasReportWork && !isManagement && !isSansei && (
+                                      <div
+                                        title="日曜日・日本の祝日（表示用）"
+                                        className="select-none rounded bg-slate-900 px-1 py-1 text-[8px] font-black leading-none text-white min-w-[24px]"
+                                      >
+                                        休
+                                      </div>
+                                    )}
                                     {canDragHoliday && (
                                       <div
                                         draggable
@@ -6499,14 +6555,14 @@ export default function AdminPage() {
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
-                <div>※ 現場管理・安全パトロール等で日報を送信しない日は、上の「管理」を「欠勤?」または「休」のセルへドラッグしてください。「管理」として1日出勤に集計します。</div>
+                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を対象セルへドラッグしてください。どちらも1日出勤として集計します。</div>
                 <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。日曜日も移動できます。現場が入っている日へ移した場合は、この月次勤怠表の中だけで「休」と勤務セルを入れ替えて表示します。元の日報・現場情報は一切変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
-                <div>※ 「管理」を解除する場合は、青色の「管理」セルをクリックしてください。</div>
-                <div>※ 休日振替・有給・管理の変更は操作中は画面内だけに反映されます。最後に上の「勤怠変更を保存」を押すと、まとめて1回保存されます。</div>
-                <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定を行いません。</div>
+                <div>※ 「管理」「サンセイ」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
+                <div>※ 休日振替・有給・管理・サンセイの変更は操作中は画面内だけに反映されます。最後に上の「勤怠変更を保存」を押すと、まとめて1回保存されます。</div>
+                <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
             </div>
