@@ -329,6 +329,14 @@ export default function AdminPage() {
   const [subcontractorPeriodUnitPrices, setSubcontractorPeriodUnitPrices] = useState<any>({});
   // 期間単価を追加するときの入力内容。これは画面内だけで保持し、追加後に設定へ反映する。
   const [subcontractorPeriodDrafts, setSubcontractorPeriodDrafts] = useState<any>({});
+  // 請求書照合：日報の外注明細を「その現場・その日・その行」だけ修正する上書き。
+  // マスタ単価や他現場の日報には影響させない。
+  const [subcontractorInvoiceOverrides, setSubcontractorInvoiceOverrides] = useState<any>({});
+  const [showSubcontractorInvoiceModal, setShowSubcontractorInvoiceModal] = useState(false);
+  const [subcontractorInvoiceFilter, setSubcontractorInvoiceFilter] = useState({ startDate: '', endDate: '', company: '' });
+  const [subcontractorInvoiceEditingKey, setSubcontractorInvoiceEditingKey] = useState<string | null>(null);
+  const [subcontractorInvoiceDrafts, setSubcontractorInvoiceDrafts] = useState<any>({});
+  const [subcontractorInvoiceAmount, setSubcontractorInvoiceAmount] = useState('');
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -417,6 +425,7 @@ export default function AdminPage() {
           if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
           if (sData.subcontractorMonthlyUnitPrices) setSubcontractorMonthlyUnitPrices(sData.subcontractorMonthlyUnitPrices);
           if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
+          if (sData.subcontractorInvoiceOverrides) setSubcontractorInvoiceOverrides(sData.subcontractorInvoiceOverrides);
           if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -2411,6 +2420,178 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const getSubcontractorInvoiceLineKey = (r: any, subIndex: number) => {
+    const reportId = r?.id ?? r?.reportId ?? `${normalizeDateStr(r?.date || '')}_${String(r?.location || '')}`;
+    return `${String(reportId)}__${subIndex}`;
+  };
+
+  const getEffectiveSubcontractorInvoiceLine = (
+    locName: string,
+    r: any,
+    sub: any,
+    subIndex: number
+  ) => {
+    const lineKey = getSubcontractorInvoiceLineKey(r, subIndex);
+    const rowOverride = subcontractorInvoiceOverrides?.[locName]?.[lineKey] || {};
+    const originalCompany = String(sub?.company || '会社名未設定');
+    const originalTask = String(sub?.task || '作業内容未設定');
+    const task = rowOverride.task !== undefined ? String(rowOverride.task) : originalTask;
+    const company = originalCompany;
+    const originalKey = `${originalCompany}__${originalTask}`;
+    const key = `${company}__${task}`;
+    const subDate = normalizeDateStr(r?.date || '');
+
+    const subMaster = (settings.subcontractors || []).find(
+      (x: any) => x.company === company && x.task === task
+    );
+    const originalMaster = (settings.subcontractors || []).find(
+      (x: any) => x.company === originalCompany && x.task === originalTask
+    );
+    const snapshotPrice = r?.costSnapshot?.subcontractorPrices?.[originalKey];
+    const baseUnitPrice =
+      sub?.price !== undefined && sub?.price !== null && sub?.price !== ''
+        ? Number(sub.price)
+        : snapshotPrice !== undefined && snapshotPrice !== null && snapshotPrice !== ''
+          ? Number(snapshotPrice)
+          : Number(subMaster?.price ?? originalMaster?.price ?? 0);
+
+    const subParts = subDate.split('-');
+    const subYearMonth = subParts.length >= 2 ? `${subParts[0]}-${subParts[1]}` : '日付不明';
+    const monthlyOverrideKey = `${subYearMonth}__${key}`;
+    const rawMonthlyOverride = subcontractorMonthlyUnitPrices?.[locName]?.[monthlyOverrideKey];
+    const locPeriodRules = Array.isArray(subcontractorPeriodUnitPrices?.[locName])
+      ? subcontractorPeriodUnitPrices[locName]
+      : [];
+    const periodRule = [...locPeriodRules].reverse().find((rule: any) => {
+      if (!rule || rule.key !== key || !subDate) return false;
+      const startDate = String(rule.startDate || '');
+      const endDate = String(rule.endDate || '');
+      const rawPrice = rule.price;
+      if (!startDate || !endDate || rawPrice === '' || rawPrice === undefined || rawPrice === null) return false;
+      return subDate >= startDate && subDate <= endDate;
+    });
+
+    const rawRowPrice = rowOverride.price;
+    const rawPeriodOverride = periodRule?.price;
+    const unitPrice =
+      rawRowPrice !== '' && rawRowPrice !== undefined && rawRowPrice !== null
+        ? Number(rawRowPrice)
+        : rawPeriodOverride !== '' && rawPeriodOverride !== undefined && rawPeriodOverride !== null
+          ? Number(rawPeriodOverride)
+          : rawMonthlyOverride !== '' && rawMonthlyOverride !== undefined && rawMonthlyOverride !== null
+            ? Number(rawMonthlyOverride)
+            : baseUnitPrice;
+
+    const rawCount = rowOverride.count;
+    const count = rawCount !== '' && rawCount !== undefined && rawCount !== null
+      ? Number(rawCount)
+      : Number(sub?.count || 0);
+
+    return {
+      lineKey,
+      reportId: r?.id,
+      date: subDate,
+      location: r?.location || locName,
+      company,
+      task,
+      originalTask,
+      originalKey,
+      key,
+      count,
+      unitPrice,
+      amount: count * unitPrice,
+      hasOverride: !!subcontractorInvoiceOverrides?.[locName]?.[lineKey]
+    };
+  };
+
+  const openSubcontractorInvoiceModal = () => {
+    if (!modalLocation) return;
+    setSubcontractorInvoiceFilter({ startDate: '', endDate: '', company: '' });
+    setSubcontractorInvoiceEditingKey(null);
+    setSubcontractorInvoiceDrafts({});
+    setSubcontractorInvoiceAmount('');
+    setShowSubcontractorInvoiceModal(true);
+  };
+
+  const startSubcontractorInvoiceEdit = (line: any) => {
+    if (authRole !== 'admin') return;
+    setSubcontractorInvoiceEditingKey(line.lineKey);
+    setSubcontractorInvoiceDrafts((prev: any) => ({
+      ...prev,
+      [line.lineKey]: {
+        task: String(line.task || ''),
+        count: String(line.count ?? ''),
+        price: String(line.unitPrice ?? '')
+      }
+    }));
+  };
+
+  const handleSubcontractorInvoiceDraftChange = (
+    lineKey: string,
+    field: 'task' | 'count' | 'price',
+    value: string
+  ) => {
+    setSubcontractorInvoiceDrafts((prev: any) => ({
+      ...prev,
+      [lineKey]: {
+        ...(prev[lineKey] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const saveSubcontractorInvoiceRow = (locName: string, line: any) => {
+    if (authRole !== 'admin') return;
+    const draft = subcontractorInvoiceDrafts[line.lineKey] || {};
+    if (!String(draft.task || '').trim()) {
+      alert('作業内容を入力してください。');
+      return;
+    }
+    if (draft.count === '' || Number(draft.count) < 0 || Number.isNaN(Number(draft.count))) {
+      alert('人工数を正しく入力してください。');
+      return;
+    }
+    if (draft.price === '' || Number(draft.price) < 0 || Number.isNaN(Number(draft.price))) {
+      alert('単価を正しく入力してください。');
+      return;
+    }
+
+    setSubcontractorInvoiceOverrides((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev[locName] || {}),
+        [line.lineKey]: {
+          task: String(draft.task).trim(),
+          count: String(draft.count),
+          price: String(draft.price),
+          updatedAt: new Date().toISOString()
+        }
+      }
+    }));
+
+    // 行単位の請求書照合を使う場合は、同じ「業者＋作業内容」の一括確定額より明細を優先する。
+    setSubcontractorDetailOverrides((prev: any) => {
+      const nextLoc = { ...(prev?.[locName] || {}) };
+      delete nextLoc[line.originalKey];
+      delete nextLoc[`${line.company}__${String(draft.task).trim()}`];
+      return { ...prev, [locName]: nextLoc };
+    });
+
+    setFinancialDirty(true);
+    setSubcontractorInvoiceEditingKey(null);
+  };
+
+  const resetSubcontractorInvoiceRow = (locName: string, lineKey: string) => {
+    if (authRole !== 'admin') return;
+    setSubcontractorInvoiceOverrides((prev: any) => {
+      const nextLoc = { ...(prev?.[locName] || {}) };
+      delete nextLoc[lineKey];
+      return { ...prev, [locName]: nextLoc };
+    });
+    setFinancialDirty(true);
+    setSubcontractorInvoiceEditingKey(null);
+  };
+
   const handleAddCustomExtraExpense = (locName: string) => {
     if (authRole === 'viewer') return;
     const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
@@ -2482,6 +2663,7 @@ export default function AdminPage() {
         subcontractorDetailOverrides,
         subcontractorMonthlyUnitPrices,
         subcontractorPeriodUnitPrices,
+        subcontractorInvoiceOverrides,
         customExtraExpenses
       };
 
@@ -3725,44 +3907,20 @@ export default function AdminPage() {
 
       // 外注業者ごとに、人数・単価・日報由来合計を集計
       const reportSubs = Array.isArray(r.subcontractors) ? r.subcontractors : [];
-      reportSubs.forEach((sub: any) => {
-        const company = sub.company || '会社名未設定';
-        const task = sub.task || '作業内容未設定';
-        const key = `${company}__${task}`;
-
-        const subMaster = (settings.subcontractors || []).find(
-          (x: any) => x.company === company && x.task === task
-        );
-        const snapshotPrice = r?.costSnapshot?.subcontractorPrices?.[key];
-        const baseUnitPrice =
-          sub.price !== undefined && sub.price !== null && sub.price !== ''
-            ? Number(sub.price)
-            : snapshotPrice !== undefined && snapshotPrice !== null && snapshotPrice !== ''
-              ? Number(snapshotPrice)
-              : Number(subMaster?.price || 0);
-        const subDate = normalizeDateStr(r.date || '');
+      reportSubs.forEach((sub: any, subIndex: number) => {
+        const effectiveLine = getEffectiveSubcontractorInvoiceLine(locName, r, sub, subIndex);
+        const company = effectiveLine.company;
+        const task = effectiveLine.task;
+        const key = effectiveLine.key;
+        const baseUnitPrice = effectiveLine.unitPrice;
+        const subDate = effectiveLine.date;
         const subParts = subDate.split('-');
         const subYearMonth = subParts.length >= 2 ? `${subParts[0]}-${subParts[1]}` : '日付不明';
         const monthlyOverrideKey = `${subYearMonth}__${key}`;
         const rawMonthlyOverride = locSubcontractorMonthlyUnitPrices[monthlyOverrideKey];
-        // 任意期間の設定を最優先。期間が重なった場合は、後から追加した設定を優先する。
-        const periodRule = [...locSubcontractorPeriodUnitPrices].reverse().find((rule: any) => {
-          if (!rule || rule.key !== key || !subDate) return false;
-          const startDate = String(rule.startDate || '');
-          const endDate = String(rule.endDate || '');
-          const rawPrice = rule.price;
-          if (!startDate || !endDate || rawPrice === '' || rawPrice === undefined || rawPrice === null) return false;
-          return subDate >= startDate && subDate <= endDate;
-        });
-        const rawPeriodOverride = periodRule?.price;
-        const unitPrice =
-          rawPeriodOverride !== '' && rawPeriodOverride !== undefined && rawPeriodOverride !== null
-            ? Number(rawPeriodOverride)
-            : rawMonthlyOverride !== '' && rawMonthlyOverride !== undefined
-              ? Number(rawMonthlyOverride)
-              : baseUnitPrice;
-        const count = Number(sub.count || 0);
-        const reportTotal = count * unitPrice;
+        const unitPrice = effectiveLine.unitPrice;
+        const count = effectiveLine.count;
+        const reportTotal = effectiveLine.amount;
 
         if (!subcontractorBreakdownMap[key]) {
           subcontractorBreakdownMap[key] = {
@@ -11800,6 +11958,17 @@ export default function AdminPage() {
                         </div>
                       ) : item.isSubcontractor ? (
                         <div className="space-y-3">
+                          <button
+                            type="button"
+                            onClick={openSubcontractorInvoiceModal}
+                            className="w-full rounded-2xl border-2 border-violet-300 bg-violet-600 hover:bg-violet-500 text-white px-4 py-3.5 flex items-center justify-between gap-3 shadow-sm transition"
+                          >
+                            <div className="text-left">
+                              <div className="font-extrabold text-base md:text-lg">🧾 請求書照合</div>
+                              <div className="text-xs md:text-sm text-violet-100 mt-0.5">期間と外注業者を選び、使用日ごとに人工数・単価・作業内容を確認／修正</div>
+                            </div>
+                            <span className="text-xl">›</span>
+                          </button>
                           <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
                             <button
                               type="button"
@@ -12780,6 +12949,307 @@ export default function AdminPage() {
       )}
 
       {/* スクラップ内訳・金額入力モーダル */}
+      {showSubcontractorInvoiceModal && modalLocation && authRole === 'admin' && (() => {
+        const targetNames = getTargetLocationNames(modalLocation);
+        const allInvoiceLines = reports
+          .filter((r: any) => targetNames.includes(r.location))
+          .flatMap((r: any) =>
+            (Array.isArray(r.subcontractors) ? r.subcontractors : []).map((sub: any, subIndex: number) =>
+              getEffectiveSubcontractorInvoiceLine(modalLocation, r, sub, subIndex)
+            )
+          )
+          .filter((line: any) => line.date)
+          .sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+        const companyOptions = Array.from(new Set(allInvoiceLines.map((line: any) => line.company))).sort((a: any, b: any) =>
+          String(a).localeCompare(String(b), 'ja')
+        );
+        const { startDate, endDate, company } = subcontractorInvoiceFilter;
+        const filteredLines = allInvoiceLines.filter((line: any) =>
+          (!startDate || line.date >= startDate) &&
+          (!endDate || line.date <= endDate) &&
+          (!company || line.company === company)
+        );
+        const conditionsReady = !!startDate && !!endDate && !!company;
+        const visibleLines = conditionsReady ? filteredLines : [];
+        const totalCount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.count || 0), 0);
+        const totalAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
+        const invoiceAmountNumber = subcontractorInvoiceAmount === '' ? null : Number(subcontractorInvoiceAmount || 0);
+        const diff = invoiceAmountNumber === null ? null : invoiceAmountNumber - totalAmount;
+        const overallSubOverride = costOverrides?.[modalLocation]?.sub;
+        const hasOverallSubOverride = overallSubOverride !== '' && overallSubOverride !== undefined && overallSubOverride !== null;
+
+        return (
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[95]"
+            onClick={() => setShowSubcontractorInvoiceModal(false)}
+          >
+            <div
+              className="bg-white w-full max-w-7xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-violet-50 flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 外注人件費・請求書照合</div>
+                  <div className="text-sm text-slate-600 mt-1">{modalLocation}</div>
+                  <div className="text-xs md:text-sm text-violet-700 font-bold mt-1">日報そのもの・マスタ・他現場は変更せず、この現場の該当明細だけ原価を補正します。</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSubcontractorInvoiceModal(false)}
+                  className="shrink-0 w-10 h-10 rounded-full bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-extrabold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-4 md:p-6 overflow-y-auto space-y-4">
+                <div className="rounded-2xl border-2 border-violet-200 bg-violet-50/50 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label className="text-sm font-extrabold text-slate-700">
+                      開始日
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))}
+                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                      />
+                    </label>
+                    <label className="text-sm font-extrabold text-slate-700">
+                      終了日
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))}
+                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                      />
+                    </label>
+                    <label className="text-sm font-extrabold text-slate-700">
+                      外注業者
+                      <select
+                        value={company}
+                        onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, company: e.target.value }))}
+                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                      >
+                        <option value="">選択してください</option>
+                        {companyOptions.map((name: any) => (
+                          <option key={String(name)} value={String(name)}>{String(name)}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {startDate && endDate && startDate > endDate && (
+                    <div className="mt-3 text-sm font-bold text-red-600">終了日は開始日以降を選択してください。</div>
+                  )}
+                </div>
+
+                {hasOverallSubOverride && (
+                  <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-4 text-sm text-orange-900">
+                    <div className="font-extrabold">⚠ 外注人件費の「請求書の金額」が全体上書きとして入力されています。</div>
+                    <div className="mt-1">現在は全体金額 {formatAmount(overallSubOverride)} が最優先です。明細の修正を利益計算へ反映する場合は、詳細分析の外注人件費にある「請求書の金額」を空欄にしてください。</div>
+                  </div>
+                )}
+
+                {!conditionsReady ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500 font-bold">
+                    開始日・終了日・外注業者を選択すると、その期間に使用した日が一覧表示されます。
+                  </div>
+                ) : visibleLines.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500 font-bold">
+                    指定した期間に「{company}」を使用した日報はありません。
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="rounded-2xl bg-slate-900 text-white p-4">
+                        <div className="text-xs text-slate-300 font-bold">使用日数</div>
+                        <div className="text-2xl font-extrabold mt-1">{new Set(visibleLines.map((x: any) => x.date)).size}日</div>
+                      </div>
+                      <div className="rounded-2xl bg-violet-600 text-white p-4">
+                        <div className="text-xs text-violet-100 font-bold">人工合計</div>
+                        <div className="text-2xl font-extrabold mt-1">{Number(totalCount || 0).toLocaleString('ja-JP')}人工</div>
+                      </div>
+                      <div className="rounded-2xl bg-emerald-600 text-white p-4">
+                        <div className="text-xs text-emerald-100 font-bold">日報・修正後合計</div>
+                        <div className="text-2xl font-extrabold mt-1">{formatAmount(totalAmount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full min-w-[900px] text-sm">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 border-b border-slate-200">
+                            <th className="py-3 px-3 text-left">日付</th>
+                            <th className="py-3 px-3 text-left">作業内容</th>
+                            <th className="py-3 px-3 text-right">人工数</th>
+                            <th className="py-3 px-3 text-right">単価</th>
+                            <th className="py-3 px-3 text-right">金額</th>
+                            <th className="py-3 px-3 text-center w-28">修正</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {visibleLines.map((line: any) => {
+                            const isEditing = subcontractorInvoiceEditingKey === line.lineKey;
+                            const draft = subcontractorInvoiceDrafts[line.lineKey] || {};
+                            return (
+                              <tr key={line.lineKey} className={line.hasOverride ? 'bg-amber-50/60' : 'bg-white'}>
+                                <td className="py-3 px-3 font-extrabold text-slate-800 whitespace-nowrap">
+                                  {line.date}
+                                  {line.hasOverride && <div className="text-[11px] text-amber-700 mt-0.5">修正済み</div>}
+                                </td>
+                                <td className="py-3 px-3">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={draft.task ?? ''}
+                                      onChange={(e) => handleSubcontractorInvoiceDraftChange(line.lineKey, 'task', e.target.value)}
+                                      className="w-full p-2 border-2 border-violet-300 rounded-lg font-bold"
+                                      placeholder="作業内容"
+                                    />
+                                  ) : (
+                                    <span className="font-bold text-slate-800">{line.task}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.5"
+                                      value={draft.count ?? ''}
+                                      onChange={(e) => handleSubcontractorInvoiceDraftChange(line.lineKey, 'count', e.target.value)}
+                                      className="w-24 p-2 border-2 border-violet-300 rounded-lg text-right font-bold"
+                                    />
+                                  ) : (
+                                    <span className="font-extrabold">{Number(line.count || 0).toLocaleString('ja-JP')}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  {isEditing ? (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-slate-500">¥</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={draft.price ?? ''}
+                                        onChange={(e) => handleSubcontractorInvoiceDraftChange(line.lineKey, 'price', e.target.value)}
+                                        className="w-32 p-2 border-2 border-violet-300 rounded-lg text-right font-extrabold"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <span className="font-bold">{formatAmount(line.unitPrice)}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-right font-extrabold text-slate-900">
+                                  {isEditing
+                                    ? formatAmount((Number(draft.count || 0)) * (Number(draft.price || 0)))
+                                    : formatAmount(line.amount)}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  {isEditing ? (
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => saveSubcontractorInvoiceRow(modalLocation, line)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold"
+                                      >
+                                        保存
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSubcontractorInvoiceEditingKey(null)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold"
+                                      >
+                                        戻る
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => startSubcontractorInvoiceEdit(line)}
+                                        className="w-9 h-9 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-700 font-extrabold text-lg"
+                                        title="この明細を修正"
+                                      >
+                                        ✏️
+                                      </button>
+                                      {line.hasOverride && (
+                                        <button
+                                          type="button"
+                                          onClick={() => resetSubcontractorInvoiceRow(modalLocation, line.lineKey)}
+                                          className="px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs border border-red-200"
+                                        >
+                                          元に戻す
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
+                        <div>
+                          <div className="font-extrabold text-blue-900">請求書と照合</div>
+                          <div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。ここへの入力は比較用で、原価は上の明細修正で確定します。</div>
+                        </div>
+                        <label className="text-sm font-extrabold text-slate-700">
+                          請求書金額（税別）
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="font-bold text-blue-600">¥</span>
+                            <input
+                              type="number"
+                              value={subcontractorInvoiceAmount}
+                              onChange={(e) => setSubcontractorInvoiceAmount(e.target.value)}
+                              placeholder="請求書の合計"
+                              className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white"
+                            />
+                          </div>
+                        </label>
+                        <div className="rounded-xl bg-white border border-blue-200 p-3 text-right">
+                          <div className="text-xs text-slate-500 font-bold">差額（請求書 − 現在合計）</div>
+                          <div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {diff === null ? '—' : formatAmount(diff)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-4 md:px-6 py-3.5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                  {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowSubcontractorInvoiceModal(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold"
+                  >
+                    閉じる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 変更を保存'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {showScrapModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setShowScrapModal(false)}>
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
