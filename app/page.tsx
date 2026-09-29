@@ -1381,7 +1381,7 @@ export default function Home() {
               <div key={n.id || `${n.title}-${n.createdAt}`} className={`rounded-2xl border-2 p-4 shadow-sm ${important ? 'border-rose-300 bg-rose-50' : isMaster ? 'border-emerald-300 bg-emerald-50' : 'border-blue-300 bg-blue-50'}`}>
                 <div className="mb-1 text-[11px] font-black tracking-wide text-slate-500">{isMaster ? '🆕 自動お知らせ' : '📢 管理者からのお知らせ'}</div>
                 <div className={`font-black text-base ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
-                <div className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{n.message}</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{isMaster ? String(n.message || '').replace(/マスタに追加しました/g, '項目に追加しました') : n.message}</div>
                 <div className="mt-2 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
               </div>
             );
@@ -1404,7 +1404,7 @@ export default function Home() {
                       <div key={n.id || `${n.title}-${n.createdAt}`} className={`rounded-2xl border p-3.5 shadow-sm ${important ? 'border-rose-200 bg-rose-50' : isMaster ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}>
                         <div className="mb-1 text-[10px] font-black tracking-wide text-slate-500">{isMaster ? '🆕 自動お知らせ' : '📢 管理者からのお知らせ'}</div>
                         <div className={`font-black text-sm ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
-                        <div className="mt-1.5 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{n.message}</div>
+                        <div className="mt-1.5 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{isMaster ? String(n.message || '').replace(/マスタに追加しました/g, '項目に追加しました') : n.message}</div>
                         <div className="mt-1.5 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
                       </div>
                     );
