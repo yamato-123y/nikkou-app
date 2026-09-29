@@ -4968,6 +4968,112 @@ export default function AdminPage() {
     return d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  // 管理画面上部の「新着・要確認」ダッシュボード用。
+  // 日報は flat / { id, data: {...} } のどちらのAPI形式でも扱えるように正規化する。
+  const dashboardReports = reports.map((raw: any) =>
+    raw?.data && typeof raw.data === 'object'
+      ? { ...raw.data, id: raw.id || raw.data.id, _rawReport: raw }
+      : { ...(raw || {}), _rawReport: raw }
+  );
+
+  const toLocalYmd = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const dashboardNow = new Date();
+  const dashboardToday = toLocalYmd(dashboardNow);
+  const dashboardYesterdayDate = new Date(dashboardNow);
+  dashboardYesterdayDate.setDate(dashboardYesterdayDate.getDate() - 1);
+  const dashboardYesterday = toLocalYmd(dashboardYesterdayDate);
+
+  const normalizeDashboardDate = (value: any) => String(value || '').replace(/\//g, '-');
+
+  const getDashboardReportTime = (report: any) => {
+    const createdAt = report?.createdAt || report?.submittedAt || '';
+    const parsed = createdAt ? new Date(createdAt) : null;
+    if (parsed && !Number.isNaN(parsed.getTime())) return parsed.getTime();
+
+    const dateText = normalizeDashboardDate(report?.date);
+    const fallback = dateText ? new Date(`${dateText}T12:00:00`) : null;
+    return fallback && !Number.isNaN(fallback.getTime()) ? fallback.getTime() : 0;
+  };
+
+  const formatDashboardReportTime = (report: any) => {
+    const createdAt = report?.createdAt || report?.submittedAt || '';
+    if (createdAt) {
+      const d = new Date(createdAt);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleString('ja-JP', {
+          month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+      }
+    }
+    const dateText = normalizeDashboardDate(report?.date);
+    if (!dateText) return '日時未記録';
+    const [y, m, d] = dateText.split('-').map(Number);
+    return y && m && d ? `${m}/${d}（送信時刻未記録）` : dateText;
+  };
+
+  const dashboardTodayReports = dashboardReports.filter(
+    (r: any) => normalizeDashboardDate(r?.date) === dashboardToday
+  );
+
+  const dashboardTodayMessageReports = dashboardTodayReports.filter(
+    (r: any) => String(r?.officeMessage || '').trim()
+  );
+
+  const dashboardTodayUnrecordedReporter = dashboardTodayReports.filter(
+    (r: any) => !String(r?.reporter || '').trim()
+  );
+
+  // 「前日未入力候補」は、会社カレンダー上の出勤日なのに、
+  // 日報・管理・サンセイ・有給のいずれも確認できない人だけを候補表示する。
+  // 「該当なし」区分は所定出勤日の判定ができないため対象外。
+  const dashboardYesterdayWorkerNames = new Set<string>();
+  dashboardReports.forEach((r: any) => {
+    if (normalizeDashboardDate(r?.date) !== dashboardYesterday) return;
+    (Array.isArray(r?.workers) ? r.workers : []).forEach((name: string) => {
+      if (name) dashboardYesterdayWorkerNames.add(name);
+    });
+  });
+
+  const dashboardMissingYesterday = (settings.workers || [])
+    .filter((worker: any) => {
+      const name = String(worker?.name || '');
+      const calendarType = worker?.calendarType || 'none';
+      if (!name || calendarType === 'none') return false;
+
+      const calendarEntry = getCalendarEntryForWorker(worker, dashboardYesterday);
+      if (!calendarEntry) return false;
+
+      const baseHoliday = new Set(calendarEntry?.holidays || []).has(dashboardYesterday);
+      const isHoliday = isEffectiveWorkerHoliday(worker, dashboardYesterday, baseHoliday);
+      if (isHoliday) return false;
+
+      const manualStatus = settings.manualAttendanceOverrides?.[name]?.[dashboardYesterday] || '';
+      const paidLeaveStatus = settings.paidLeaveOverrides?.[name]?.[dashboardYesterday] || '';
+      if (manualStatus || paidLeaveStatus) return false;
+
+      return !dashboardYesterdayWorkerNames.has(name);
+    })
+    .map((worker: any) => worker.name);
+
+  const dashboardFeed = [
+    ...dashboardReports.map((report: any) => ({
+      kind: 'report' as const,
+      sortTime: getDashboardReportTime(report),
+      report
+    })),
+    ...(Array.isArray(settings.attendanceChangeHistory) ? settings.attendanceChangeHistory : []).map((item: any) => ({
+      kind: 'attendance' as const,
+      sortTime: item?.savedAt && !Number.isNaN(new Date(item.savedAt).getTime())
+        ? new Date(item.savedAt).getTime()
+        : 0,
+      item
+    }))
+  ]
+    .sort((a: any, b: any) => Number(b.sortTime || 0) - Number(a.sortTime || 0))
+    .slice(0, 10);
+
   return (
     <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg relative">
       {showSaveToast && (
@@ -5029,6 +5135,124 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {authRole === 'admin' && (
+        <section className="rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg md:text-xl font-black text-slate-900">🔔 新着・要確認</h2>
+                <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">最新10件</span>
+              </div>
+              <p className="mt-1 text-xs md:text-sm text-slate-500">新しい日報・報告事項・勤怠変更を、管理画面を開いた時にまとめて確認できます。</p>
+            </div>
+            <button
+              onClick={fetchData}
+              className="self-start md:self-auto rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs md:text-sm font-black text-blue-700 hover:bg-blue-50 transition"
+            >
+              🔄 更新
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 p-4 md:p-5 bg-slate-50/70 border-b border-slate-200">
+            <div className="rounded-2xl border border-blue-200 bg-white p-3.5">
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">本日の日報</div>
+              <div className="mt-1 text-2xl md:text-3xl font-black text-blue-700">{dashboardTodayReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-white p-3.5">
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">本日の報告事項</div>
+              <div className="mt-1 text-2xl md:text-3xl font-black text-amber-700">{dashboardTodayMessageReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
+            </div>
+            <div className={`rounded-2xl border bg-white p-3.5 ${dashboardMissingYesterday.length > 0 ? 'border-rose-300 ring-1 ring-rose-100' : 'border-emerald-200'}`}>
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">前日未入力候補</div>
+              <div className={`mt-1 text-2xl md:text-3xl font-black ${dashboardMissingYesterday.length > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                {dashboardMissingYesterday.length}<span className="ml-1 text-sm text-slate-500">人</span>
+              </div>
+            </div>
+            <div className={`rounded-2xl border bg-white p-3.5 ${dashboardTodayUnrecordedReporter.length > 0 ? 'border-orange-300' : 'border-slate-200'}`}>
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">報告者未記録</div>
+              <div className={`mt-1 text-2xl md:text-3xl font-black ${dashboardTodayUnrecordedReporter.length > 0 ? 'text-orange-700' : 'text-slate-700'}`}>
+                {dashboardTodayUnrecordedReporter.length}<span className="ml-1 text-sm text-slate-500">件</span>
+              </div>
+            </div>
+          </div>
+
+          {dashboardMissingYesterday.length > 0 && (
+            <div className="mx-4 md:mx-5 mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-black text-rose-800">⚠️ {dashboardYesterday} の未入力候補</span>
+                <span className="text-[11px] font-bold text-rose-600">※欠勤確定ではありません</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {dashboardMissingYesterday.map((name: string) => (
+                  <span key={name} className="rounded-full border border-rose-200 bg-white px-2.5 py-1 text-xs font-black text-rose-700">{name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="p-4 md:p-5">
+            {dashboardFeed.length === 0 ? (
+              <div className="py-8 text-center text-sm font-bold text-slate-400">まだ新着情報はありません。</div>
+            ) : (
+              <div className="relative ml-2 border-l-2 border-slate-200 pl-5 space-y-3">
+                {dashboardFeed.map((entry: any, idx: number) => {
+                  if (entry.kind === 'attendance') {
+                    const item = entry.item || {};
+                    return (
+                      <div key={item?.id || `attendance-feed-${idx}`} className="relative rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
+                        <span className="absolute -left-[28px] top-5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 shadow" />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">勤怠変更</span>
+                          <span className="text-[11px] font-bold text-slate-400">{formatAttendanceHistoryTime(item?.savedAt || '')}</span>
+                        </div>
+                        <div className="mt-1 text-sm md:text-base text-slate-700">
+                          <span className="font-black text-slate-900">{item?.workerName || '不明'}</span>
+                          {item?.date ? <span className="text-slate-500"> ・ {item.date}</span> : null}
+                          <span> ・ {item?.detail || '変更'}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const report = entry.report || {};
+                  const officeMessage = String(report?.officeMessage || '').trim();
+                  return (
+                    <div key={report?.id || `report-feed-${idx}`} className={`relative rounded-2xl border px-4 py-3 ${officeMessage ? 'border-amber-200 bg-amber-50/40' : 'border-blue-100 bg-blue-50/30'}`}>
+                      <span className={`absolute -left-[28px] top-5 h-3.5 w-3.5 rounded-full border-2 border-white shadow ${officeMessage ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">新着日報</span>
+                            {officeMessage && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">報告事項あり</span>}
+                            <span className="text-[11px] font-bold text-slate-400">{formatDashboardReportTime(report)}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm md:text-base">
+                            <span className="font-black text-slate-900">{report?.location || '現場未記録'}</span>
+                            <span className="text-slate-600">📨 報告者：<span className="font-black">{report?.reporter || '未記録'}</span></span>
+                            {report?.manager && <span className="text-slate-500">職長：{report.manager}</span>}
+                          </div>
+                          {officeMessage && (
+                            <div className="mt-2 rounded-xl border border-amber-100 bg-white/80 px-3 py-2 text-xs md:text-sm font-bold text-amber-900">
+                              📣 {officeMessage.length > 90 ? `${officeMessage.slice(0, 90)}…` : officeMessage}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setEditingReport({ ...report })}
+                          className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs md:text-sm font-black text-slate-700 hover:bg-slate-100 transition"
+                        >
+                          日報を見る
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {authRole === 'viewer' && (
         <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-2xl font-bold text-center text-sm md:text-lg shadow-xs">
