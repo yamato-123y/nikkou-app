@@ -1819,8 +1819,16 @@ export default function AdminPage() {
   };
 
   const makeAutomaticMasterAnnouncements = (key: string, oldList: any[], newList: any[]) => {
-    // 現場一覧は日報入力時の選択肢だが、追加頻度が高く通知が多くなり過ぎるため自動通知対象外。
-    if (key === 'locations') return [];
+    // 自動お知らせは、日報入力者が手入力しやすいリース系6項目だけを対象にする。
+    const autoNoticeTargetKeys = new Set([
+      'leaseHeavy',
+      'leaseAttach',
+      'leaseOther',
+      'ishikawaHeavy',
+      'ishikawaAttach',
+      'ishikawaOther'
+    ]);
+    if (!autoNoticeTargetKeys.has(key)) return [];
     const oldSignatures = new Set((oldList || []).map((x: any) => getMasterAnnouncementSignature(key, x)));
     const added = (newList || []).filter((x: any) => !oldSignatures.has(getMasterAnnouncementSignature(key, x)));
     if (added.length === 0) return [];
