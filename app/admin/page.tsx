@@ -323,6 +323,12 @@ export default function AdminPage() {
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   // 日報由来の外注費を「業者＋作業内容」単位で確定額調整するための上書き
   const [subcontractorDetailOverrides, setSubcontractorDetailOverrides] = useState<any>({});
+  // 旧：現場・月ごとの外注単価。過去設定との互換用に残す。
+  const [subcontractorMonthlyUnitPrices, setSubcontractorMonthlyUnitPrices] = useState<any>({});
+  // 現場・任意期間ごとの外注単価。締め日に合わせて 8/21〜9/20 のような期間指定ができる。
+  const [subcontractorPeriodUnitPrices, setSubcontractorPeriodUnitPrices] = useState<any>({});
+  // 期間単価を追加するときの入力内容。これは画面内だけで保持し、追加後に設定へ反映する。
+  const [subcontractorPeriodDrafts, setSubcontractorPeriodDrafts] = useState<any>({});
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -409,6 +415,8 @@ export default function AdminPage() {
           if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
           if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
           if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
+          if (sData.subcontractorMonthlyUnitPrices) setSubcontractorMonthlyUnitPrices(sData.subcontractorMonthlyUnitPrices);
+          if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
           if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -2270,6 +2278,139 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const handleSubcontractorMonthlyUnitPriceChange = (
+    locName: string,
+    yearMonth: string,
+    key: string,
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+    const overrideKey = `${yearMonth}__${key}`;
+    setSubcontractorMonthlyUnitPrices({
+      ...subcontractorMonthlyUnitPrices,
+      [locName]: {
+        ...(subcontractorMonthlyUnitPrices[locName] || {}),
+        [overrideKey]: val
+      }
+    });
+    setFinancialDirty(true);
+  };
+
+
+  const handleSubcontractorPeriodDraftChange = (
+    locName: string,
+    field: 'startDate' | 'endDate',
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+    setSubcontractorPeriodDrafts((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev[locName] || {}),
+        [field]: val,
+        prices: { ...((prev[locName] || {}).prices || {}) }
+      }
+    }));
+  };
+
+  const handleSubcontractorPeriodDraftPriceChange = (
+    locName: string,
+    key: string,
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+    setSubcontractorPeriodDrafts((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev[locName] || {}),
+        prices: {
+          ...((prev[locName] || {}).prices || {}),
+          [key]: val
+        }
+      }
+    }));
+  };
+
+  const handleAddSubcontractorPeriodUnitPrices = (locName: string, subs: any[]) => {
+    if (authRole === 'viewer') return;
+    const draft = subcontractorPeriodDrafts[locName] || {};
+    const startDate = String(draft.startDate || '');
+    const endDate = String(draft.endDate || '');
+    if (!startDate || !endDate) {
+      alert('適用する開始日と終了日を選択してください。');
+      return;
+    }
+    if (startDate > endDate) {
+      alert('終了日は開始日以降の日付を選択してください。');
+      return;
+    }
+
+    const priceMap = draft.prices || {};
+    const targets = (subs || []).filter((sub: any) => {
+      const raw = priceMap[sub.key];
+      return raw !== '' && raw !== undefined && raw !== null;
+    });
+    if (targets.length === 0) {
+      alert('期間単価を1件以上入力してください。');
+      return;
+    }
+
+    const current = Array.isArray(subcontractorPeriodUnitPrices[locName])
+      ? subcontractorPeriodUnitPrices[locName]
+      : [];
+    const stamp = Date.now();
+    const additions = targets.map((sub: any, idx: number) => ({
+      id: `${stamp}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+      key: sub.key,
+      company: sub.company,
+      task: sub.task,
+      startDate,
+      endDate,
+      price: String(priceMap[sub.key])
+    }));
+
+    setSubcontractorPeriodUnitPrices({
+      ...subcontractorPeriodUnitPrices,
+      [locName]: [...current, ...additions]
+    });
+    setSubcontractorPeriodDrafts((prev: any) => ({
+      ...prev,
+      [locName]: { startDate, endDate, prices: {} }
+    }));
+    setFinancialDirty(true);
+  };
+
+  const handleSubcontractorPeriodUnitPriceChange = (
+    locName: string,
+    id: string,
+    field: 'startDate' | 'endDate' | 'price',
+    val: string
+  ) => {
+    if (authRole === 'viewer') return;
+    const current = Array.isArray(subcontractorPeriodUnitPrices[locName])
+      ? subcontractorPeriodUnitPrices[locName]
+      : [];
+    setSubcontractorPeriodUnitPrices({
+      ...subcontractorPeriodUnitPrices,
+      [locName]: current.map((rule: any) =>
+        rule.id === id ? { ...rule, [field]: val } : rule
+      )
+    });
+    setFinancialDirty(true);
+  };
+
+  const handleDeleteSubcontractorPeriodUnitPrice = (locName: string, id: string) => {
+    if (authRole === 'viewer') return;
+    const current = Array.isArray(subcontractorPeriodUnitPrices[locName])
+      ? subcontractorPeriodUnitPrices[locName]
+      : [];
+    setSubcontractorPeriodUnitPrices({
+      ...subcontractorPeriodUnitPrices,
+      [locName]: current.filter((rule: any) => rule.id !== id)
+    });
+    setFinancialDirty(true);
+  };
+
   const handleAddCustomExtraExpense = (locName: string) => {
     if (authRole === 'viewer') return;
     const current = Array.isArray(customExtraExpenses[locName]) ? customExtraExpenses[locName] : [];
@@ -2339,6 +2480,8 @@ export default function AdminPage() {
         checkedDisposalRows,
         customSubcontractors,
         subcontractorDetailOverrides,
+        subcontractorMonthlyUnitPrices,
+        subcontractorPeriodUnitPrices,
         customExtraExpenses
       };
 
@@ -3528,6 +3671,12 @@ export default function AdminPage() {
       }
     } = {};
 
+    const locSubcontractorMonthlyUnitPrices = subcontractorMonthlyUnitPrices[locName] || {};
+    const locSubcontractorPeriodUnitPrices = Array.isArray(subcontractorPeriodUnitPrices[locName])
+      ? subcontractorPeriodUnitPrices[locName]
+      : [];
+    const subcontractorMonthlyBreakdown: any = {};
+
     // 社員ごとの入場日数を集計。
     // 日付そのものは画面に出さず、「氏名：○日」だけを表示する。
     // 同じ日報内の重複や同日複数データがあっても、同じ現場・同じ人・同じ日は1日扱い。
@@ -3584,10 +3733,34 @@ export default function AdminPage() {
         const subMaster = (settings.subcontractors || []).find(
           (x: any) => x.company === company && x.task === task
         );
-        const unitPrice =
+        const snapshotPrice = r?.costSnapshot?.subcontractorPrices?.[key];
+        const baseUnitPrice =
           sub.price !== undefined && sub.price !== null && sub.price !== ''
             ? Number(sub.price)
-            : Number(subMaster?.price || 0);
+            : snapshotPrice !== undefined && snapshotPrice !== null && snapshotPrice !== ''
+              ? Number(snapshotPrice)
+              : Number(subMaster?.price || 0);
+        const subDate = normalizeDateStr(r.date || '');
+        const subParts = subDate.split('-');
+        const subYearMonth = subParts.length >= 2 ? `${subParts[0]}-${subParts[1]}` : '日付不明';
+        const monthlyOverrideKey = `${subYearMonth}__${key}`;
+        const rawMonthlyOverride = locSubcontractorMonthlyUnitPrices[monthlyOverrideKey];
+        // 任意期間の設定を最優先。期間が重なった場合は、後から追加した設定を優先する。
+        const periodRule = [...locSubcontractorPeriodUnitPrices].reverse().find((rule: any) => {
+          if (!rule || rule.key !== key || !subDate) return false;
+          const startDate = String(rule.startDate || '');
+          const endDate = String(rule.endDate || '');
+          const rawPrice = rule.price;
+          if (!startDate || !endDate || rawPrice === '' || rawPrice === undefined || rawPrice === null) return false;
+          return subDate >= startDate && subDate <= endDate;
+        });
+        const rawPeriodOverride = periodRule?.price;
+        const unitPrice =
+          rawPeriodOverride !== '' && rawPeriodOverride !== undefined && rawPeriodOverride !== null
+            ? Number(rawPeriodOverride)
+            : rawMonthlyOverride !== '' && rawMonthlyOverride !== undefined
+              ? Number(rawMonthlyOverride)
+              : baseUnitPrice;
         const count = Number(sub.count || 0);
         const reportTotal = count * unitPrice;
 
@@ -3611,6 +3784,38 @@ export default function AdminPage() {
 
         subcontractorBreakdownMap[key].count += count;
         subcontractorBreakdownMap[key].reportTotal += reportTotal;
+
+        if (!subcontractorMonthlyBreakdown[subYearMonth]) {
+          subcontractorMonthlyBreakdown[subYearMonth] = { items: {}, total: 0, originalTotal: 0 };
+        }
+        if (!subcontractorMonthlyBreakdown[subYearMonth].items[key]) {
+          subcontractorMonthlyBreakdown[subYearMonth].items[key] = {
+            key,
+            company,
+            task,
+            count: 0,
+            baseUnitPrice,
+            hasMultipleBaseUnitPrices: false,
+            overrideValue: rawMonthlyOverride ?? '',
+            unitPrice,
+            total: 0,
+            originalTotal: 0
+          };
+        } else if (
+          !subcontractorMonthlyBreakdown[subYearMonth].items[key].hasMultipleBaseUnitPrices &&
+          Number(subcontractorMonthlyBreakdown[subYearMonth].items[key].baseUnitPrice) !== baseUnitPrice
+        ) {
+          subcontractorMonthlyBreakdown[subYearMonth].items[key].hasMultipleBaseUnitPrices = true;
+          subcontractorMonthlyBreakdown[subYearMonth].items[key].baseUnitPrice = null;
+        }
+        const monthlyItem = subcontractorMonthlyBreakdown[subYearMonth].items[key];
+        monthlyItem.count += count;
+        monthlyItem.overrideValue = rawMonthlyOverride ?? '';
+        monthlyItem.unitPrice = unitPrice;
+        monthlyItem.total += reportTotal;
+        monthlyItem.originalTotal += count * baseUnitPrice;
+        subcontractorMonthlyBreakdown[subYearMonth].total += reportTotal;
+        subcontractorMonthlyBreakdown[subYearMonth].originalTotal += count * baseUnitPrice;
       });
 
       calcLease += dc.leaseC; 
@@ -3939,6 +4144,7 @@ export default function AdminPage() {
       workerAttendance,
       reportEstimateSub,
       subcontractorBreakdown,
+      subcontractorMonthlyBreakdown,
       subcontractorConfirmedTotal,
       customSubsTotal,
       reportEstimateSubWithCustom,
@@ -11624,6 +11830,147 @@ export default function AdminPage() {
 
                             {subcontractorEstimateOpen && (
                               <div className="px-3 pb-3 md:px-4 md:pb-4 pt-1 border-t border-slate-200">
+                            {(modalData.subcontractorBreakdown || []).length > 0 && (
+                              <div className="mb-4 rounded-xl border-2 border-violet-200 bg-violet-50/50 p-3 md:p-4">
+                                <div className="font-extrabold text-violet-900 text-sm md:text-base">📅 現場別・期間指定 外注単価</div>
+                                <div className="text-xs md:text-sm text-violet-700 mt-1 mb-3">
+                                  締め日に合わせて「8/21〜9/20」のように自由な期間を指定できます。ここで変更した単価は「{modalLocation}」の指定期間だけに反映し、マスタ単価・他現場には影響しません。
+                                </div>
+
+                                {authRole === 'admin' && (
+                                  <div className="bg-white rounded-xl border border-violet-200 p-3 mb-4 space-y-3">
+                                    <div className="font-extrabold text-slate-800">＋ 新しい期間単価を追加</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <label className="text-sm font-bold text-slate-700">
+                                        開始日
+                                        <input
+                                          type="date"
+                                          value={subcontractorPeriodDrafts[modalLocation]?.startDate || ''}
+                                          onChange={(e) => handleSubcontractorPeriodDraftChange(modalLocation, 'startDate', e.target.value)}
+                                          className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-lg bg-white font-bold"
+                                        />
+                                      </label>
+                                      <label className="text-sm font-bold text-slate-700">
+                                        終了日
+                                        <input
+                                          type="date"
+                                          value={subcontractorPeriodDrafts[modalLocation]?.endDate || ''}
+                                          onChange={(e) => handleSubcontractorPeriodDraftChange(modalLocation, 'endDate', e.target.value)}
+                                          className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-lg bg-white font-bold"
+                                        />
+                                      </label>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full min-w-[620px] text-sm">
+                                        <thead>
+                                          <tr className="bg-slate-50 text-slate-600 border-b">
+                                            <th className="p-2 text-left">業者・作業内容</th>
+                                            <th className="p-2 text-right">現在の概算単価</th>
+                                            <th className="p-2 text-right">この期間の単価</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                          {(modalData.subcontractorBreakdown || []).map((sub: any) => (
+                                            <tr key={sub.key}>
+                                              <td className="p-2 font-bold text-slate-800">{sub.company}（{sub.task}）</td>
+                                              <td className="p-2 text-right text-slate-500">
+                                                {sub.hasMultipleUnitPrices || sub.unitPrice === null ? '複数' : formatAmount(sub.unitPrice)}
+                                              </td>
+                                              <td className="p-2 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                  <span className="text-violet-500 font-bold">¥</span>
+                                                  <input
+                                                    type="number"
+                                                    value={subcontractorPeriodDrafts[modalLocation]?.prices?.[sub.key] ?? ''}
+                                                    onChange={(e) => handleSubcontractorPeriodDraftPriceChange(modalLocation, sub.key, e.target.value)}
+                                                    placeholder="変更しない場合は空欄"
+                                                    className="w-40 p-2 border-2 border-violet-300 rounded-lg bg-violet-50/40 text-right font-extrabold"
+                                                  />
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                    <div className="flex justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddSubcontractorPeriodUnitPrices(modalLocation, modalData.subcontractorBreakdown || [])}
+                                        className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-extrabold"
+                                      >
+                                        ＋ この期間単価を追加
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="space-y-2">
+                                  {(Array.isArray(subcontractorPeriodUnitPrices[modalLocation])
+                                    ? subcontractorPeriodUnitPrices[modalLocation]
+                                    : [])
+                                    .slice()
+                                    .sort((a: any, b: any) => String(b.startDate || '').localeCompare(String(a.startDate || '')))
+                                    .map((rule: any) => (
+                                      <div key={rule.id} className="bg-white rounded-xl border border-violet-200 p-3">
+                                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_150px_150px_150px_auto] gap-2 lg:items-center">
+                                          <div>
+                                            <div className="font-extrabold text-slate-900">{rule.company}（{rule.task}）</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">この現場だけの期間単価</div>
+                                          </div>
+                                          {authRole === 'admin' ? (
+                                            <>
+                                              <input
+                                                type="date"
+                                                value={rule.startDate || ''}
+                                                onChange={(e) => handleSubcontractorPeriodUnitPriceChange(modalLocation, rule.id, 'startDate', e.target.value)}
+                                                className="p-2 border border-violet-300 rounded-lg font-bold"
+                                              />
+                                              <input
+                                                type="date"
+                                                value={rule.endDate || ''}
+                                                onChange={(e) => handleSubcontractorPeriodUnitPriceChange(modalLocation, rule.id, 'endDate', e.target.value)}
+                                                className="p-2 border border-violet-300 rounded-lg font-bold"
+                                              />
+                                              <div className="flex items-center justify-end gap-1">
+                                                <span className="text-violet-500 font-bold">¥</span>
+                                                <input
+                                                  type="number"
+                                                  value={rule.price ?? ''}
+                                                  onChange={(e) => handleSubcontractorPeriodUnitPriceChange(modalLocation, rule.id, 'price', e.target.value)}
+                                                  className="w-32 p-2 border border-violet-300 rounded-lg text-right font-extrabold"
+                                                />
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSubcontractorPeriodUnitPrice(modalLocation, rule.id)}
+                                                className="px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-extrabold border border-red-200"
+                                              >
+                                                削除
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <div className="lg:col-span-4 text-right font-extrabold text-violet-800">
+                                              {rule.startDate} 〜 {rule.endDate}　{formatAmount(rule.price || 0)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  {(Array.isArray(subcontractorPeriodUnitPrices[modalLocation])
+                                    ? subcontractorPeriodUnitPrices[modalLocation]
+                                    : []).length === 0 && (
+                                      <div className="text-sm text-violet-700 bg-white rounded-lg border border-violet-100 p-3">
+                                        期間単価はまだ登録されていません。未設定の日は日報保存時の単価（またはマスタ単価）を使用します。
+                                      </div>
+                                    )}
+                                </div>
+                                <div className="text-xs text-violet-700 mt-3">
+                                  ※ 期間が重なった場合は、後から追加した設定を優先します。旧「月別単価」が保存済みの場合は、期間指定がない日だけ従来設定を引き続き使用します。
+                                </div>
+                              </div>
+                            )}
                             {(modalData.subcontractorBreakdown || []).length === 0 ? (
                               <div className="bg-white rounded-xl border border-slate-200 p-3 text-sm text-slate-500">
                                 日報由来の外注費はありません。
