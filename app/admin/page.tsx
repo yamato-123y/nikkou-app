@@ -5759,8 +5759,9 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 出勤確認表 */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
+      {/* 出勤確認表：社長モードのみ表示 */}
+      {authRole === 'viewer' && (
+      <div className={`${viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
         <div
           role="button"
           tabIndex={0}
@@ -5903,6 +5904,7 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
