@@ -1843,7 +1843,7 @@ export default function AdminPage() {
       id: `master-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
       type: 'master',
       title: `🆕 ${category}に新しい項目を追加しました`,
-      message: `「${getMasterAnnouncementName(key, item)}」をマスタに追加しました。手入力ではなく、リストにある場合はこちらを選択してください。`,
+      message: `「${getMasterAnnouncementName(key, item)}」を項目に追加しました。手入力ではなく、リストにある場合はこちらを選択してください。`,
       category,
       startDate,
       endDate,
@@ -5984,7 +5984,7 @@ export default function AdminPage() {
                 <option value="normal">通常のお知らせ</option><option value="important">⚠️ 重要なお知らせ</option>
               </select>
             </div>
-            <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースをマスタに追加しました。手入力せずリストから選択してください。" rows={3} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
+            <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースを項目に追加しました。手入力せずリストから選択してください。" rows={3} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
               <label className="text-xs font-black text-slate-600">表示開始日<input type="date" value={dailyAnnouncementDraft.startDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,startDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
               <label className="text-xs font-black text-slate-600">表示終了日<input type="date" value={dailyAnnouncementDraft.endDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,endDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
