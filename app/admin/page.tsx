@@ -351,6 +351,20 @@ export default function AdminPage() {
   // 請求書照合の履歴。対象期間・照合日時・請求書金額・差額を現場／カテゴリーごとに残す。
   const [invoiceReconcileHistory, setInvoiceReconcileHistory] = useState<any>({});
   const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState<any>({});
+  // 日報入力画面へ表示する管理者アナウンス。表示期間を指定して公開する。
+  const [dailyAnnouncementDraft, setDailyAnnouncementDraft] = useState(() => {
+    const today = new Date().toLocaleDateString('sv-SE');
+    const end = new Date();
+    end.setDate(end.getDate() + 7);
+    return {
+      title: '',
+      message: '',
+      startDate: today,
+      endDate: end.toLocaleDateString('sv-SE'),
+      priority: 'normal' as 'normal' | 'important'
+    };
+  });
+  const [dailyAnnouncementSaving, setDailyAnnouncementSaving] = useState(false);
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -372,7 +386,7 @@ export default function AdminPage() {
   const [travelAllowanceMarks, setTravelAllowanceMarks] = useState<{
     [workerName: string]: { [dateStr: string]: number }
   }>({});
-  // 月次勤怠の休日振替：ドラッグが効きにくい環境でも使えるよう、クリック選択も併用する。
+  // 月次勤怠の個別休日変更：会社カレンダーは変えず、作業員ごとに休みの日だけ移動する。
   const [selectedHolidayMove, setSelectedHolidayMove] = useState<{ workerName: string; fromDate: string } | null>(null);
   // 月次勤怠の手動変更は、操作ごとに保存せず最後にまとめて保存する。
   const [attendanceChangesDirty, setAttendanceChangesDirty] = useState(false);
@@ -883,7 +897,7 @@ export default function AdminPage() {
     dateStr: string,
     baseHoliday: boolean
   ) => {
-    // 月次勤怠表だけの個人別休日振替。日曜日も他の会社休日と同じように移動できる。
+    // 月次勤怠表だけの個人別休日変更。日曜日も他の会社休日と同じように移動できる。
     // 日報そのものは変更せず、この表の休日判定だけを差し替える。
     const moves = getWorkerHolidayMoves(worker?.name || '');
     if (moves.some((x: any) => x.to === dateStr)) return true;
@@ -1039,9 +1053,9 @@ export default function AdminPage() {
         const detail = !before && after
           ? `休日を ${fromDate} → ${after} に振替`
           : before && !after
-            ? `休日振替 ${fromDate} → ${before} を解除`
-            : `休日振替を ${fromDate} → ${before} から ${fromDate} → ${after} に変更`;
-        entries.push({ id: makeId(`${workerName}-${fromDate}-holiday`), savedAt, workerName, date: fromDate, category: '休日振替', detail });
+            ? `個別休日変更 ${fromDate} → ${before} を解除`
+            : `個別休日変更を ${fromDate} → ${before} から ${fromDate} → ${after} に変更`;
+        entries.push({ id: makeId(`${workerName}-${fromDate}-holiday`), savedAt, workerName, date: fromDate, category: '個別休日変更', detail });
       });
     });
 
@@ -1777,6 +1791,121 @@ export default function AdminPage() {
     }
   };
 
+  const getMasterAnnouncementCategory = (key: string) => {
+    const labels: Record<string, string> = {
+      jobTypes: '作業種別', subcontractors: '外注',
+      leaseHeavy: 'リース重機', leaseAttach: 'リースアタッチメント', leaseOther: 'その他リース',
+      ishikawaHeavy: '石川県リース重機', ishikawaAttach: '石川県アタッチメント', ishikawaOther: '石川県その他リース',
+      companyMachines: '自社重機', vehicles: '自社車両',
+      disposalLocations: '処分', scrapLocations: 'スクラップ',
+      workers: '作業員', managers: '職長'
+    };
+    return labels[key] || 'マスタ';
+  };
+
+  const getMasterAnnouncementSignature = (key: string, item: any) => {
+    if (typeof item === 'string') return item.trim();
+    if (!item || typeof item !== 'object') return String(item || '');
+    if (key === 'subcontractors') return `${item.company || ''}__${item.task || ''}`;
+    if (key === 'disposalLocations' || key === 'scrapLocations') return `${item.location || ''}__${item.item || ''}`;
+    return String(item.name || item.item || item.task || item.company || JSON.stringify(item));
+  };
+
+  const getMasterAnnouncementName = (key: string, item: any) => {
+    if (typeof item === 'string') return item;
+    if (!item || typeof item !== 'object') return String(item || '');
+    if (key === 'subcontractors') return `${item.company || ''}${item.task ? ` / ${item.task}` : ''}`;
+    if (key === 'disposalLocations' || key === 'scrapLocations') return `${item.location || ''}${item.item ? ` / ${item.item}` : ''}`;
+    return String(item.name || item.item || item.task || item.company || '新規項目');
+  };
+
+  const makeAutomaticMasterAnnouncements = (key: string, oldList: any[], newList: any[]) => {
+    // 現場一覧は日報入力時の選択肢だが、追加頻度が高く通知が多くなり過ぎるため自動通知対象外。
+    if (key === 'locations') return [];
+    const oldSignatures = new Set((oldList || []).map((x: any) => getMasterAnnouncementSignature(key, x)));
+    const added = (newList || []).filter((x: any) => !oldSignatures.has(getMasterAnnouncementSignature(key, x)));
+    if (added.length === 0) return [];
+
+    const now = new Date();
+    const startDate = now.toLocaleDateString('sv-SE');
+    const end = new Date(now);
+    end.setDate(end.getDate() + 7);
+    const endDate = end.toLocaleDateString('sv-SE');
+    const category = getMasterAnnouncementCategory(key);
+    return added.map((item: any, idx: number) => ({
+      id: `master-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+      type: 'master',
+      title: `🆕 ${category}に新しい項目を追加しました`,
+      message: `「${getMasterAnnouncementName(key, item)}」をマスタに追加しました。手入力ではなく、リストにある場合はこちらを選択してください。`,
+      category,
+      startDate,
+      endDate,
+      createdAt: new Date().toISOString()
+    }));
+  };
+
+  const publishDailyAnnouncement = async () => {
+    if (authRole !== 'admin' || dailyAnnouncementSaving) return;
+    const title = dailyAnnouncementDraft.title.trim();
+    const message = dailyAnnouncementDraft.message.trim();
+    if (!title || !message || !dailyAnnouncementDraft.startDate || !dailyAnnouncementDraft.endDate) {
+      alert('タイトル・本文・表示開始日・表示終了日を入力してください。');
+      return;
+    }
+    if (dailyAnnouncementDraft.startDate > dailyAnnouncementDraft.endDate) {
+      alert('表示終了日は開始日以降にしてください。');
+      return;
+    }
+    try {
+      setDailyAnnouncementSaving(true);
+      const item = {
+        id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: 'manual',
+        title,
+        message,
+        startDate: dailyAnnouncementDraft.startDate,
+        endDate: dailyAnnouncementDraft.endDate,
+        priority: dailyAnnouncementDraft.priority,
+        createdAt: new Date().toISOString()
+      };
+      const nextAnnouncements = [item, ...(settings.dailyAnnouncements || [])];
+      const newData = { ...settings, dailyAnnouncements: nextAnnouncements };
+      const res = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('お知らせの保存に失敗しました');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      const today = new Date().toLocaleDateString('sv-SE');
+      const end = new Date(); end.setDate(end.getDate() + 7);
+      setDailyAnnouncementDraft({ title: '', message: '', startDate: today, endDate: end.toLocaleDateString('sv-SE'), priority: 'normal' });
+      alert('日報入力画面へのお知らせを公開しました。');
+    } catch (e) {
+      console.error(e);
+      alert('お知らせの公開に失敗しました。');
+    } finally {
+      setDailyAnnouncementSaving(false);
+    }
+  };
+
+  const deleteDailyAnnouncement = async (id: string) => {
+    if (authRole !== 'admin') return;
+    if (!confirm('このお知らせを削除しますか？')) return;
+    const nextAnnouncements = (settings.dailyAnnouncements || []).filter((x: any) => x?.id !== id);
+    const newData = { ...settings, dailyAnnouncements: nextAnnouncements };
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('削除に失敗しました');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+    } catch (e) {
+      console.error(e);
+      alert('お知らせの削除に失敗しました。');
+    }
+  };
+
   const saveMaster = async (key: string, customList?: any[]) => {
     if (authRole === 'viewer') {
       alert('閲覧専用モードのため変更できません。');
@@ -1826,7 +1955,11 @@ export default function AdminPage() {
         });
       }
 
-      const newData = { ...settings, [key]: targetList };
+      const automaticMasterAnnouncements = makeAutomaticMasterAnnouncements(key, oldList, newList);
+      const nextMasterAnnouncements = automaticMasterAnnouncements.length > 0
+        ? [...automaticMasterAnnouncements, ...(settings.masterAnnouncements || [])].slice(0, 100)
+        : (settings.masterAnnouncements || []);
+      const newData = { ...settings, [key]: targetList, masterAnnouncements: nextMasterAnnouncements };
       const res = await fetch('/api/settings', {  
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
@@ -5619,8 +5752,8 @@ export default function AdminPage() {
       </div>
 
       <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2 py-1.5">
-        <span className="font-bold text-slate-700">休日振替：</span>
-        <span className="text-slate-600">表内の「休」を同じ作業員の別日にドラッグ（または「休」をクリック→移動先をクリック）（日曜日も可・現場セルとも表内だけで入替）</span>
+        <span className="font-bold text-slate-700">個別休日変更：</span>
+        <span className="text-slate-600">表内の「休」を右クリック→移動先を右クリック。ドラッグ、または「休」をクリック→移動先をクリックでも可（日曜日も可・会社カレンダー自体は変更しません）</span>
       </div>
 
       <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-1.5">
@@ -5807,6 +5940,47 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {authRole === 'admin' && (
+        <section className="rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 md:px-6 py-4 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div>
+                <h2 className="text-lg md:text-xl font-black text-indigo-950">📢 日報入力者へのお知らせ</h2>
+                <p className="mt-1 text-xs md:text-sm text-indigo-700">指定した期間だけ、日報入力画面の上部に表示します。マスタへ新規項目を保存した場合は7日間、自動で「新着マスタ」として表示します。</p>
+              </div>
+              <span className="self-start rounded-full bg-indigo-600 px-3 py-1 text-xs font-black text-white">公開中 {(settings.dailyAnnouncements || []).filter((x:any) => { const t=new Date().toLocaleDateString('sv-SE'); return (!x.startDate || x.startDate<=t) && (!x.endDate || x.endDate>=t); }).length}件</span>
+            </div>
+          </div>
+          <div className="p-4 md:p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input value={dailyAnnouncementDraft.title} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,title:e.target.value})} placeholder="タイトル　例：リース項目を追加しました" className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900" />
+              <select value={dailyAnnouncementDraft.priority} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,priority:e.target.value as 'normal'|'important'})} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900">
+                <option value="normal">通常のお知らせ</option><option value="important">⚠️ 重要なお知らせ</option>
+              </select>
+            </div>
+            <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースをマスタに追加しました。手入力せずリストから選択してください。" rows={3} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <label className="text-xs font-black text-slate-600">表示開始日<input type="date" value={dailyAnnouncementDraft.startDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,startDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
+              <label className="text-xs font-black text-slate-600">表示終了日<input type="date" value={dailyAnnouncementDraft.endDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,endDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
+              <button type="button" disabled={dailyAnnouncementSaving} onClick={publishDailyAnnouncement} className="h-[44px] rounded-xl bg-indigo-600 px-5 font-black text-white hover:bg-indigo-700 disabled:opacity-50">{dailyAnnouncementSaving ? '送信中...' : '📨 入力画面へ公開'}</button>
+            </div>
+            {(settings.dailyAnnouncements || []).length > 0 && (
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-2 text-xs font-black text-slate-600">登録済みのお知らせ</div>
+                <div className="divide-y divide-slate-100">
+                  {(settings.dailyAnnouncements || []).slice(0, 10).map((n:any) => (
+                    <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
+                      <button type="button" onClick={()=>deleteDailyAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {authRole === 'admin' && (
         <section className="rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -7341,7 +7515,7 @@ export default function AdminPage() {
                                     hasReportWork && d.sites.length > 0
                                       ? `${d.date} / ${d.sites.join(' / ')} / ${travelMarked ? `カウント ${travelMarkNumber}（クリックで解除・保存なし）` : 'クリックでカウント（保存なし）'}`
                                       : isShiftedHoliday
-                                        ? `${d.date} / 振替休日（元：${d.holidayMove?.from}）※月次勤怠表内だけの入替`
+                                        ? `${d.date} / 個別休日変更（元：${d.holidayMove?.from}）※この作業員だけ`
                                         : isManagement
                                           ? `${d.date} / 管理（クリックで解除）`
                                         : isSansei
@@ -7354,6 +7528,21 @@ export default function AdminPage() {
                                           ? `${d.date} / 「サンセイ」または「欠勤」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    // 右クリック操作：休を右クリックして選択 → 同じ作業員の移動先を右クリック。
+                                    if (selectedHolidayMove && selectedHolidayMove.workerName === row.name && selectedHolidayMove.fromDate !== d.date) {
+                                      const fromDate = selectedHolidayMove.fromDate;
+                                      if (confirm(`${row.name} の休みを ${fromDate} から ${d.date} へ個別変更しますか？`)) {
+                                        saveWorkerHolidayMove(row.name, fromDate, d.date);
+                                      }
+                                      setSelectedHolidayMove(null);
+                                      return;
+                                    }
+                                    if (canDragHoliday) {
+                                      setSelectedHolidayMove({ workerName: row.name, fromDate: d.date });
+                                    }
+                                  }}
                                   onDragOver={(e) => {
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = 'copy';
@@ -7474,6 +7663,11 @@ export default function AdminPage() {
                                     {canDragHoliday && (
                                       <div
                                         draggable
+                                        onContextMenu={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          setSelectedHolidayMove({ workerName: row.name, fromDate: d.date });
+                                        }}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           const sameSelected =
@@ -7492,7 +7686,7 @@ export default function AdminPage() {
                                           );
                                           e.dataTransfer.effectAllowed = 'move';
                                         }}
-                                        title="この『休』を別日にドラッグ。うまくドラッグできない場合は『休』をクリック→移動先をクリックでも可"
+                                        title="この『休』を右クリック→移動先を右クリック。ドラッグ、またはクリック→移動先クリックでも可"
                                         className={`select-none rounded px-1 py-1 text-[8px] font-black leading-none text-white cursor-grab active:cursor-grabbing ${
                                           selectedHolidayMove?.workerName === row.name && selectedHolidayMove?.fromDate === d.date
                                             ? 'bg-emerald-600 ring-2 ring-emerald-300'
@@ -7509,14 +7703,14 @@ export default function AdminPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (confirm(`${row.name} / ${d.date} の振替休日を元の日へ戻しますか？`)) {
+                                        if (confirm(`${row.name} / ${d.date} の個別休日変更を元の日へ戻しますか？`)) {
                                           resetWorkerHolidayMove(row.name, d.date);
                                         }
                                       }}
-                                      title="クリックで休日振替を元に戻す"
+                                      title="クリックで個別休日変更を元に戻す"
                                       className="mt-0.5 max-w-[32px] truncate rounded bg-slate-200 px-0.5 text-[7px] font-black leading-tight text-slate-700"
                                     >
-                                      振替休
+                                      個別休
                                     </button>
                                   )}
 
@@ -7651,12 +7845,12 @@ export default function AdminPage() {
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
                 <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を、欠勤日は「欠勤」を対象セルへドラッグしてください。「管理」「サンセイ」は1日出勤として集計し、「欠勤」は出勤には加算しません。</div>
-                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へドラッグして振替できます。日曜日も移動できます。現場が入っている日へ移した場合は、この月次勤怠表の中だけで「休」と勤務セルを入れ替えて表示します。元の日報・現場情報は一切変更しません。</div>
+                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へ変更できます。「休」を右クリック→移動先を右クリック（ドラッグ／クリック操作も可）。その作業員だけの変更で、会社カレンダー・元の日報・現場情報は変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
                 <div>※ 「管理」「サンセイ」「欠勤」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
-                <div>※ 休日振替・有給・管理・サンセイ・欠勤の変更は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
+                <div>※ 個別休日変更・有給・管理・サンセイ・欠勤は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
