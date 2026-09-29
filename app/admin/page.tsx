@@ -337,6 +337,15 @@ export default function AdminPage() {
   const [subcontractorInvoiceEditingKey, setSubcontractorInvoiceEditingKey] = useState<string | null>(null);
   const [subcontractorInvoiceDrafts, setSubcontractorInvoiceDrafts] = useState<any>({});
   const [subcontractorInvoiceAmount, setSubcontractorInvoiceAmount] = useState('');
+  // 外注以外の経費も、請求書と日ごとの明細を照合して行単位で修正する。
+  // マスタ・他現場・元の日報は変更しない。
+  const [expenseInvoiceLineOverrides, setExpenseInvoiceLineOverrides] = useState<any>({});
+  const [showExpenseInvoiceModal, setShowExpenseInvoiceModal] = useState(false);
+  const [expenseInvoiceCategory, setExpenseInvoiceCategory] = useState<{ key: string; label: string } | null>(null);
+  const [expenseInvoiceFilter, setExpenseInvoiceFilter] = useState({ startDate: '', endDate: '' });
+  const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
+  const [expenseInvoiceDrafts, setExpenseInvoiceDrafts] = useState<any>({});
+  const [expenseInvoiceAmount, setExpenseInvoiceAmount] = useState('');
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -426,6 +435,7 @@ export default function AdminPage() {
           if (sData.subcontractorMonthlyUnitPrices) setSubcontractorMonthlyUnitPrices(sData.subcontractorMonthlyUnitPrices);
           if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
           if (sData.subcontractorInvoiceOverrides) setSubcontractorInvoiceOverrides(sData.subcontractorInvoiceOverrides);
+          if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
           if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -2577,6 +2587,11 @@ export default function AdminPage() {
       return { ...prev, [locName]: nextLoc };
     });
 
+    // 旧「外注費全体を金額で上書き」が残っている場合は、行単位の照合を優先するため解除する。
+    setCostOverrides((prev: any) => ({
+      ...prev,
+      [locName]: { ...(prev?.[locName] || {}), sub: '' }
+    }));
     setFinancialDirty(true);
     setSubcontractorInvoiceEditingKey(null);
   };
@@ -2590,6 +2605,207 @@ export default function AdminPage() {
     });
     setFinancialDirty(true);
     setSubcontractorInvoiceEditingKey(null);
+  };
+
+  const getExpenseInvoiceLines = (locName: string, category: string) => {
+    const targetNames = getTargetLocationNames(locName);
+    const locOverrides = expenseInvoiceLineOverrides?.[locName]?.[category] || {};
+    const lines: any[] = [];
+
+    const addLine = (r: any, index: number, label: string, quantity: number, unitPrice: number, meta: any = {}) => {
+      const date = normalizeDateStr(r?.date || '');
+      if (!date) return;
+      const reportId = String(r?.id ?? r?._id ?? `${date}_${r?.location || locName}`);
+      const lineKey = `${category}__${reportId}__${index}`;
+      const baseQuantity = Number(quantity || 0);
+      const baseUnitPrice = Number(unitPrice || 0);
+      const baseAmount = baseQuantity * baseUnitPrice;
+      const ov = locOverrides?.[lineKey] || {};
+      const effectiveQuantity = ov.quantity !== '' && ov.quantity !== undefined && ov.quantity !== null ? Number(ov.quantity) : baseQuantity;
+      const effectiveUnitPrice = ov.unitPrice !== '' && ov.unitPrice !== undefined && ov.unitPrice !== null ? Number(ov.unitPrice) : baseUnitPrice;
+      lines.push({
+        lineKey,
+        date,
+        reportId: r?.id ?? r?._id,
+        location: r?.location || locName,
+        label: ov.label !== undefined && ov.label !== '' ? String(ov.label) : label,
+        baseLabel: label,
+        baseQuantity,
+        baseUnitPrice,
+        baseAmount,
+        quantity: effectiveQuantity,
+        unitPrice: effectiveUnitPrice,
+        amount: effectiveQuantity * effectiveUnitPrice,
+        hasOverride: !!locOverrides?.[lineKey],
+        ...meta
+      });
+    };
+
+    reports
+      .filter((r: any) => targetNames.includes(r.location))
+      .forEach((r: any) => {
+        let idx = 0;
+        if (category === 'lease') {
+          const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
+          const legacyMachines = leaseHeavy.length === 0 && Array.isArray(r.machines) ? r.machines : [];
+          legacyMachines.forEach((name: string) => {
+            const price = Number((settings.leases || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `MOKリース：${name}`, 1, price);
+          });
+          leaseHeavy.forEach((name: string) => {
+            const price = Number((settings.leaseHeavy || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `MOK重機：${name}`, 1, price);
+          });
+          (Array.isArray(r.leaseAttach) ? r.leaseAttach : []).forEach((name: string) => {
+            const price = Number((settings.leaseAttach || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `MOKアタッチメント：${name}`, 1, price);
+          });
+          (Array.isArray(r.leaseOther) ? r.leaseOther : []).forEach((name: string) => {
+            const price = Number((settings.leaseOther || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `MOKその他：${name}`, 1, price);
+          });
+          (Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : []).forEach((name: string) => {
+            const price = Number((settings.ishikawaHeavy || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `石川重機：${name}`, 1, price);
+          });
+          (Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : []).forEach((name: string) => {
+            const price = Number((settings.ishikawaAttach || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `石川アタッチメント：${name}`, 1, price);
+          });
+          (Array.isArray(r.ishikawaOther) ? r.ishikawaOther : []).forEach((name: string) => {
+            const price = Number((settings.ishikawaOther || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `石川その他：${name}`, 1, price);
+          });
+          (Array.isArray(r.otherLeases) ? r.otherLeases : []).forEach((item: any) => {
+            const total = Number(item?.price || 0);
+            addLine(r, idx++, `${item?.company || 'リース'}：${item?.name || '自由入力'}`, 1, total);
+          });
+          (Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : []).forEach((item: any) => {
+            const master = (settings.leaseHeavy || []).find((x:any) => x.name === item?.name) ||
+              (settings.leaseAttach || []).find((x:any) => x.name === item?.name) ||
+              (settings.leaseOther || []).find((x:any) => x.name === item?.name);
+            const unitPrice = item?.price !== undefined && item?.price !== null && item?.price !== '' ? Number(item.price) : Number(master?.price || 0);
+            addLine(r, idx++, `MOK自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice);
+          });
+          (Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : []).forEach((item: any) => {
+            const unitPrice = item?.price !== undefined && item?.price !== null && item?.price !== '' ? Number(item.price) : 0;
+            addLine(r, idx++, `石川自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice);
+          });
+        } else if (category === 'ownMachine') {
+          (Array.isArray(r.ownMachines) ? r.ownMachines : []).forEach((name: string) => {
+            const price = Number((settings.companyMachines || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `自社重機：${name}`, 1, price);
+          });
+        } else if (category === 'vehicle') {
+          (Array.isArray(r.vehicles) ? r.vehicles : []).forEach((name: string) => {
+            const price = Number((settings.vehicles || []).find((x:any) => x.name === name)?.price || 0);
+            addLine(r, idx++, `自社車両：${name}`, 1, price);
+          });
+        } else if (category === 'fuel') {
+          const liters = Number(r.fuel || 0);
+          if (liters > 0) {
+            const date = normalizeDateStr(r.date || '');
+            const parts = date.split('-');
+            const ym = parts.length >= 2 ? `${parts[0]}-${parts[1]}` : '';
+            const fuelPriceLocationKey = r.location && r.location.includes('旧河北郡市クリーンセンター')
+              ? '旧河北郡市クリーンセンター等解体工事(石川県)'
+              : r.location;
+            const unitPrice = Number((fuelUnitPrices[fuelPriceLocationKey] || fuelUnitPrices[r.location] || {})?.[ym] || 0);
+            addLine(r, idx++, '軽油', liters, unitPrice, { unitLabel: 'L' });
+          }
+        } else {
+          const flatMap: any = {
+            regular: { field: 'regularPrice', label: 'レギュラー購入分' },
+            etc: { field: 'etcPrice', label: '高速代・ETC' },
+            parking: { field: 'parkingPrice', label: '駐車場代' },
+            other: { field: 'otherPrice', label: 'その他雑費' }
+          };
+          const conf = flatMap[category];
+          if (conf) {
+            const amount = Number(r?.[conf.field] || 0);
+            if (amount !== 0) addLine(r, idx++, conf.label, 1, amount, { isFlatAmount: true });
+          }
+        }
+      });
+
+    return lines.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'ja'));
+  };
+
+  const getExpenseInvoiceAdjustedTotal = (locName: string, category: string, fallbackTotal: number) => {
+    const lines = getExpenseInvoiceLines(locName, category);
+    const delta = lines.reduce((sum: number, line: any) => {
+      if (!line.hasOverride) return sum;
+      return sum + (Number(line.amount || 0) - Number(line.baseAmount || 0));
+    }, 0);
+    return Number(fallbackTotal || 0) + delta;
+  };
+
+  const openExpenseInvoiceModal = (key: string, label: string) => {
+    if (!modalLocation) return;
+    setExpenseInvoiceCategory({ key, label });
+    setExpenseInvoiceFilter({ startDate: '', endDate: '' });
+    setExpenseInvoiceEditingKey(null);
+    setExpenseInvoiceDrafts({});
+    setExpenseInvoiceAmount('');
+    setShowExpenseInvoiceModal(true);
+  };
+
+  const startExpenseInvoiceEdit = (line: any) => {
+    if (authRole !== 'admin') return;
+    setExpenseInvoiceEditingKey(line.lineKey);
+    setExpenseInvoiceDrafts((prev: any) => ({
+      ...prev,
+      [line.lineKey]: {
+        label: String(line.label || ''),
+        quantity: String(line.quantity ?? ''),
+        unitPrice: String(line.unitPrice ?? '')
+      }
+    }));
+  };
+
+  const saveExpenseInvoiceRow = (locName: string, category: string, line: any) => {
+    if (authRole !== 'admin') return;
+    const draft = expenseInvoiceDrafts[line.lineKey] || {};
+    if (!String(draft.label || '').trim()) return alert('内容を入力してください。');
+    if (draft.quantity === '' || Number.isNaN(Number(draft.quantity)) || Number(draft.quantity) < 0) return alert('数量を正しく入力してください。');
+    if (draft.unitPrice === '' || Number.isNaN(Number(draft.unitPrice)) || Number(draft.unitPrice) < 0) return alert('単価を正しく入力してください。');
+
+    setExpenseInvoiceLineOverrides((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev?.[locName] || {}),
+        [category]: {
+          ...(prev?.[locName]?.[category] || {}),
+          [line.lineKey]: {
+            label: String(draft.label).trim(),
+            quantity: String(draft.quantity),
+            unitPrice: String(draft.unitPrice),
+            updatedAt: new Date().toISOString()
+          }
+        }
+      }
+    }));
+    // 旧「カテゴリー全体を金額で上書き」は行単位照合へ移行したため解除。
+    setCostOverrides((prev: any) => ({
+      ...prev,
+      [locName]: { ...(prev?.[locName] || {}), [category]: '' }
+    }));
+    setFinancialDirty(true);
+    setExpenseInvoiceEditingKey(null);
+  };
+
+  const resetExpenseInvoiceRow = (locName: string, category: string, lineKey: string) => {
+    if (authRole !== 'admin') return;
+    setExpenseInvoiceLineOverrides((prev: any) => {
+      const nextCategory = { ...(prev?.[locName]?.[category] || {}) };
+      delete nextCategory[lineKey];
+      return {
+        ...prev,
+        [locName]: { ...(prev?.[locName] || {}), [category]: nextCategory }
+      };
+    });
+    setFinancialDirty(true);
+    setExpenseInvoiceEditingKey(null);
   };
 
   const handleAddCustomExtraExpense = (locName: string) => {
@@ -2664,6 +2880,7 @@ export default function AdminPage() {
         subcontractorMonthlyUnitPrices,
         subcontractorPeriodUnitPrices,
         subcontractorInvoiceOverrides,
+        expenseInvoiceLineOverrides,
         customExtraExpenses
       };
 
@@ -4146,13 +4363,16 @@ export default function AdminPage() {
 
     // 旧河北郡市クリーンセンターだけは、石川県分＋MOK分を個別編集した結果をリース合計へ反映。
     // 他の現場は従来どおり lease の一括手動上書きを使用する。
-    const leaseCost = isIshikawaLeaseSplit
+    const leaseBaseCost = isIshikawaLeaseSplit
       ? ishikawaLeaseCost + mokLeaseCost
       : (ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease);
+    const leaseCost = getExpenseInvoiceAdjustedTotal(locName, 'lease', leaseBaseCost);
 
     const otherLeaseCost = ov.otherLease !== '' && ov.otherLease !== undefined ? Number(ov.otherLease) : calcOtherLease;
-    const ownMachineCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
-    const vehicleCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
+    const ownMachineBaseCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
+    const vehicleBaseCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
+    const ownMachineCost = getExpenseInvoiceAdjustedTotal(locName, 'ownMachine', ownMachineBaseCost);
+    const vehicleCost = getExpenseInvoiceAdjustedTotal(locName, 'vehicle', vehicleBaseCost);
     const disposalCost = disposalTotal;
     const isIshikawaFuelSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
 
@@ -4170,15 +4390,20 @@ export default function AdminPage() {
     const osakaRegularCost = calcRegular;
     const unokeFuelCost = isIshikawaFuelSplit && ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : 0;
     const unokeRegularCost = isIshikawaFuelSplit && ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : 0;
-    const fuelCost = isIshikawaFuelSplit
+    const fuelBaseCost = isIshikawaFuelSplit
       ? osakaFuelCost + unokeFuelCost
       : (ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel);
-    const regularCost = isIshikawaFuelSplit
+    const regularBaseCost = isIshikawaFuelSplit
       ? osakaRegularCost + unokeRegularCost
       : (ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular);
-    const etcCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
-    const parkingCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
-    const otherCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
+    const etcBaseCost = ov.etc !== '' && ov.etc !== undefined ? Number(ov.etc) : calcEtc;
+    const parkingBaseCost = ov.parking !== '' && ov.parking !== undefined ? Number(ov.parking) : calcParking;
+    const otherBaseCost = ov.other !== '' && ov.other !== undefined ? Number(ov.other) : calcOther;
+    const fuelCost = getExpenseInvoiceAdjustedTotal(locName, 'fuel', fuelBaseCost);
+    const regularCost = getExpenseInvoiceAdjustedTotal(locName, 'regular', regularBaseCost);
+    const etcCost = getExpenseInvoiceAdjustedTotal(locName, 'etc', etcBaseCost);
+    const parkingCost = getExpenseInvoiceAdjustedTotal(locName, 'parking', parkingBaseCost);
+    const otherCost = getExpenseInvoiceAdjustedTotal(locName, 'other', otherBaseCost);
 
     // 管理画面でこの現場だけに追加した突発的な経費
     const customExtraExpenseList = Array.isArray(customExtraExpenses[locName])
@@ -11969,7 +12194,7 @@ export default function AdminPage() {
                             </div>
                             <span className="text-xl">›</span>
                           </button>
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                          <div className="hidden">
                             <button
                               type="button"
                               onClick={() => setSubcontractorEstimateOpen(!subcontractorEstimateOpen)}
@@ -12232,7 +12457,7 @@ export default function AdminPage() {
                             )}
                           </div>
 
-                          <div>
+                          <div className="hidden">
                             <div className="text-sm md:text-base font-extrabold text-blue-700 mb-2">請求書の金額（違う場合だけ入力）</div>
                             {authRole === 'admin' ? (
                               <div className="flex items-center gap-1 w-full">
@@ -12268,7 +12493,7 @@ export default function AdminPage() {
                         <div className="space-y-3">
                           <div className="bg-slate-50 rounded-xl border border-slate-200 p-3"><div className="text-sm md:text-base font-bold text-slate-600">日報からの概算</div><div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div></div>
                           <div className="bg-blue-50/50 rounded-xl border border-blue-200 p-3"><div className="text-sm md:text-base font-extrabold text-blue-700">確定額（原価に反映）</div><div className="text-lg md:text-xl font-bold text-blue-900 mt-1">{formatAmount(item.val || 0)}</div></div>
-                          <button type="button" onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm">処分場・月・品目ごとに確認／編集</button>
+                          <button type="button" onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm">🧾 請求書照合</button>
                         </div>
                       ) : item.isIshikawaSpecial ? (
                         <div className="space-y-2">
@@ -12333,34 +12558,26 @@ export default function AdminPage() {
                             <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
                           </div>
 
-                          <div>
-                            <div className="text-sm md:text-base font-extrabold text-blue-700 mb-2">請求書の金額（違う場合だけ入力）</div>
-                            {authRole === 'admin' ? (
-                              <div className="flex items-center gap-1 w-full">
-                                <span className="text-slate-500 font-bold">¥</span>
-                                <input
-                                  type="number"
-                                  value={costOverrides[modalLocation]?.[item.key] ?? ''}
-                                  onChange={(e) => handleCostOverrideChange(modalLocation, item.key, e.target.value)}
-                                  placeholder={`未入力：概算 ${Number(item.estimate || 0).toLocaleString('ja-JP')}円`}
-                                  className="w-full p-3 border-2 border-blue-400 rounded-xl font-extrabold text-right bg-blue-50/40 text-lg"
-                                />
+                          {!item.isLabor && item.key !== 'otherLease' && (
+                            <button
+                              type="button"
+                              onClick={() => openExpenseInvoiceModal(item.key, item.label)}
+                              className="w-full rounded-2xl border-2 border-blue-300 bg-blue-600 hover:bg-blue-500 text-white px-4 py-3.5 flex items-center justify-between gap-3 shadow-sm transition"
+                            >
+                              <div className="text-left">
+                                <div className="font-extrabold text-base md:text-lg">🧾 請求書照合</div>
+                                <div className="text-xs md:text-sm text-blue-100 mt-0.5">期間を選び、使用日ごとの内容・数量・単価・金額を確認／修正</div>
                               </div>
-                            ) : (
-                              <div className="text-lg md:text-xl font-bold text-blue-700">
-                                {costOverrides[modalLocation]?.[item.key] !== '' && costOverrides[modalLocation]?.[item.key] !== undefined
-                                  ? formatAmount(costOverrides[modalLocation][item.key])
-                                  : <span className="text-slate-400 text-sm">未入力（概算を使用）</span>}
-                              </div>
-                            )}
-                          </div>
+                              <span className="text-xl">›</span>
+                            </button>
+                          )}
 
                           <div className="border-t border-slate-200 pt-3">
                             <div className="text-sm md:text-base font-extrabold text-emerald-700">利益計算に使う金額</div>
                             <div className="text-xl md:text-2xl font-extrabold text-emerald-700 mt-1">{formatAmount(item.val || 0)}</div>
                             {authRole === 'admin' && (
                               <div className="text-sm text-slate-500 mt-1.5">
-                                ※入力欄が空なら、日報の概算をそのまま使います。
+                                ※請求書照合で修正した明細だけ、この現場の原価へ反映します。
                               </div>
                             )}
                           </div>
@@ -12947,6 +13164,120 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* 外注以外：カテゴリー共通の請求書照合モーダル */}
+      {showExpenseInvoiceModal && expenseInvoiceCategory && modalLocation && authRole === 'admin' && (() => {
+        const categoryKey = expenseInvoiceCategory.key;
+        const allLines = getExpenseInvoiceLines(modalLocation, categoryKey);
+        const { startDate, endDate } = expenseInvoiceFilter;
+        const conditionsReady = !!startDate && !!endDate;
+        const visibleLines = conditionsReady
+          ? allLines.filter((line: any) => line.date >= startDate && line.date <= endDate)
+          : [];
+        const totalAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
+        const invoiceAmountNumber = expenseInvoiceAmount === '' ? null : Number(expenseInvoiceAmount || 0);
+        const diff = invoiceAmountNumber === null ? null : invoiceAmountNumber - totalAmount;
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => setShowExpenseInvoiceModal(false)}>
+            <div className="bg-white w-full max-w-7xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-blue-50 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 {expenseInvoiceCategory.label}・請求書照合</h3>
+                  <p className="text-sm text-slate-600 mt-1">この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。</p>
+                </div>
+                <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="w-10 h-10 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
+              </div>
+
+              <div className="p-4 md:p-6 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                  <label className="text-sm font-extrabold text-slate-700">開始日
+                    <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                  </label>
+                  <label className="text-sm font-extrabold text-slate-700">終了日
+                    <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                  </label>
+                </div>
+
+                {!conditionsReady ? (
+                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">開始日と終了日を選択すると明細を表示します。</div>
+                ) : visibleLines.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 font-bold">指定期間の明細はありません。</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-xs font-bold text-slate-500">現在の明細合計</div>
+                        <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(totalAmount)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="text-xs font-bold text-emerald-700">明細数</div>
+                        <div className="text-2xl font-extrabold text-emerald-700 mt-1">{visibleLines.length}件</div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full min-w-[900px] text-sm">
+                        <thead className="bg-slate-100 text-slate-600">
+                          <tr>
+                            <th className="py-3 px-3 text-left">日付</th>
+                            <th className="py-3 px-3 text-left">内容</th>
+                            <th className="py-3 px-3 text-right">数量</th>
+                            <th className="py-3 px-3 text-right">単価</th>
+                            <th className="py-3 px-3 text-right">金額</th>
+                            <th className="py-3 px-3 text-center">修正</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {visibleLines.map((line: any) => {
+                            const isEditing = expenseInvoiceEditingKey === line.lineKey;
+                            const draft = expenseInvoiceDrafts[line.lineKey] || {};
+                            return (
+                              <tr key={line.lineKey} className={line.hasOverride ? 'bg-amber-50/50' : ''}>
+                                <td className="py-3 px-3 font-bold whitespace-nowrap">{line.date}</td>
+                                <td className="py-3 px-3">
+                                  {isEditing ? <input type="text" value={draft.label ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), label: e.target.value } }))} className="w-full p-2 border-2 border-blue-300 rounded-lg font-bold" /> : <div><span className="font-extrabold text-slate-900">{line.label}</span>{line.hasOverride && <span className="ml-2 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">修正済み</span>}</div>}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  {isEditing ? <input type="number" min="0" step="0.01" value={draft.quantity ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), quantity: e.target.value } }))} className="w-28 p-2 border-2 border-blue-300 rounded-lg text-right font-bold" /> : <span className="font-extrabold">{Number(line.quantity || 0).toLocaleString('ja-JP', { maximumFractionDigits: 2 })}{line.unitLabel ? ` ${line.unitLabel}` : ''}</span>}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  {isEditing ? <div className="flex items-center justify-end gap-1"><span>¥</span><input type="number" min="0" step="0.01" value={draft.unitPrice ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), unitPrice: e.target.value } }))} className="w-32 p-2 border-2 border-blue-300 rounded-lg text-right font-extrabold" /></div> : <span className="font-bold">{formatAmount(line.unitPrice)}</span>}
+                                </td>
+                                <td className="py-3 px-3 text-right font-extrabold text-slate-900">{isEditing ? formatAmount(Number(draft.quantity || 0) * Number(draft.unitPrice || 0)) : formatAmount(line.amount)}</td>
+                                <td className="py-3 px-3 text-center">
+                                  {isEditing ? (
+                                    <div className="flex justify-center gap-1.5"><button type="button" onClick={() => saveExpenseInvoiceRow(modalLocation, categoryKey, line)} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-extrabold">保存</button><button type="button" onClick={() => setExpenseInvoiceEditingKey(null)} className="px-2.5 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-bold">戻る</button></div>
+                                  ) : (
+                                    <div className="flex justify-center gap-1.5"><button type="button" onClick={() => startExpenseInvoiceEdit(line)} className="w-9 h-9 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 font-extrabold text-lg" title="この明細を修正">✏️</button>{line.hasOverride && <button type="button" onClick={() => resetExpenseInvoiceRow(modalLocation, categoryKey, line.lineKey)} className="px-2 py-1.5 rounded-lg bg-red-50 text-red-600 font-bold text-xs border border-red-200">元に戻す</button>}</div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
+                        <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。入力値は比較用で、原価は上の明細修正で確定します。</div></div>
+                        <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
+                        <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 現在合計）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-4 md:px-6 py-3.5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>{financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</div>
+                <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button><button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button></div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* スクラップ内訳・金額入力モーダル */}
       {showSubcontractorInvoiceModal && modalLocation && authRole === 'admin' && (() => {
