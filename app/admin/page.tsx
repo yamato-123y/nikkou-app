@@ -1252,12 +1252,11 @@ export default function AdminPage() {
         const holidayMovesForWorker = getWorkerHolidayMoves(name);
 
         const dayDetails = dates.map((date) => {
-          // 休日を別日に振り替えた場合、月次勤怠表の中だけで勤務セルも入れ替えて表示する。
-          // workerDayMap（= 日報から作った元データ）は一切変更しない。
-          const moveFrom = holidayMovesForWorker.find((x: any) => x.from === date);
-          const moveTo = holidayMovesForWorker.find((x: any) => x.to === date);
-          const displayActualDate = moveFrom?.to || moveTo?.from || date;
-          const actual = workerDayMap[name]?.[displayActualDate];
+          // 個別休日変更は「休」の判定だけを移動する。
+          // 日報から作った勤務実績（現場名・人工・残業等）は元の日付のまま固定し、
+          // 休日を移動しても日報表示や勤怠実績そのものは一切移動させない。
+          const displayActualDate = date;
+          const actual = workerDayMap[name]?.[date];
           const calendarEntry = getCalendarEntryForWorker(workerMaster, date);
           const holidays = new Set(calendarEntry?.holidays || []);
           const isCalendarLinked = !!calendarEntry;
