@@ -1346,6 +1346,15 @@ export default function Home() {
     setIsReporterEditing(false);
   };
 
+  const announcementToday = new Date().toLocaleDateString('sv-SE');
+  const activeDailyAnnouncements = [
+    ...(Array.isArray(settings.dailyAnnouncements) ? settings.dailyAnnouncements : []),
+    ...(Array.isArray(settings.masterAnnouncements) ? settings.masterAnnouncements : [])
+  ]
+    .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
+    .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')))
+    .slice(0, 8);
+
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
 
@@ -1354,6 +1363,26 @@ export default function Home() {
         <h1 className="text-2xl font-black">📱 現場日報入力</h1>
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
       </div>
+
+      {activeDailyAnnouncements.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="font-black text-slate-900">📢 お知らせ・新着情報</div>
+            <div className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-black text-white">{activeDailyAnnouncements.length}件</div>
+          </div>
+          {activeDailyAnnouncements.map((n: any) => {
+            const important = n?.priority === 'important';
+            const isMaster = n?.type === 'master';
+            return (
+              <div key={n.id || `${n.title}-${n.createdAt}`} className={`rounded-2xl border-2 p-4 shadow-sm ${important ? 'border-rose-300 bg-rose-50' : isMaster ? 'border-emerald-300 bg-emerald-50' : 'border-blue-300 bg-blue-50'}`}>
+                <div className={`font-black text-base ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{n.message}</div>
+                <div className="mt-2 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* この端末の報告者：初回だけ選択し、次回以降は端末に記憶 */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
@@ -3025,7 +3054,7 @@ export default function Home() {
                事務所へ伝えたいことや、相談したいことがあれば入力してください。
              </div>
              <textarea
-               placeholder="〇〇について確認したい。よく使う機械をリストに追加してほしい。など"
+               placeholder="〇〇について確認したい。など"
                value={officeMessage}
                onChange={e=>setOfficeMessage(e.target.value)}
                className="w-full max-w-full min-w-0 p-4 rounded-2xl border-2 border-orange-200 h-28 text-base font-medium outline-none bg-orange-50/40 text-slate-950 box-border block focus:border-orange-400"
