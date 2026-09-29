@@ -346,6 +346,11 @@ export default function AdminPage() {
   const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
   const [expenseInvoiceDrafts, setExpenseInvoiceDrafts] = useState<any>({});
   const [expenseInvoiceAmount, setExpenseInvoiceAmount] = useState('');
+  // 請求書照合を実施した記録。変更がなくても「確認済み」を残せる。
+  const [invoiceReconcileStatus, setInvoiceReconcileStatus] = useState<any>({});
+  // 請求書照合の履歴。対象期間・照合日時・請求書金額・差額を現場／カテゴリーごとに残す。
+  const [invoiceReconcileHistory, setInvoiceReconcileHistory] = useState<any>({});
+  const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState<any>({});
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
@@ -436,6 +441,8 @@ export default function AdminPage() {
           if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
           if (sData.subcontractorInvoiceOverrides) setSubcontractorInvoiceOverrides(sData.subcontractorInvoiceOverrides);
           if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
+          if (sData.invoiceReconcileStatus) setInvoiceReconcileStatus(sData.invoiceReconcileStatus);
+          if (sData.invoiceReconcileHistory) setInvoiceReconcileHistory(sData.invoiceReconcileHistory);
           if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
           if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
           if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -2740,6 +2747,80 @@ export default function AdminPage() {
     return Number(fallbackTotal || 0) + delta;
   };
 
+  const formatInvoiceReconcileTime = (iso: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getInvoiceDefaultPeriod = (locName: string) => {
+    const targetNames = getTargetLocationNames(locName);
+    const dates = reports
+      .filter((r: any) => targetNames.includes(r.location) && r.date)
+      .map((r: any) => String(r.date))
+      .sort();
+    return { startDate: dates[0] || '', endDate: dates[dates.length - 1] || '' };
+  };
+
+  const formatInvoicePeriod = (startDate?: string, endDate?: string) => {
+    if (startDate && endDate) return `${startDate} ～ ${endDate}`;
+    if (startDate) return `${startDate} ～`;
+    if (endDate) return `～ ${endDate}`;
+    return '期間未記録';
+  };
+
+  const markInvoiceReconciled = (
+    locName: string,
+    category: string,
+    detail: {
+      startDate?: string;
+      endDate?: string;
+      company?: string;
+      hadChanges?: boolean;
+      invoiceAmount?: number | null;
+      diff?: number | null;
+    } = {}
+  ) => {
+    if (authRole !== 'admin') return;
+    const fallbackPeriod = getInvoiceDefaultPeriod(locName);
+    const entry = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      checkedAt: new Date().toISOString(),
+      startDate: detail.startDate || fallbackPeriod.startDate || '',
+      endDate: detail.endDate || fallbackPeriod.endDate || '',
+      company: detail.company || '',
+      hadChanges: !!detail.hadChanges,
+      invoiceAmount: detail.invoiceAmount === null || detail.invoiceAmount === undefined ? null : Number(detail.invoiceAmount),
+      diff: detail.diff === null || detail.diff === undefined ? null : Number(detail.diff)
+    };
+
+    setInvoiceReconcileStatus((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev?.[locName] || {}),
+        [category]: entry
+      }
+    }));
+    setInvoiceReconcileHistory((prev: any) => {
+      const current = Array.isArray(prev?.[locName]?.[category]) ? prev[locName][category] : [];
+      return {
+        ...prev,
+        [locName]: {
+          ...(prev?.[locName] || {}),
+          [category]: [entry, ...current].slice(0, 50)
+        }
+      };
+    });
+    setFinancialDirty(true);
+  };
+
+  const getInvoiceReconcileStatus = (locName: string, category: string) =>
+    invoiceReconcileStatus?.[locName]?.[category] || null;
+
+  const getInvoiceReconcileHistory = (locName: string, category: string) =>
+    Array.isArray(invoiceReconcileHistory?.[locName]?.[category]) ? invoiceReconcileHistory[locName][category] : [];
+
   const openExpenseInvoiceModal = (key: string, label: string) => {
     if (!modalLocation) return;
     setExpenseInvoiceCategory({ key, label });
@@ -2881,6 +2962,8 @@ export default function AdminPage() {
         subcontractorPeriodUnitPrices,
         subcontractorInvoiceOverrides,
         expenseInvoiceLineOverrides,
+        invoiceReconcileStatus,
+        invoiceReconcileHistory,
         customExtraExpenses
       };
 
@@ -12146,6 +12229,51 @@ export default function AdminPage() {
                       </div>
                     </div>
 
+                    {['sub', 'lease', 'disposal', 'fuel'].includes(item.key) && (() => {
+                      const st = getInvoiceReconcileStatus(modalLocation, item.key);
+                      const history = getInvoiceReconcileHistory(modalLocation, item.key);
+                      const historyKey = `${modalLocation}__${item.key}`;
+                      const isHistoryOpen = !!invoiceHistoryOpen[historyKey];
+                      return (
+                        <div className="space-y-2">
+                          <div className={`rounded-xl px-3 py-2.5 text-xs md:text-sm border ${st ? (st.hadChanges ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-800') : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                            {st ? (
+                              <div className="space-y-1">
+                                <div className="font-extrabold">{st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み'}</div>
+                                <div><span className="font-bold">対象期間：</span>{formatInvoicePeriod(st.startDate, st.endDate)}</div>
+                                <div><span className="font-bold">照合日時：</span>{formatInvoiceReconcileTime(st.checkedAt)}</div>
+                                {st.company && <div><span className="font-bold">業者：</span>{st.company}</div>}
+                                <div><span className="font-bold">請求書金額：</span>{st.invoiceAmount === null || st.invoiceAmount === undefined ? '—' : formatAmount(st.invoiceAmount)}</div>
+                                <div><span className="font-bold">差額：</span>{st.diff === null || st.diff === undefined ? '—' : formatAmount(st.diff)}</div>
+                              </div>
+                            ) : '○ 未照合'}
+                          </div>
+                          {history.length > 0 && (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setInvoiceHistoryOpen((prev: any) => ({ ...prev, [historyKey]: !prev?.[historyKey] }))}
+                                className="text-xs md:text-sm font-extrabold text-blue-700 hover:text-blue-900"
+                              >
+                                {isHistoryOpen ? '▲ 請求書照合履歴を閉じる' : `▼ 請求書照合履歴（${history.length}件）`}
+                              </button>
+                              {isHistoryOpen && (
+                                <div className="mt-2 rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 max-h-52 overflow-y-auto">
+                                  {history.map((h: any) => (
+                                    <div key={h.id || `${h.checkedAt}_${h.startDate}_${h.endDate}`} className="px-3 py-2 text-xs md:text-sm">
+                                      <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み'}</div>
+                                      <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
+                                      <div className="text-slate-600 mt-0.5">請求書 {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} ／ 差額 {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     <div className="flex flex-col gap-2">
                       {item.isCustomFuel ? (
                         <div className="space-y-2">
@@ -12558,7 +12686,7 @@ export default function AdminPage() {
                             <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
                           </div>
 
-                          {!item.isLabor && item.key !== 'otherLease' && (
+                          {['lease', 'fuel'].includes(item.key) && (
                             <button
                               type="button"
                               onClick={() => openExpenseInvoiceModal(item.key, item.label)}
@@ -13141,10 +13269,19 @@ export default function AdminPage() {
 
             <div className="sticky bottom-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
               {authRole === 'admin' && (
-                <div className="flex items-center gap-3 mr-auto">
+                <div className="flex items-center gap-3 mr-auto flex-wrap">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
                     {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => markInvoiceReconciled(modalLocation, 'disposal', {
+                      hadChanges: Number(modalData.disposalCost || 0) !== Number(modalData.reportEstimateDisposal || 0)
+                    })}
+                    className="px-4 py-3 rounded-xl font-extrabold text-sm bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200"
+                  >
+                    ✓ 照合済みにする
+                  </button>
                   <button
                     type="button"
                     onClick={saveFinancialEdits}
@@ -13272,7 +13409,24 @@ export default function AdminPage() {
 
               <div className="px-4 md:px-6 py-3.5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>{financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</div>
-                <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button><button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button></div>
+                <div className="flex gap-2 justify-end flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => markInvoiceReconciled(modalLocation, categoryKey, {
+                      startDate: expenseInvoiceFilter.startDate,
+                      endDate: expenseInvoiceFilter.endDate,
+                      hadChanges: visibleLines.some((line: any) => line.hasOverride),
+                      invoiceAmount: invoiceAmountNumber,
+                      diff
+                    })}
+                    disabled={!conditionsReady}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold ${!conditionsReady ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200'}`}
+                  >
+                    ✓ 照合済みにする
+                  </button>
+                  <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
+                  <button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button>
+                </div>
               </div>
             </div>
           </div>
@@ -13558,7 +13712,22 @@ export default function AdminPage() {
                 <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
                   {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
                 </div>
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => markInvoiceReconciled(modalLocation, 'sub', {
+                      startDate,
+                      endDate,
+                      company,
+                      hadChanges: visibleLines.some((line: any) => line.hasOverride),
+                      invoiceAmount: invoiceAmountNumber,
+                      diff
+                    })}
+                    disabled={!conditionsReady || startDate > endDate}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold ${(!conditionsReady || startDate > endDate) ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-violet-100 text-violet-800 hover:bg-violet-200 border border-violet-200'}`}
+                  >
+                    ✓ 照合済みにする
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowSubcontractorInvoiceModal(false)}
