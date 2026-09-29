@@ -19,6 +19,7 @@ export default function Home() {
   // この端末の報告者。初回に選択し、以後は localStorage に記憶する。
   const [reporter, setReporter] = useState('');
   const [isReporterEditing, setIsReporterEditing] = useState(false);
+  const [showMoreAnnouncements, setShowMoreAnnouncements] = useState(false);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
@@ -1347,13 +1348,16 @@ export default function Home() {
   };
 
   const announcementToday = new Date().toLocaleDateString('sv-SE');
-  const activeDailyAnnouncements = [
-    ...(Array.isArray(settings.dailyAnnouncements) ? settings.dailyAnnouncements : []),
-    ...(Array.isArray(settings.masterAnnouncements) ? settings.masterAnnouncements : [])
-  ]
+  const manualAnnouncements = (Array.isArray(settings.dailyAnnouncements) ? settings.dailyAnnouncements : [])
     .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
-    .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')))
-    .slice(0, 8);
+    .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')));
+  const automaticAnnouncements = (Array.isArray(settings.masterAnnouncements) ? settings.masterAnnouncements : [])
+    .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
+    .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')));
+  const primaryAnnouncements = [manualAnnouncements[0], automaticAnnouncements[0]].filter(Boolean);
+  const extraAnnouncements = [...manualAnnouncements.slice(1), ...automaticAnnouncements.slice(1)]
+    .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')));
+  const activeAnnouncementCount = manualAnnouncements.length + automaticAnnouncements.length;
 
   return (
     <div className="p-4 max-w-xl mx-auto space-y-6 font-sans pb-32 bg-slate-100 min-h-screen text-slate-950 relative text-base">
@@ -1364,23 +1368,51 @@ export default function Home() {
         <p className="text-sm text-slate-300 mt-1">株式会社大和</p>
       </div>
 
-      {activeDailyAnnouncements.length > 0 && (
+      {activeAnnouncementCount > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <div className="font-black text-slate-900">📢 お知らせ・新着情報</div>
-            <div className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-black text-white">{activeDailyAnnouncements.length}件</div>
+            <div className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-black text-white">{activeAnnouncementCount}件</div>
           </div>
-          {activeDailyAnnouncements.map((n: any) => {
+          {primaryAnnouncements.map((n: any) => {
             const important = n?.priority === 'important';
             const isMaster = n?.type === 'master';
             return (
               <div key={n.id || `${n.title}-${n.createdAt}`} className={`rounded-2xl border-2 p-4 shadow-sm ${important ? 'border-rose-300 bg-rose-50' : isMaster ? 'border-emerald-300 bg-emerald-50' : 'border-blue-300 bg-blue-50'}`}>
+                <div className="mb-1 text-[11px] font-black tracking-wide text-slate-500">{isMaster ? '🆕 自動お知らせ' : '📢 管理者からのお知らせ'}</div>
                 <div className={`font-black text-base ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
                 <div className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{n.message}</div>
                 <div className="mt-2 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
               </div>
             );
           })}
+          {extraAnnouncements.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowMoreAnnouncements((v) => !v)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm"
+              >
+                {showMoreAnnouncements ? '▲ お知らせを閉じる' : `もっと見る ▼（あと${extraAnnouncements.length}件）`}
+              </button>
+              {showMoreAnnouncements && (
+                <div className="space-y-3">
+                  {extraAnnouncements.map((n: any) => {
+                    const important = n?.priority === 'important';
+                    const isMaster = n?.type === 'master';
+                    return (
+                      <div key={n.id || `${n.title}-${n.createdAt}`} className={`rounded-2xl border p-3.5 shadow-sm ${important ? 'border-rose-200 bg-rose-50' : isMaster ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}>
+                        <div className="mb-1 text-[10px] font-black tracking-wide text-slate-500">{isMaster ? '🆕 自動お知らせ' : '📢 管理者からのお知らせ'}</div>
+                        <div className={`font-black text-sm ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
+                        <div className="mt-1.5 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{n.message}</div>
+                        <div className="mt-1.5 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
