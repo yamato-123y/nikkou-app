@@ -1905,6 +1905,24 @@ export default function AdminPage() {
     }
   };
 
+  const deleteMasterAnnouncement = async (id: string) => {
+    if (authRole !== 'admin') return;
+    if (!confirm('この自動お知らせを削除しますか？')) return;
+    const nextAnnouncements = (settings.masterAnnouncements || []).filter((x: any) => x?.id !== id);
+    const newData = { ...settings, masterAnnouncements: nextAnnouncements };
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('削除に失敗しました');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+    } catch (e) {
+      console.error(e);
+      alert('自動お知らせの削除に失敗しました。');
+    }
+  };
+
   const saveMaster = async (key: string, customList?: any[]) => {
     if (authRole === 'viewer') {
       alert('閲覧専用モードのため変更できません。');
@@ -5964,17 +5982,34 @@ export default function AdminPage() {
               <label className="text-xs font-black text-slate-600">表示終了日<input type="date" value={dailyAnnouncementDraft.endDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,endDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
               <button type="button" disabled={dailyAnnouncementSaving} onClick={publishDailyAnnouncement} className="h-[44px] rounded-xl bg-indigo-600 px-5 font-black text-white hover:bg-indigo-700 disabled:opacity-50">{dailyAnnouncementSaving ? '送信中...' : '📨 入力画面へ公開'}</button>
             </div>
-            {(settings.dailyAnnouncements || []).length > 0 && (
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="bg-slate-50 px-4 py-2 text-xs font-black text-slate-600">登録済みのお知らせ</div>
-                <div className="divide-y divide-slate-100">
-                  {(settings.dailyAnnouncements || []).slice(0, 10).map((n:any) => (
-                    <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
-                      <button type="button" onClick={()=>deleteDailyAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
+            {((settings.dailyAnnouncements || []).length > 0 || (settings.masterAnnouncements || []).length > 0) && (
+              <div className="space-y-3">
+                {(settings.dailyAnnouncements || []).length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="bg-blue-50 px-4 py-2 text-xs font-black text-blue-700">📢 手動お知らせ</div>
+                    <div className="divide-y divide-slate-100">
+                      {(settings.dailyAnnouncements || []).slice(0, 10).map((n:any) => (
+                        <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
+                          <button type="button" onClick={()=>deleteDailyAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+                {(settings.masterAnnouncements || []).length > 0 && (
+                  <div className="rounded-2xl border border-emerald-200 overflow-hidden">
+                    <div className="bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700">🆕 自動お知らせ（マスタ追加）</div>
+                    <div className="divide-y divide-emerald-100">
+                      {(settings.masterAnnouncements || []).slice(0, 20).map((n:any) => (
+                        <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0"><div className="font-black text-slate-900">{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
+                          <button type="button" onClick={()=>deleteMasterAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -12410,13 +12445,24 @@ export default function AdminPage() {
                       <span className={`text-lg md:text-xl font-extrabold ${item.isDisposal ? 'text-orange-700' : 'text-slate-800'}`}>{item.label}</span>
                       <div className="flex items-center gap-2">
                         {item.isLease && (
-                          <button
-                            type="button"
-                            onClick={() => setShowIshikawaLeaseModal(true)}
-                            className={`${item.isIshikawaSpecial ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-500'} text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition`}
-                          >
-                            詳細
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setShowIshikawaLeaseModal(true)}
+                              className={`${item.isIshikawaSpecial ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-500'} text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition`}
+                            >
+                              詳細
+                            </button>
+                            {authRole === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => openExpenseInvoiceModal('lease', 'リース')}
+                                className="bg-violet-600 hover:bg-violet-500 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-xs transition"
+                              >
+                                🧾 請求書照合
+                              </button>
+                            )}
+                          </>
                         )}
 
                       </div>
