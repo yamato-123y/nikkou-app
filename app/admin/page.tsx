@@ -7980,7 +7980,7 @@ export default function AdminPage() {
 
           {showAdminSection && (
             <div className="p-5 lg:p-6 animate-fadeIn">
-              <div className="max-w-[1180px] mx-auto">
+              <div className="max-w-[1360px] mx-auto">
               <div className="mb-5 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
@@ -8149,14 +8149,14 @@ export default function AdminPage() {
                     ].map((row:any) => (
                       <div key={`${row.key}_${row.idx}`} className="grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50">
                         <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
-                        <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0">
+                        <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0">
                           <option value="">未設定（南大阪建機扱い）</option>
                           <option value="南大阪建機">南大阪建機</option>
                           {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
                             <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
                           ))}
                         </select>
-                        <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0" />
+                        <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0" />
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-slate-500 font-bold text-sm">¥</span>
                           <input type="number" value={row.item.price || 0} onChange={(e)=>updateItemField(row.key, row.idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white" placeholder="日額" />
@@ -8171,7 +8171,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
               {[
                 { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
@@ -8186,7 +8186,7 @@ export default function AdminPage() {
                 { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
               ].map((sec:any, idx) => (
-                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-3.5 rounded-2xl border space-y-3 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${(sec.isSub || sec.isDisp || sec.isScrap || sec.isLeaseMaster || sec.key === 'locations' || sec.key === 'workers') ? 'xl:col-span-2' : ''} ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="space-y-3">
                     <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
                       <div className="min-w-0">
@@ -8211,29 +8211,29 @@ export default function AdminPage() {
                     </div>
 
                     {sec.isSub ? (
-                      <div className="grid grid-cols-[1fr_1.2fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
                         <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isDisp ? (
-                      <div className="grid grid-cols-[1.1fr_1fr_110px_160px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_90px_140px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
-                        <input type="text" placeholder="品目" value={form.dItem || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
-                        <input type="text" placeholder="単位" value={form.dUnit || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form.dPrice || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
+                        <input type="text" placeholder="品目" value={form.dItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                        <input type="text" placeholder="単位" value={form.dUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isScrap ? (
-                      <div className="grid grid-cols-[1.2fr_1fr_130px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
-                        <input type="text" placeholder="品目" value={form.sItem || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
-                        <input type="text" placeholder="単位" value={form.sUnit || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                        <input type="text" placeholder="品目" value={form.sItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                        <input type="text" placeholder="単位" value={form.sUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isLeaseMaster ? (
-                      <div className="grid grid-cols-[1.15fr_1.4fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <select
                           value={form[`${sec.key}Vendor`] || ''}
                           onChange={(e) => setForm({ ...form, [`${sec.key}Vendor`]: e.target.value })}
@@ -8470,7 +8470,7 @@ export default function AdminPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-[1fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[minmax(0,1fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                         <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
                         <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
@@ -8484,7 +8484,7 @@ export default function AdminPage() {
                       <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
                       <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
                     </div>
-                    <div className="max-h-[320px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2 space-y-2">
+                    <div className="max-h-[380px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2.5 space-y-2">
                     {(settings[sec.key] || []).length === 0 ? (
                       <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                     ) : (
@@ -8510,37 +8510,29 @@ export default function AdminPage() {
                           </div>
 
                           {sec.isSub ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                                <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              </div>
-                              <div className="flex items-center justify-end gap-1.5 pt-1">
-                                <span className="text-slate-500 font-bold text-sm">¥</span>
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価" />
+                            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_160px] gap-2 items-center">
+                              <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <div className="relative min-w-0">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
+                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
                               </div>
                             </div>
                           ) : sec.isDisp ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-3 gap-2">
-                                <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="場所名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                                <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                                <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              </div>
-                              <div className="flex items-center justify-end gap-1.5 pt-1">
-                                <span className="text-slate-500 font-bold text-sm">¥</span>
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-32 p-2.5 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価" />
+                            <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_100px_160px] gap-2 items-center">
+                              <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="処分場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <div className="relative min-w-0">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
+                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
                               </div>
                             </div>
                           ) : sec.isScrap ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="スクラップ場名" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                                <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              </div>
-                              <div className="pt-1">
-                                <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位 (例: kg, t)" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                              </div>
+                            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_120px] gap-2 items-center">
+                              <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="スクラップ場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
                             </div>
                           ) : sec.key === 'locations' ? (
                             <div className="space-y-2">
