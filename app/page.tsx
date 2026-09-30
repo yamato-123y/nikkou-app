@@ -40,6 +40,9 @@ export default function Home() {
   const [isOpenHeavy, setIsOpenHeavy] = useState(false);
   const [isOpenAttach, setIsOpenAttach] = useState(false);
   const [isOpenOther, setIsOpenOther] = useState(false);
+  // 南大阪建機以外の通常リース業者は、必要なときだけ追加選択する。
+  const [otherLeaseVendor, setOtherLeaseVendor] = useState('');
+  const [isOpenOtherLeaseVendor, setIsOpenOtherLeaseVendor] = useState(false);
 
   // 石川県出張用のリース選択ステート
   const [isOpenIshikawa, setIsOpenIshikawa] = useState(false);
@@ -1068,6 +1071,8 @@ export default function Home() {
       setLeaseHeavy([]);
       setLeaseAttach([]);
       setLeaseOther([]);
+      setOtherLeaseVendor('');
+      setIsOpenOtherLeaseVendor(false);
       setIshikawaLeaseHeavy([]);
       setIshikawaLeaseAttach([]);
       setIshikawaLeaseOther([]);
@@ -2526,7 +2531,7 @@ export default function Home() {
 
            </div>
 
-           {/* 南大阪建機リース */}
+           {/* リース */}
            <div className="space-y-4 bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200">
              <div className="text-sm font-black text-blue-950 bg-blue-200 px-4 py-2 rounded-xl inline-block">
                🏢 南大阪建機（MOK）からのリース
@@ -2540,17 +2545,18 @@ export default function Home() {
                >
                  <span className="min-w-0 flex-1 leading-snug">【重機を選択する】</span>
                  <span className="shrink-0 flex items-center gap-2">
-                   {leaseHeavy.length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseHeavy.length}</span>}
+                   {leaseHeavy.filter((name:string) => (settings.leaseHeavy || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseHeavy.filter((name:string) => (settings.leaseHeavy || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length}</span>}
                    <span className="text-sm font-bold text-slate-500 whitespace-nowrap">{isOpenHeavy ? '▲ 閉じる' : '▼ 開く'}</span>
                  </span>
                </button>
                {isOpenHeavy && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseHeavy || []).map((m:any) => {
+                   {(settings.leaseHeavy || []).filter((m:any) => !m.vendor || m.vendor === '南大阪建機').map((m:any) => {
                       const qty = getLeaseQuantity(leaseHeavy, m.name);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseHeavy, m.name, -1, setLeaseHeavy)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
@@ -2573,17 +2579,18 @@ export default function Home() {
                >
                  <span className="min-w-0 flex-1 leading-snug">【アタッチメントを選択する】</span>
                  <span className="shrink-0 flex items-center gap-2">
-                   {leaseAttach.length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseAttach.length}</span>}
+                   {leaseAttach.filter((name:string) => (settings.leaseAttach || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseAttach.filter((name:string) => (settings.leaseAttach || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length}</span>}
                    <span className="text-sm font-bold text-slate-500 whitespace-nowrap">{isOpenAttach ? '▲ 閉じる' : '▼ 開く'}</span>
                  </span>
                </button>
                {isOpenAttach && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseAttach || []).map((m:any) => {
+                   {(settings.leaseAttach || []).filter((m:any) => !m.vendor || m.vendor === '南大阪建機').map((m:any) => {
                       const qty = getLeaseQuantity(leaseAttach, m.name);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseAttach, m.name, -1, setLeaseAttach)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
@@ -2606,17 +2613,18 @@ export default function Home() {
                >
                  <span className="min-w-0 flex-1 leading-snug">【その他の機械・機器を選択する】</span>
                  <span className="shrink-0 flex items-center gap-2">
-                   {leaseOther.length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseOther.length}</span>}
+                   {leaseOther.filter((name:string) => (settings.leaseOther || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length > 0 && <span className="bg-blue-600 text-white text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap">数量 {leaseOther.filter((name:string) => (settings.leaseOther || []).some((m:any) => m.name === name && (!m.vendor || m.vendor === '南大阪建機'))).length}</span>}
                    <span className="text-sm font-bold text-slate-500 whitespace-nowrap">{isOpenOther ? '▲ 閉じる' : '▼ 開く'}</span>
                  </span>
                </button>
                {isOpenOther && (
                  <div className="grid grid-cols-2 gap-3 pt-2 animate-fadeIn">
-                   {(settings.leaseOther || []).map((m:any) => {
+                   {(settings.leaseOther || []).filter((m:any) => !m.vendor || m.vendor === '南大阪建機').map((m:any) => {
                       const qty = getLeaseQuantity(leaseOther, m.name);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-blue-100 border-blue-500 text-blue-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(leaseOther, m.name, -1, setLeaseOther)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
@@ -2691,6 +2699,68 @@ export default function Home() {
 
            </div>
 
+
+           {/* 南大阪建機以外の通常リース業者：必要なときだけ表示 */}
+           {(() => {
+             const vendorNames = Array.from(new Set([
+               ...(settings.leaseVendors || []).map((v:any) => String(v?.name || '').trim()),
+               ...(settings.leaseHeavy || []).map((m:any) => String(m?.vendor || '').trim()),
+               ...(settings.leaseAttach || []).map((m:any) => String(m?.vendor || '').trim()),
+               ...(settings.leaseOther || []).map((m:any) => String(m?.vendor || '').trim())
+             ].filter((name:any) => name && name !== '南大阪建機'))).sort((a:any, b:any) => String(a).localeCompare(String(b), 'ja'));
+             if (vendorNames.length === 0) return null;
+
+             const renderVendorItems = (masters:any[], selected:string[], setter:any) => {
+               const rows = masters.filter((m:any) => String(m?.vendor || '').trim() === otherLeaseVendor);
+               if (rows.length === 0) return <div className="text-sm text-slate-500 text-center py-3">このカテゴリーの登録はありません。</div>;
+               return (
+                 <div className="grid grid-cols-2 gap-3 pt-2">
+                   {rows.map((m:any) => {
+                     const qty = getLeaseQuantity(selected, m.name);
+                     return (
+                       <div key={`${otherLeaseVendor}_${m.name}`} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-amber-100 border-amber-500 text-amber-950' : 'bg-white text-slate-900 border-slate-300'}`}>
+                         <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                         <div className="flex items-center justify-center gap-2 mt-2">
+                           <button type="button" onClick={() => changeLeaseQuantity(selected, m.name, -1, setter)} disabled={qty === 0} className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
+                           <div className={`w-9 h-9 min-w-9 px-1 rounded-xl flex items-center justify-center font-black text-sm ${qty > 0 ? 'bg-white text-slate-950' : 'bg-slate-100 text-slate-400'}`}>{qty}</div>
+                           <button type="button" onClick={() => changeLeaseQuantity(selected, m.name, 1, setter)} className="w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg bg-amber-600 text-white">＋</button>
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
+               );
+             };
+
+             return (
+               <div className="space-y-4 bg-amber-50/70 p-5 rounded-3xl border-2 border-amber-200">
+                 <button type="button" onClick={() => setIsOpenOtherLeaseVendor(!isOpenOtherLeaseVendor)} className="w-full text-left p-4 bg-white border-2 border-amber-300 rounded-2xl font-black text-base text-amber-950 flex items-center justify-between gap-2 shadow-xs hover:bg-amber-50 transition">
+                   <span>＋ 南大阪建機以外のリース業者を追加</span>
+                   <span className="text-sm text-slate-500 whitespace-nowrap">{isOpenOtherLeaseVendor ? '▲ 閉じる' : '▼ 開く'}</span>
+                 </button>
+
+                 {isOpenOtherLeaseVendor && (
+                   <div className="space-y-4 animate-fadeIn">
+                     <label className="block text-sm font-black text-amber-950">リース業者を選択
+                       <select value={otherLeaseVendor} onChange={(e) => setOtherLeaseVendor(e.target.value)} className="mt-1 w-full p-3.5 rounded-xl border-2 border-amber-300 bg-white font-bold text-slate-950">
+                         <option value="">選択してください</option>
+                         {vendorNames.map((name:any) => <option key={String(name)} value={String(name)}>{String(name)}</option>)}
+                       </select>
+                     </label>
+
+                     {otherLeaseVendor && (
+                       <div className="space-y-4">
+                         <div><div className="font-black text-sm text-amber-950 mb-1">【重機】</div>{renderVendorItems(settings.leaseHeavy || [], leaseHeavy, setLeaseHeavy)}</div>
+                         <div><div className="font-black text-sm text-amber-950 mb-1">【アタッチメント】</div>{renderVendorItems(settings.leaseAttach || [], leaseAttach, setLeaseAttach)}</div>
+                         <div><div className="font-black text-sm text-amber-950 mb-1">【その他の機械・機器】</div>{renderVendorItems(settings.leaseOther || [], leaseOther, setLeaseOther)}</div>
+                       </div>
+                     )}
+                   </div>
+                 )}
+               </div>
+             );
+           })()}
+
            {/* 石川県出張用リース選択セクション（職長が「徳本」の場合のみ表示） */}
            {manager === '徳本' && (
              <div className="space-y-4 bg-indigo-50/70 p-5 rounded-3xl border-2 border-indigo-200 animate-fadeIn">
@@ -2724,6 +2794,7 @@ export default function Home() {
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseHeavy, m.name, -1, setIshikawaLeaseHeavy)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
@@ -2757,6 +2828,7 @@ export default function Home() {
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseAttach, m.name, -1, setIshikawaLeaseAttach)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
@@ -2790,6 +2862,7 @@ export default function Home() {
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border-2 transition ${qty > 0 ? 'bg-indigo-100 border-indigo-500 text-indigo-950' : 'bg-white text-slate-900 border-slate-300'}`}>
                           <div className="font-bold text-sm text-center break-words min-h-[2.5rem] flex items-center justify-center">{m.name}</div>
+                          {m.vendor && <div className="text-[11px] font-bold text-center text-slate-500 mt-1">🏢 {m.vendor}</div>}
                           <div className="flex items-center justify-center gap-2 mt-2">
                             <button type="button" onClick={() => changeLeaseQuantity(ishikawaLeaseOther, m.name, -1, setIshikawaLeaseOther)} disabled={qty === 0}
                               className={`w-9 h-9 min-w-9 min-h-9 max-w-9 max-h-9 aspect-square p-0 flex-none inline-flex items-center justify-center rounded-xl leading-none font-black text-lg border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
