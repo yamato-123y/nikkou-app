@@ -376,7 +376,7 @@ export default function AdminPage() {
   const [editingCostFields, setEditingCostFields] = useState<any>({});
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
-  const [showReportCalendarSection, setShowReportCalendarSection] = useState(false);
+  const [showReportCalendarSection, setShowReportCalendarSection] = useState(true);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
