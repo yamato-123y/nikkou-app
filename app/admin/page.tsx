@@ -2246,6 +2246,42 @@ export default function AdminPage() {
     }
   };
 
+  const saveUnifiedIshikawaLeaseMaster = async () => {
+    if (authRole === 'viewer') return;
+    if (isLoading) {
+      alert('データを読み込み中です。しばらくお待ちください。');
+      return;
+    }
+    try {
+      await freezeExistingReportsIfNeeded();
+      const keys = ['ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther'];
+      const announcements = keys.flatMap((key) =>
+        makeAutomaticMasterAnnouncements(key, originalSettings[key] || [], settings[key] || [])
+      );
+      const nextMasterAnnouncements = announcements.length > 0
+        ? [...announcements, ...(settings.masterAnnouncements || [])].slice(0, 100)
+        : (settings.masterAnnouncements || []);
+      const newData = { ...settings, masterAnnouncements: nextMasterAnnouncements };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) {
+        alert('保存に失敗しました。');
+        return;
+      }
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      alert('石川県用リースマスタを保存しました！');
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。');
+    }
+  };
+
+
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
     if (authRole === 'viewer') return;
     const updatedList = [...(settings[key] || []), newItem];
@@ -8121,7 +8157,7 @@ export default function AdminPage() {
                       ['リース業者', 'leaseVendors'], ['リースマスタ', 'leaseMasterUnified']
                     ] },
                     { title: '🗾 石川県用', tone: 'indigo', items: [
-                      ['リース業者', 'ishikawaLeaseVendors'], ['重機', 'ishikawaHeavy'], ['アタッチメント', 'ishikawaAttach'], ['その他機器', 'ishikawaOther']
+                      ['石川県用リースマスタ', 'ishikawa-group']
                     ] },
                     { title: '🗑️ 処分・売却', tone: 'rose', items: [
                       ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
@@ -8860,50 +8896,143 @@ export default function AdminPage() {
                 return (
                   <>
                     <section id="master-ishikawa-group" className="mb-6 scroll-mt-6 rounded-3xl border-2 border-indigo-300 bg-indigo-50/70 p-4 md:p-5 shadow-sm space-y-4">
-                      <div className="flex items-start justify-between gap-4 border-b border-indigo-200 pb-3">
+                      <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
                         <div>
                           <div className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1.5">石川県専用</div>
-                          <h3 className="text-lg md:text-xl font-extrabold text-indigo-950">🗾 石川県用マスタ</h3>
-                          <p className="text-xs md:text-sm text-indigo-700 mt-1">石川県出張用のリース業者・重機・アタッチメント・その他機械を、この枠内でまとめて管理します。</p>
+                          <h3 className="text-lg md:text-xl font-extrabold text-indigo-950">🗾 石川県用リースマスタ</h3>
+                          <p className="text-xs md:text-sm text-indigo-700 mt-1">リース業者 → カテゴリー → 名称 → 日額単価の順で、徳本の石川県出張用リースをまとめて登録します。</p>
+                          <p className="text-xs text-slate-500 mt-1.5">※保存先は従来どおり「石川県用 重機・アタッチメント・その他機械」のままです。既存データもそのまま使用します。</p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={saveUnifiedIshikawaLeaseMaster}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
+                        >
+                          💾 保存
+                        </button>
                       </div>
-                      <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 p-4 rounded-2xl border border-indigo-200 bg-white/80 space-y-4 shadow-sm">
-                        <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
+
+                      <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 rounded-2xl border border-indigo-200 bg-white p-3.5">
+                        <div className="flex items-center justify-between gap-3 mb-3">
                           <div>
-                            <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1">石川県用</div>
-                            <h3 className="font-extrabold text-base md:text-lg text-indigo-900">🏢 石川県用リース業者マスタ</h3>
-                            <p className="text-xs md:text-sm text-indigo-700 mt-1 leading-relaxed">徳本の石川県出張用リースで使用する業者だけを登録します。一般リース業者とは別管理です。</p>
-                            <p className="text-xs text-slate-500 mt-1.5">※既に石川県用リース品へ設定済みの業者（例：ヒサヤス）は自動でこちらへ引き継ぎます。</p>
+                            <div className="font-extrabold text-sm text-slate-800">🏢 石川県用リース業者登録</div>
+                            <div className="text-xs text-slate-500 mt-0.5">ここで業者を登録すると、下の石川県用リースマスタですぐ選択できます。</div>
                           </div>
-                          <button type="button" onClick={() => saveMaster('ishikawaLeaseVendors')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0">
-                            💾 保存
+                          <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.ishikawaLeaseVendors || []).length} 社</div>
+                        </div>
+                        <div className="grid grid-cols-[1fr_110px] gap-2 mb-3">
+                          <input
+                            type="text"
+                            placeholder="石川県用リース業者名（例：ヒサヤス）"
+                            value={form.ishikawaLeaseVendorName || ''}
+                            onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})}
+                            className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const name = String(form.ishikawaLeaseVendorName || '').trim();
+                              if (!name) return alert('石川県用リース業者名を入力してください。');
+                              if ((settings.ishikawaLeaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じ石川県用リース業者がすでに登録されています。');
+                              addMaster('ishikawaLeaseVendors', { name }, ['ishikawaLeaseVendorName']);
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition"
+                          >
+                            ＋ 追加
                           </button>
                         </div>
-
-                        <div className="grid grid-cols-[1fr_110px] gap-2">
-                          <input type="text" placeholder="石川県用リース業者名（例：ヒサヤス）" value={form.ishikawaLeaseVendorName || ''} onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})} className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-white focus:outline-none font-medium" />
-                          <button type="button" onClick={() => {
-                            const name = String(form.ishikawaLeaseVendorName || '').trim();
-                            if (!name) return alert('石川県用リース業者名を入力してください。');
-                            if ((settings.ishikawaLeaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じ石川県用リース業者がすでに登録されています。');
-                            addMaster('ishikawaLeaseVendors', { name }, ['ishikawaLeaseVendorName']);
-                          }} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
-                        </div>
-
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                           {(settings.ishikawaLeaseVendors || []).length === 0 ? (
-                            <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-white px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
+                            <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
                           ) : (settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
-                            <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-white">
-                              <input type="text" value={vendor.name || ''} onChange={(e)=>updateItemField('ishikawaLeaseVendors', vendorIdx, 'name', e.target.value)} className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white" />
+                            <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-indigo-50/30">
+                              <input
+                                type="text"
+                                value={vendor.name || ''}
+                                onChange={(e)=>updateItemField('ishikawaLeaseVendors', vendorIdx, 'name', e.target.value)}
+                                className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white"
+                              />
                               <button type="button" onClick={() => deleteMaster('ishikawaLeaseVendors', vendorIdx)} className="text-rose-700 hover:text-white font-bold text-xs px-2.5 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                        {ishikawaSections.map((sec: any, idx: number) => renderMasterSection(sec, idx))}
+                      <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-indigo-300">
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
+                          <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">＋</span>
+                          石川県用リース品を新規追加
+                        </div>
+                        <div className="grid grid-cols-[1.15fr_1fr_1.35fr_0.75fr_110px] gap-2.5 items-end">
+                          <label className="text-xs font-bold text-slate-600">リース業者
+                            <select value={form.unifiedIshikawaLeaseVendor || ''} onChange={(e)=>setForm({...form, unifiedIshikawaLeaseVendor: e.target.value})} className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-bold">
+                              <option value="">リース業者を選択</option>
+                              {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="text-xs font-bold text-slate-600">カテゴリー
+                            <select value={form.unifiedIshikawaLeaseCategory || 'ishikawaHeavy'} onChange={(e)=>setForm({...form, unifiedIshikawaLeaseCategory: e.target.value})} className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-bold">
+                              <option value="ishikawaHeavy">重機</option>
+                              <option value="ishikawaAttach">アタッチメント</option>
+                              <option value="ishikawaOther">その他の機械・機器</option>
+                            </select>
+                          </label>
+                          <label className="text-xs font-bold text-slate-600">名称
+                            <input type="text" value={form.unifiedIshikawaLeaseName || ''} onChange={(e)=>setForm({...form, unifiedIshikawaLeaseName: e.target.value})} placeholder="名称" className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-medium" />
+                          </label>
+                          <label className="text-xs font-bold text-slate-600">日額単価
+                            <input type="number" value={form.unifiedIshikawaLeasePrice || ''} onChange={(e)=>setForm({...form, unifiedIshikawaLeasePrice: e.target.value})} placeholder="日額" className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-medium text-right" />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const vendor = String(form.unifiedIshikawaLeaseVendor || '').trim();
+                              const category = String(form.unifiedIshikawaLeaseCategory || 'ishikawaHeavy');
+                              const name = String(form.unifiedIshikawaLeaseName || '').trim();
+                              if (!vendor) return alert('リース業者を選択してください。');
+                              if (!name) return alert('名称を入力してください。');
+                              addMaster(category, { name, price: Number(form.unifiedIshikawaLeasePrice) || 0, vendor, isFinished: false }, ['unifiedIshikawaLeaseVendor', 'unifiedIshikawaLeaseName', 'unifiedIshikawaLeasePrice']);
+                            }}
+                            className="h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center whitespace-nowrap"
+                          >
+                            ＋ 追加
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <div className="text-sm font-bold text-slate-700">✏️ 登録済み石川県用リース（直接編集できます）</div>
+                          <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                        </div>
+                        <div className="max-h-[520px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl p-3 space-y-3">
+                          {[
+                            ...(settings.ishikawaHeavy || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaHeavy', categoryLabel: '重機' })),
+                            ...(settings.ishikawaAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaAttach', categoryLabel: 'アタッチメント' })),
+                            ...(settings.ishikawaOther || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaOther', categoryLabel: 'その他の機械・機器' }))
+                          ].map((row:any) => (
+                            <div id={`master-${row.key}`} key={`${row.key}_${row.idx}`} className="scroll-mt-6 grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/30">
+                              <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
+                              <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white">
+                                <option value="">業者未設定</option>
+                                {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                  <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                                ))}
+                              </select>
+                              <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-slate-500 font-bold text-sm">¥</span>
+                                <input type="number" value={row.item.price || 0} onChange={(e)=>updateItemField(row.key, row.idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white" placeholder="日額" />
+                              </div>
+                              <button type="button" onClick={() => deleteMaster(row.key, row.idx)} className="text-rose-700 hover:text-white font-bold text-xs px-2 py-2.5 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
+                            </div>
+                          ))}
+                          {(settings.ishikawaHeavy || []).length + (settings.ishikawaAttach || []).length + (settings.ishikawaOther || []).length === 0 && (
+                            <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
+                          )}
+                        </div>
                       </div>
                     </section>
 
