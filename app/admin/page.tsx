@@ -342,7 +342,7 @@ export default function AdminPage() {
   const [expenseInvoiceLineOverrides, setExpenseInvoiceLineOverrides] = useState<any>({});
   const [showExpenseInvoiceModal, setShowExpenseInvoiceModal] = useState(false);
   const [expenseInvoiceCategory, setExpenseInvoiceCategory] = useState<{ key: string; label: string } | null>(null);
-  const [expenseInvoiceFilter, setExpenseInvoiceFilter] = useState({ startDate: '', endDate: '' });
+  const [expenseInvoiceFilter, setExpenseInvoiceFilter] = useState({ startDate: '', endDate: '', vendor: '' });
   const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
   const [expenseInvoiceDrafts, setExpenseInvoiceDrafts] = useState<any>({});
   const [expenseInvoiceAmount, setExpenseInvoiceAmount] = useState('');
@@ -2098,6 +2098,41 @@ export default function AdminPage() {
     }
   };
 
+  const saveUnifiedLeaseMaster = async () => {
+    if (authRole === 'viewer') return;
+    if (isLoading) {
+      alert('データを読み込み中です。しばらくお待ちください。');
+      return;
+    }
+    try {
+      await freezeExistingReportsIfNeeded();
+      const keys = ['leaseHeavy', 'leaseAttach', 'leaseOther'];
+      const announcements = keys.flatMap((key) =>
+        makeAutomaticMasterAnnouncements(key, originalSettings[key] || [], settings[key] || [])
+      );
+      const nextMasterAnnouncements = announcements.length > 0
+        ? [...announcements, ...(settings.masterAnnouncements || [])].slice(0, 100)
+        : (settings.masterAnnouncements || []);
+      const newData = { ...settings, masterAnnouncements: nextMasterAnnouncements };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) {
+        alert('保存に失敗しました。');
+        return;
+      }
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      alert('リースマスタを保存しました！');
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert('通信エラーが発生しました。');
+    }
+  };
+
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
     if (authRole === 'viewer') return;
     const updatedList = [...(settings[key] || []), newItem];
@@ -2811,50 +2846,62 @@ export default function AdminPage() {
       .forEach((r: any) => {
         let idx = 0;
         if (category === 'lease') {
+          const getLeaseMaster = (masterKey: string, name: string) =>
+            (settings[masterKey] || []).find((x:any) => x.name === name);
+          const vendorName = (master: any, fallback = '未設定') => String(master?.vendor || '').trim() || fallback;
           const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
           const legacyMachines = leaseHeavy.length === 0 && Array.isArray(r.machines) ? r.machines : [];
           legacyMachines.forEach((name: string) => {
-            const price = Number((settings.leases || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `MOKリース：${name}`, 1, price);
+            const master = getLeaseMaster('leases', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} リース：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           leaseHeavy.forEach((name: string) => {
-            const price = Number((settings.leaseHeavy || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `MOK重機：${name}`, 1, price);
+            const master = getLeaseMaster('leaseHeavy', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} 重機：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.leaseAttach) ? r.leaseAttach : []).forEach((name: string) => {
-            const price = Number((settings.leaseAttach || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `MOKアタッチメント：${name}`, 1, price);
+            const master = getLeaseMaster('leaseAttach', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} アタッチメント：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.leaseOther) ? r.leaseOther : []).forEach((name: string) => {
-            const price = Number((settings.leaseOther || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `MOKその他：${name}`, 1, price);
+            const master = getLeaseMaster('leaseOther', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} その他：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : []).forEach((name: string) => {
-            const price = Number((settings.ishikawaHeavy || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `石川重機：${name}`, 1, price);
+            const master = getLeaseMaster('ishikawaHeavy', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master)} 重機：${name}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : []).forEach((name: string) => {
-            const price = Number((settings.ishikawaAttach || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `石川アタッチメント：${name}`, 1, price);
+            const master = getLeaseMaster('ishikawaAttach', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master)} アタッチメント：${name}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.ishikawaOther) ? r.ishikawaOther : []).forEach((name: string) => {
-            const price = Number((settings.ishikawaOther || []).find((x:any) => x.name === name)?.price || 0);
-            addLine(r, idx++, `石川その他：${name}`, 1, price);
+            const master = getLeaseMaster('ishikawaOther', name);
+            const price = Number(master?.price || 0);
+            addLine(r, idx++, `${vendorName(master)} その他：${name}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.otherLeases) ? r.otherLeases : []).forEach((item: any) => {
             const total = Number(item?.price || 0);
-            addLine(r, idx++, `${item?.company || 'リース'}：${item?.name || '自由入力'}`, 1, total);
+            const vendor = String(item?.company || '').trim() || '未設定';
+            addLine(r, idx++, `${item?.company || 'リース'}：${item?.name || '自由入力'}`, 1, total, { vendor });
           });
           (Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : []).forEach((item: any) => {
             const master = (settings.leaseHeavy || []).find((x:any) => x.name === item?.name) ||
               (settings.leaseAttach || []).find((x:any) => x.name === item?.name) ||
               (settings.leaseOther || []).find((x:any) => x.name === item?.name);
             const unitPrice = item?.price !== undefined && item?.price !== null && item?.price !== '' ? Number(item.price) : Number(master?.price || 0);
-            addLine(r, idx++, `MOK自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice);
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} 自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : []).forEach((item: any) => {
             const unitPrice = item?.price !== undefined && item?.price !== null && item?.price !== '' ? Number(item.price) : 0;
-            addLine(r, idx++, `石川自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice);
+            const vendor = String(item?.company || item?.vendor || '').trim() || '未設定';
+            addLine(r, idx++, `${vendor} 自由入力：${item?.name || '名称未入力'}`, Number(item?.count || 0), unitPrice, { vendor });
           });
         } else if (category === 'ownMachine') {
           (Array.isArray(r.ownMachines) ? r.ownMachines : []).forEach((name: string) => {
@@ -2982,7 +3029,7 @@ export default function AdminPage() {
   const openExpenseInvoiceModal = (key: string, label: string) => {
     if (!modalLocation) return;
     setExpenseInvoiceCategory({ key, label });
-    setExpenseInvoiceFilter({ startDate: '', endDate: '' });
+    setExpenseInvoiceFilter({ startDate: '', endDate: '', vendor: '' });
     setExpenseInvoiceEditingKey(null);
     setExpenseInvoiceDrafts({});
     setExpenseInvoiceAmount('');
@@ -7947,7 +7994,7 @@ export default function AdminPage() {
                       ['外注会社', 'subcontractors'], ['自社車両', 'vehicles'], ['自社重機', 'companyMachines']
                     ] },
                     { title: '🚜 リース', tone: 'amber', items: [
-                      ['重機リース', 'leaseHeavy'], ['アタッチメント', 'leaseAttach'], ['その他機器', 'leaseOther']
+                      ['リース業者', 'leaseVendors'], ['リースマスタ', 'leaseMasterUnified']
                     ] },
                     { title: '🗾 石川県用', tone: 'indigo', items: [
                       ['重機', 'ishikawaHeavy'], ['アタッチメント', 'ishikawaAttach'], ['その他機器', 'ishikawaOther']
@@ -7978,6 +8025,107 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              <div id="master-leaseMasterUnified" className="mb-6 scroll-mt-6 p-4 md:p-5 rounded-2xl border-2 border-amber-200 bg-amber-50/60 space-y-5 shadow-sm">
+                <div className="flex justify-between items-start gap-3 pb-3 border-b border-amber-200">
+                  <div>
+                    <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-700 inline-flex mb-1">リース</div>
+                    <h3 className="font-extrabold text-base md:text-lg text-slate-800">🚜 リースマスタ</h3>
+                    <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">リース業者 → カテゴリー → 名称 → 日額単価の順で、通常リースをまとめて登録します。</p>
+                    <p className="text-xs text-slate-500 mt-1.5">※既存の重機・アタッチメント・その他機器データはそのまま使用します。業者未設定の既存データは南大阪建機として扱います。</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveUnifiedLeaseMaster}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow-sm transition shrink-0"
+                  >
+                    💾 保存
+                  </button>
+                </div>
+
+                <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-amber-300">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                    <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">＋</span>
+                    新規追加
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label className="text-xs font-bold text-slate-600">リース業者
+                      <select value={form.unifiedLeaseVendor || ''} onChange={(e)=>setForm({...form, unifiedLeaseVendor: e.target.value})} className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-bold">
+                        <option value="">リース業者を選択</option>
+                        <option value="南大阪建機">南大阪建機</option>
+                        {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
+                          <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">カテゴリー
+                      <select value={form.unifiedLeaseCategory || 'leaseHeavy'} onChange={(e)=>setForm({...form, unifiedLeaseCategory: e.target.value})} className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-bold">
+                        <option value="leaseHeavy">重機</option>
+                        <option value="leaseAttach">アタッチメント</option>
+                        <option value="leaseOther">その他の機械・機器</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">名称
+                      <input type="text" value={form.unifiedLeaseName || ''} onChange={(e)=>setForm({...form, unifiedLeaseName: e.target.value})} placeholder="名称" className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-medium" />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">日額単価
+                      <input type="number" value={form.unifiedLeasePrice || ''} onChange={(e)=>setForm({...form, unifiedLeasePrice: e.target.value})} placeholder="日額" className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-medium" />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const vendor = String(form.unifiedLeaseVendor || '').trim();
+                      const category = String(form.unifiedLeaseCategory || 'leaseHeavy');
+                      const name = String(form.unifiedLeaseName || '').trim();
+                      if (!vendor) return alert('リース業者を選択してください。');
+                      if (!name) return alert('名称を入力してください。');
+                      addMaster(category, { name, price: Number(form.unifiedLeasePrice) || 0, vendor, isFinished: false }, ['unifiedLeaseVendor', 'unifiedLeaseName', 'unifiedLeasePrice']);
+                    }}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
+                  >
+                    ＋ 追加
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="text-sm font-bold text-slate-700">✏️ 登録済みリース（直接編集できます）</div>
+                    <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                  </div>
+                  <div className="max-h-[520px] overflow-y-auto bg-white border border-slate-300 rounded-2xl p-3 space-y-3">
+                    {[
+                      ...(settings.leaseHeavy || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseHeavy', categoryLabel: '重機' })),
+                      ...(settings.leaseAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseAttach', categoryLabel: 'アタッチメント' })),
+                      ...(settings.leaseOther || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseOther', categoryLabel: 'その他の機械・機器' }))
+                    ].map((row:any) => (
+                      <div key={`${row.key}_${row.idx}`} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">{row.categoryLabel}</span>
+                          <button type="button" onClick={() => deleteMaster(row.key, row.idx)} className="text-rose-700 hover:text-white font-bold text-xs px-3 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition">🗑 削除</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white">
+                            <option value="">未設定（南大阪建機扱い）</option>
+                            <option value="南大阪建機">南大阪建機</option>
+                            {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
+                              <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                            ))}
+                          </select>
+                          <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-500 font-bold text-sm">¥</span>
+                            <input type="number" value={row.item.price || 0} onChange={(e)=>updateItemField(row.key, row.idx, 'price', e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white" placeholder="日額" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {(settings.leaseHeavy || []).length + (settings.leaseAttach || []).length + (settings.leaseOther || []).length === 0 && (
+                      <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               {[
                 { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
@@ -7987,12 +8135,10 @@ export default function AdminPage() {
                 { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
                 { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
                 { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🚜 リース：重機＆日額単価", description: "通常現場で借りるリース重機の日額を登録します。", category: "リース", key: "leaseHeavy", nameKey: "name", priceKey: "price", addForm: ['lhName', 'lhPrice'], placeholders: ["重機名", "日額"], type: "leaseHeavy" },
-                { title: "⚙️ リース：アタッチメント＆日額単価", description: "通常現場で借りるアタッチメントの日額を登録します。", category: "リース", key: "leaseAttach", nameKey: "name", priceKey: "price", addForm: ['laName', 'laPrice'], placeholders: ["アタッチメント名", "日額"], type: "leaseAttach" },
-                { title: "🛠️ リース：その他 機械・機器＆日額単価", description: "通常現場で借りるその他の機械・機器の日額を登録します。", category: "リース", key: "leaseOther", nameKey: "name", priceKey: "price", addForm: ['loName', 'loPrice'], placeholders: ["機械・機器名", "日額"], type: "leaseOther" },
-                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額を登録します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true },
-                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額を登録します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額を登録します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true },
+                { title: "🏢 リース業者マスタ", description: "リース品を登録するときに選択する業者名を登録します。", category: "リース", key: "leaseVendors", nameKey: "name", addForm: ['leaseVendorName'], placeholders: ["リース業者名"], type: "leaseVendors", isNoPrice: true, isLeaseVendor: true },
+                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額と業者を登録します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
+                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額と業者を登録します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
+                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額と業者を登録します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
                 { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
               ].map((sec:any, idx) => (
@@ -8047,6 +8193,26 @@ export default function AdminPage() {
                           <input type="text" placeholder="単位" value={form.sUnit || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
                         </div>
                         <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      </div>
+                    ) : sec.isLeaseMaster ? (
+                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
+                        <select
+                          value={form[`${sec.key}Vendor`] || ''}
+                          onChange={(e) => setForm({ ...form, [`${sec.key}Vendor`]: e.target.value })}
+                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-bold"
+                        >
+                          <option value="">リース業者を選択</option>
+                          {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                            <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                          ))}
+                        </select>
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <button onClick={() => {
+                          const vendor = String(form[`${sec.key}Vendor`] || '').trim();
+                          if (!vendor) return alert('リース業者を選択してください。');
+                          addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, vendor, isFinished: false}, [...sec.addForm, `${sec.key}Vendor`]);
+                        }} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isNoPrice ? (
                       <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
@@ -8412,6 +8578,20 @@ export default function AdminPage() {
                                 </select>
                               </div>
                             </div>
+                          ) : sec.isLeaseMaster ? (
+                            <div className="space-y-2">
+                              <select
+                                value={item.vendor || ''}
+                                onChange={(e)=>updateItemField(sec.key, idx, 'vendor', e.target.value)}
+                                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                              >
+                                <option value="">業者未設定</option>
+                                {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                  <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                                ))}
+                              </select>
+                              <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                            </div>
                           ) : sec.isNoPrice ? (
                             <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                           ) : (
@@ -8732,9 +8912,9 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                                {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
-                                {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                                {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
@@ -8906,9 +9086,9 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                                {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
-                                {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                                {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
                                 {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                                 {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                                 {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
@@ -9066,9 +9246,9 @@ export default function AdminPage() {
                       <div className="text-sm text-slate-700 font-medium space-y-1 bg-white p-3 rounded-xl border">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                         {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                        {leaseHeavy.length > 0 && <div>🔸 <b>MOK重機:</b> {leaseHeavy.join(', ')}</div>}
-                        {leaseAttach.length > 0 && <div>🔸 <b>MOKアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                        {leaseOther.length > 0 && <div>🔸 <b>MOKその他機器:</b> {leaseOther.join(', ')}</div>}
+                        {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
+                        {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
+                        {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
                         {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
                         {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
                         {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
@@ -10763,7 +10943,7 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-slate-50/80 p-5 md:p-6 rounded-3xl border border-slate-200/60 space-y-4">
-                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🏢 南大阪建機（MOK）からのリース</h3>
+                <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">🏢 通常リース</h3>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-700 block">【重機】</label>
@@ -13553,10 +13733,18 @@ export default function AdminPage() {
       {showExpenseInvoiceModal && expenseInvoiceCategory && modalLocation && authRole === 'admin' && (() => {
         const categoryKey = expenseInvoiceCategory.key;
         const allLines = getExpenseInvoiceLines(modalLocation, categoryKey);
-        const { startDate, endDate } = expenseInvoiceFilter;
-        const conditionsReady = !!startDate && !!endDate;
+        const { startDate, endDate, vendor } = expenseInvoiceFilter;
+        const isLeaseInvoice = categoryKey === 'lease';
+        const vendorOptions = isLeaseInvoice
+          ? Array.from(new Set(allLines.map((line: any) => String(line.vendor || '未設定')))).sort((a: any, b: any) => String(a).localeCompare(String(b), 'ja'))
+          : [];
+        const conditionsReady = !!startDate && !!endDate && (!isLeaseInvoice || !!vendor);
         const visibleLines = conditionsReady
-          ? allLines.filter((line: any) => line.date >= startDate && line.date <= endDate)
+          ? allLines.filter((line: any) =>
+              line.date >= startDate &&
+              line.date <= endDate &&
+              (!isLeaseInvoice || String(line.vendor || '未設定') === vendor)
+            )
           : [];
         const totalAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
         const invoiceAmountNumber = expenseInvoiceAmount === '' ? null : Number(expenseInvoiceAmount || 0);
@@ -13574,7 +13762,15 @@ export default function AdminPage() {
               </div>
 
               <div className="p-4 md:p-6 overflow-y-auto space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                <div className={`grid grid-cols-1 ${isLeaseInvoice ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4`}>
+                  {isLeaseInvoice && (
+                    <label className="text-sm font-extrabold text-slate-700">リース業者
+                      <select value={vendor} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, vendor: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold">
+                        <option value="">業者を選択</option>
+                        {vendorOptions.map((name:any) => <option key={String(name)} value={String(name)}>{String(name)}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <label className="text-sm font-extrabold text-slate-700">開始日
                     <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
                   </label>
@@ -13584,7 +13780,7 @@ export default function AdminPage() {
                 </div>
 
                 {!conditionsReady ? (
-                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">開始日と終了日を選択すると明細を表示します。</div>
+                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">{isLeaseInvoice ? 'リース業者・開始日・終了日を選択すると明細を表示します。' : '開始日と終了日を選択すると明細を表示します。'}</div>
                 ) : visibleLines.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 font-bold">指定期間の明細はありません。</div>
                 ) : (
@@ -13662,6 +13858,7 @@ export default function AdminPage() {
                     onClick={() => markInvoiceReconciled(modalLocation, categoryKey, {
                       startDate: expenseInvoiceFilter.startDate,
                       endDate: expenseInvoiceFilter.endDate,
+                      company: categoryKey === 'lease' ? expenseInvoiceFilter.vendor : '',
                       hadChanges: visibleLines.some((line: any) => line.hasOverride),
                       invoiceAmount: invoiceAmountNumber,
                       diff
