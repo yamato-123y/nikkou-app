@@ -8037,16 +8037,64 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={saveUnifiedLeaseMaster}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow-sm transition shrink-0"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                   >
                     💾 保存
                   </button>
                 </div>
 
+                <div id="master-leaseVendors" className="scroll-mt-6 rounded-2xl border border-amber-200 bg-white p-3.5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <div className="font-extrabold text-sm text-slate-800">🏢 リース業者登録</div>
+                      <div className="text-xs text-slate-500 mt-0.5">ここで業者を登録すると、下のリースマスタですぐ選択できます。</div>
+                    </div>
+                    <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.leaseVendors || []).length} 社</div>
+                  </div>
+                  <div className="grid grid-cols-[1fr_110px] gap-2 mb-3">
+                    <input
+                      type="text"
+                      placeholder="リース業者名（例：○○リース）"
+                      value={form.leaseVendorName || ''}
+                      onChange={(e)=>setForm({...form, leaseVendorName: e.target.value})}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const name = String(form.leaseVendorName || '').trim();
+                        if (!name) return alert('リース業者名を入力してください。');
+                        if (name === '南大阪建機' || (settings.leaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じリース業者がすでに登録されています。');
+                        addMaster('leaseVendors', { name }, ['leaseVendorName']);
+                      }}
+                      className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-sm transition"
+                    >
+                      ＋ 追加
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50">
+                      <div className="flex-1 font-bold text-sm text-slate-800">南大阪建機</div>
+                      <span className="text-[11px] font-bold text-amber-800 bg-white border border-amber-200 rounded-lg px-2 py-1">標準・常設</span>
+                    </div>
+                    {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                      <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50">
+                        <input
+                          type="text"
+                          value={vendor.name || ''}
+                          onChange={(e)=>updateItemField('leaseVendors', vendorIdx, 'name', e.target.value)}
+                          className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white"
+                        />
+                        <button type="button" onClick={() => deleteMaster('leaseVendors', vendorIdx)} className="text-rose-700 hover:text-white font-bold text-xs px-2.5 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-amber-300">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
                     <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">＋</span>
-                    新規追加
+                    リース品を新規追加
                   </div>
                   <div className="grid grid-cols-[1.15fr_1fr_1.35fr_0.75fr_110px] gap-2.5 items-end">
                     <label className="text-xs font-bold text-slate-600">リース業者
@@ -8123,7 +8171,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
               {[
                 { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
@@ -8132,16 +8180,15 @@ export default function AdminPage() {
                 { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
                 { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
                 { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🏢 リース業者マスタ", description: "リース品を登録するときに選択する業者名を登録します。", category: "リース", key: "leaseVendors", nameKey: "name", addForm: ['leaseVendorName'], placeholders: ["リース業者名"], type: "leaseVendors", isNoPrice: true, isLeaseVendor: true },
                 { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額と業者を登録します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
                 { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額と業者を登録します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
                 { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額と業者を登録します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
                 { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
               ].map((sec:any, idx) => (
-                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-4 rounded-2xl border space-y-4 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200/80">
+                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-3.5 rounded-2xl border space-y-3 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">{sec.category}</span>
@@ -8152,7 +8199,7 @@ export default function AdminPage() {
                       </div>
                       <button 
                         onClick={() => saveMaster(sec.key)} 
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl font-bold shadow-sm transition shrink-0"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                       >
                         💾 保存
                       </button>
@@ -8164,67 +8211,61 @@ export default function AdminPage() {
                     </div>
 
                     {sec.isSub ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                        <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="作業内容" value={form.subTask || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                          <input type="number" placeholder="単価" value={form.subPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-                        </div>
-                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      <div className="grid grid-cols-[1fr_1.2fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isDisp ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
-                        <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="品目" value={form.dItem || ''} className="col-span-4 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
-                          <input type="text" placeholder="単位" value={form.dUnit || ''} className="col-span-3 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
-                          <input type="number" placeholder="単価" value={form.dPrice || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dPrice: e.target.value})} />
-                        </div>
-                        <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      <div className="grid grid-cols-[1.1fr_1fr_110px_160px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
+                        <input type="text" placeholder="品目" value={form.dItem || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                        <input type="text" placeholder="単位" value={form.dUnit || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                        <input type="number" placeholder="単価" value={form.dPrice || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isScrap ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
-                        <div className="grid grid-cols-12 gap-2">
-                          <input type="text" placeholder="品目" value={form.sItem || ''} className="col-span-7 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
-                          <input type="text" placeholder="単位" value={form.sUnit || ''} className="col-span-5 p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
-                        </div>
-                        <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      <div className="grid grid-cols-[1.2fr_1fr_130px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
+                        <input type="text" placeholder="品目" value={form.sItem || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                        <input type="text" placeholder="単位" value={form.sUnit || ''} className="p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isLeaseMaster ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-[1.15fr_1.4fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <select
                           value={form[`${sec.key}Vendor`] || ''}
                           onChange={(e) => setForm({ ...form, [`${sec.key}Vendor`]: e.target.value })}
-                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-bold"
+                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-bold"
                         >
                           <option value="">リース業者を選択</option>
                           {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
                             <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
                           ))}
                         </select>
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
                         <button onClick={() => {
                           const vendor = String(form[`${sec.key}Vendor`] || '').trim();
                           if (!vendor) return alert('リース業者を選択してください。');
                           addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, vendor, isFinished: false}, [...sec.addForm, `${sec.key}Vendor`]);
-                        }} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                        }} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.isNoPrice ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      <div className="grid grid-cols-[1fr_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     ) : sec.key === 'locations' ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <div>
+                      <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <div className="col-span-2">
                           <label className="block text-xs font-bold text-slate-600 mb-1">正式な現場名</label>
                           <input
                             type="text"
                             placeholder="例：旧河北郡市クリーンセンター等解体工事(石川県)"
                             value={form.lName || ''}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                             onChange={e=>setForm({...form, lName: e.target.value})}
                           />
                         </div>
@@ -8237,7 +8278,7 @@ export default function AdminPage() {
                             type="text"
                             placeholder="例：石川県"
                             value={form.lShortName || ''}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                             onChange={e=>setForm({...form, lShortName: e.target.value})}
                           />
                           <div className="text-[11px] text-slate-500 mt-1">
@@ -8250,7 +8291,7 @@ export default function AdminPage() {
                           <select
                             value={form.lLocationType || 'site'}
                             onChange={e=>setForm({...form, lLocationType: e.target.value})}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                           >
                             <option value="site">工事現場</option>
                             <option value="yard">置場</option>
@@ -8263,7 +8304,7 @@ export default function AdminPage() {
                             <select
                               value={form.lYardManager || '湯浅'}
                               onChange={e=>setForm({...form, lYardManager: e.target.value})}
-                              className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                             >
                               <option value="">未設定</option>
                               {(settings.workers || []).map((w:any) => (
@@ -8280,7 +8321,7 @@ export default function AdminPage() {
                           <select
                             value={form.lClosingDay || ''}
                             onChange={e=>setForm({...form, lClosingDay: e.target.value})}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                           >
                             <option value="">未設定</option>
                             {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
@@ -8296,7 +8337,7 @@ export default function AdminPage() {
                             type="number"
                             placeholder="請負金額（税抜）"
                             value={form.lPrice || ''}
-                            className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                             onChange={e=>setForm({...form, lPrice: e.target.value})}
                           />
                         </div>
@@ -8319,25 +8360,25 @@ export default function AdminPage() {
                               ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lClosingDay', 'lPrice']
                             )
                           }
-                          className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
+                          className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                         >
                           ＋ 追加
                         </button>
                       </div>
                     ) : sec.key === 'workers' ? (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
+                      <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                         <input
                           type="text"
                           placeholder="メンバー名"
                           value={form.wName || ''}
-                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                           onChange={e=>setForm({...form, wName: e.target.value})}
                         />
                         <input
                           type="number"
                           placeholder="日額"
                           value={form.wPrice || ''}
-                          className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                           onChange={e=>setForm({...form, wPrice: e.target.value})}
                         />
 
@@ -8401,7 +8442,7 @@ export default function AdminPage() {
                                       : form.wShiftHours || 8
                               });
                             }}
-                            className="w-full p-3 rounded-xl border-2 border-slate-300 bg-white font-bold"
+                            className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
                           >
                             <option value="yamato">① 大和社員</option>
                             <option value="trainee">② 実習生</option>
@@ -8423,16 +8464,16 @@ export default function AdminPage() {
                               ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType']
                             )
                           }
-                          className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
+                          className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                         >
                           ＋ 追加
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center">＋ 追加</button>
+                      <div className="grid grid-cols-[1fr_180px_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                       </div>
                     )}
                   </div>
@@ -8443,12 +8484,12 @@ export default function AdminPage() {
                       <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
                       <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
                     </div>
-                    <div className="max-h-[420px] overflow-y-auto bg-white border border-slate-300 rounded-2xl p-3 space-y-3">
+                    <div className="max-h-[320px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2 space-y-2">
                     {(settings[sec.key] || []).length === 0 ? (
                       <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                     ) : (
                       (settings[sec.key] || []).map((item:any, idx:number)=>(
-                        <div key={idx} className="flex flex-col gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
+                        <div key={idx} className="flex flex-col gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
                           <div className="flex justify-between items-center gap-2">
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
