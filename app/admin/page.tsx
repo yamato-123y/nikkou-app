@@ -8222,601 +8222,625 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div id="master-ishikawaLeaseVendors" className="mb-5 scroll-mt-6 p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 space-y-4 shadow-sm">
-                <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
-                  <div>
-                    <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1">石川県用</div>
-                    <h3 className="font-extrabold text-base md:text-lg text-indigo-900">🏢 石川県用リース業者マスタ</h3>
-                    <p className="text-xs md:text-sm text-indigo-700 mt-1 leading-relaxed">徳本の石川県出張用リースで使用する業者だけを登録します。一般リース業者とは別管理です。</p>
-                    <p className="text-xs text-slate-500 mt-1.5">※既に石川県用リース品へ設定済みの業者（例：ヒサヤス）は自動でこちらへ引き継ぎます。</p>
-                  </div>
-                  <button type="button" onClick={() => saveMaster('ishikawaLeaseVendors')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0">
-                    💾 保存
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-[1fr_110px] gap-2">
-                  <input type="text" placeholder="石川県用リース業者名（例：ヒサヤス）" value={form.ishikawaLeaseVendorName || ''} onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})} className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-white focus:outline-none font-medium" />
-                  <button type="button" onClick={() => {
-                    const name = String(form.ishikawaLeaseVendorName || '').trim();
-                    if (!name) return alert('石川県用リース業者名を入力してください。');
-                    if ((settings.ishikawaLeaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じ石川県用リース業者がすでに登録されています。');
-                    addMaster('ishikawaLeaseVendors', { name }, ['ishikawaLeaseVendorName']);
-                  }} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                  {(settings.ishikawaLeaseVendors || []).length === 0 ? (
-                    <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-white px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
-                  ) : (settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
-                    <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-white">
-                      <input type="text" value={vendor.name || ''} onChange={(e)=>updateItemField('ishikawaLeaseVendors', vendorIdx, 'name', e.target.value)} className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white" />
-                      <button type="button" onClick={() => deleteMaster('ishikawaLeaseVendors', vendorIdx)} className="text-rose-700 hover:text-white font-bold text-xs px-2.5 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-              {[
-                { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
-                { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
-                { title: "👥 作業メンバー＆日額単価", description: "作業員名、日額、勤務時間、社員・実習生などの区分を登録します。", category: "人・基本情報", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
-                { title: "🏷️ 職種一覧", description: "日報で使用する作業内容・職種名を登録します。", category: "人・基本情報", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
-                { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
-                { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
-                { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
-                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
-                { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
-                { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
-              ].map((sec:any, idx) => (
-                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${(sec.isSub || sec.isDisp || sec.isScrap || sec.isLeaseMaster || sec.key === 'locations' || sec.key === 'workers') ? 'xl:col-span-2' : ''} ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">{sec.category}</span>
-                        </div>
-                        <h3 className={`font-extrabold text-base md:text-lg leading-snug ${sec.isIshikawa ? 'text-indigo-800' : 'text-slate-800'}`}>{sec.title}</h3>
-                        <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
-                        <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
-                      </div>
-                      <button 
-                        onClick={() => saveMaster(sec.key)} 
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
-                      >
-                        💾 保存
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                      <span className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">＋</span>
-                      新規追加
-                    </div>
-
-                    {sec.isSub ? (
-                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
-                        <input type="text" placeholder="作業内容" value={form.subTask || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form.subPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-                        <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.isDisp ? (
-                      <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_90px_140px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
-                        <input type="text" placeholder="品目" value={form.dItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
-                        <input type="text" placeholder="単位" value={form.dUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
-                        <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.isScrap ? (
-                      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
-                        <input type="text" placeholder="品目" value={form.sItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
-                        <input type="text" placeholder="単位" value={form.sUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.isLeaseMaster ? (
-                      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <select
-                          value={form[`${sec.key}Vendor`] || ''}
-                          onChange={(e) => setForm({ ...form, [`${sec.key}Vendor`]: e.target.value })}
-                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-bold"
-                        >
-                          <option value="">リース業者を選択</option>
-                          {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
-                            <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
-                          ))}
-                        </select>
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <button onClick={() => {
-                          const vendor = String(form[`${sec.key}Vendor`] || '').trim();
-                          if (!vendor) return alert('リース業者を選択してください。');
-                          addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, vendor, isFinished: false}, [...sec.addForm, `${sec.key}Vendor`]);
-                        }} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.isNoPrice ? (
-                      <div className="grid grid-cols-[1fr_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    ) : sec.key === 'locations' ? (
-                      <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <div className="col-span-2">
-                          <label className="block text-xs font-bold text-slate-600 mb-1">正式な現場名</label>
-                          <input
-                            type="text"
-                            placeholder="例：旧河北郡市クリーンセンター等解体工事(石川県)"
-                            value={form.lName || ''}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                            onChange={e=>setForm({...form, lName: e.target.value})}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1">
-                            略称名 <span className="font-normal text-slate-400">（任意）</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="例：石川県"
-                            value={form.lShortName || ''}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                            onChange={e=>setForm({...form, lShortName: e.target.value})}
-                          />
-                          <div className="text-[11px] text-slate-500 mt-1">
-                            月次勤怠では略称名を優先表示します。未入力なら正式名を表示します。
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1">区分</label>
-                          <select
-                            value={form.lLocationType || 'site'}
-                            onChange={e=>setForm({...form, lLocationType: e.target.value})}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                          >
-                            <option value="site">工事現場</option>
-                            <option value="yard">置場</option>
-                          </select>
-                        </div>
-
-                        {(form.lLocationType || 'site') === 'yard' && (
-                          <div>
-                            <label className="block text-xs font-bold text-slate-600 mb-1">置場責任者</label>
-                            <select
-                              value={form.lYardManager || '湯浅'}
-                              onChange={e=>setForm({...form, lYardManager: e.target.value})}
-                              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                            >
-                              <option value="">未設定</option>
-                              {(settings.workers || []).map((w:any) => (
-                                <option key={w.name} value={w.name}>{w.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1">
-                            締め日 <span className="font-normal text-slate-400">（任意）</span>
-                          </label>
-                          <select
-                            value={form.lClosingDay || ''}
-                            onChange={e=>setForm({...form, lClosingDay: e.target.value})}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                          >
-                            <option value="">未設定</option>
-                            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                              <option key={day} value={String(day)}>{day}日締め</option>
-                            ))}
-                            <option value="末日">末日締め</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-1">請負金額（税抜）</label>
-                          <input
-                            type="number"
-                            placeholder="請負金額（税抜）"
-                            value={form.lPrice || ''}
-                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                            onChange={e=>setForm({...form, lPrice: e.target.value})}
-                          />
-                        </div>
-
-                        <button
-                          onClick={() =>
-                            addMaster(
-                              'locations',
-                              {
-                                name: form.lName,
-                                shortName: form.lShortName || '',
-                                locationType: form.lLocationType || 'site',
-                                yardManager: (form.lLocationType || 'site') === 'yard'
-                                  ? (form.lYardManager || '湯浅')
-                                  : '',
-                                closingDay: form.lClosingDay || '',
-                                price: Number(form.lPrice) || 0,
-                                isFinished: false
-                              },
-                              ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lClosingDay', 'lPrice']
-                            )
-                          }
-                          className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
-                        >
-                          ＋ 追加
-                        </button>
-                      </div>
-                    ) : sec.key === 'workers' ? (
-                      <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input
-                          type="text"
-                          placeholder="メンバー名"
-                          value={form.wName || ''}
-                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                          onChange={e=>setForm({...form, wName: e.target.value})}
-                        />
-                        <input
-                          type="number"
-                          placeholder="日額"
-                          value={form.wPrice || ''}
-                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                          onChange={e=>setForm({...form, wPrice: e.target.value})}
-                        />
-
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <div className="text-sm font-bold text-slate-700 mb-2">所定勤務時間</div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[8, 7].map((hours) => (
-                              <label
-                                key={hours}
-                                className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold transition ${
-                                  Number(form.wShiftHours || 8) === hours
-                                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                                    : 'bg-white border-slate-200 text-slate-700'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="new-worker-shift-hours"
-                                  value={hours}
-                                  checked={Number(form.wShiftHours || 8) === hours}
-                                  onChange={() => setForm({...form, wShiftHours: hours})}
-                                  className="accent-blue-600"
-                                />
-                                {hours}時間勤務
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-                          form.wWeeklyPay
-                            ? 'bg-orange-50 border-orange-300 text-orange-900'
-                            : 'bg-white border-slate-200 text-slate-700'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={!!form.wWeeklyPay}
-                            onChange={(e) => setForm({...form, wWeeklyPay: e.target.checked})}
-                            className="w-5 h-5 accent-orange-600"
-                          />
-                          <div>
-                            <div className="text-sm font-bold">週払い対象</div>
-                            <div className="text-xs text-slate-500 mt-0.5">毎週払いの作業員はこちら</div>
-                          </div>
-                        </label>
-
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <div className="text-sm font-bold text-slate-700 mb-2">会社カレンダー</div>
-                          <select
-                            value={form.wCalendarType || 'none'}
-                            onChange={(e) => {
-                              const calendarType = e.target.value;
-                              setForm({
-                                ...form,
-                                wCalendarType: calendarType,
-                                wShiftHours:
-                                  calendarType === 'yamato'
-                                    ? 8
-                                    : calendarType === 'trainee'
-                                      ? 7
-                                      : form.wShiftHours || 8
-                              });
-                            }}
-                            className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
-                          >
-                            <option value="yamato">① 大和社員</option>
-                            <option value="trainee">② 実習生</option>
-                            <option value="none">③ 該当なし</option>
-                          </select>
-                        </div>
-
-                        <button
-                          onClick={() =>
-                            addMaster(
-                              'workers',
-                              {
-                                name: form.wName,
-                                price: Number(form.wPrice) || 0,
-                                shiftHours: Number(form.wShiftHours || 8),
-                                isWeeklyPay: !!form.wWeeklyPay,
-                                calendarType: form.wCalendarType || 'none'
-                              },
-                              ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType']
-                            )
-                          }
-                          className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
-                        >
-                          ＋ 追加
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-[minmax(0,1fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
-                        <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                        <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                        <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 登録済みリスト */}
-                  <div className="space-y-2 mt-1">
-                    <div className="flex items-center justify-between px-1">
-                      <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
-                      <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
-                    </div>
-                    <div className="max-h-[380px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2.5 space-y-2">
-                    {(settings[sec.key] || []).length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
-                    ) : (
-                      (settings[sec.key] || []).map((item:any, idx:number)=>(
-                        <div key={idx} className="flex flex-col gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
-                              <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {sec.key === 'locations' && (
-                                <button 
-                                  type="button" 
-                                  onClick={() => toggleLocationFinished(typeof item === 'string' ? item : item.name)}
-                                  className={`text-xs px-2.5 py-1 rounded-lg font-bold transition ${item.isFinished ? 'bg-slate-600 text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}`}
-                                >
-                                  {item.isFinished ? '📁 完了済' : '現場完了'}
-                                </button>
-                              )}
-                              <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-700 hover:text-white font-bold text-xs px-3 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition">🗑 削除</button>
-                            </div>
-                          </div>
-
-                          {sec.isSub ? (
-                            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_160px] gap-2 items-center">
-                              <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <div className="relative min-w-0">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
-                              </div>
-                            </div>
-                          ) : sec.isDisp ? (
-                            <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_100px_160px] gap-2 items-center">
-                              <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="処分場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <div className="relative min-w-0">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
-                                <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
-                              </div>
-                            </div>
-                          ) : sec.isScrap ? (
-                            <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_120px] gap-2 items-center">
-                              <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="スクラップ場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                              <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                            </div>
-                          ) : sec.key === 'locations' ? (
-                            <div className="space-y-2">
-                              <div>
-                                <div className="text-[11px] font-bold text-slate-500 mb-1">正式な現場名</div>
-                                <input
-                                  type="text"
-                                  value={typeof item === 'string' ? item : item.name || ''}
-                                  onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)}
-                                  placeholder="正式な現場名"
-                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                                />
-                              </div>
-                              <div>
-                                <div className="text-[11px] font-bold text-slate-500 mb-1">
-                                  略称名 <span className="font-normal text-slate-400">（月次勤怠用・任意）</span>
+              {(() => {
+                const masterSections: any[] = [
+                      { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
+                      { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
+                      { title: "👥 作業メンバー＆日額単価", description: "作業員名、日額、勤務時間、社員・実習生などの区分を登録します。", category: "人・基本情報", key: "workers", nameKey: "name", priceKey: "price", addForm: ['wName', 'wPrice'], placeholders: ["メンバー名", "日額"], type: "workers" },
+                      { title: "🏷️ 職種一覧", description: "日報で使用する作業内容・職種名を登録します。", category: "人・基本情報", key: "jobTypes", nameKey: "name", addForm: ['jName'], placeholders: ["職種名 (例: 解体工、オペなど)"], type: "jobTypes", isNoPrice: true },
+                      { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
+                      { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
+                      { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
+                      { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
+                      { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
+                      { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
+                      { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
+                      { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
+                    ];
+                const renderMasterSection = (sec: any, idx: number) => (
+                          <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${(sec.isSub || sec.isDisp || sec.isScrap || sec.isLeaseMaster || sec.key === 'locations' || sec.key === 'workers') ? 'xl:col-span-2' : ''} ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <span className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">{sec.category}</span>
+                                  </div>
+                                  <h3 className={`font-extrabold text-base md:text-lg leading-snug ${sec.isIshikawa ? 'text-indigo-800' : 'text-slate-800'}`}>{sec.title}</h3>
+                                  <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
+                                  <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                                 </div>
-                                <input
-                                  type="text"
-                                  value={typeof item === 'string' ? '' : item.shortName || ''}
-                                  onChange={(e)=>updateItemField(sec.key, idx, 'shortName', e.target.value)}
-                                  placeholder="例：石川県"
-                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                                />
-                              </div>
-
-                              <div>
-                                <div className="text-[11px] font-bold text-slate-500 mb-1">区分</div>
-                                <select
-                                  value={typeof item === 'string' ? (item === '置場' ? 'yard' : 'site') : (item.locationType || (item.name === '置場' ? 'yard' : 'site'))}
-                                  onChange={(e)=>updateItemField(sec.key, idx, 'locationType', e.target.value)}
-                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                <button 
+                                  onClick={() => saveMaster(sec.key)} 
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                                 >
-                                  <option value="site">工事現場</option>
-                                  <option value="yard">置場</option>
-                                </select>
+                                  💾 保存
+                                </button>
                               </div>
 
-                              {(
-                                typeof item === 'string'
-                                  ? item === '置場'
-                                  : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'yard')
-                              ) && (
-                                <div>
-                                  <div className="text-[11px] font-bold text-slate-500 mb-1">置場責任者</div>
+                              <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                                <span className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">＋</span>
+                                新規追加
+                              </div>
+
+                              {sec.isSub ? (
+                                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
+                                  <input type="text" placeholder="作業内容" value={form.subTask || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
+                                  <input type="number" placeholder="単価" value={form.subPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
+                                  <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                </div>
+                              ) : sec.isDisp ? (
+                                <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_90px_140px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input type="text" placeholder="処分場名" value={form.dLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dLoc: e.target.value})} />
+                                  <input type="text" placeholder="品目" value={form.dItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
+                                  <input type="text" placeholder="単位" value={form.dUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
+                                  <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
+                                  <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                </div>
+                              ) : sec.isScrap ? (
+                                <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
+                                  <input type="text" placeholder="品目" value={form.sItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
+                                  <input type="text" placeholder="単位" value={form.sUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
+                                  <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                </div>
+                              ) : sec.isLeaseMaster ? (
+                                <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                                   <select
-                                    value={typeof item === 'string' ? '湯浅' : (item.yardManager || '湯浅')}
-                                    onChange={(e)=>updateItemField(sec.key, idx, 'yardManager', e.target.value)}
-                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                    value={form[`${sec.key}Vendor`] || ''}
+                                    onChange={(e) => setForm({ ...form, [`${sec.key}Vendor`]: e.target.value })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-bold"
                                   >
-                                    <option value="">未設定</option>
-                                    {(settings.workers || []).map((w:any) => (
-                                      <option key={w.name} value={w.name}>{w.name}</option>
+                                    <option value="">リース業者を選択</option>
+                                    {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                      <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
                                     ))}
                                   </select>
+                                  <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                                  <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                                  <button onClick={() => {
+                                    const vendor = String(form[`${sec.key}Vendor`] || '').trim();
+                                    if (!vendor) return alert('リース業者を選択してください。');
+                                    addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, vendor, isFinished: false}, [...sec.addForm, `${sec.key}Vendor`]);
+                                  }} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                </div>
+                              ) : sec.isNoPrice ? (
+                                <div className="grid grid-cols-[1fr_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                </div>
+                              ) : sec.key === 'locations' ? (
+                                <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">正式な現場名</label>
+                                    <input
+                                      type="text"
+                                      placeholder="例：旧河北郡市クリーンセンター等解体工事(石川県)"
+                                      value={form.lName || ''}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                      onChange={e=>setForm({...form, lName: e.target.value})}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                                      略称名 <span className="font-normal text-slate-400">（任意）</span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="例：石川県"
+                                      value={form.lShortName || ''}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                      onChange={e=>setForm({...form, lShortName: e.target.value})}
+                                    />
+                                    <div className="text-[11px] text-slate-500 mt-1">
+                                      月次勤怠では略称名を優先表示します。未入力なら正式名を表示します。
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">区分</label>
+                                    <select
+                                      value={form.lLocationType || 'site'}
+                                      onChange={e=>setForm({...form, lLocationType: e.target.value})}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                    >
+                                      <option value="site">工事現場</option>
+                                      <option value="yard">置場</option>
+                                    </select>
+                                  </div>
+
+                                  {(form.lLocationType || 'site') === 'yard' && (
+                                    <div>
+                                      <label className="block text-xs font-bold text-slate-600 mb-1">置場責任者</label>
+                                      <select
+                                        value={form.lYardManager || '湯浅'}
+                                        onChange={e=>setForm({...form, lYardManager: e.target.value})}
+                                        className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                      >
+                                        <option value="">未設定</option>
+                                        {(settings.workers || []).map((w:any) => (
+                                          <option key={w.name} value={w.name}>{w.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                                      締め日 <span className="font-normal text-slate-400">（任意）</span>
+                                    </label>
+                                    <select
+                                      value={form.lClosingDay || ''}
+                                      onChange={e=>setForm({...form, lClosingDay: e.target.value})}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                    >
+                                      <option value="">未設定</option>
+                                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                        <option key={day} value={String(day)}>{day}日締め</option>
+                                      ))}
+                                      <option value="末日">末日締め</option>
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">請負金額（税抜）</label>
+                                    <input
+                                      type="number"
+                                      placeholder="請負金額（税抜）"
+                                      value={form.lPrice || ''}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                      onChange={e=>setForm({...form, lPrice: e.target.value})}
+                                    />
+                                  </div>
+
+                                  <button
+                                    onClick={() =>
+                                      addMaster(
+                                        'locations',
+                                        {
+                                          name: form.lName,
+                                          shortName: form.lShortName || '',
+                                          locationType: form.lLocationType || 'site',
+                                          yardManager: (form.lLocationType || 'site') === 'yard'
+                                            ? (form.lYardManager || '湯浅')
+                                            : '',
+                                          closingDay: form.lClosingDay || '',
+                                          price: Number(form.lPrice) || 0,
+                                          isFinished: false
+                                        },
+                                        ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lClosingDay', 'lPrice']
+                                      )
+                                    }
+                                    className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
+                                  >
+                                    ＋ 追加
+                                  </button>
+                                </div>
+                              ) : sec.key === 'workers' ? (
+                                <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input
+                                    type="text"
+                                    placeholder="メンバー名"
+                                    value={form.wName || ''}
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                    onChange={e=>setForm({...form, wName: e.target.value})}
+                                  />
+                                  <input
+                                    type="number"
+                                    placeholder="日額"
+                                    value={form.wPrice || ''}
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                    onChange={e=>setForm({...form, wPrice: e.target.value})}
+                                  />
+
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    <div className="text-sm font-bold text-slate-700 mb-2">所定勤務時間</div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {[8, 7].map((hours) => (
+                                        <label
+                                          key={hours}
+                                          className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold transition ${
+                                            Number(form.wShiftHours || 8) === hours
+                                              ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                              : 'bg-white border-slate-200 text-slate-700'
+                                          }`}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name="new-worker-shift-hours"
+                                            value={hours}
+                                            checked={Number(form.wShiftHours || 8) === hours}
+                                            onChange={() => setForm({...form, wShiftHours: hours})}
+                                            className="accent-blue-600"
+                                          />
+                                          {hours}時間勤務
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                                    form.wWeeklyPay
+                                      ? 'bg-orange-50 border-orange-300 text-orange-900'
+                                      : 'bg-white border-slate-200 text-slate-700'
+                                  }`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!form.wWeeklyPay}
+                                      onChange={(e) => setForm({...form, wWeeklyPay: e.target.checked})}
+                                      className="w-5 h-5 accent-orange-600"
+                                    />
+                                    <div>
+                                      <div className="text-sm font-bold">週払い対象</div>
+                                      <div className="text-xs text-slate-500 mt-0.5">毎週払いの作業員はこちら</div>
+                                    </div>
+                                  </label>
+
+                                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                    <div className="text-sm font-bold text-slate-700 mb-2">会社カレンダー</div>
+                                    <select
+                                      value={form.wCalendarType || 'none'}
+                                      onChange={(e) => {
+                                        const calendarType = e.target.value;
+                                        setForm({
+                                          ...form,
+                                          wCalendarType: calendarType,
+                                          wShiftHours:
+                                            calendarType === 'yamato'
+                                              ? 8
+                                              : calendarType === 'trainee'
+                                                ? 7
+                                                : form.wShiftHours || 8
+                                        });
+                                      }}
+                                      className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
+                                    >
+                                      <option value="yamato">① 大和社員</option>
+                                      <option value="trainee">② 実習生</option>
+                                      <option value="none">③ 該当なし</option>
+                                    </select>
+                                  </div>
+
+                                  <button
+                                    onClick={() =>
+                                      addMaster(
+                                        'workers',
+                                        {
+                                          name: form.wName,
+                                          price: Number(form.wPrice) || 0,
+                                          shiftHours: Number(form.wShiftHours || 8),
+                                          isWeeklyPay: !!form.wWeeklyPay,
+                                          calendarType: form.wCalendarType || 'none'
+                                        },
+                                        ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType']
+                                      )
+                                    }
+                                    className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
+                                  >
+                                    ＋ 追加
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-[minmax(0,1fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
+                                  <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
+                                  <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
+                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               )}
+                            </div>
 
-                              <div>
-                                <div className="text-[11px] font-bold text-slate-500 mb-1">
-                                  締め日 <span className="font-normal text-slate-400">（任意）</span>
-                                </div>
-                                <select
-                                  value={typeof item === 'string' ? '' : item.closingDay || ''}
-                                  onChange={(e)=>updateItemField(sec.key, idx, 'closingDay', e.target.value)}
-                                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                                >
-                                  <option value="">未設定</option>
-                                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                                    <option key={day} value={String(day)}>{day}日締め</option>
-                                  ))}
-                                  <option value="末日">末日締め</option>
-                                </select>
+                            {/* 登録済みリスト */}
+                            <div className="space-y-2 mt-1">
+                              <div className="flex items-center justify-between px-1">
+                                <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
+                                <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
                               </div>
-                            </div>
-                          ) : sec.isLeaseMaster ? (
-                            <div className="space-y-2">
-                              <select
-                                value={item.vendor || ''}
-                                onChange={(e)=>updateItemField(sec.key, idx, 'vendor', e.target.value)}
-                                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                              >
-                                <option value="">業者未設定</option>
-                                {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
-                                  <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
-                                ))}
-                              </select>
-                              <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                            </div>
-                          ) : sec.isNoPrice ? (
-                            <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                          ) : (
-                            <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
-                          )}
+                              <div className="max-h-[380px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2.5 space-y-2">
+                              {(settings[sec.key] || []).length === 0 ? (
+                                <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
+                              ) : (
+                                (settings[sec.key] || []).map((item:any, idx:number)=>(
+                                  <div key={idx} className="flex flex-col gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
+                                    <div className="flex justify-between items-center gap-2">
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
+                                        <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {sec.key === 'locations' && (
+                                          <button 
+                                            type="button" 
+                                            onClick={() => toggleLocationFinished(typeof item === 'string' ? item : item.name)}
+                                            className={`text-xs px-2.5 py-1 rounded-lg font-bold transition ${item.isFinished ? 'bg-slate-600 text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}`}
+                                          >
+                                            {item.isFinished ? '📁 完了済' : '現場完了'}
+                                          </button>
+                                        )}
+                                        <button type="button" onClick={()=>deleteMaster(sec.key, idx)} className="text-rose-700 hover:text-white font-bold text-xs px-3 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition">🗑 削除</button>
+                                      </div>
+                                    </div>
 
-                          {sec.key === 'workers' && (
-                            <div className="rounded-xl border border-slate-200 bg-white p-3">
-                              <div className="text-xs font-bold text-slate-500 mb-2">所定勤務時間</div>
-                              <div className="grid grid-cols-2 gap-2">
-                                {[8, 7].map((hours) => (
-                                  <label
-                                    key={hours}
-                                    className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer text-sm font-bold transition ${
-                                      Number(item.shiftHours || 8) === hours
-                                        ? 'bg-blue-50 border-blue-500 text-blue-700'
-                                        : 'bg-slate-50 border-slate-200 text-slate-700'
-                                    }`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name={`worker-shift-${idx}`}
-                                      value={hours}
-                                      checked={Number(item.shiftHours || 8) === hours}
-                                      onChange={() => updateItemField(sec.key, idx, 'shiftHours', hours)}
-                                      className="accent-blue-600"
-                                    />
-                                    {hours}時間勤務
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                                    {sec.isSub ? (
+                                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_160px] gap-2 items-center">
+                                        <input type="text" value={item.company || ''} onChange={(e)=>updateItemField(sec.key, idx, 'company', e.target.value)} placeholder="会社名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <input type="text" value={item.task || ''} onChange={(e)=>updateItemField(sec.key, idx, 'task', e.target.value)} placeholder="作業内容" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <div className="relative min-w-0">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
+                                          <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
+                                        </div>
+                                      </div>
+                                    ) : sec.isDisp ? (
+                                      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_100px_160px] gap-2 items-center">
+                                        <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="処分場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <div className="relative min-w-0">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">¥</span>
+                                          <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 pl-7 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white text-slate-900" placeholder="単価" />
+                                        </div>
+                                      </div>
+                                    ) : sec.isScrap ? (
+                                      <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_120px] gap-2 items-center">
+                                        <input type="text" value={item.location || ''} onChange={(e)=>updateItemField(sec.key, idx, 'location', e.target.value)} placeholder="スクラップ場名" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <input type="text" value={item.item || ''} onChange={(e)=>updateItemField(sec.key, idx, 'item', e.target.value)} placeholder="品目" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                        <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
+                                      </div>
+                                    ) : sec.key === 'locations' ? (
+                                      <div className="space-y-2">
+                                        <div>
+                                          <div className="text-[11px] font-bold text-slate-500 mb-1">正式な現場名</div>
+                                          <input
+                                            type="text"
+                                            value={typeof item === 'string' ? item : item.name || ''}
+                                            onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)}
+                                            placeholder="正式な現場名"
+                                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                          />
+                                        </div>
+                                        <div>
+                                          <div className="text-[11px] font-bold text-slate-500 mb-1">
+                                            略称名 <span className="font-normal text-slate-400">（月次勤怠用・任意）</span>
+                                          </div>
+                                          <input
+                                            type="text"
+                                            value={typeof item === 'string' ? '' : item.shortName || ''}
+                                            onChange={(e)=>updateItemField(sec.key, idx, 'shortName', e.target.value)}
+                                            placeholder="例：石川県"
+                                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                          />
+                                        </div>
 
-                          {sec.key === 'workers' && (
-                            <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-                              item.isWeeklyPay
-                                ? 'bg-orange-50 border-orange-300 text-orange-900'
-                                : 'bg-white border-slate-200 text-slate-700'
-                            }`}>
-                              <input
-                                type="checkbox"
-                                checked={!!item.isWeeklyPay}
-                                onChange={(e) => updateItemField(sec.key, idx, 'isWeeklyPay', e.target.checked)}
-                                className="w-5 h-5 accent-orange-600"
-                              />
-                              <div>
-                                <div className="text-sm font-bold">週払い対象</div>
-                                <div className="text-xs text-slate-500 mt-0.5">チェックした作業員は勤怠表に「週払い」と表示</div>
-                              </div>
-                            </label>
-                          )}
+                                        <div>
+                                          <div className="text-[11px] font-bold text-slate-500 mb-1">区分</div>
+                                          <select
+                                            value={typeof item === 'string' ? (item === '置場' ? 'yard' : 'site') : (item.locationType || (item.name === '置場' ? 'yard' : 'site'))}
+                                            onChange={(e)=>updateItemField(sec.key, idx, 'locationType', e.target.value)}
+                                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                          >
+                                            <option value="site">工事現場</option>
+                                            <option value="yard">置場</option>
+                                          </select>
+                                        </div>
 
-                          {sec.key === 'workers' && (
-                            <div className="rounded-xl border border-slate-200 bg-white p-3">
-                              <div className="text-xs font-bold text-slate-500 mb-2">会社カレンダー</div>
-                              <select
-                                value={item.calendarType || 'none'}
-                                onChange={(e) => {
-                                  const value = e.target.value;
+                                        {(
+                                          typeof item === 'string'
+                                            ? item === '置場'
+                                            : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'yard')
+                                        ) && (
+                                          <div>
+                                            <div className="text-[11px] font-bold text-slate-500 mb-1">置場責任者</div>
+                                            <select
+                                              value={typeof item === 'string' ? '湯浅' : (item.yardManager || '湯浅')}
+                                              onChange={(e)=>updateItemField(sec.key, idx, 'yardManager', e.target.value)}
+                                              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                            >
+                                              <option value="">未設定</option>
+                                              {(settings.workers || []).map((w:any) => (
+                                                <option key={w.name} value={w.name}>{w.name}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        )}
 
-                                  setSettings((prev: any) => {
-                                    const list = Array.isArray(prev?.[sec.key]) ? [...prev[sec.key]] : [];
-                                    const current = { ...(list[idx] || {}) };
-
-                                    current.calendarType = value;
-
-                                    if (value === 'yamato') {
-                                      current.shiftHours = 8;
-                                    } else if (value === 'trainee') {
-                                      current.shiftHours = 7;
-                                    }
-
-                                    list[idx] = current;
-
-                                    return {
-                                      ...prev,
-                                      [sec.key]: list
-                                    };
-                                  });
-                                }}
-                                className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
-                              >
-                                <option value="yamato">① 大和社員</option>
-                                <option value="trainee">② 実習生</option>
-                                <option value="none">③ 該当なし</option>
-                              </select>
-                            </div>
-                          )}
-
-                          {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
-                            <div className="flex items-center justify-end gap-1.5 pt-1">
-                                <span className="text-slate-500 font-bold text-sm">¥</span>
-                                <div className="relative w-32">
-                                    <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
-                                    {sec.key === 'locations' && (
-                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
+                                        <div>
+                                          <div className="text-[11px] font-bold text-slate-500 mb-1">
+                                            締め日 <span className="font-normal text-slate-400">（任意）</span>
+                                          </div>
+                                          <select
+                                            value={typeof item === 'string' ? '' : item.closingDay || ''}
+                                            onChange={(e)=>updateItemField(sec.key, idx, 'closingDay', e.target.value)}
+                                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                          >
+                                            <option value="">未設定</option>
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                              <option key={day} value={String(day)}>{day}日締め</option>
+                                            ))}
+                                            <option value="末日">末日締め</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                    ) : sec.isLeaseMaster ? (
+                                      <div className="space-y-2">
+                                        <select
+                                          value={item.vendor || ''}
+                                          onChange={(e)=>updateItemField(sec.key, idx, 'vendor', e.target.value)}
+                                          className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                        >
+                                          <option value="">業者未設定</option>
+                                          {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                            <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                                          ))}
+                                        </select>
+                                        <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                                      </div>
+                                    ) : sec.isNoPrice ? (
+                                      <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
+                                    ) : (
+                                      <input type="text" value={item.name || ''} onChange={(e)=>updateItemField(sec.key, idx, 'name', e.target.value)} placeholder="名称" className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white" />
                                     )}
-                                </div>
+
+                                    {sec.key === 'workers' && (
+                                      <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <div className="text-xs font-bold text-slate-500 mb-2">所定勤務時間</div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {[8, 7].map((hours) => (
+                                            <label
+                                              key={hours}
+                                              className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer text-sm font-bold transition ${
+                                                Number(item.shiftHours || 8) === hours
+                                                  ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                                              }`}
+                                            >
+                                              <input
+                                                type="radio"
+                                                name={`worker-shift-${idx}`}
+                                                value={hours}
+                                                checked={Number(item.shiftHours || 8) === hours}
+                                                onChange={() => updateItemField(sec.key, idx, 'shiftHours', hours)}
+                                                className="accent-blue-600"
+                                              />
+                                              {hours}時間勤務
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {sec.key === 'workers' && (
+                                      <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                                        item.isWeeklyPay
+                                          ? 'bg-orange-50 border-orange-300 text-orange-900'
+                                          : 'bg-white border-slate-200 text-slate-700'
+                                      }`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={!!item.isWeeklyPay}
+                                          onChange={(e) => updateItemField(sec.key, idx, 'isWeeklyPay', e.target.checked)}
+                                          className="w-5 h-5 accent-orange-600"
+                                        />
+                                        <div>
+                                          <div className="text-sm font-bold">週払い対象</div>
+                                          <div className="text-xs text-slate-500 mt-0.5">チェックした作業員は勤怠表に「週払い」と表示</div>
+                                        </div>
+                                      </label>
+                                    )}
+
+                                    {sec.key === 'workers' && (
+                                      <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <div className="text-xs font-bold text-slate-500 mb-2">会社カレンダー</div>
+                                        <select
+                                          value={item.calendarType || 'none'}
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+
+                                            setSettings((prev: any) => {
+                                              const list = Array.isArray(prev?.[sec.key]) ? [...prev[sec.key]] : [];
+                                              const current = { ...(list[idx] || {}) };
+
+                                              current.calendarType = value;
+
+                                              if (value === 'yamato') {
+                                                current.shiftHours = 8;
+                                              } else if (value === 'trainee') {
+                                                current.shiftHours = 7;
+                                              }
+
+                                              list[idx] = current;
+
+                                              return {
+                                                ...prev,
+                                                [sec.key]: list
+                                              };
+                                            });
+                                          }}
+                                          className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
+                                        >
+                                          <option value="yamato">① 大和社員</option>
+                                          <option value="trainee">② 実習生</option>
+                                          <option value="none">③ 該当なし</option>
+                                        </select>
+                                      </div>
+                                    )}
+
+                                    {!sec.isNoPrice && !sec.isSub && !sec.isDisp && !sec.isScrap && (
+                                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                                          <span className="text-slate-500 font-bold text-sm">¥</span>
+                                          <div className="relative w-32">
+                                              <input type="number" value={item.price || 0} onChange={(e)=>updateItemField(sec.key, idx, 'price', e.target.value)} className="w-full p-2.5 pr-12 border border-slate-300 rounded-xl text-right text-sm md:text-base font-bold bg-white text-slate-900" placeholder="単価/日額" />
+                                              {sec.key === 'locations' && (
+                                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-normal text-slate-500 pointer-events-none">税抜</span>
+                                              )}
+                                          </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                              </div>
                             </div>
-                          )}
+                          </div>
+                );
+                const ishikawaSections = masterSections.filter((sec: any) => sec.isIshikawa);
+                const standardSections = masterSections.filter((sec: any) => !sec.isIshikawa);
+
+                return (
+                  <>
+                    <section id="master-ishikawa-group" className="mb-6 scroll-mt-6 rounded-3xl border-2 border-indigo-300 bg-indigo-50/70 p-4 md:p-5 shadow-sm space-y-4">
+                      <div className="flex items-start justify-between gap-4 border-b border-indigo-200 pb-3">
+                        <div>
+                          <div className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1.5">石川県専用</div>
+                          <h3 className="text-lg md:text-xl font-extrabold text-indigo-950">🗾 石川県用マスタ</h3>
+                          <p className="text-xs md:text-sm text-indigo-700 mt-1">石川県出張用のリース業者・重機・アタッチメント・その他機械を、この枠内でまとめて管理します。</p>
                         </div>
-                      ))
-                    )}
+                      </div>
+                      <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 p-4 rounded-2xl border border-indigo-200 bg-white/80 space-y-4 shadow-sm">
+                        <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
+                          <div>
+                            <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1">石川県用</div>
+                            <h3 className="font-extrabold text-base md:text-lg text-indigo-900">🏢 石川県用リース業者マスタ</h3>
+                            <p className="text-xs md:text-sm text-indigo-700 mt-1 leading-relaxed">徳本の石川県出張用リースで使用する業者だけを登録します。一般リース業者とは別管理です。</p>
+                            <p className="text-xs text-slate-500 mt-1.5">※既に石川県用リース品へ設定済みの業者（例：ヒサヤス）は自動でこちらへ引き継ぎます。</p>
+                          </div>
+                          <button type="button" onClick={() => saveMaster('ishikawaLeaseVendors')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0">
+                            💾 保存
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-[1fr_110px] gap-2">
+                          <input type="text" placeholder="石川県用リース業者名（例：ヒサヤス）" value={form.ishikawaLeaseVendorName || ''} onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})} className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-white focus:outline-none font-medium" />
+                          <button type="button" onClick={() => {
+                            const name = String(form.ishikawaLeaseVendorName || '').trim();
+                            if (!name) return alert('石川県用リース業者名を入力してください。');
+                            if ((settings.ishikawaLeaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じ石川県用リース業者がすでに登録されています。');
+                            addMaster('ishikawaLeaseVendors', { name }, ['ishikawaLeaseVendorName']);
+                          }} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                          {(settings.ishikawaLeaseVendors || []).length === 0 ? (
+                            <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-white px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
+                          ) : (settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                            <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-white">
+                              <input type="text" value={vendor.name || ''} onChange={(e)=>updateItemField('ishikawaLeaseVendors', vendorIdx, 'name', e.target.value)} className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white" />
+                              <button type="button" onClick={() => deleteMaster('ishikawaLeaseVendors', vendorIdx)} className="text-rose-700 hover:text-white font-bold text-xs px-2.5 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                        {ishikawaSections.map((sec: any, idx: number) => renderMasterSection(sec, idx))}
+                      </div>
+                    </section>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                      {standardSections.map((sec: any, idx: number) => renderMasterSection(sec, idx))}
                     </div>
-                  </div>
-                </div>
-              ))}
-              </div>
+                  </>
+                );
+              })()}
               </div>
             </div>
           )}
