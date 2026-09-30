@@ -3,6 +3,68 @@
 import { useState, useEffect, Fragment, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
 
+// リース品の互換識別：
+// 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
+// 南大阪建機の従来データは品名だけの保存も引き続き認識する。
+const parseLeaseSelectionValue = (value: any) => {
+  const raw = String(value ?? '').trim();
+  const matched = raw.match(/^〈([^〉]+)〉(.+)$/);
+  if (matched) {
+    return { raw, vendor: String(matched[1] || '').trim(), name: String(matched[2] || '').trim() };
+  }
+  return { raw, vendor: '', name: raw };
+};
+
+const getLeaseMasterCleanName = (master: any) =>
+  parseLeaseSelectionValue(master?.name || '').name;
+
+const getLeaseMasterVendor = (master: any, fallbackVendor = '') => {
+  const explicit = String(master?.vendor || '').trim();
+  if (explicit) return explicit;
+  const legacy = parseLeaseSelectionValue(master?.name || '').vendor;
+  return legacy || fallbackVendor;
+};
+
+const makeLeaseSelectionValue = (master: any, fallbackVendor = '') => {
+  const name = getLeaseMasterCleanName(master);
+  const vendor = getLeaseMasterVendor(master, fallbackVendor);
+  if (!name) return '';
+  // 南大阪建機は従来どおり品名だけで保存し、既存日報との互換性を最大限維持する。
+  if (!vendor || vendor === '南大阪建機') return name;
+  return `〈${vendor}〉${name}`;
+};
+
+const findLeaseMasterForSelection = (masters: any[], storedValue: any, fallbackVendor = '') => {
+  const list = Array.isArray(masters) ? masters : [];
+  const parsed = parseLeaseSelectionValue(storedValue);
+  if (!parsed.name) return null;
+
+  const candidates = list.filter((master: any) => getLeaseMasterCleanName(master) === parsed.name);
+
+  if (parsed.vendor) {
+    return candidates.find((master: any) => getLeaseMasterVendor(master, fallbackVendor) === parsed.vendor)
+      || list.find((master: any) => String(master?.name || '').trim() === parsed.raw)
+      || null;
+  }
+
+  if (fallbackVendor) {
+    return candidates.find((master: any) => getLeaseMasterVendor(master, fallbackVendor) === fallbackVendor)
+      || candidates.find((master: any) => !String(master?.vendor || '').trim())
+      || candidates[0]
+      || null;
+  }
+
+  return candidates.length === 1
+    ? candidates[0]
+    : (list.find((master: any) => String(master?.name || '').trim() === parsed.raw) || candidates[0] || null);
+};
+
+const formatLeaseSelectionLabel = (value: any) => {
+  const parsed = parseLeaseSelectionValue(value);
+  return parsed.vendor ? `${parsed.vendor}：${parsed.name}` : parsed.name;
+};
+
+
 const formatAmount = (num: number | string, includeYen = true) => {
   const val = Number(num) || 0;
   const parts = val.toLocaleString('ja-JP', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).split('.');
@@ -156,7 +218,7 @@ export default function AdminPage() {
     const nameOf = (value: any) => String(value?.name ?? value ?? '').trim();
     const itemVendorNames = (keys: string[]) => keys.flatMap((key) =>
       (Array.isArray(data[key]) ? data[key] : [])
-        .map((item: any) => String(item?.vendor || '').trim())
+        .map((item: any) => getLeaseMasterVendor(item))
         .filter(Boolean)
     );
 
@@ -2897,45 +2959,47 @@ export default function AdminPage() {
       .forEach((r: any) => {
         let idx = 0;
         if (category === 'lease') {
-          const getLeaseMaster = (masterKey: string, name: string) =>
-            (settings[masterKey] || []).find((x:any) => x.name === name);
-          const vendorName = (master: any, fallback = '未設定') => String(master?.vendor || '').trim() || fallback;
+          const getLeaseMaster = (masterKey: string, name: string) => {
+            const fallbackVendor = ['leases', 'leaseHeavy', 'leaseAttach', 'leaseOther'].includes(masterKey) ? '南大阪建機' : '';
+            return findLeaseMasterForSelection(settings[masterKey] || [], name, fallbackVendor);
+          };
+          const vendorName = (master: any, fallback = '未設定') => getLeaseMasterVendor(master, fallback) || fallback;
           const leaseHeavy = Array.isArray(r.leaseHeavy) ? r.leaseHeavy : [];
           const legacyMachines = leaseHeavy.length === 0 && Array.isArray(r.machines) ? r.machines : [];
           legacyMachines.forEach((name: string) => {
             const master = getLeaseMaster('leases', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master, '南大阪建機')} リース：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} リース：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           leaseHeavy.forEach((name: string) => {
             const master = getLeaseMaster('leaseHeavy', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master, '南大阪建機')} 重機：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} 重機：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.leaseAttach) ? r.leaseAttach : []).forEach((name: string) => {
             const master = getLeaseMaster('leaseAttach', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master, '南大阪建機')} アタッチメント：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} アタッチメント：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.leaseOther) ? r.leaseOther : []).forEach((name: string) => {
             const master = getLeaseMaster('leaseOther', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master, '南大阪建機')} その他：${name}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
+            addLine(r, idx++, `${vendorName(master, '南大阪建機')} その他：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master, '南大阪建機') });
           });
           (Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : []).forEach((name: string) => {
             const master = getLeaseMaster('ishikawaHeavy', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master)} 重機：${name}`, 1, price, { vendor: vendorName(master) });
+            addLine(r, idx++, `${vendorName(master)} 重機：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : []).forEach((name: string) => {
             const master = getLeaseMaster('ishikawaAttach', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master)} アタッチメント：${name}`, 1, price, { vendor: vendorName(master) });
+            addLine(r, idx++, `${vendorName(master)} アタッチメント：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.ishikawaOther) ? r.ishikawaOther : []).forEach((name: string) => {
             const master = getLeaseMaster('ishikawaOther', name);
             const price = Number(master?.price || 0);
-            addLine(r, idx++, `${vendorName(master)} その他：${name}`, 1, price, { vendor: vendorName(master) });
+            addLine(r, idx++, `${vendorName(master)} その他：${master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name)}`, 1, price, { vendor: vendorName(master) });
           });
           (Array.isArray(r.otherLeases) ? r.otherLeases : []).forEach((item: any) => {
             const total = Number(item?.price || 0);
@@ -3593,7 +3657,12 @@ export default function AdminPage() {
       if (masterPriceMaps[key]?.[name] !== undefined) {
         return Number(masterPriceMaps[key][name] || 0);
       }
-      const price = Number((pricingSettings[key] || []).find((x: any) => x.name === name)?.price || 0);
+      const leaseKeys = new Set(['leases', 'leaseHeavy', 'leaseAttach', 'leaseOther', 'ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther']);
+      const fallbackVendor = ['leases', 'leaseHeavy', 'leaseAttach', 'leaseOther'].includes(key) ? '南大阪建機' : '';
+      const master = leaseKeys.has(key)
+        ? findLeaseMasterForSelection(pricingSettings[key] || [], name, fallbackVendor)
+        : (pricingSettings[key] || []).find((x: any) => x.name === name);
+      const price = Number(master?.price || 0);
       if (!masterPriceMaps[key]) masterPriceMaps[key] = {};
       masterPriceMaps[key][name] = price;
       return price;
@@ -3899,17 +3968,17 @@ export default function AdminPage() {
 
     let ishikawaLeaseDetail = 0;
     ishikawaHeavy.forEach((m: string) => {
-      const price = Number((settings.ishikawaHeavy || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.ishikawaHeavy || [], m)?.price || 0);
       ishikawaLeaseDetail += price;
       leaseC += price;
     });
     ishikawaAttach.forEach((m: string) => {
-      const price = Number((settings.ishikawaAttach || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.ishikawaAttach || [], m)?.price || 0);
       ishikawaLeaseDetail += price;
       leaseC += price;
     });
     ishikawaOther.forEach((m: string) => {
-      const price = Number((settings.ishikawaOther || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.ishikawaOther || [], m)?.price || 0);
       ishikawaLeaseDetail += price;
       leaseC += price;
     });
@@ -3925,22 +3994,22 @@ export default function AdminPage() {
 
     let mokLeaseDetail = 0;
     legacyMachines.forEach((m: string) => {
-      const price = Number((settings.leases || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.leases || [], m, '南大阪建機')?.price || 0);
       mokLeaseDetail += price;
       leaseC += price;
     });
     leaseHeavy.forEach((m: string) => {
-      const price = Number((settings.leaseHeavy || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.leaseHeavy || [], m, '南大阪建機')?.price || 0);
       mokLeaseDetail += price;
       leaseC += price;
     });
     leaseAttach.forEach((m: string) => {
-      const price = Number((settings.leaseAttach || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.leaseAttach || [], m, '南大阪建機')?.price || 0);
       mokLeaseDetail += price;
       leaseC += price;
     });
     leaseOther.forEach((m: string) => {
-      const price = Number((settings.leaseOther || []).find((x:any) => x.name === m)?.price || 0);
+      const price = Number(findLeaseMasterForSelection(settings.leaseOther || [], m, '南大阪建機')?.price || 0);
       mokLeaseDetail += price;
       leaseC += price;
     });
@@ -4083,10 +4152,13 @@ export default function AdminPage() {
       name: string,
       masterList: any[]
     ) => {
-      const master = (masterList || []).find((x:any) => x.name === name);
+      const fallbackVendor = category.includes('旧データ') || !String(category).startsWith('石川') ? '南大阪建機' : '';
+      const master = findLeaseMasterForSelection(masterList || [], name, fallbackVendor);
       const unitPrice = Number(master?.price || 0);
-      const key = `${category}__${name}`;
-      if (!target[key]) target[key] = { key, label: `${category}：${name}`, count: 0, unitPrice, total: 0 };
+      const displayName = master ? getLeaseMasterCleanName(master) : formatLeaseSelectionLabel(name);
+      const vendor = master ? getLeaseMasterVendor(master, fallbackVendor) : parseLeaseSelectionValue(name).vendor;
+      const key = `${category}__${vendor}__${displayName}`;
+      if (!target[key]) target[key] = { key, label: `${category}：${vendor ? `${vendor}／` : ''}${displayName}`, count: 0, unitPrice, total: 0 };
       target[key].count += 1;
       target[key].total += unitPrice;
     };
@@ -9053,12 +9125,12 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
-                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
-                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
-                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
-                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
                                 {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
@@ -9227,12 +9299,12 @@ export default function AdminPage() {
                               <div className="text-sm text-slate-700 font-medium space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                                 {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
-                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
-                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
-                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
-                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                                {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                                {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
                                 {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                                 {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                                 {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
@@ -9387,12 +9459,12 @@ export default function AdminPage() {
                       <div className="text-sm text-slate-700 font-medium space-y-1 bg-white p-3 rounded-xl border">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
                         {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                        {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.join(', ')}</div>}
-                        {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.join(', ')}</div>}
-                        {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.join(', ')}</div>}
-                        {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.join(', ')}</div>}
-                        {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.join(', ')}</div>}
-                        {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.join(', ')}</div>}
+                        {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
                         {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                         {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                         {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
@@ -11090,15 +11162,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseHeavy || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('leaseHeavy', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '南大阪建機');
+                      const qty = getEditingLeaseQuantity('leaseHeavy', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseHeavy', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseHeavy', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseHeavy', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseHeavy', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
                           </div>
                         </div>
@@ -11111,15 +11184,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseAttach || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('leaseAttach', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '南大阪建機');
+                      const qty = getEditingLeaseQuantity('leaseAttach', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseAttach', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseAttach', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseAttach', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseAttach', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
                           </div>
                         </div>
@@ -11132,15 +11206,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【その他の機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.leaseOther || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('leaseOther', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '南大阪建機');
+                      const qty = getEditingLeaseQuantity('leaseOther', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseOther', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('leaseOther', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseOther', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('leaseOther', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black">＋</button>
                           </div>
                         </div>
@@ -11234,15 +11309,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）重機】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaHeavy || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('ishikawaHeavy', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '');
+                      const qty = getEditingLeaseQuantity('ishikawaHeavy', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaHeavy', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
                           </div>
                         </div>
@@ -11255,15 +11331,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）アタッチメント】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaAttach || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('ishikawaAttach', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '');
+                      const qty = getEditingLeaseQuantity('ishikawaAttach', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaAttach', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaAttach', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaAttach', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaAttach', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
                           </div>
                         </div>
@@ -11276,15 +11353,16 @@ export default function AdminPage() {
                   <label className="text-xs font-bold text-slate-700 block">【（石川県）その他機械・機器】</label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {(settings.ishikawaOther || []).map((m: any) => {
-                      const qty = getEditingLeaseQuantity('ishikawaOther', m.name);
+                      const leaseValue = makeLeaseSelectionValue(m, '');
+                      const qty = getEditingLeaseQuantity('ishikawaOther', leaseValue);
                       return (
                         <div key={m.name} className={`p-3 rounded-2xl border text-xs md:text-sm transition ${qty > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold' : 'bg-white border-slate-200'}`}>
-                          <div className="truncate text-center mb-2">{m.name}</div>
+                          <div className="truncate text-center mb-2">{getLeaseMasterCleanName(m)}</div>
                           <div className="flex items-center justify-center gap-2">
-                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaOther', m.name, -1)}
+                            <button type="button" disabled={qty === 0} onClick={() => changeEditingLeaseQuantity('ishikawaOther', leaseValue, -1)}
                               className={`w-8 h-8 rounded-lg font-black border ${qty === 0 ? 'bg-slate-100 text-slate-300 border-slate-200' : 'bg-white text-slate-700 border-slate-300'}`}>−</button>
                             <span className="min-w-[42px] text-center font-black">{qty}台</span>
-                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaOther', m.name, 1)}
+                            <button type="button" onClick={() => changeEditingLeaseQuantity('ishikawaOther', leaseValue, 1)}
                               className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black">＋</button>
                           </div>
                         </div>
