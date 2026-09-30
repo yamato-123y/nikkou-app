@@ -147,6 +147,56 @@ export default function AdminPage() {
 
   const [reports, setReports] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({});
+
+  // リース業者は「一般用」と「石川県用」を分離して管理する。
+  // 既存データでは石川県用業者も leaseVendors に入っていたため、
+  // 石川県用リース品の vendor を見て安全に振り分ける。品名・単価・過去日報は変更しない。
+  const normalizeLeaseVendorSettings = (source: any) => {
+    const data = source && typeof source === 'object' ? source : {};
+    const nameOf = (value: any) => String(value?.name ?? value ?? '').trim();
+    const itemVendorNames = (keys: string[]) => keys.flatMap((key) =>
+      (Array.isArray(data[key]) ? data[key] : [])
+        .map((item: any) => String(item?.vendor || '').trim())
+        .filter(Boolean)
+    );
+
+    const normalUsed = new Set(itemVendorNames(['leaseHeavy', 'leaseAttach', 'leaseOther']));
+    const ishikawaUsed = new Set(itemVendorNames(['ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther']));
+    const currentGeneral = Array.isArray(data.leaseVendors) ? data.leaseVendors : [];
+    const currentIshikawa = Array.isArray(data.ishikawaLeaseVendors) ? data.ishikawaLeaseVendors : [];
+
+    const generalMap = new Map<string, any>();
+    currentGeneral.forEach((vendor: any) => {
+      const name = nameOf(vendor);
+      if (!name || name === '南大阪建機') return;
+      if (ishikawaUsed.has(name) && !normalUsed.has(name)) return;
+      generalMap.set(name, typeof vendor === 'object' ? { ...vendor, name } : { name });
+    });
+    normalUsed.forEach((name) => {
+      if (!name || name === '南大阪建機') return;
+      if (!generalMap.has(name)) generalMap.set(name, { name });
+    });
+
+    const ishikawaMap = new Map<string, any>();
+    currentIshikawa.forEach((vendor: any) => {
+      const name = nameOf(vendor);
+      if (!name) return;
+      ishikawaMap.set(name, typeof vendor === 'object' ? { ...vendor, name } : { name });
+    });
+    ishikawaUsed.forEach((name) => {
+      if (!name) return;
+      if (!ishikawaMap.has(name)) {
+        const oldVendor = currentGeneral.find((vendor: any) => nameOf(vendor) === name);
+        ishikawaMap.set(name, oldVendor && typeof oldVendor === 'object' ? { ...oldVendor, name } : { name });
+      }
+    });
+
+    return {
+      ...data,
+      leaseVendors: Array.from(generalMap.values()),
+      ishikawaLeaseVendors: Array.from(ishikawaMap.values())
+    };
+  };
   const [originalSettings, setOriginalSettings] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -439,8 +489,9 @@ export default function AdminPage() {
       if (resS.ok) {
         const sData = await resS.json();
         if (sData && Object.keys(sData).length > 0) {
-          setSettings(sData);
-          setOriginalSettings(JSON.parse(JSON.stringify(sData)));
+          const normalizedSettings = normalizeLeaseVendorSettings(sData);
+          setSettings(normalizedSettings);
+          setOriginalSettings(JSON.parse(JSON.stringify(normalizedSettings)));
           if (sData.costOverrides) setCostOverrides(sData.costOverrides);
           if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
           if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
@@ -7998,7 +8049,7 @@ export default function AdminPage() {
                       ['リース業者', 'leaseVendors'], ['リースマスタ', 'leaseMasterUnified']
                     ] },
                     { title: '🗾 石川県用', tone: 'indigo', items: [
-                      ['重機', 'ishikawaHeavy'], ['アタッチメント', 'ishikawaAttach'], ['その他機器', 'ishikawaOther']
+                      ['リース業者', 'ishikawaLeaseVendors'], ['重機', 'ishikawaHeavy'], ['アタッチメント', 'ishikawaAttach'], ['その他機器', 'ishikawaOther']
                     ] },
                     { title: '🗑️ 処分・売却', tone: 'rose', items: [
                       ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
@@ -8171,6 +8222,41 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              <div id="master-ishikawaLeaseVendors" className="mb-5 scroll-mt-6 p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 space-y-4 shadow-sm">
+                <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
+                  <div>
+                    <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1">石川県用</div>
+                    <h3 className="font-extrabold text-base md:text-lg text-indigo-900">🏢 石川県用リース業者マスタ</h3>
+                    <p className="text-xs md:text-sm text-indigo-700 mt-1 leading-relaxed">徳本の石川県出張用リースで使用する業者だけを登録します。一般リース業者とは別管理です。</p>
+                    <p className="text-xs text-slate-500 mt-1.5">※既に石川県用リース品へ設定済みの業者（例：ヒサヤス）は自動でこちらへ引き継ぎます。</p>
+                  </div>
+                  <button type="button" onClick={() => saveMaster('ishikawaLeaseVendors')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0">
+                    💾 保存
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-[1fr_110px] gap-2">
+                  <input type="text" placeholder="石川県用リース業者名（例：ヒサヤス）" value={form.ishikawaLeaseVendorName || ''} onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})} className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-white focus:outline-none font-medium" />
+                  <button type="button" onClick={() => {
+                    const name = String(form.ishikawaLeaseVendorName || '').trim();
+                    if (!name) return alert('石川県用リース業者名を入力してください。');
+                    if ((settings.ishikawaLeaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じ石川県用リース業者がすでに登録されています。');
+                    addMaster('ishikawaLeaseVendors', { name }, ['ishikawaLeaseVendorName']);
+                  }} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">＋ 追加</button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                  {(settings.ishikawaLeaseVendors || []).length === 0 ? (
+                    <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-white px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
+                  ) : (settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                    <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-white">
+                      <input type="text" value={vendor.name || ''} onChange={(e)=>updateItemField('ishikawaLeaseVendors', vendorIdx, 'name', e.target.value)} className="flex-1 min-w-0 p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white" />
+                      <button type="button" onClick={() => deleteMaster('ishikawaLeaseVendors', vendorIdx)} className="text-rose-700 hover:text-white font-bold text-xs px-2.5 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
               {[
                 { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
@@ -8180,9 +8266,9 @@ export default function AdminPage() {
                 { title: "🏢 外注会社・作業内容・単価", description: "外注会社ごとの作業内容と単価を登録します。", category: "外注・自社保有", key: "subcontractors", isSub: true },
                 { title: "🚚 自社車両＆日額単価", description: "自社で保有する車両と1日あたりの原価を登録します。", category: "外注・自社保有", key: "vehicles", nameKey: "name", priceKey: "price", addForm: ['vName', 'vPrice'], placeholders: ["車両名", "日額"], type: "vehicles" },
                 { title: "🚜 自社重機＆日額単価", description: "自社で保有する重機と1日あたりの原価を登録します。", category: "外注・自社保有", key: "companyMachines", nameKey: "name", priceKey: "price", addForm: ['cmName', 'cmPrice'], placeholders: ["重機名", "日額"], type: "companyMachines" },
-                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額と業者を登録します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
-                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額と業者を登録します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
-                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額と業者を登録します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
+                { title: "🗾 （石川県）重機＆日額単価", description: "石川県出張で使用するリース重機の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaHeavy", nameKey: "name", priceKey: "price", addForm: ['ihName', 'ihPrice'], placeholders: ["重機名", "日額"], type: "ishikawaHeavy", isIshikawa: true, isLeaseMaster: true },
+                { title: "🗾 （石川県）アタッチメント＆日額単価", description: "石川県出張で使用するアタッチメントの日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaAttach", nameKey: "name", priceKey: "price", addForm: ['iaName', 'iaPrice'], placeholders: ["アタッチメント名", "日額"], type: "ishikawaAttach", isIshikawa: true, isLeaseMaster: true },
+                { title: "🗾 （石川県）その他機械・機器＆日額単価", description: "石川県出張で使用するその他機器の日額を登録します。業者は上の「石川県用リース業者マスタ」から選択します。", category: "石川県用", key: "ishikawaOther", nameKey: "name", priceKey: "price", addForm: ['ioName', 'ioPrice'], placeholders: ["機械・機器名", "日額"], type: "ishikawaOther", isIshikawa: true, isLeaseMaster: true },
                 { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
               ].map((sec:any, idx) => (
@@ -8240,7 +8326,7 @@ export default function AdminPage() {
                           className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-bold"
                         >
                           <option value="">リース業者を選択</option>
-                          {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                          {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
                             <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
                           ))}
                         </select>
@@ -8616,7 +8702,7 @@ export default function AdminPage() {
                                 className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
                               >
                                 <option value="">業者未設定</option>
-                                {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
+                                {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
                                   <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
                                 ))}
                               </select>
