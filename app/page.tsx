@@ -2702,12 +2702,21 @@ export default function Home() {
 
            {/* 南大阪建機以外の通常リース業者：必要なときだけ表示 */}
            {(() => {
-             const vendorNames = Array.from(new Set([
-               ...(settings.leaseVendors || []).map((v:any) => String(v?.name || '').trim()),
+             const normalMasterVendorNames = new Set([
                ...(settings.leaseHeavy || []).map((m:any) => String(m?.vendor || '').trim()),
                ...(settings.leaseAttach || []).map((m:any) => String(m?.vendor || '').trim()),
                ...(settings.leaseOther || []).map((m:any) => String(m?.vendor || '').trim())
-             ].filter((name:any) => name && name !== '南大阪建機'))).sort((a:any, b:any) => String(a).localeCompare(String(b), 'ja'));
+             ].filter(Boolean));
+             const ishikawaVendorNames = new Set([
+               ...(settings.ishikawaLeaseVendors || []).map((v:any) => String(v?.name || '').trim()),
+               ...(settings.ishikawaHeavy || []).map((m:any) => String(m?.vendor || '').trim()),
+               ...(settings.ishikawaAttach || []).map((m:any) => String(m?.vendor || '').trim()),
+               ...(settings.ishikawaOther || []).map((m:any) => String(m?.vendor || '').trim())
+             ].filter(Boolean));
+             const vendorNames = Array.from(new Set([
+               ...(settings.leaseVendors || []).map((v:any) => String(v?.name || '').trim()),
+               ...Array.from(normalMasterVendorNames)
+             ].filter((name:any) => name && name !== '南大阪建機' && (!ishikawaVendorNames.has(name) || normalMasterVendorNames.has(name))))).sort((a:any, b:any) => String(a).localeCompare(String(b), 'ja'));
              if (vendorNames.length === 0) return null;
 
              const renderVendorItems = (masters:any[], selected:string[], setter:any) => {
