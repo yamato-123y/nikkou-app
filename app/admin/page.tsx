@@ -7979,13 +7979,14 @@ export default function AdminPage() {
           </div>
 
           {showAdminSection && (
-            <div className="p-4 md:p-8 animate-fadeIn">
-              <div className="mb-7 rounded-2xl border border-violet-200 bg-white p-4 md:p-5 shadow-sm">
+            <div className="p-5 lg:p-6 animate-fadeIn">
+              <div className="max-w-[1180px] mx-auto">
+              <div className="mb-5 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
                   <p className="text-sm text-slate-600 mt-1">下の項目を押すと、そのマスタ登録欄まで移動します。</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
                   {[
                     { title: '👷 人・基本情報', tone: 'blue', items: [
                       ['作業員', 'workers'], ['職長', 'managers'], ['職種', 'jobTypes'], ['現場', 'locations']
@@ -8003,15 +8004,15 @@ export default function AdminPage() {
                       ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
                     ] },
                   ].map((group:any) => (
-                    <div key={group.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
-                      <div className="font-extrabold text-slate-800 mb-2.5">{group.title}</div>
+                    <div key={group.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="font-extrabold text-sm text-slate-800 mb-2">{group.title}</div>
                       <div className="flex flex-wrap gap-2">
                         {group.items.map(([label, key]: string[]) => (
                           <button
                             key={key}
                             type="button"
                             onClick={() => document.getElementById(`master-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                            className="bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 px-3 py-2 rounded-lg text-sm font-bold transition shadow-sm"
+                            className="bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
                           >
                             {label}
                           </button>
@@ -8025,7 +8026,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div id="master-leaseMasterUnified" className="mb-6 scroll-mt-6 p-4 md:p-5 rounded-2xl border-2 border-amber-200 bg-amber-50/60 space-y-5 shadow-sm">
+              <div id="master-leaseMasterUnified" className="mb-5 scroll-mt-6 p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/60 space-y-4 shadow-sm">
                 <div className="flex justify-between items-start gap-3 pb-3 border-b border-amber-200">
                   <div>
                     <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-700 inline-flex mb-1">リース</div>
@@ -8042,14 +8043,14 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-dashed border-amber-300">
-                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-amber-300">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
                     <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">＋</span>
                     新規追加
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-[1.15fr_1fr_1.35fr_0.75fr_110px] gap-2.5 items-end">
                     <label className="text-xs font-bold text-slate-600">リース業者
-                      <select value={form.unifiedLeaseVendor || ''} onChange={(e)=>setForm({...form, unifiedLeaseVendor: e.target.value})} className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-bold">
+                      <select value={form.unifiedLeaseVendor || ''} onChange={(e)=>setForm({...form, unifiedLeaseVendor: e.target.value})} className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-bold">
                         <option value="">リース業者を選択</option>
                         <option value="南大阪建機">南大阪建機</option>
                         {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
@@ -8058,33 +8059,33 @@ export default function AdminPage() {
                       </select>
                     </label>
                     <label className="text-xs font-bold text-slate-600">カテゴリー
-                      <select value={form.unifiedLeaseCategory || 'leaseHeavy'} onChange={(e)=>setForm({...form, unifiedLeaseCategory: e.target.value})} className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-bold">
+                      <select value={form.unifiedLeaseCategory || 'leaseHeavy'} onChange={(e)=>setForm({...form, unifiedLeaseCategory: e.target.value})} className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-bold">
                         <option value="leaseHeavy">重機</option>
                         <option value="leaseAttach">アタッチメント</option>
                         <option value="leaseOther">その他の機械・機器</option>
                       </select>
                     </label>
                     <label className="text-xs font-bold text-slate-600">名称
-                      <input type="text" value={form.unifiedLeaseName || ''} onChange={(e)=>setForm({...form, unifiedLeaseName: e.target.value})} placeholder="名称" className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-medium" />
+                      <input type="text" value={form.unifiedLeaseName || ''} onChange={(e)=>setForm({...form, unifiedLeaseName: e.target.value})} placeholder="名称" className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-medium" />
                     </label>
                     <label className="text-xs font-bold text-slate-600">日額単価
-                      <input type="number" value={form.unifiedLeasePrice || ''} onChange={(e)=>setForm({...form, unifiedLeasePrice: e.target.value})} placeholder="日額" className="mt-1 w-full p-3 border border-slate-300 rounded-xl text-sm md:text-base bg-slate-50 font-medium" />
+                      <input type="number" value={form.unifiedLeasePrice || ''} onChange={(e)=>setForm({...form, unifiedLeasePrice: e.target.value})} placeholder="日額" className="mt-1 w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 font-medium text-right" />
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const vendor = String(form.unifiedLeaseVendor || '').trim();
+                        const category = String(form.unifiedLeaseCategory || 'leaseHeavy');
+                        const name = String(form.unifiedLeaseName || '').trim();
+                        if (!vendor) return alert('リース業者を選択してください。');
+                        if (!name) return alert('名称を入力してください。');
+                        addMaster(category, { name, price: Number(form.unifiedLeasePrice) || 0, vendor, isFinished: false }, ['unifiedLeaseVendor', 'unifiedLeaseName', 'unifiedLeasePrice']);
+                      }}
+                      className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center whitespace-nowrap"
+                    >
+                      ＋ 追加
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const vendor = String(form.unifiedLeaseVendor || '').trim();
-                      const category = String(form.unifiedLeaseCategory || 'leaseHeavy');
-                      const name = String(form.unifiedLeaseName || '').trim();
-                      if (!vendor) return alert('リース業者を選択してください。');
-                      if (!name) return alert('名称を入力してください。');
-                      addMaster(category, { name, price: Number(form.unifiedLeasePrice) || 0, vendor, isFinished: false }, ['unifiedLeaseVendor', 'unifiedLeaseName', 'unifiedLeasePrice']);
-                    }}
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-sm transition text-center"
-                  >
-                    ＋ 追加
-                  </button>
                 </div>
 
                 <div className="space-y-2">
@@ -8098,25 +8099,21 @@ export default function AdminPage() {
                       ...(settings.leaseAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseAttach', categoryLabel: 'アタッチメント' })),
                       ...(settings.leaseOther || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseOther', categoryLabel: 'その他の機械・機器' }))
                     ].map((row:any) => (
-                      <div key={`${row.key}_${row.idx}`} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">{row.categoryLabel}</span>
-                          <button type="button" onClick={() => deleteMaster(row.key, row.idx)} className="text-rose-700 hover:text-white font-bold text-xs px-3 py-2 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition">🗑 削除</button>
+                      <div key={`${row.key}_${row.idx}`} className="grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50">
+                        <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
+                        <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0">
+                          <option value="">未設定（南大阪建機扱い）</option>
+                          <option value="南大阪建機">南大阪建機</option>
+                          {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
+                            <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
+                          ))}
+                        </select>
+                        <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0" />
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-slate-500 font-bold text-sm">¥</span>
+                          <input type="number" value={row.item.price || 0} onChange={(e)=>updateItemField(row.key, row.idx, 'price', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white" placeholder="日額" />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white">
-                            <option value="">未設定（南大阪建機扱い）</option>
-                            <option value="南大阪建機">南大阪建機</option>
-                            {(settings.leaseVendors || []).filter((vendor:any) => vendor.name && vendor.name !== '南大阪建機').map((vendor:any, vendorIdx:number) => (
-                              <option key={`${vendor.name || ''}_${vendorIdx}`} value={vendor.name || ''}>{vendor.name || ''}</option>
-                            ))}
-                          </select>
-                          <input type="text" value={row.item.name || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'name', e.target.value)} placeholder="名称" className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-slate-500 font-bold text-sm">¥</span>
-                            <input type="number" value={row.item.price || 0} onChange={(e)=>updateItemField(row.key, row.idx, 'price', e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-xl text-right text-sm font-bold bg-white" placeholder="日額" />
-                          </div>
-                        </div>
+                        <button type="button" onClick={() => deleteMaster(row.key, row.idx)} className="text-rose-700 hover:text-white font-bold text-xs px-2 py-2.5 bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition whitespace-nowrap">🗑 削除</button>
                       </div>
                     ))}
                     {(settings.leaseHeavy || []).length + (settings.leaseAttach || []).length + (settings.leaseOther || []).length === 0 && (
@@ -8126,7 +8123,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
               {[
                 { title: "🏢 現場名一覧", description: "工事現場・置場の正式名、略称、請負金額などを登録します。", category: "基本情報", key: "locations", nameKey: "name", priceKey: "price", addForm: ['lName', 'lPrice'], placeholders: ["新しい現場名", "請負金額（税抜）"], type: "locations" },
                 { title: "👤 職長一覧", description: "日報で選択する職長名を登録します。", category: "人・基本情報", key: "managers", nameKey: "name", priceKey: "price", addForm: ['mName', 'mPrice'], placeholders: ["職長名", "単価不要"], type: "managers", isNoPrice: true },
@@ -8142,7 +8139,7 @@ export default function AdminPage() {
                 { title: "🗑️ 処分場マスタ＆単価", description: "処分場ごとの品目・単位・処分単価を登録します。", category: "処分・売却", key: "disposalLocations", isDisp: true },
                 { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
               ].map((sec:any, idx) => (
-                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-4 md:p-5 rounded-2xl border space-y-5 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 p-4 rounded-2xl border space-y-4 flex flex-col shadow-sm ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="space-y-4">
                     <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200/80">
                       <div className="min-w-0">
@@ -8700,6 +8697,7 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
+              </div>
               </div>
             </div>
           )}
