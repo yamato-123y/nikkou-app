@@ -458,6 +458,7 @@ export default function AdminPage() {
   const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
   const [expenseInvoiceDrafts, setExpenseInvoiceDrafts] = useState<any>({});
   const [expenseInvoiceAmount, setExpenseInvoiceAmount] = useState('');
+  const [expenseInvoiceReconcileEditingId, setExpenseInvoiceReconcileEditingId] = useState<string | null>(null);
   // 請求書照合を実施した記録。変更がなくても「確認済み」を残せる。
   const [invoiceReconcileStatus, setInvoiceReconcileStatus] = useState<any>({});
   // 請求書照合の履歴。対象期間・照合日時・請求書金額・差額を現場／カテゴリーごとに残す。
@@ -3219,12 +3220,13 @@ export default function AdminPage() {
       diff?: number | null;
       systemAmount?: number | null;
       applyToCost?: boolean;
+      existingId?: string | null;
     } = {}
   ) => {
     if (authRole !== 'admin') return;
     const fallbackPeriod = getInvoiceDefaultPeriod(locName);
     const entry = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: detail.existingId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       checkedAt: new Date().toISOString(),
       startDate: detail.startDate || fallbackPeriod.startDate || '',
       endDate: detail.endDate || fallbackPeriod.endDate || '',
@@ -3245,11 +3247,16 @@ export default function AdminPage() {
     }));
     setInvoiceReconcileHistory((prev: any) => {
       const current = Array.isArray(prev?.[locName]?.[category]) ? prev[locName][category] : [];
+      const nextHistory = detail.existingId
+        ? (current.some((x: any) => x?.id === detail.existingId)
+            ? current.map((x: any) => x?.id === detail.existingId ? entry : x)
+            : [entry, ...current])
+        : [entry, ...current];
       return {
         ...prev,
         [locName]: {
           ...(prev?.[locName] || {}),
-          [category]: [entry, ...current].slice(0, 50)
+          [category]: nextHistory.slice(0, 50)
         }
       };
     });
@@ -3269,6 +3276,22 @@ export default function AdminPage() {
     setExpenseInvoiceEditingKey(null);
     setExpenseInvoiceDrafts({});
     setExpenseInvoiceAmount('');
+    setExpenseInvoiceReconcileEditingId(null);
+    setShowExpenseInvoiceModal(true);
+  };
+
+  const openLeaseInvoiceConfirmedEdit = (entry: any) => {
+    if (!modalLocation || authRole !== 'admin' || !entry) return;
+    setExpenseInvoiceCategory({ key: 'lease', label: 'リース' });
+    setExpenseInvoiceFilter({
+      startDate: String(entry.startDate || ''),
+      endDate: String(entry.endDate || ''),
+      vendor: String(entry.company || '')
+    });
+    setExpenseInvoiceEditingKey(null);
+    setExpenseInvoiceDrafts({});
+    setExpenseInvoiceAmount(entry.invoiceAmount === null || entry.invoiceAmount === undefined ? '' : String(entry.invoiceAmount));
+    setExpenseInvoiceReconcileEditingId(entry.id || null);
     setShowExpenseInvoiceModal(true);
   };
 
@@ -4860,8 +4883,10 @@ export default function AdminPage() {
     // 全体上書きが無い場合は、業者別に調整した合計を原価側へ使う
     calcSub = subcontractorConfirmedTotal;
 
-    const reportEstimateLease = calcLease;
+    // 「その他リース」は詳細分析では独立項目にせず、リース合計へ統合する。
+    // 過去データ互換のため calcOtherLease 自体は残し、概算ではリース側へ加算する。
     const reportEstimateOtherLease = calcOtherLease;
+    const reportEstimateLease = calcLease + reportEstimateOtherLease;
     const reportEstimateOwnMachine = calcOwnMachine;
     const reportEstimateVehicle = calcVehicle;
     const disposalMonthlyBreakdown = getDisposalMonthlyBreakdown(locName);
@@ -4895,12 +4920,18 @@ export default function AdminPage() {
 
     // 旧河北郡市クリーンセンターだけは、石川県分＋MOK分を個別編集した結果をリース合計へ反映。
     // 他の現場は従来どおり lease の一括手動上書きを使用する。
-    const leaseBaseCost = isIshikawaLeaseSplit
+    const legacyOtherLeaseCost =
+      ov.otherLease !== '' && ov.otherLease !== undefined
+        ? Number(ov.otherLease)
+        : calcOtherLease;
+    const leaseBaseCost = (isIshikawaLeaseSplit
       ? ishikawaLeaseCost + mokLeaseCost
-      : (ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease);
+      : (ov.lease !== '' && ov.lease !== undefined ? Number(ov.lease) : calcLease)) + legacyOtherLeaseCost;
     const leaseCost = getExpenseInvoiceAdjustedTotal(locName, 'lease', leaseBaseCost);
 
-    const otherLeaseCost = ov.otherLease !== '' && ov.otherLease !== undefined ? Number(ov.otherLease) : calcOtherLease;
+    // 旧「その他リース」金額は leaseCost に統合済み。
+    // 戻り値のキーは既存参照との互換のため残すが、別原価としては計上しない。
+    const otherLeaseCost = 0;
     const ownMachineBaseCost = ov.ownMachine !== '' && ov.ownMachine !== undefined ? Number(ov.ownMachine) : calcOwnMachine;
     const vehicleBaseCost = ov.vehicle !== '' && ov.vehicle !== undefined ? Number(ov.vehicle) : calcVehicle;
     const ownMachineCost = getExpenseInvoiceAdjustedTotal(locName, 'ownMachine', ownMachineBaseCost);
@@ -4988,7 +5019,6 @@ export default function AdminPage() {
       laborCost +
       subCostTotal +
       leaseCost +
-      otherLeaseCost +
       ownMachineCost +
       vehicleCost +
       disposalCost +
@@ -5004,7 +5034,6 @@ export default function AdminPage() {
       reportEstimateLabor +
       reportEstimateSubWithCustom +
       reportEstimateLease +
-      reportEstimateOtherLease +
       reportEstimateOwnMachine +
       reportEstimateVehicle +
       reportEstimateDisposal +
@@ -13063,12 +13092,11 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className={`grid grid-cols-1 gap-4 md:gap-5 ${authRole === 'admin' ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
+            <div className="grid grid-cols-1 gap-4 md:gap-5">
               {[
                 { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost, isLabor: true },
                 { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSubWithCustom, val: modalData.subCostTotal, isSubcontractor: true },
                 { key: 'lease', label: 'リース合計', estimate: modalData.reportEstimateLease, val: modalData.leaseCost, isLease: true, isIshikawaSpecial: modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' },
-                { key: 'otherLease', label: 'その他リース', estimate: modalData.reportEstimateOtherLease, val: modalData.otherLeaseCost },
                 { key: 'ownMachine', label: '自社重機', estimate: modalData.reportEstimateOwnMachine, val: modalData.ownMachineCost },
                 { key: 'vehicle', label: '自社車両', estimate: modalData.reportEstimateVehicle, val: modalData.vehicleCost },
                 { key: 'disposal', label: '🗑️ 処分費 (合計)', estimate: modalData.reportEstimateDisposal, val: modalData.disposalCost, isDisposal: true },
@@ -13119,7 +13147,18 @@ export default function AdminPage() {
                           <div className={`rounded-xl px-3 py-2.5 text-xs md:text-sm border ${st ? (st.hadChanges ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-800') : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
                             {st ? (
                               <div className="space-y-1">
-                                <div className="font-extrabold">{st.applyToCost ? '✅ 請求書確定・原価反映' : (st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み')}</div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="font-extrabold">{st.applyToCost ? '✅ 請求書確定・原価反映' : (st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み')}</div>
+                                  {item.isLease && st.applyToCost && authRole === 'admin' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openLeaseInvoiceConfirmedEdit(st)}
+                                      className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100"
+                                    >
+                                      ✏️ 編集
+                                    </button>
+                                  )}
+                                </div>
                                 <div><span className="font-bold">対象期間：</span>{formatInvoicePeriod(st.startDate, st.endDate)}</div>
                                 <div><span className="font-bold">照合日時：</span>{formatInvoiceReconcileTime(st.checkedAt)}</div>
                                 {st.company && <div><span className="font-bold">業者：</span>{st.company}</div>}
@@ -13144,7 +13183,11 @@ export default function AdminPage() {
                                     <div key={h.id || `${h.checkedAt}_${h.startDate}_${h.endDate}`} className="px-3 py-2 text-xs md:text-sm">
                                       <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.applyToCost ? '✅ 請求書確定・原価反映' : (h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み')}</div>
                                       <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
-                                      <div className="text-slate-600 mt-0.5">{h.systemAmount !== null && h.systemAmount !== undefined ? `システム ${formatAmount(h.systemAmount)} ／ ` : ''}請求書 {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} ／ 差額 {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}</div>
+                                      <div className="text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-1">
+                                        {h.systemAmount !== null && h.systemAmount !== undefined && (<>システム {formatAmount(h.systemAmount)} <span>／</span></>)}
+                                        <span>請求書</span> {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} <span>／</span>
+                                        <span>差額</span> {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -14301,20 +14344,24 @@ export default function AdminPage() {
                 <div className="flex gap-2 justify-end flex-wrap">
                   <button
                     type="button"
-                    onClick={() => markInvoiceReconciled(modalLocation, categoryKey, {
-                      startDate: expenseInvoiceFilter.startDate,
-                      endDate: expenseInvoiceFilter.endDate,
-                      company: categoryKey === 'lease' ? expenseInvoiceFilter.vendor : '',
-                      hadChanges: visibleLines.some((line: any) => line.hasOverride),
-                      invoiceAmount: invoiceAmountNumber,
-                      diff,
-                      systemAmount: totalAmount,
-                      applyToCost: isLeaseInvoice
-                    })}
+                    onClick={() => {
+                      markInvoiceReconciled(modalLocation, categoryKey, {
+                        startDate: expenseInvoiceFilter.startDate,
+                        endDate: expenseInvoiceFilter.endDate,
+                        company: categoryKey === 'lease' ? expenseInvoiceFilter.vendor : '',
+                        hadChanges: visibleLines.some((line: any) => line.hasOverride),
+                        invoiceAmount: invoiceAmountNumber,
+                        diff,
+                        systemAmount: totalAmount,
+                        applyToCost: isLeaseInvoice,
+                        existingId: isLeaseInvoice ? expenseInvoiceReconcileEditingId : null
+                      });
+                      if (isLeaseInvoice) setExpenseInvoiceReconcileEditingId(null);
+                    }}
                     disabled={!canMarkReconciled}
                     className={`px-4 py-2.5 rounded-xl font-extrabold ${!canMarkReconciled ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200'}`}
                   >
-                    {isLeaseInvoice ? '✓ 請求書金額を確定' : '✓ 照合済みにする'}
+                    {isLeaseInvoice ? (expenseInvoiceReconcileEditingId ? '✓ 確定内容を更新' : '✓ 請求書金額を確定') : '✓ 照合済みにする'}
                   </button>
                   <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
                   <button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button>
