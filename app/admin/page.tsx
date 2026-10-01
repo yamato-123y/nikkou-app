@@ -543,49 +543,94 @@ export default function AdminPage() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [resR, resS] = await Promise.all([fetch('/api/reports'), fetch('/api/settings')]);
-      if (resR.ok) {
-        const rData = await resR.json();
-        setReports(rData);
-      }
-      if (resS.ok) {
-        const sData = await resS.json();
-        if (sData && Object.keys(sData).length > 0) {
-          const normalizedSettings = normalizeLeaseVendorSettings(sData);
-          setSettings(normalizedSettings);
-          setOriginalSettings(JSON.parse(JSON.stringify(normalizedSettings)));
-          if (sData.costOverrides) setCostOverrides(sData.costOverrides);
-          if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
-          if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
-          if (sData.scrapRowOverrides) setScrapRowOverrides(sData.scrapRowOverrides);
-          if (sData.scrapSettlementDates) setScrapSettlementDates(sData.scrapSettlementDates);
-          if (sData.checkedScrapRows) setCheckedScrapRows(sData.checkedScrapRows);
-          if (sData.monthlyScrapStatementTotals) setMonthlyScrapStatementTotals(sData.monthlyScrapStatementTotals);
-          if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
-          if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
-          if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
-          if (sData.subcontractorMonthlyUnitPrices) setSubcontractorMonthlyUnitPrices(sData.subcontractorMonthlyUnitPrices);
-          if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
-          if (sData.subcontractorInvoiceOverrides) setSubcontractorInvoiceOverrides(sData.subcontractorInvoiceOverrides);
-          if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
-          if (sData.invoiceReconcileStatus) setInvoiceReconcileStatus(sData.invoiceReconcileStatus);
-          if (sData.invoiceReconcileHistory) setInvoiceReconcileHistory(sData.invoiceReconcileHistory);
-          if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
-          if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
-          if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
-          if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
-          if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
-          setCompanyCalendars(mergeCompanyCalendars(sData.companyCalendars || {}));
+
+      // Render / Supabase の初回アクセス直後に一時的な空応答が返っても、
+      // その空データをそのまま管理画面へ採用しないよう最大3回まで自動再取得する。
+      // 保存データやAPIの形式は変更せず、読み込み時だけ安全性を高める。
+      let loadedReports: any[] | null = null;
+      let loadedSettings: any = null;
+      let lastError: any = null;
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const [resR, resS] = await Promise.all([
+            fetch('/api/reports', { cache: 'no-store' }),
+            fetch('/api/settings', { cache: 'no-store' })
+          ]);
+
+          if (!resR.ok || !resS.ok) {
+            throw new Error(`データ取得に失敗しました。reports=${resR.status}, settings=${resS.status}`);
+          }
+
+          const [rData, sData] = await Promise.all([resR.json(), resS.json()]);
+          const reportsOk = Array.isArray(rData);
+          const settingsOk = !!sData && typeof sData === 'object' && Object.keys(sData).length > 0;
+
+          // このシステムでは設定データが常に存在するため、settings が空なら
+          // 初回アクセス時の一時的な取得失敗とみなし、少し待って再試行する。
+          if ((!reportsOk || !settingsOk) && attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+            continue;
+          }
+
+          if (!reportsOk || !settingsOk) {
+            throw new Error('管理画面データが空の状態で返されました。');
+          }
+
+          loadedReports = rData;
+          loadedSettings = sData;
+          break;
+        } catch (e) {
+          lastError = e;
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          }
         }
       }
-    } catch (e) {  
-      console.error(e);  
+
+      if (!loadedReports || !loadedSettings) {
+        throw lastError || new Error('管理画面データを取得できませんでした。');
+      }
+
+      setReports(loadedReports);
+
+      const sData = loadedSettings;
+      const normalizedSettings = normalizeLeaseVendorSettings(sData);
+      setSettings(normalizedSettings);
+      setOriginalSettings(JSON.parse(JSON.stringify(normalizedSettings)));
+      if (sData.costOverrides) setCostOverrides(sData.costOverrides);
+      if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
+      if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
+      if (sData.scrapRowOverrides) setScrapRowOverrides(sData.scrapRowOverrides);
+      if (sData.scrapSettlementDates) setScrapSettlementDates(sData.scrapSettlementDates);
+      if (sData.checkedScrapRows) setCheckedScrapRows(sData.checkedScrapRows);
+      if (sData.monthlyScrapStatementTotals) setMonthlyScrapStatementTotals(sData.monthlyScrapStatementTotals);
+      if (sData.fuelUnitPrices) setFuelUnitPrices(sData.fuelUnitPrices);
+      if (sData.customSubcontractors) setCustomSubcontractors(sData.customSubcontractors);
+      if (sData.subcontractorDetailOverrides) setSubcontractorDetailOverrides(sData.subcontractorDetailOverrides);
+      if (sData.subcontractorMonthlyUnitPrices) setSubcontractorMonthlyUnitPrices(sData.subcontractorMonthlyUnitPrices);
+      if (sData.subcontractorPeriodUnitPrices) setSubcontractorPeriodUnitPrices(sData.subcontractorPeriodUnitPrices);
+      if (sData.subcontractorInvoiceOverrides) setSubcontractorInvoiceOverrides(sData.subcontractorInvoiceOverrides);
+      if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
+      if (sData.invoiceReconcileStatus) setInvoiceReconcileStatus(sData.invoiceReconcileStatus);
+      if (sData.invoiceReconcileHistory) setInvoiceReconcileHistory(sData.invoiceReconcileHistory);
+      if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
+      if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
+      if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
+      if (sData.leaseCustomPrices) setLeaseCustomPrices(sData.leaseCustomPrices);
+      if (sData.checkedDisposalRows) setCheckedDisposalRows(sData.checkedDisposalRows);
+      setCompanyCalendars(mergeCompanyCalendars(sData.companyCalendars || {}));
+    } catch (e) {
+      console.error(e);
+      alert('データの読み込みに失敗しました。自動再取得でも復旧できなかったため、「最新の状態にする」を押してください。');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => { if (isAuthed) fetchData(); }, [isAuthed]);
+  useEffect(() => {
+    if (isAuthed && authRole) fetchData();
+  }, [isAuthed, authRole]);
 
   // 未保存の勤怠・原価・請負先/開始日がある状態で、
   // ブラウザ更新・タブを閉じる・別ページへ移動しようとした時に警告する。
@@ -1894,8 +1939,10 @@ export default function AdminPage() {
   const handleLogin = (role: 'admin' | 'viewer') => {
     const targetPassword = role === 'viewer' ? viewerPassword : password;
     if (targetPassword === '19770323') {
-      setIsAuthed(true);
+      // 権限を確定してから認証済みにする。ログイン直後のデータ取得が
+      // authRole 未確定の瞬間に走らないようにする。
       setAuthRole(role);
+      setIsAuthed(true);
       setShowAdminSection(false);
       if (role === 'viewer') setViewerSection('home');
     } else {
@@ -3100,7 +3147,41 @@ export default function AdminPage() {
       if (!line.hasOverride) return sum;
       return sum + (Number(line.amount || 0) - Number(line.baseAmount || 0));
     }, 0);
-    return Number(fallbackTotal || 0) + delta;
+    let adjustedTotal = Number(fallbackTotal || 0) + delta;
+
+    // リースは、業者＋指定期間ごとに請求書照合で確定した金額を原価へ反映する。
+    // 同じ業者・同じ期間を再照合した場合は、最新の履歴だけを使用する。
+    if (category === 'lease') {
+      const history = Array.isArray(invoiceReconcileHistory?.[locName]?.lease)
+        ? invoiceReconcileHistory[locName].lease
+        : [];
+      const usedPeriodKeys = new Set<string>();
+
+      history.forEach((entry: any) => {
+        const company = String(entry?.company || '').trim();
+        const startDate = String(entry?.startDate || '').trim();
+        const endDate = String(entry?.endDate || '').trim();
+        const invoiceAmount = entry?.invoiceAmount;
+        if (entry?.applyToCost !== true) return;
+        if (!company || !startDate || !endDate || invoiceAmount === null || invoiceAmount === undefined || Number.isNaN(Number(invoiceAmount))) return;
+
+        const periodKey = `${company}__${startDate}__${endDate}`;
+        if (usedPeriodKeys.has(periodKey)) return;
+        usedPeriodKeys.add(periodKey);
+
+        const targetLines = lines.filter((line: any) =>
+          String(line.vendor || '未設定') === company &&
+          String(line.date || '') >= startDate &&
+          String(line.date || '') <= endDate
+        );
+        if (targetLines.length === 0) return;
+
+        const currentPeriodTotal = targetLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
+        adjustedTotal += Number(invoiceAmount) - currentPeriodTotal;
+      });
+    }
+
+    return adjustedTotal;
   };
 
   const formatInvoiceReconcileTime = (iso: string) => {
@@ -3136,6 +3217,8 @@ export default function AdminPage() {
       hadChanges?: boolean;
       invoiceAmount?: number | null;
       diff?: number | null;
+      systemAmount?: number | null;
+      applyToCost?: boolean;
     } = {}
   ) => {
     if (authRole !== 'admin') return;
@@ -3148,7 +3231,9 @@ export default function AdminPage() {
       company: detail.company || '',
       hadChanges: !!detail.hadChanges,
       invoiceAmount: detail.invoiceAmount === null || detail.invoiceAmount === undefined ? null : Number(detail.invoiceAmount),
-      diff: detail.diff === null || detail.diff === undefined ? null : Number(detail.diff)
+      diff: detail.diff === null || detail.diff === undefined ? null : Number(detail.diff),
+      systemAmount: detail.systemAmount === null || detail.systemAmount === undefined ? null : Number(detail.systemAmount),
+      applyToCost: category === 'lease' && detail.applyToCost === true
     };
 
     setInvoiceReconcileStatus((prev: any) => ({
@@ -13034,10 +13119,11 @@ export default function AdminPage() {
                           <div className={`rounded-xl px-3 py-2.5 text-xs md:text-sm border ${st ? (st.hadChanges ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-800') : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
                             {st ? (
                               <div className="space-y-1">
-                                <div className="font-extrabold">{st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み'}</div>
+                                <div className="font-extrabold">{st.applyToCost ? '✅ 請求書確定・原価反映' : (st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み')}</div>
                                 <div><span className="font-bold">対象期間：</span>{formatInvoicePeriod(st.startDate, st.endDate)}</div>
                                 <div><span className="font-bold">照合日時：</span>{formatInvoiceReconcileTime(st.checkedAt)}</div>
                                 {st.company && <div><span className="font-bold">業者：</span>{st.company}</div>}
+                                {st.systemAmount !== null && st.systemAmount !== undefined && <div><span className="font-bold">システム計算：</span>{formatAmount(st.systemAmount)}</div>}
                                 <div><span className="font-bold">請求書金額：</span>{st.invoiceAmount === null || st.invoiceAmount === undefined ? '—' : formatAmount(st.invoiceAmount)}</div>
                                 <div><span className="font-bold">差額：</span>{st.diff === null || st.diff === undefined ? '—' : formatAmount(st.diff)}</div>
                               </div>
@@ -13056,9 +13142,9 @@ export default function AdminPage() {
                                 <div className="mt-2 rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 max-h-52 overflow-y-auto">
                                   {history.map((h: any) => (
                                     <div key={h.id || `${h.checkedAt}_${h.startDate}_${h.endDate}`} className="px-3 py-2 text-xs md:text-sm">
-                                      <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み'}</div>
+                                      <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.applyToCost ? '✅ 請求書確定・原価反映' : (h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み')}</div>
                                       <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
-                                      <div className="text-slate-600 mt-0.5">請求書 {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} ／ 差額 {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}</div>
+                                      <div className="text-slate-600 mt-0.5">{h.systemAmount !== null && h.systemAmount !== undefined ? `システム ${formatAmount(h.systemAmount)} ／ ` : ''}請求書 {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} ／ 差額 {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}</div>
                                     </div>
                                   ))}
                                 </div>
@@ -14070,15 +14156,6 @@ export default function AdminPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => markInvoiceReconciled(modalLocation, 'disposal', {
-                      hadChanges: Number(modalData.disposalCost || 0) !== Number(modalData.reportEstimateDisposal || 0)
-                    })}
-                    className="px-4 py-3 rounded-xl font-extrabold text-sm bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-200"
-                  >
-                    ✓ 照合済みにする
-                  </button>
-                  <button
-                    type="button"
                     onClick={saveFinancialEdits}
                     disabled={!financialDirty || isFinancialSaving}
                     className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
@@ -14117,6 +14194,7 @@ export default function AdminPage() {
         const totalAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
         const invoiceAmountNumber = expenseInvoiceAmount === '' ? null : Number(expenseInvoiceAmount || 0);
         const diff = invoiceAmountNumber === null ? null : invoiceAmountNumber - totalAmount;
+        const canMarkReconciled = conditionsReady && (!isLeaseInvoice || (invoiceAmountNumber !== null && !Number.isNaN(invoiceAmountNumber) && invoiceAmountNumber >= 0));
 
         return (
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => setShowExpenseInvoiceModal(false)}>
@@ -14155,7 +14233,7 @@ export default function AdminPage() {
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-xs font-bold text-slate-500">現在の明細合計</div>
+                        <div className="text-xs font-bold text-slate-500">{isLeaseInvoice ? '指定期間・指定業者のリース合計' : '現在の明細合計'}</div>
                         <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(totalAmount)}</div>
                       </div>
                       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -14209,7 +14287,7 @@ export default function AdminPage() {
 
                     <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
                       <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
-                        <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。入力値は比較用で、原価は上の明細修正で確定します。</div></div>
+                        <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">{isLeaseInvoice ? '請求書の税別金額を入力して確定すると、この業者・指定期間の確定額として履歴に残り、詳細分析のリース経費へ反映します。元の日報は変更しません。' : '請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。入力値は比較用で、原価は上の明細修正で確定します。'}</div></div>
                         <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
                         <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 現在合計）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
                       </div>
@@ -14229,12 +14307,14 @@ export default function AdminPage() {
                       company: categoryKey === 'lease' ? expenseInvoiceFilter.vendor : '',
                       hadChanges: visibleLines.some((line: any) => line.hasOverride),
                       invoiceAmount: invoiceAmountNumber,
-                      diff
+                      diff,
+                      systemAmount: totalAmount,
+                      applyToCost: isLeaseInvoice
                     })}
-                    disabled={!conditionsReady}
-                    className={`px-4 py-2.5 rounded-xl font-extrabold ${!conditionsReady ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200'}`}
+                    disabled={!canMarkReconciled}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold ${!canMarkReconciled ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200'}`}
                   >
-                    ✓ 照合済みにする
+                    {isLeaseInvoice ? '✓ 請求書金額を確定' : '✓ 照合済みにする'}
                   </button>
                   <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
                   <button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button>
