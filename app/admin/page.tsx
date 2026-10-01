@@ -3143,48 +3143,59 @@ export default function AdminPage() {
     return lines.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'ja'));
   };
 
+  const getLeaseCostApplication = (locName: string) => {
+    const lines = getExpenseInvoiceLines(locName, 'lease');
+    const history = getInvoiceReconcileHistory(locName, 'lease')
+      .filter((entry: any) => {
+        const startDate = String(entry?.startDate || '');
+        const endDate = String(entry?.endDate || '');
+        return entry?.applyToCost === true &&
+          !!String(entry?.company || '').trim() &&
+          /^\d{4}-\d{2}-\d{2}$/.test(startDate) &&
+          /^\d{4}-\d{2}-\d{2}$/.test(endDate) &&
+          startDate <= endDate &&
+          entry?.invoiceAmount !== null && entry?.invoiceAmount !== undefined &&
+          !Number.isNaN(Number(entry.invoiceAmount));
+      })
+      .sort((a: any, b: any) => String(b?.checkedAt || '').localeCompare(String(a?.checkedAt || '')));
+
+    // 同一業者で期間が重複する古い確定履歴は二重計上しない。
+    // 最新の確定履歴を優先し、請求書期間に含まれる日報明細をその請求書金額へ置き換える。
+    const coveredLineKeys = new Set<string>();
+    const acceptedHistory: any[] = [];
+
+    history.forEach((entry: any) => {
+      const vendor = String(entry?.company || '').trim();
+      const startDate = String(entry?.startDate || '');
+      const endDate = String(entry?.endDate || '');
+      const matchingLines = lines.filter((line: any) =>
+        String(line?.vendor || '未設定').trim() === vendor &&
+        String(line?.date || '') >= startDate &&
+        String(line?.date || '') <= endDate
+      );
+      if (matchingLines.length === 0) return;
+      if (matchingLines.some((line: any) => coveredLineKeys.has(String(line?.lineKey || '')))) return;
+
+      matchingLines.forEach((line: any) => coveredLineKeys.add(String(line?.lineKey || '')));
+      acceptedHistory.push({ ...entry, matchingLines });
+    });
+
+    const invoiceTotal = acceptedHistory.reduce((sum: number, entry: any) => sum + Number(entry?.invoiceAmount || 0), 0);
+    const unreconciledTotal = lines.reduce((sum: number, line: any) => {
+      if (coveredLineKeys.has(String(line?.lineKey || ''))) return sum;
+      return sum + Number(line?.baseAmount ?? line?.amount ?? 0);
+    }, 0);
+
+    return { lines, acceptedHistory, coveredLineKeys, total: invoiceTotal + unreconciledTotal };
+  };
+
   const getExpenseInvoiceAdjustedTotal = (locName: string, category: string, fallbackTotal: number) => {
     const lines = getExpenseInvoiceLines(locName, category);
 
-    // リースは「月×業者」を原価の単位にする。
-    // 未照合月は日報由来の概算、照合済み月は請求書確定額へ置き換える。
+    // リースは請求書で確定した「業者＋任意期間」だけ請求書金額へ置き換え、
+    // それ以外の期間は日報由来の概算をそのまま原価に使う。
     if (category === 'lease') {
-      const groups: Record<string, any> = {};
-      lines.forEach((line: any) => {
-        const date = String(line?.date || '');
-        const yearMonth = date.slice(0, 7);
-        if (!/^\d{4}-\d{2}$/.test(yearMonth)) return;
-        const vendor = String(line?.vendor || '未設定').trim() || '未設定';
-        const key = `${yearMonth}__${vendor}`;
-        if (!groups[key]) {
-          groups[key] = { yearMonth, vendor, firstDate: date, lastDate: date, estimate: 0 };
-        }
-        // 日報由来の概算は、請求書照合時の個別修正前の金額を使う。
-        groups[key].estimate += Number(line?.baseAmount ?? line?.amount ?? 0);
-        if (date < groups[key].firstDate) groups[key].firstDate = date;
-        if (date > groups[key].lastDate) groups[key].lastDate = date;
-      });
-
-      const history = Array.isArray(invoiceReconcileHistory?.[locName]?.lease)
-        ? invoiceReconcileHistory[locName].lease
-        : [];
-
-      return Object.values(groups).reduce((sum: number, group: any) => {
-        const confirmed = history.find((entry: any) => {
-          if (entry?.applyToCost !== true) return false;
-          if (String(entry?.company || '').trim() !== group.vendor) return false;
-          const startDate = String(entry?.startDate || '');
-          const endDate = String(entry?.endDate || '');
-          if (!startDate || !endDate) return false;
-          return startDate.slice(0, 7) === group.yearMonth &&
-            endDate.slice(0, 7) === group.yearMonth &&
-            startDate <= group.firstDate &&
-            endDate >= group.lastDate &&
-            entry?.invoiceAmount !== null && entry?.invoiceAmount !== undefined &&
-            !Number.isNaN(Number(entry.invoiceAmount));
-        });
-        return sum + (confirmed ? Number(confirmed.invoiceAmount || 0) : Number(group.estimate || 0));
-      }, 0);
+      return getLeaseCostApplication(locName).total;
     }
 
     const delta = lines.reduce((sum: number, line: any) => {
@@ -3195,58 +3206,65 @@ export default function AdminPage() {
   };
 
   const getLeaseMonthlyVendorSummary = (locName: string) => {
-    const lines = getExpenseInvoiceLines(locName, 'lease');
-    const groups: Record<string, any> = {};
+    const { lines, acceptedHistory, coveredLineKeys } = getLeaseCostApplication(locName);
+    const rows: any[] = [];
 
+    // 照合済みは、請求書で指定した期間を1行として表示する。
+    acceptedHistory.forEach((entry: any) => {
+      const startDate = String(entry?.startDate || '');
+      const endDate = String(entry?.endDate || '');
+      const vendor = String(entry?.company || '').trim() || '未設定';
+      const estimate = (entry?.matchingLines || []).reduce((sum: number, line: any) => sum + Number(line?.baseAmount ?? line?.amount ?? 0), 0);
+      rows.push({
+        key: `reconciled__${entry?.id || `${vendor}__${startDate}__${endDate}`}`,
+        yearMonth: startDate.slice(0, 7),
+        vendor,
+        firstDate: startDate,
+        lastDate: endDate,
+        periodLabel: `${startDate} ～ ${endDate}`,
+        estimate,
+        lineCount: (entry?.matchingLines || []).length,
+        confirmed: entry,
+        isReconciled: true,
+        appliedAmount: Number(entry?.invoiceAmount || 0)
+      });
+    });
+
+    // 照合されていない明細は、従来どおり月×業者でまとめて日報由来の概算を表示する。
+    const unreconciledGroups: Record<string, any> = {};
     lines.forEach((line: any) => {
+      if (coveredLineKeys.has(String(line?.lineKey || ''))) return;
       const date = String(line?.date || '');
       const yearMonth = date.slice(0, 7);
       if (!/^\d{4}-\d{2}$/.test(yearMonth)) return;
       const vendor = String(line?.vendor || '未設定').trim() || '未設定';
       const key = `${yearMonth}__${vendor}`;
-      if (!groups[key]) {
-        groups[key] = {
-          key,
+      if (!unreconciledGroups[key]) {
+        unreconciledGroups[key] = {
+          key: `unreconciled__${key}`,
           yearMonth,
           vendor,
           firstDate: date,
           lastDate: date,
           estimate: 0,
-          lineCount: 0
+          lineCount: 0,
+          confirmed: null,
+          isReconciled: false
         };
       }
-      groups[key].estimate += Number(line?.baseAmount ?? line?.amount ?? 0);
-      groups[key].lineCount += 1;
-      if (date < groups[key].firstDate) groups[key].firstDate = date;
-      if (date > groups[key].lastDate) groups[key].lastDate = date;
+      unreconciledGroups[key].estimate += Number(line?.baseAmount ?? line?.amount ?? 0);
+      unreconciledGroups[key].lineCount += 1;
+      if (date < unreconciledGroups[key].firstDate) unreconciledGroups[key].firstDate = date;
+      if (date > unreconciledGroups[key].lastDate) unreconciledGroups[key].lastDate = date;
     });
 
-    const history = getInvoiceReconcileHistory(locName, 'lease');
+    Object.values(unreconciledGroups).forEach((group: any) => {
+      rows.push({ ...group, periodLabel: `${group.yearMonth}（未照合）`, appliedAmount: Number(group.estimate || 0) });
+    });
 
-    return Object.values(groups)
-      .map((group: any) => {
-        const confirmed = history.find((entry: any) => {
-          if (entry?.applyToCost !== true) return false;
-          if (String(entry?.company || '').trim() !== group.vendor) return false;
-          const startDate = String(entry?.startDate || '');
-          const endDate = String(entry?.endDate || '');
-          if (!startDate || !endDate) return false;
-          return startDate.slice(0, 7) === group.yearMonth &&
-            endDate.slice(0, 7) === group.yearMonth &&
-            startDate <= group.firstDate &&
-            endDate >= group.lastDate &&
-            entry?.invoiceAmount !== null && entry?.invoiceAmount !== undefined &&
-            !Number.isNaN(Number(entry.invoiceAmount));
-        }) || null;
-
-        return {
-          ...group,
-          confirmed,
-          isReconciled: !!confirmed,
-          appliedAmount: confirmed ? Number(confirmed.invoiceAmount || 0) : Number(group.estimate || 0)
-        };
-      })
-      .sort((a: any, b: any) => a.yearMonth.localeCompare(b.yearMonth) || a.vendor.localeCompare(b.vendor, 'ja'));
+    return rows.sort((a: any, b: any) =>
+      String(a.firstDate || '').localeCompare(String(b.firstDate || '')) || String(a.vendor || '').localeCompare(String(b.vendor || ''), 'ja')
+    );
   };
 
   const formatInvoiceReconcileTime = (iso: string) => {
@@ -12932,21 +12950,142 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-2xs">
-              <div><div className="flex items-center gap-2 font-extrabold text-orange-900 text-lg md:text-xl"><span>🗑️ 処分費</span></div><div className="text-sm md:text-base text-slate-600 mt-1.5 font-medium">日報由来 {formatAmount(modalData.reportEstimateDisposal)} ／ 確定額 {formatAmount(modalData.disposalCost)}</div></div>
-              <button onClick={() => setShowDisposalModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 処分費の内訳を確認</button>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+              <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4">
+                <div>
+                  <div className="font-extrabold text-orange-900 text-lg">🗑️ 処分費</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-xl bg-white border border-orange-100 px-3 py-2">
+                      <div className="text-xs font-bold text-slate-500">日報由来</div>
+                      <div className="mt-1 font-extrabold text-slate-800">{formatAmount(modalData.reportEstimateDisposal)}</div>
+                    </div>
+                    <div className="rounded-xl bg-white border border-orange-100 px-3 py-2">
+                      <div className="text-xs font-bold text-slate-500">確定額</div>
+                      <div className="mt-1 font-extrabold text-orange-800">{formatAmount(modalData.disposalCost)}</div>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 内訳を確認</button>
+              </div>
+
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4">
+                <div>
+                  <div className="font-extrabold text-emerald-900 text-lg">♻️ スクラップ売却計</div>
+                  <div className="mt-3 rounded-xl bg-white border border-emerald-100 px-4 py-3">
+                    <div className="text-xs font-bold text-slate-500">売却合計</div>
+                    <div className="mt-1 text-2xl font-black text-emerald-700">+ {formatAmount(modalData.scrapTotal)}</div>
+                  </div>
+                </div>
+                <button onClick={() => setShowScrapModal(true)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 内訳・金額入力</button>
+              </div>
+
+              <div className={`${subcontractorSectionOpen ? 'lg:col-span-3' : ''} bg-amber-50/70 p-5 rounded-2xl border border-amber-200 space-y-4 shadow-2xs min-h-[168px]`}>
+              <div 
+                className="flex flex-col h-full justify-between gap-4 cursor-pointer select-none"
+                onClick={() => setSubcontractorSectionOpen(!subcontractorSectionOpen)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-extrabold text-amber-950 text-lg">👥 外注費</div>
+                  <span className="text-xs font-extrabold text-amber-800 bg-white border border-amber-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+                    {subcontractorSectionOpen ? '▲ 閉じる' : '▼ 詳細'}
+                  </span>
+                </div>
+                <div className="rounded-xl bg-white border border-amber-100 px-4 py-3">
+                  <div className="text-xs font-bold text-slate-500">外注費合計</div>
+                  <div className="mt-1 text-2xl font-black text-amber-900">{formatAmount(modalData.subCostTotal)}</div>
+                </div>
+              </div>
+
+              {subcontractorSectionOpen && (
+                <div className="space-y-4 pt-3 border-t border-orange-200 animate-fadeIn">
+                  {authRole === 'admin' && (
+                    <div className="bg-white p-4 rounded-xl border border-orange-300 space-y-3 shadow-2xs">
+                      <div className="text-sm font-bold text-orange-900">＋ 一括請負・外注費の直接追加</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input 
+                          type="text" 
+                          placeholder="会社名 (例: 〇〇工業)" 
+                          value={customSubForm[modalLocation]?.company || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), company: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="作業内容 (例: 解体一式)" 
+                          value={customSubForm[modalLocation]?.task || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), task: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="金額 (例: 1000000)" 
+                          value={customSubForm[modalLocation]?.price || ''} 
+                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), price: e.target.value } })} 
+                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => handleAddCustomSubcontractor(modalLocation)} 
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-xs transition"
+                      >
+                        この外注費を追加する
+                      </button>
+                    </div>
+                  )}
+
+                  {(customSubcontractors[modalLocation] || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
+                      {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
+                        <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
+                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">{formatAmount(Number(cs.price))}</span></span>
+                          {authRole === 'admin' && (
+                            <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
+                    {reports.filter(r => {
+                      const targetNames = getTargetLocationNames(modalLocation);
+                      const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                      return targetNames.includes(r.location) && subcontractors.length > 0;
+                    }).length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
+                    ) : (
+                      reports.filter(r => {
+                        const targetNames = getTargetLocationNames(modalLocation);
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        return targetNames.includes(r.location) && subcontractors.length > 0;
+                      }).map((r, idx) => {
+                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
+                        return (
+                          <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
+                            <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
+                            {subcontractors.map((sub: any, sIdx: number) => {
+                              const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
+                              const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
+                              const subTotalCalc = Number(sub.count || 0) * unitP;
+                              return (
+                                <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
+                                  <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 {formatAmount(unitP)}</span>
+                                  <span className="font-bold text-orange-700">{formatAmount(subTotalCalc)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="bg-emerald-50 p-4 md:p-6 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-2xs">
-              <div className="flex items-center gap-2 font-extrabold text-emerald-900 text-lg md:text-xl">
-                <span>♻️ スクラップ売却計</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xl md:text-2xl font-bold text-emerald-700">+ {formatAmount(modalData.scrapTotal)}</span>
-                <button onClick={() => setShowScrapModal(true)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-base px-4 py-2.5 rounded-xl font-bold shadow-xs transition">
-                  🔍 内訳・金額入力
-                </button>
-              </div>
             </div>
 
             {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
@@ -13064,110 +13203,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            <div className="bg-orange-50/50 p-5 rounded-2xl border border-orange-200 space-y-4">
-              <div 
-                className="flex justify-between items-center cursor-pointer select-none"
-                onClick={() => setSubcontractorSectionOpen(!subcontractorSectionOpen)}
-              >
-                <div className="flex items-center gap-2 font-bold text-lg text-orange-900">
-                  <span>👥 外注費 詳細・計算内訳</span>
-                  <span className="text-xs text-orange-700 bg-orange-100 px-2 py-0.5 rounded">
-                    {subcontractorSectionOpen ? '▲ 閉じる' : '▼ 開く'}
-                  </span>
-                </div>
-                <span className="text-sm font-bold text-orange-800 bg-orange-100 px-3 py-1 rounded-xl">外注費合計: {formatAmount(modalData.subCostTotal)}</span>
-              </div>
-
-              {subcontractorSectionOpen && (
-                <div className="space-y-4 pt-3 border-t border-orange-200 animate-fadeIn">
-                  {authRole === 'admin' && (
-                    <div className="bg-white p-4 rounded-xl border border-orange-300 space-y-3 shadow-2xs">
-                      <div className="text-sm font-bold text-orange-900">＋ 一括請負・外注費の直接追加</div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <input 
-                          type="text" 
-                          placeholder="会社名 (例: 〇〇工業)" 
-                          value={customSubForm[modalLocation]?.company || ''} 
-                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), company: e.target.value } })} 
-                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="作業内容 (例: 解体一式)" 
-                          value={customSubForm[modalLocation]?.task || ''} 
-                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), task: e.target.value } })} 
-                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                        />
-                        <input 
-                          type="number" 
-                          placeholder="金額 (例: 1000000)" 
-                          value={customSubForm[modalLocation]?.price || ''} 
-                          onChange={e => setCustomSubForm({ ...customSubForm, [modalLocation]: { ...(customSubForm[modalLocation] || {}), price: e.target.value } })} 
-                          className="p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-slate-50"
-                        />
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => handleAddCustomSubcontractor(modalLocation)} 
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm shadow-xs transition"
-                      >
-                        この外注費を追加する
-                      </button>
-                    </div>
-                  )}
-
-                  {(customSubcontractors[modalLocation] || []).length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
-                      {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
-                        <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
-                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">{formatAmount(Number(cs.price))}</span></span>
-                          {authRole === 'admin' && (
-                            <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-bold text-slate-600">【日報由来の外注費】</div>
-                    {reports.filter(r => {
-                      const targetNames = getTargetLocationNames(modalLocation);
-                      const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
-                      return targetNames.includes(r.location) && subcontractors.length > 0;
-                    }).length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-2">日報データに基づく外注費はありません</p>
-                    ) : (
-                      reports.filter(r => {
-                        const targetNames = getTargetLocationNames(modalLocation);
-                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
-                        return targetNames.includes(r.location) && subcontractors.length > 0;
-                      }).map((r, idx) => {
-                        const subcontractors = Array.isArray(r.subcontractors) ? r.subcontractors : [];
-                        return (
-                          <div key={idx} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-2">
-                            <div className="text-xs font-bold text-slate-600">🗓️ 日付: {r.date}</div>
-                            {subcontractors.map((sub: any, sIdx: number) => {
-                              const subMaster = (settings.subcontractors || []).find((x:any) => x.company === sub.company && x.task === sub.task);
-                              const unitP = sub.price !== undefined && sub.price !== null && sub.price !== '' ? Number(sub.price) : (subMaster?.price || 0);
-                              const subTotalCalc = Number(sub.count || 0) * unitP;
-                              return (
-                                <div key={sIdx} className="flex justify-between items-center text-sm font-medium text-slate-800 bg-slate-50 p-2.5 rounded-lg">
-                                  <span>🏢 <b>{sub.company}</b> ({sub.task}) : 数量 {sub.count}人 × 単価 {formatAmount(unitP)}</span>
-                                  <span className="font-bold text-orange-700">{formatAmount(subTotalCalc)}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
 
             {authRole === 'admin' && (
               <div className="flex items-center gap-3 border-b border-slate-200 pb-3 pt-2">
@@ -13935,12 +13970,6 @@ export default function AdminPage() {
       {/* リース詳細：月別・業者別の原価確認 */}
       {showIshikawaLeaseModal && modalLocation && modalData && (() => {
         const monthlyLeaseSummary = getLeaseMonthlyVendorSummary(modalLocation);
-        const groupedByMonth = monthlyLeaseSummary.reduce((acc: Record<string, any[]>, row: any) => {
-          if (!acc[row.yearMonth]) acc[row.yearMonth] = [];
-          acc[row.yearMonth].push(row);
-          return acc;
-        }, {});
-        const monthKeys = Object.keys(groupedByMonth).sort();
         const totalApplied = monthlyLeaseSummary.reduce((sum: number, row: any) => sum + Number(row.appliedAmount || 0), 0);
         const reconciledCount = monthlyLeaseSummary.filter((row: any) => row.isReconciled).length;
         const unreconciledCount = monthlyLeaseSummary.length - reconciledCount;
@@ -13956,9 +13985,9 @@ export default function AdminPage() {
             >
               <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 md:px-7 py-4 flex justify-between items-start gap-4">
                 <div>
-                  <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 リース費用の月別・業者別内訳</h3>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 リース費用の期間・業者別内訳</h3>
                   <p className="text-xs md:text-sm text-slate-500 mt-1">
-                    未照合は「日報由来の概算」、照合済みは「請求書金額」を原価として表示します。
+                    未照合は「日報由来の概算」、照合済みは指定した請求期間の「請求書金額」を原価として表示します。
                   </p>
                 </div>
                 <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
@@ -13967,7 +13996,7 @@ export default function AdminPage() {
               <div className="p-5 md:p-7 space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs font-bold text-slate-500">月×業者の件数</div>
+                    <div className="text-xs font-bold text-slate-500">期間・業者の件数</div>
                     <div className="text-xl font-black text-slate-900 mt-1">{monthlyLeaseSummary.length}件</div>
                   </div>
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -13986,41 +14015,27 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {monthKeys.length === 0 ? (
+                {monthlyLeaseSummary.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500 font-bold">この現場のリース日報データはありません。</div>
                 ) : (
-                  <div className="space-y-4 max-w-3xl mx-auto">
-                    {monthKeys.map((ym: string) => {
-                      const [year, month] = ym.split('-');
-                      const rows = groupedByMonth[ym] || [];
-                      const monthTotal = rows.reduce((sum: number, row: any) => sum + Number(row.appliedAmount || 0), 0);
-                      return (
-                        <div key={ym} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                          <div className="px-4 md:px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
-                            <div className="font-extrabold text-slate-900">{Number(year)}年{Number(month)}月</div>
-                            <div className="font-black text-slate-800">月合計 {formatAmount(monthTotal)}</div>
-                          </div>
-                          <div className="divide-y divide-slate-100">
-                            {rows.map((row: any) => (
-                              <div key={row.key} className="px-4 md:px-5 py-3.5 grid grid-cols-1 md:grid-cols-[1fr_160px_120px] gap-2 md:items-center">
-                                <div>
-                                  <div className="font-extrabold text-slate-900">{row.vendor}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">
-                                    {row.isReconciled ? '請求書金額を原価に反映' : '日報由来の概算を原価に使用'}
-                                  </div>
-                                </div>
-                                <div className="md:text-right font-black text-lg text-slate-900">{formatAmount(row.appliedAmount)}</div>
-                                <div className="md:text-right">
-                                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                                    {row.isReconciled ? '✅ 照合済み' : '○ 未照合'}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                  <div className="max-w-3xl mx-auto rounded-2xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
+                    {monthlyLeaseSummary.map((row: any) => (
+                      <div key={row.key} className="px-4 md:px-5 py-4 grid grid-cols-1 md:grid-cols-[180px_1fr_150px_120px] gap-2 md:gap-4 md:items-center">
+                        <div className="text-sm font-extrabold text-slate-700">{row.periodLabel}</div>
+                        <div>
+                          <div className="font-extrabold text-slate-900">{row.vendor}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {row.isReconciled ? `日報由来の概算 ${formatAmount(row.estimate)} → 請求書金額` : '日報由来の概算を原価に使用'}
                           </div>
                         </div>
-                      );
-                    })}
+                        <div className="md:text-right font-black text-lg text-slate-900">{formatAmount(row.appliedAmount)}</div>
+                        <div className="md:text-right">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                            {row.isReconciled ? '✅ 照合済み' : '○ 未照合'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -14234,10 +14249,7 @@ export default function AdminPage() {
         const vendorOptions = isLeaseInvoice
           ? Array.from(new Set(allLines.map((line: any) => String(line.vendor || '未設定')))).sort((a: any, b: any) => String(a).localeCompare(String(b), 'ja'))
           : [];
-        const selectedLeaseMonth = isLeaseInvoice && startDate && endDate && startDate.slice(0, 7) === endDate.slice(0, 7)
-          ? startDate.slice(0, 7)
-          : '';
-        const conditionsReady = !!startDate && !!endDate && (!isLeaseInvoice || !!vendor);
+        const conditionsReady = !!startDate && !!endDate && startDate <= endDate && (!isLeaseInvoice || !!vendor);
         const visibleLines = conditionsReady
           ? allLines.filter((line: any) =>
               line.date >= startDate &&
@@ -14253,20 +14265,6 @@ export default function AdminPage() {
         const canMarkReconciled = conditionsReady && visibleLines.length > 0 && (!isLeaseInvoice || (invoiceAmountNumber !== null && !Number.isNaN(invoiceAmountNumber) && invoiceAmountNumber >= 0));
         const detailsOpen = isLeaseInvoice ? showExpenseInvoiceDetails : true;
 
-        const setLeaseMonth = (value: string) => {
-          if (!value) {
-            setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: '', endDate: '' }));
-            return;
-          }
-          const [year, month] = value.split('-').map(Number);
-          const lastDay = new Date(year, month, 0).getDate();
-          setExpenseInvoiceFilter((prev) => ({
-            ...prev,
-            startDate: `${value}-01`,
-            endDate: `${value}-${String(lastDay).padStart(2, '0')}`
-          }));
-        };
-
         return (
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => setShowExpenseInvoiceModal(false)}>
             <div className="bg-white w-full max-w-5xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -14275,7 +14273,7 @@ export default function AdminPage() {
                   <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 {expenseInvoiceCategory.label}・請求書照合</h3>
                   <p className="text-sm text-slate-600 mt-1">
                     {isLeaseInvoice
-                      ? '業者と対象月を選び、日報由来の概算と請求書金額の合計を照合します。必要な場合だけ明細を開いて個別修正できます。'
+                      ? '業者と対象期間を選び、日報由来の概算と請求書金額の合計を照合します。月初～月末以外の請求期間にも対応できます。必要な場合だけ明細を開いて個別修正できます。'
                       : 'この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。'}
                   </p>
                 </div>
@@ -14284,16 +14282,22 @@ export default function AdminPage() {
 
               <div className="p-4 md:p-6 overflow-y-auto space-y-4">
                 {isLeaseInvoice ? (
-                  <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
                     <label className="text-sm font-extrabold text-slate-700">リース業者
                       <select value={vendor} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, vendor: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold">
                         <option value="">業者を選択</option>
                         {vendorOptions.map((name:any) => <option key={String(name)} value={String(name)}>{String(name)}</option>)}
                       </select>
                     </label>
-                    <label className="text-sm font-extrabold text-slate-700">対象月
-                      <input type="month" value={selectedLeaseMonth} onChange={(e) => setLeaseMonth(e.target.value)} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                    <label className="text-sm font-extrabold text-slate-700">開始日
+                      <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
                     </label>
+                    <label className="text-sm font-extrabold text-slate-700">終了日
+                      <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                    </label>
+                    <div className="lg:col-span-3 text-xs font-bold text-blue-700 bg-white/80 border border-blue-100 rounded-xl px-3 py-2">
+                      対象期間：{startDate && endDate ? formatInvoicePeriod(startDate, endDate) : '開始日と終了日を選択してください'}
+                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
@@ -14307,7 +14311,7 @@ export default function AdminPage() {
                 )}
 
                 {!conditionsReady ? (
-                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">{isLeaseInvoice ? 'リース業者と対象月を選択すると集計結果を表示します。' : '開始日と終了日を選択すると明細を表示します。'}</div>
+                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">{isLeaseInvoice ? 'リース業者・開始日・終了日を選択すると集計結果を表示します。' : '開始日と終了日を選択すると明細を表示します。'}</div>
                 ) : visibleLines.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 font-bold">指定した条件の日報リース明細はありません。</div>
                 ) : (
@@ -14336,7 +14340,7 @@ export default function AdminPage() {
                           <div className={`rounded-2xl border p-4 ${diff === null ? 'border-slate-200 bg-white' : diff === 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
                             <div className="text-xs font-bold text-slate-600">差額（請求書 − 概算）</div>
                             <div className={`text-2xl font-black mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-700' : 'text-amber-800'}`}>{diff === null ? '—' : formatAmount(diff)}</div>
-                            <div className="text-xs text-slate-500 mt-1">{vendor} ／ {selectedLeaseMonth ? `${Number(selectedLeaseMonth.slice(5, 7))}月` : ''}</div>
+                            <div className="text-xs text-slate-500 mt-1">{vendor} ／ {formatInvoicePeriod(startDate, endDate)}</div>
                           </div>
                         </div>
 
