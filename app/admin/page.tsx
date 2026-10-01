@@ -6049,12 +6049,30 @@ export default function AdminPage() {
     return y && m && d ? `${m}/${d}（送信時刻未記録）` : dateText;
   };
 
-  const dashboardTodayReports = dashboardReports.filter(
-    (r: any) => normalizeDashboardDate(r?.date) === dashboardToday
+  // 「直近の日報」は、本日分を除き、日報が存在する最新の日付を対象にする。
+  // 月曜に土曜分を確認する場合や、休祝日を挟む場合でも「昨日」に固定しない。
+  const dashboardLatestPastDate = Array.from(new Set(
+    dashboardReports
+      .map((r: any) => normalizeDashboardDate(r?.date))
+      .filter((dateText: string) => !!dateText && dateText < dashboardToday)
+  )).sort().reverse()[0] || '';
+
+  const dashboardLatestPastReports = dashboardLatestPastDate
+    ? dashboardReports.filter((r: any) => normalizeDashboardDate(r?.date) === dashboardLatestPastDate)
+    : [];
+
+  const dashboardLatestPastMessageReports = dashboardLatestPastReports.filter(
+    (r: any) => String(r?.officeMessage || '').trim()
   );
 
-  const dashboardTodayMessageReports = dashboardTodayReports.filter(
-    (r: any) => String(r?.officeMessage || '').trim()
+  const formatDashboardTargetDate = (dateText: string) => {
+    if (!dateText) return '対象日なし';
+    const [y, m, d] = dateText.split('-').map(Number);
+    return y && m && d ? `${y}年${m}月${d}日分` : `${dateText}分`;
+  };
+
+  const dashboardTodayReports = dashboardReports.filter(
+    (r: any) => normalizeDashboardDate(r?.date) === dashboardToday
   );
 
   const dashboardTodayUnrecordedReporter = dashboardTodayReports.filter(
@@ -6250,12 +6268,14 @@ export default function AdminPage() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 p-4 md:p-5 bg-slate-50/70 border-b border-slate-200">
             <div className="rounded-2xl border border-blue-200 bg-white p-3.5">
-              <div className="text-[11px] md:text-xs font-bold text-slate-500">本日の日報</div>
-              <div className="mt-1 text-2xl md:text-3xl font-black text-blue-700">{dashboardTodayReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">直近の日報</div>
+              <div className="mt-0.5 text-[10px] md:text-[11px] font-bold text-blue-500">{formatDashboardTargetDate(dashboardLatestPastDate)}</div>
+              <div className="mt-1 text-2xl md:text-3xl font-black text-blue-700">{dashboardLatestPastReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-white p-3.5">
-              <div className="text-[11px] md:text-xs font-bold text-slate-500">本日の報告事項</div>
-              <div className="mt-1 text-2xl md:text-3xl font-black text-amber-700">{dashboardTodayMessageReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
+              <div className="text-[11px] md:text-xs font-bold text-slate-500">直近の報告事項</div>
+              <div className="mt-0.5 text-[10px] md:text-[11px] font-bold text-amber-600">{formatDashboardTargetDate(dashboardLatestPastDate)}</div>
+              <div className="mt-1 text-2xl md:text-3xl font-black text-amber-700">{dashboardLatestPastMessageReports.length}<span className="ml-1 text-sm text-slate-500">件</span></div>
             </div>
             <div className={`rounded-2xl border bg-white p-3.5 ${dashboardMissingYesterday.length > 0 ? 'border-rose-300 ring-1 ring-rose-100' : 'border-emerald-200'}`}>
               <div className="text-[11px] md:text-xs font-bold text-slate-500">前日未入力候補</div>
