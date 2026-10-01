@@ -453,6 +453,7 @@ export default function AdminPage() {
   // マスタ・他現場・元の日報は変更しない。
   const [expenseInvoiceLineOverrides, setExpenseInvoiceLineOverrides] = useState<any>({});
   const [showExpenseInvoiceModal, setShowExpenseInvoiceModal] = useState(false);
+  const [showExpenseInvoiceDetails, setShowExpenseInvoiceDetails] = useState(false);
   const [expenseInvoiceCategory, setExpenseInvoiceCategory] = useState<{ key: string; label: string } | null>(null);
   const [expenseInvoiceFilter, setExpenseInvoiceFilter] = useState({ startDate: '', endDate: '', vendor: '' });
   const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
@@ -3144,45 +3145,108 @@ export default function AdminPage() {
 
   const getExpenseInvoiceAdjustedTotal = (locName: string, category: string, fallbackTotal: number) => {
     const lines = getExpenseInvoiceLines(locName, category);
+
+    // リースは「月×業者」を原価の単位にする。
+    // 未照合月は日報由来の概算、照合済み月は請求書確定額へ置き換える。
+    if (category === 'lease') {
+      const groups: Record<string, any> = {};
+      lines.forEach((line: any) => {
+        const date = String(line?.date || '');
+        const yearMonth = date.slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(yearMonth)) return;
+        const vendor = String(line?.vendor || '未設定').trim() || '未設定';
+        const key = `${yearMonth}__${vendor}`;
+        if (!groups[key]) {
+          groups[key] = { yearMonth, vendor, firstDate: date, lastDate: date, estimate: 0 };
+        }
+        // 日報由来の概算は、請求書照合時の個別修正前の金額を使う。
+        groups[key].estimate += Number(line?.baseAmount ?? line?.amount ?? 0);
+        if (date < groups[key].firstDate) groups[key].firstDate = date;
+        if (date > groups[key].lastDate) groups[key].lastDate = date;
+      });
+
+      const history = Array.isArray(invoiceReconcileHistory?.[locName]?.lease)
+        ? invoiceReconcileHistory[locName].lease
+        : [];
+
+      return Object.values(groups).reduce((sum: number, group: any) => {
+        const confirmed = history.find((entry: any) => {
+          if (entry?.applyToCost !== true) return false;
+          if (String(entry?.company || '').trim() !== group.vendor) return false;
+          const startDate = String(entry?.startDate || '');
+          const endDate = String(entry?.endDate || '');
+          if (!startDate || !endDate) return false;
+          return startDate.slice(0, 7) === group.yearMonth &&
+            endDate.slice(0, 7) === group.yearMonth &&
+            startDate <= group.firstDate &&
+            endDate >= group.lastDate &&
+            entry?.invoiceAmount !== null && entry?.invoiceAmount !== undefined &&
+            !Number.isNaN(Number(entry.invoiceAmount));
+        });
+        return sum + (confirmed ? Number(confirmed.invoiceAmount || 0) : Number(group.estimate || 0));
+      }, 0);
+    }
+
     const delta = lines.reduce((sum: number, line: any) => {
       if (!line.hasOverride) return sum;
       return sum + (Number(line.amount || 0) - Number(line.baseAmount || 0));
     }, 0);
-    let adjustedTotal = Number(fallbackTotal || 0) + delta;
+    return Number(fallbackTotal || 0) + delta;
+  };
 
-    // リースは、業者＋指定期間ごとに請求書照合で確定した金額を原価へ反映する。
-    // 同じ業者・同じ期間を再照合した場合は、最新の履歴だけを使用する。
-    if (category === 'lease') {
-      const history = Array.isArray(invoiceReconcileHistory?.[locName]?.lease)
-        ? invoiceReconcileHistory[locName].lease
-        : [];
-      const usedPeriodKeys = new Set<string>();
+  const getLeaseMonthlyVendorSummary = (locName: string) => {
+    const lines = getExpenseInvoiceLines(locName, 'lease');
+    const groups: Record<string, any> = {};
 
-      history.forEach((entry: any) => {
-        const company = String(entry?.company || '').trim();
-        const startDate = String(entry?.startDate || '').trim();
-        const endDate = String(entry?.endDate || '').trim();
-        const invoiceAmount = entry?.invoiceAmount;
-        if (entry?.applyToCost !== true) return;
-        if (!company || !startDate || !endDate || invoiceAmount === null || invoiceAmount === undefined || Number.isNaN(Number(invoiceAmount))) return;
+    lines.forEach((line: any) => {
+      const date = String(line?.date || '');
+      const yearMonth = date.slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(yearMonth)) return;
+      const vendor = String(line?.vendor || '未設定').trim() || '未設定';
+      const key = `${yearMonth}__${vendor}`;
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          yearMonth,
+          vendor,
+          firstDate: date,
+          lastDate: date,
+          estimate: 0,
+          lineCount: 0
+        };
+      }
+      groups[key].estimate += Number(line?.baseAmount ?? line?.amount ?? 0);
+      groups[key].lineCount += 1;
+      if (date < groups[key].firstDate) groups[key].firstDate = date;
+      if (date > groups[key].lastDate) groups[key].lastDate = date;
+    });
 
-        const periodKey = `${company}__${startDate}__${endDate}`;
-        if (usedPeriodKeys.has(periodKey)) return;
-        usedPeriodKeys.add(periodKey);
+    const history = getInvoiceReconcileHistory(locName, 'lease');
 
-        const targetLines = lines.filter((line: any) =>
-          String(line.vendor || '未設定') === company &&
-          String(line.date || '') >= startDate &&
-          String(line.date || '') <= endDate
-        );
-        if (targetLines.length === 0) return;
+    return Object.values(groups)
+      .map((group: any) => {
+        const confirmed = history.find((entry: any) => {
+          if (entry?.applyToCost !== true) return false;
+          if (String(entry?.company || '').trim() !== group.vendor) return false;
+          const startDate = String(entry?.startDate || '');
+          const endDate = String(entry?.endDate || '');
+          if (!startDate || !endDate) return false;
+          return startDate.slice(0, 7) === group.yearMonth &&
+            endDate.slice(0, 7) === group.yearMonth &&
+            startDate <= group.firstDate &&
+            endDate >= group.lastDate &&
+            entry?.invoiceAmount !== null && entry?.invoiceAmount !== undefined &&
+            !Number.isNaN(Number(entry.invoiceAmount));
+        }) || null;
 
-        const currentPeriodTotal = targetLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
-        adjustedTotal += Number(invoiceAmount) - currentPeriodTotal;
-      });
-    }
-
-    return adjustedTotal;
+        return {
+          ...group,
+          confirmed,
+          isReconciled: !!confirmed,
+          appliedAmount: confirmed ? Number(confirmed.invoiceAmount || 0) : Number(group.estimate || 0)
+        };
+      })
+      .sort((a: any, b: any) => a.yearMonth.localeCompare(b.yearMonth) || a.vendor.localeCompare(b.vendor, 'ja'));
   };
 
   const formatInvoiceReconcileTime = (iso: string) => {
@@ -3277,6 +3341,7 @@ export default function AdminPage() {
     setExpenseInvoiceDrafts({});
     setExpenseInvoiceAmount('');
     setExpenseInvoiceReconcileEditingId(null);
+    setShowExpenseInvoiceDetails(false);
     setShowExpenseInvoiceModal(true);
   };
 
@@ -3292,6 +3357,7 @@ export default function AdminPage() {
     setExpenseInvoiceDrafts({});
     setExpenseInvoiceAmount(entry.invoiceAmount === null || entry.invoiceAmount === undefined ? '' : String(entry.invoiceAmount));
     setExpenseInvoiceReconcileEditingId(entry.id || null);
+    setShowExpenseInvoiceDetails(false);
     setShowExpenseInvoiceModal(true);
   };
 
@@ -12820,35 +12886,51 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {authRole === 'admin' && (
-              <div className="text-lg md:text-xl font-extrabold text-slate-800 mt-1">📊 現在の集計結果</div>
-            )}
-            <div className={`grid md:grid-cols-4 gap-3 md:gap-5 text-center ${authRole === 'viewer' ? 'grid-cols-2 items-stretch' : 'grid-cols-2'}`}>
-              <div className={`bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-sm md:text-lg text-slate-700 font-extrabold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
-              <div className={`bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}>
-                <div className="text-sm md:text-lg text-emerald-700 font-extrabold">合計経費</div>
-                <div className="mt-2 space-y-2 text-left">
-                  <div>
-                    <div className="text-sm font-bold text-slate-600">概算合計（日報＋手動追加分）</div>
-                    <div className="text-lg md:text-2xl font-bold text-slate-700">{formatAmount(modalData.reportEstimatedTotal)}</div>
+            {authRole === 'admin' ? (
+              <div className="w-full max-w-4xl mx-auto space-y-3">
+                <div>
+                  <div className="text-lg md:text-xl font-extrabold text-slate-800">📊 現在の集計結果</div>
+                  <div className="text-sm text-slate-500 mt-1">PC画面で全体像を確認しやすいよう、主要4項目をコンパクトにまとめています。</div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
+                    <div className="text-sm md:text-base text-slate-700 font-extrabold">請負金額（税抜）</div>
+                    <div className="text-xl md:text-2xl font-black text-slate-900 whitespace-nowrap">{formatAmount(modalData.contractPrice)}</div>
+                  </div>
+                  <div className="bg-blue-50/60 px-5 py-4 rounded-2xl border border-blue-200 flex items-center justify-between gap-4">
+                    <div className="text-sm md:text-base text-blue-700 font-extrabold">利益（売却益込）</div>
+                    <div className="text-xl md:text-2xl font-black text-blue-700 whitespace-nowrap">{formatAmount(modalData.profit)}</div>
+                  </div>
+                  <div className="bg-emerald-50/60 px-5 py-4 rounded-2xl border border-emerald-200 md:col-span-2">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="text-sm md:text-base text-emerald-800 font-extrabold">合計経費</div>
+                      <div className="text-xl md:text-2xl font-black text-emerald-700 whitespace-nowrap">{formatAmount(modalData.total)}</div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
+                      <span className="font-bold text-slate-600">日報由来の概算＋手動追加分</span>
+                      <span className="font-extrabold text-slate-700">{formatAmount(modalData.reportEstimatedTotal)}</span>
+                    </div>
                     {Number(modalData.customSubsTotal || 0) > 0 && (
-                      <div className="mt-2 rounded-lg bg-orange-50 border border-orange-200 px-2.5 py-2 text-xs md:text-sm text-orange-800 font-bold leading-relaxed">
-                        ＋ 手動追加・一括外注分 {formatAmount(modalData.customSubsTotal)}
-                        <span className="block font-medium text-orange-700 mt-0.5">
-                          ※管理画面で追加した外注費も、この概算合計に含めています。
-                        </span>
-                      </div>
+                      <div className="mt-2 text-xs text-orange-800 font-bold">うち手動追加・一括外注分 {formatAmount(modalData.customSubsTotal)}</div>
                     )}
                   </div>
-                  <div className="border-t border-emerald-200 pt-2">
-                    <div className="text-sm font-bold text-emerald-700">確定後の合計経費</div>
-                    <div className="text-xl md:text-3xl font-bold text-emerald-700">{formatAmount(modalData.total)}</div>
+                  <div className="bg-amber-50/60 px-5 py-4 rounded-2xl border border-amber-200 md:col-span-2 flex items-center justify-between gap-4">
+                    <div className="text-sm md:text-base text-amber-800 font-extrabold">稼働日数</div>
+                    <div className="text-xl md:text-2xl font-black text-amber-800 whitespace-nowrap">{modalData.days}日</div>
                   </div>
                 </div>
               </div>
-              <div className={`bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-sm md:text-lg text-blue-700 font-extrabold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-700 mt-1.5">{formatAmount(modalData.profit)}</div></div>
-              <div className={`bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 ${authRole === 'viewer' ? 'min-h-[132px] flex flex-col justify-center' : ''}`}><div className="text-sm md:text-lg text-amber-800 font-extrabold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 text-center items-stretch">
+                <div className="bg-slate-50 p-4 md:p-6 rounded-2xl border border-slate-200 min-h-[132px] flex flex-col justify-center"><div className="text-sm md:text-lg text-slate-700 font-extrabold">請負金額 (税抜)</div><div className="text-xl md:text-3xl font-bold text-slate-900 mt-1.5">{formatAmount(modalData.contractPrice)}</div></div>
+                <div className="bg-emerald-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 min-h-[132px] flex flex-col justify-center">
+                  <div className="text-sm md:text-lg text-emerald-700 font-extrabold">合計経費</div>
+                  <div className="text-xl md:text-3xl font-bold text-emerald-700 mt-1.5">{formatAmount(modalData.total)}</div>
+                </div>
+                <div className="bg-blue-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 min-h-[132px] flex flex-col justify-center"><div className="text-sm md:text-lg text-blue-700 font-extrabold">利益（売却益込）</div><div className="text-xl md:text-3xl font-bold text-blue-700 mt-1.5">{formatAmount(modalData.profit)}</div></div>
+                <div className="bg-amber-50/60 p-4 md:p-6 rounded-2xl border border-slate-200 min-h-[132px] flex flex-col justify-center"><div className="text-sm md:text-lg text-amber-800 font-extrabold">稼働日数</div><div className="text-xl md:text-3xl font-bold text-amber-800 mt-1.5">{modalData.days}日</div></div>
+              </div>
+            )}
 
             <div className="bg-orange-50 p-4 md:p-6 rounded-2xl border border-orange-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-2xs">
               <div><div className="flex items-center gap-2 font-extrabold text-orange-900 text-lg md:text-xl"><span>🗑️ 処分費</span></div><div className="text-sm md:text-base text-slate-600 mt-1.5 font-medium">日報由来 {formatAmount(modalData.reportEstimateDisposal)} ／ 確定額 {formatAmount(modalData.disposalCost)}</div></div>
@@ -13214,7 +13296,7 @@ export default function AdminPage() {
                                 <div><span className="font-bold">対象期間：</span>{formatInvoicePeriod(st.startDate, st.endDate)}</div>
                                 <div><span className="font-bold">照合日時：</span>{formatInvoiceReconcileTime(st.checkedAt)}</div>
                                 {st.company && <div><span className="font-bold">業者：</span>{st.company}</div>}
-                                {st.systemAmount !== null && st.systemAmount !== undefined && <div><span className="font-bold">システム計算：</span>{formatAmount(st.systemAmount)}</div>}
+                                {st.systemAmount !== null && st.systemAmount !== undefined && <div><span className="font-bold">日報由来の概算：</span>{formatAmount(st.systemAmount)}</div>}
                                 <div><span className="font-bold">請求書金額：</span>{st.invoiceAmount === null || st.invoiceAmount === undefined ? '—' : formatAmount(st.invoiceAmount)}</div>
                                 <div><span className="font-bold">差額：</span>{st.diff === null || st.diff === undefined ? '—' : formatAmount(st.diff)}</div>
                               </div>
@@ -13236,7 +13318,7 @@ export default function AdminPage() {
                                       <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.applyToCost ? '✅ 請求書確定・原価反映' : (h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み')}</div>
                                       <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
                                       <div className="text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-1">
-                                        {h.systemAmount !== null && h.systemAmount !== undefined && (<>システム {formatAmount(h.systemAmount)} <span>／</span></>)}
+                                        {h.systemAmount !== null && h.systemAmount !== undefined && (<>日報由来の概算 {formatAmount(h.systemAmount)} <span>／</span></>)}
                                         <span>請求書</span> {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} <span>／</span>
                                         <span>差額</span> {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}
                                       </div>
@@ -13595,19 +13677,20 @@ export default function AdminPage() {
                         </div>
                       ) : item.isDisposal ? (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3"><div className="text-sm md:text-base font-bold text-slate-600">日報からの概算</div><div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div></div>
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3"><div className="text-sm md:text-base font-bold text-slate-600">日報由来の概算</div><div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div></div>
                           <div className="bg-blue-50/50 rounded-xl border border-blue-200 p-3"><div className="text-sm md:text-base font-extrabold text-blue-700">確定額（原価に反映）</div><div className="text-lg md:text-xl font-bold text-blue-900 mt-1">{formatAmount(item.val || 0)}</div></div>
                           <button type="button" onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-xl font-bold text-sm">🧾 請求書照合</button>
                         </div>
                       ) : item.isIshikawaSpecial ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                            <div className="text-sm md:text-base font-bold text-slate-600">日報からの概算</div>
+                            <div className="text-sm md:text-base font-bold text-slate-600">日報由来の概算</div>
                             <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
                           </div>
-                          <div className="text-xs font-bold text-indigo-700">
-                            確定・反映金額: {formatAmount(item.val || 0)}
-                            <span className="ml-1">※詳細から石川県分・MOK分を個別入力</span>
+                          <div className="border-t border-slate-200 pt-3">
+                            <div className="text-sm md:text-base font-extrabold text-emerald-700">利益計算に使う金額</div>
+                            <div className="text-xl md:text-2xl font-extrabold text-emerald-700 mt-1">{formatAmount(item.val || 0)}</div>
+                            <div className="text-sm text-slate-500 mt-1.5">※未照合月は日報由来の概算、照合済み月は請求書金額を使用します。</div>
                           </div>
                         </div>
                       ) : (
@@ -13658,7 +13741,7 @@ export default function AdminPage() {
                           )}
 
                           <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
-                            <div className="text-sm md:text-base font-bold text-slate-600">日報からの概算</div>
+                            <div className="text-sm md:text-base font-bold text-slate-600">日報由来の概算</div>
                             <div className="text-xl md:text-2xl font-bold text-slate-900 mt-1">{formatAmount(item.estimate || 0)}</div>
                           </div>
 
@@ -13681,7 +13764,9 @@ export default function AdminPage() {
                             <div className="text-xl md:text-2xl font-extrabold text-emerald-700 mt-1">{formatAmount(item.val || 0)}</div>
                             {authRole === 'admin' && (
                               <div className="text-sm text-slate-500 mt-1.5">
-                                ※請求書照合で修正した明細だけ、この現場の原価へ反映します。
+                                {item.key === 'lease'
+                                  ? '※未照合月は日報由来の概算、照合済み月は請求書金額を使用します。'
+                                  : '※請求書照合で修正した明細だけ、この現場の原価へ反映します。'}
                               </div>
                             )}
                           </div>
@@ -13847,236 +13932,107 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 石川県現場専用 リース詳細内訳ポップアップ */}
-      {showIshikawaLeaseModal && modalLocation && modalData && (
-        <div
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn overflow-y-auto"
-          onClick={() => setShowIshikawaLeaseModal(false)}
-        >
+      {/* リース詳細：月別・業者別の原価確認 */}
+      {showIshikawaLeaseModal && modalLocation && modalData && (() => {
+        const monthlyLeaseSummary = getLeaseMonthlyVendorSummary(modalLocation);
+        const groupedByMonth = monthlyLeaseSummary.reduce((acc: Record<string, any[]>, row: any) => {
+          if (!acc[row.yearMonth]) acc[row.yearMonth] = [];
+          acc[row.yearMonth].push(row);
+          return acc;
+        }, {});
+        const monthKeys = Object.keys(groupedByMonth).sort();
+        const totalApplied = monthlyLeaseSummary.reduce((sum: number, row: any) => sum + Number(row.appliedAmount || 0), 0);
+        const reconciledCount = monthlyLeaseSummary.filter((row: any) => row.isReconciled).length;
+        const unreconciledCount = monthlyLeaseSummary.length - reconciledCount;
+
+        return (
           <div
-            className="bg-white rounded-[32px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 md:p-8 !pb-0 space-y-6 shadow-2xl border border-slate-100"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn overflow-y-auto"
+            onClick={() => setShowIshikawaLeaseModal(false)}
           >
-            <div className="sticky top-0 z-20 bg-white flex justify-between items-center border-b border-slate-100 pb-4 pt-1">
-              <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">
-                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)'
-                    ? '🗾 石川県現場 リース費用の内訳'
-                    : '🔹 南大阪建機(MOK) リース費用の内訳'}
-                </h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5">
-                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)'
-                    ? '石川県用の機器リースと、通常のMOKリースの内訳です'
-                    : '日報で選択されたMOKリースと自由入力分の内訳です'}
-                </p>
+            <div
+              className="bg-white rounded-[28px] w-full max-w-4xl max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 md:px-7 py-4 flex justify-between items-start gap-4">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 リース費用の月別・業者別内訳</h3>
+                  <p className="text-xs md:text-sm text-slate-500 mt-1">
+                    未照合は「日報由来の概算」、照合済みは「請求書金額」を原価として表示します。
+                  </p>
+                </div>
+                <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
               </div>
-              <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
-            </div>
 
-            <div className="space-y-5">
-              {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-200 space-y-3">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-                  <div>
-                    <span className="font-bold text-indigo-900 text-base">🗾 石川県出張用リース機器合計</span>
-                    <div className="text-xs text-indigo-700 mt-1">
-                      自動計算: {formatAmount(modalData.calcIshikawaLease)}
-                    </div>
+              <div className="p-5 md:p-7 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs font-bold text-slate-500">月×業者の件数</div>
+                    <div className="text-xl font-black text-slate-900 mt-1">{monthlyLeaseSummary.length}件</div>
                   </div>
-
-                  {authRole === 'admin' ? (
-                    <div className="flex items-center gap-2 md:w-[260px]">
-                      <span className="font-bold text-indigo-700">¥</span>
-                      <input
-                        type="number"
-                        value={costOverrides[modalLocation]?.ishikawaLease ?? ''}
-                        onChange={(e) => handleCostOverrideChange(modalLocation, 'ishikawaLease', e.target.value)}
-                        placeholder={String(modalData.calcIshikawaLease || 0)}
-                        className="w-full p-2.5 border border-indigo-300 rounded-xl bg-white font-bold text-right text-base"
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-xl font-bold text-indigo-700">{formatAmount(modalData.ishikawaLeaseCost)}</span>
-                  )}
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div className="text-xs font-bold text-emerald-700">照合済み</div>
+                    <div className="text-xl font-black text-emerald-700 mt-1">{reconciledCount}件</div>
+                  </div>
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+                    <div className="text-xs font-bold text-blue-700">利益計算に使うリース原価</div>
+                    <div className="text-xl font-black text-blue-800 mt-1">{formatAmount(totalApplied)}</div>
+                  </div>
                 </div>
 
-                {authRole === 'admin' && (
-                  <div className="text-xs text-indigo-700 font-bold">
-                    反映金額: {formatAmount(modalData.ishikawaLeaseCost)}
-                    {costOverrides[modalLocation]?.ishikawaLease !== '' && costOverrides[modalLocation]?.ishikawaLease !== undefined
-                      ? '（手動上書き中）'
-                      : '（自動計算）'}
+                {unreconciledCount > 0 && (
+                  <div className="max-w-3xl mx-auto rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 font-bold">
+                    ○ 未照合 {unreconciledCount}件は、請求書照合が完了するまで日報由来の概算を原価に使用しています。
                   </div>
                 )}
 
-                <div className="border-t border-indigo-200 pt-3 space-y-2">
-                  {modalLeaseDetails.ishikawa.length === 0 ? (
-                    <div className="text-sm text-slate-500">選択・入力された石川県リース機器はありません。</div>
-                  ) : (
-                    modalLeaseDetails.ishikawa.map((entry:any, idx:number) => (
-                      <div key={`ish_${idx}`} className="bg-white/80 rounded-xl border border-indigo-100 px-3 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-1">
-                        <div>
-                          <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
-                          <div className="text-xs text-slate-500">
-                            {entry.isCustom ? `入力個数：${entry.count}` : `延べ使用数：${entry.count}`}
-                            {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
+                {monthKeys.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500 font-bold">この現場のリース日報データはありません。</div>
+                ) : (
+                  <div className="space-y-4 max-w-3xl mx-auto">
+                    {monthKeys.map((ym: string) => {
+                      const [year, month] = ym.split('-');
+                      const rows = groupedByMonth[ym] || [];
+                      const monthTotal = rows.reduce((sum: number, row: any) => sum + Number(row.appliedAmount || 0), 0);
+                      return (
+                        <div key={ym} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                          <div className="px-4 md:px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-4">
+                            <div className="font-extrabold text-slate-900">{Number(year)}年{Number(month)}月</div>
+                            <div className="font-black text-slate-800">月合計 {formatAmount(monthTotal)}</div>
+                          </div>
+                          <div className="divide-y divide-slate-100">
+                            {rows.map((row: any) => (
+                              <div key={row.key} className="px-4 md:px-5 py-3.5 grid grid-cols-1 md:grid-cols-[1fr_160px_120px] gap-2 md:items-center">
+                                <div>
+                                  <div className="font-extrabold text-slate-900">{row.vendor}</div>
+                                  <div className="text-xs text-slate-500 mt-0.5">
+                                    {row.isReconciled ? '請求書金額を原価に反映' : '日報由来の概算を原価に使用'}
+                                  </div>
+                                </div>
+                                <div className="md:text-right font-black text-lg text-slate-900">{formatAmount(row.appliedAmount)}</div>
+                                <div className="md:text-right">
+                                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                                    {row.isReconciled ? '✅ 照合済み' : '○ 未照合'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        {entry.isCustom ? (
-                          <div className="w-full md:w-[220px]">
-                            {authRole === 'admin' ? (
-                              <>
-                                <div className="text-[11px] font-bold text-indigo-700 mb-1">自由入力分の金額</div>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-slate-500 font-bold">¥</span>
-                                  <input
-                                    type="number"
-                                    value={leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] ?? ''}
-                                    onChange={(e) => handleLeaseCustomPriceChange(modalLocation, 'ishikawa', entry.key, e.target.value)}
-                                    placeholder={entry.total ? String(entry.total) : '金額を入力'}
-                                    className="w-full p-2 border border-indigo-300 rounded-lg bg-white font-bold text-right text-sm"
-                                  />
-                                </div>
-                              </>
-                            ) : (
-                              <div className="text-sm font-bold text-indigo-700 text-right">
-                                {leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] !== '' &&
-                                 leaseCustomPrices[modalLocation]?.ishikawa?.[entry.key] !== undefined
-                                  ? formatAmount(leaseCustomPrices[modalLocation].ishikawa[entry.key])
-                                  : (entry.total ? formatAmount(entry.total) : '金額未入力')}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-sm font-bold text-indigo-700">
-                            {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
-                            合計 {formatAmount(entry.total)}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              )}
-
-              <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 space-y-3">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-                  <div>
-                    <span className="font-bold text-blue-900 text-base">🔹 南大阪建機(MOK) 通常リース合計</span>
-                    <div className="text-xs text-blue-700 mt-1">
-                      自動計算: {formatAmount(modalData.calcMokLease)}
-                    </div>
-                  </div>
-
-                  {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' ? (
-                    authRole === 'admin' ? (
-                      <div className="flex items-center gap-2 md:w-[260px]">
-                        <span className="font-bold text-blue-700">¥</span>
-                        <input
-                          type="number"
-                          value={costOverrides[modalLocation]?.mokLease ?? ''}
-                          onChange={(e) => handleCostOverrideChange(modalLocation, 'mokLease', e.target.value)}
-                          placeholder={String(modalData.calcMokLease || 0)}
-                          className="w-full p-2.5 border border-blue-300 rounded-xl bg-white font-bold text-right text-base"
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.mokLeaseCost)}</span>
-                    )
-                  ) : (
-                    <span className="text-xl font-bold text-blue-700">{formatAmount(modalData.reportEstimateLease)}</span>
-                  )}
-                </div>
-
-                {authRole === 'admin' && modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-                  <div className="text-xs text-blue-700 font-bold">
-                    反映金額: {formatAmount(modalData.mokLeaseCost)}
-                    {costOverrides[modalLocation]?.mokLease !== '' && costOverrides[modalLocation]?.mokLease !== undefined
-                      ? '（手動上書き中）'
-                      : '（自動計算）'}
+                      );
+                    })}
                   </div>
                 )}
-
-                <div className="border-t border-blue-200 pt-3 space-y-2">
-                  {modalLeaseDetails.mok.length === 0 ? (
-                    <div className="text-sm text-slate-500">選択・入力されたMOKリース機器はありません。</div>
-                  ) : (
-                    modalLeaseDetails.mok.map((entry:any, idx:number) => (
-                      <div key={`mok_${idx}`} className="bg-white/80 rounded-xl border border-blue-100 px-3 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-1">
-                        <div>
-                          <div className="font-bold text-slate-800 text-sm">{entry.label}</div>
-                          <div className="text-xs text-slate-500">
-                            {entry.isCustom ? `入力個数：${entry.count}` : `延べ使用数：${entry.count}`}
-                            {entry.isCustom && entry.unitPrice === null ? ' ／ 金額単価は日報では未設定' : ''}
-                          </div>
-                        </div>
-                        {entry.isCustom ? (
-                          <div className="w-full md:w-[220px]">
-                            {authRole === 'admin' ? (
-                              <>
-                                <div className="text-[11px] font-bold text-blue-700 mb-1">自由入力分の金額</div>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-slate-500 font-bold">¥</span>
-                                  <input
-                                    type="number"
-                                    value={leaseCustomPrices[modalLocation]?.mok?.[entry.key] ?? ''}
-                                    onChange={(e) => handleLeaseCustomPriceChange(modalLocation, 'mok', entry.key, e.target.value)}
-                                    placeholder={entry.total ? String(entry.total) : '金額を入力'}
-                                    className="w-full p-2 border border-blue-300 rounded-lg bg-white font-bold text-right text-sm"
-                                  />
-                                </div>
-                              </>
-                            ) : (
-                              <div className="text-sm font-bold text-blue-700 text-right">
-                                {leaseCustomPrices[modalLocation]?.mok?.[entry.key] !== '' &&
-                                 leaseCustomPrices[modalLocation]?.mok?.[entry.key] !== undefined
-                                  ? formatAmount(leaseCustomPrices[modalLocation].mok[entry.key])
-                                  : (entry.total ? formatAmount(entry.total) : '金額未入力')}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-sm font-bold text-blue-700">
-                            {entry.unitPrice !== null && <>単価 {formatAmount(entry.unitPrice)} ／ </>}
-                            合計 {formatAmount(entry.total)}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
-            </div>
 
-            <div className="sticky bottom-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-4 bg-white border-t border-slate-200 flex items-center justify-end gap-3">
-              {authRole === 'admin' && (
-                <div className="flex items-center gap-3 mr-auto">
-                  <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={saveFinancialEdits}
-                    disabled={!financialDirty || isFinancialSaving}
-                    className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
-                      !financialDirty || isFinancialSaving
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    }`}
-                  >
-                    {isFinancialSaving ? '保存中…' : '💾 保存'}
-                  </button>
-                </div>
-              )}
-              <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 px-5 md:px-7 py-4 flex justify-end">
+                <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* 処分費内訳確認モーダル */}
       {showDisposalModal && modalLocation && modalData && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowDisposalModal(false)}>
           <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 !pb-0 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
@@ -14278,6 +14234,9 @@ export default function AdminPage() {
         const vendorOptions = isLeaseInvoice
           ? Array.from(new Set(allLines.map((line: any) => String(line.vendor || '未設定')))).sort((a: any, b: any) => String(a).localeCompare(String(b), 'ja'))
           : [];
+        const selectedLeaseMonth = isLeaseInvoice && startDate && endDate && startDate.slice(0, 7) === endDate.slice(0, 7)
+          ? startDate.slice(0, 7)
+          : '';
         const conditionsReady = !!startDate && !!endDate && (!isLeaseInvoice || !!vendor);
         const visibleLines = conditionsReady
           ? allLines.filter((line: any) =>
@@ -14287,106 +14246,181 @@ export default function AdminPage() {
             )
           : [];
         const totalAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
+        const dailyEstimateAmount = visibleLines.reduce((sum: number, line: any) => sum + Number(line.baseAmount ?? line.amount ?? 0), 0);
+        const reconcileBaseAmount = isLeaseInvoice ? dailyEstimateAmount : totalAmount;
         const invoiceAmountNumber = expenseInvoiceAmount === '' ? null : Number(expenseInvoiceAmount || 0);
-        const diff = invoiceAmountNumber === null ? null : invoiceAmountNumber - totalAmount;
-        const canMarkReconciled = conditionsReady && (!isLeaseInvoice || (invoiceAmountNumber !== null && !Number.isNaN(invoiceAmountNumber) && invoiceAmountNumber >= 0));
+        const diff = invoiceAmountNumber === null ? null : invoiceAmountNumber - reconcileBaseAmount;
+        const canMarkReconciled = conditionsReady && visibleLines.length > 0 && (!isLeaseInvoice || (invoiceAmountNumber !== null && !Number.isNaN(invoiceAmountNumber) && invoiceAmountNumber >= 0));
+        const detailsOpen = isLeaseInvoice ? showExpenseInvoiceDetails : true;
+
+        const setLeaseMonth = (value: string) => {
+          if (!value) {
+            setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: '', endDate: '' }));
+            return;
+          }
+          const [year, month] = value.split('-').map(Number);
+          const lastDay = new Date(year, month, 0).getDate();
+          setExpenseInvoiceFilter((prev) => ({
+            ...prev,
+            startDate: `${value}-01`,
+            endDate: `${value}-${String(lastDay).padStart(2, '0')}`
+          }));
+        };
 
         return (
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => setShowExpenseInvoiceModal(false)}>
-            <div className="bg-white w-full max-w-7xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white w-full max-w-5xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-blue-50 flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 {expenseInvoiceCategory.label}・請求書照合</h3>
-                  <p className="text-sm text-slate-600 mt-1">この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。</p>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {isLeaseInvoice
+                      ? '業者と対象月を選び、日報由来の概算と請求書金額の合計を照合します。必要な場合だけ明細を開いて個別修正できます。'
+                      : 'この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。'}
+                  </p>
                 </div>
-                <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="w-10 h-10 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
+                <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="w-10 h-10 shrink-0 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
               </div>
 
               <div className="p-4 md:p-6 overflow-y-auto space-y-4">
-                <div className={`grid grid-cols-1 ${isLeaseInvoice ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4`}>
-                  {isLeaseInvoice && (
+                {isLeaseInvoice ? (
+                  <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
                     <label className="text-sm font-extrabold text-slate-700">リース業者
                       <select value={vendor} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, vendor: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold">
                         <option value="">業者を選択</option>
                         {vendorOptions.map((name:any) => <option key={String(name)} value={String(name)}>{String(name)}</option>)}
                       </select>
                     </label>
-                  )}
-                  <label className="text-sm font-extrabold text-slate-700">開始日
-                    <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
-                  </label>
-                  <label className="text-sm font-extrabold text-slate-700">終了日
-                    <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
-                  </label>
-                </div>
+                    <label className="text-sm font-extrabold text-slate-700">対象月
+                      <input type="month" value={selectedLeaseMonth} onChange={(e) => setLeaseMonth(e.target.value)} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                    <label className="text-sm font-extrabold text-slate-700">開始日
+                      <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                    </label>
+                    <label className="text-sm font-extrabold text-slate-700">終了日
+                      <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                    </label>
+                  </div>
+                )}
 
                 {!conditionsReady ? (
-                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">{isLeaseInvoice ? 'リース業者・開始日・終了日を選択すると明細を表示します。' : '開始日と終了日を選択すると明細を表示します。'}</div>
+                  <div className="rounded-2xl border border-dashed border-blue-300 bg-white p-8 text-center text-slate-500 font-bold">{isLeaseInvoice ? 'リース業者と対象月を選択すると集計結果を表示します。' : '開始日と終了日を選択すると明細を表示します。'}</div>
                 ) : visibleLines.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 font-bold">指定期間の明細はありません。</div>
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 font-bold">指定した条件の日報リース明細はありません。</div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-xs font-bold text-slate-500">{isLeaseInvoice ? '指定期間・指定業者のリース合計' : '現在の明細合計'}</div>
-                        <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(totalAmount)}</div>
-                      </div>
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="text-xs font-bold text-emerald-700">明細数</div>
-                        <div className="text-2xl font-extrabold text-emerald-700 mt-1">{visibleLines.length}件</div>
-                      </div>
-                    </div>
+                    {isLeaseInvoice ? (
+                      <div className="max-w-4xl mx-auto space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-xs font-bold text-slate-500">日報由来の概算</div>
+                            <div className="text-2xl font-black text-slate-900 mt-1">{formatAmount(dailyEstimateAmount)}</div>
+                            <div className="text-xs text-slate-500 mt-1">{visibleLines.length}明細</div>
+                          </div>
+                          <label className="rounded-2xl border-2 border-blue-300 bg-blue-50 p-4 block">
+                            <div className="text-xs font-extrabold text-blue-800">請求書金額（税別・合計）</div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="font-black text-blue-700 text-lg">¥</span>
+                              <input
+                                type="number"
+                                value={expenseInvoiceAmount}
+                                onChange={(e) => setExpenseInvoiceAmount(e.target.value)}
+                                placeholder="請求書の合計を入力"
+                                className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right text-xl font-black bg-white"
+                              />
+                            </div>
+                          </label>
+                          <div className={`rounded-2xl border p-4 ${diff === null ? 'border-slate-200 bg-white' : diff === 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                            <div className="text-xs font-bold text-slate-600">差額（請求書 − 概算）</div>
+                            <div className={`text-2xl font-black mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-700' : 'text-amber-800'}`}>{diff === null ? '—' : formatAmount(diff)}</div>
+                            <div className="text-xs text-slate-500 mt-1">{vendor} ／ {selectedLeaseMonth ? `${Number(selectedLeaseMonth.slice(5, 7))}月` : ''}</div>
+                          </div>
+                        </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full min-w-[900px] text-sm">
-                        <thead className="bg-slate-100 text-slate-600">
-                          <tr>
-                            <th className="py-3 px-3 text-left">日付</th>
-                            <th className="py-3 px-3 text-left">内容</th>
-                            <th className="py-3 px-3 text-right">数量</th>
-                            <th className="py-3 px-3 text-right">単価</th>
-                            <th className="py-3 px-3 text-right">金額</th>
-                            <th className="py-3 px-3 text-center">修正</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                          {visibleLines.map((line: any) => {
-                            const isEditing = expenseInvoiceEditingKey === line.lineKey;
-                            const draft = expenseInvoiceDrafts[line.lineKey] || {};
-                            return (
-                              <tr key={line.lineKey} className={line.hasOverride ? 'bg-amber-50/50' : ''}>
-                                <td className="py-3 px-3 font-bold whitespace-nowrap">{line.date}</td>
-                                <td className="py-3 px-3">
-                                  {isEditing ? <input type="text" value={draft.label ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), label: e.target.value } }))} className="w-full p-2 border-2 border-blue-300 rounded-lg font-bold" /> : <div><span className="font-extrabold text-slate-900">{line.label}</span>{line.hasOverride && <span className="ml-2 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">修正済み</span>}</div>}
-                                </td>
-                                <td className="py-3 px-3 text-right">
-                                  {isEditing ? <input type="number" min="0" step="0.01" value={draft.quantity ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), quantity: e.target.value } }))} className="w-28 p-2 border-2 border-blue-300 rounded-lg text-right font-bold" /> : <span className="font-extrabold">{Number(line.quantity || 0).toLocaleString('ja-JP', { maximumFractionDigits: 2 })}{line.unitLabel ? ` ${line.unitLabel}` : ''}</span>}
-                                </td>
-                                <td className="py-3 px-3 text-right">
-                                  {isEditing ? <div className="flex items-center justify-end gap-1"><span>¥</span><input type="number" min="0" step="0.01" value={draft.unitPrice ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), unitPrice: e.target.value } }))} className="w-32 p-2 border-2 border-blue-300 rounded-lg text-right font-extrabold" /></div> : <span className="font-bold">{formatAmount(line.unitPrice)}</span>}
-                                </td>
-                                <td className="py-3 px-3 text-right font-extrabold text-slate-900">{isEditing ? formatAmount(Number(draft.quantity || 0) * Number(draft.unitPrice || 0)) : formatAmount(line.amount)}</td>
-                                <td className="py-3 px-3 text-center">
-                                  {isEditing ? (
-                                    <div className="flex justify-center gap-1.5"><button type="button" onClick={() => saveExpenseInvoiceRow(modalLocation, categoryKey, line)} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-extrabold">保存</button><button type="button" onClick={() => setExpenseInvoiceEditingKey(null)} className="px-2.5 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-bold">戻る</button></div>
-                                  ) : (
-                                    <div className="flex justify-center gap-1.5"><button type="button" onClick={() => startExpenseInvoiceEdit(line)} className="w-9 h-9 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 font-extrabold text-lg" title="この明細を修正">✏️</button>{line.hasOverride && <button type="button" onClick={() => resetExpenseInvoiceRow(modalLocation, categoryKey, line.lineKey)} className="px-2 py-1.5 rounded-lg bg-red-50 text-red-600 font-bold text-xs border border-red-200">元に戻す</button>}</div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
-                        <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">{isLeaseInvoice ? '請求書の税別金額を入力して確定すると、この業者・指定期間の確定額として履歴に残り、詳細分析のリース経費へ反映します。元の日報は変更しません。' : '請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。入力値は比較用で、原価は上の明細修正で確定します。'}</div></div>
-                        <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
-                        <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 現在合計）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
+                        <div className="rounded-2xl border border-blue-200 bg-white overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setShowExpenseInvoiceDetails((prev) => !prev)}
+                            className="w-full px-4 py-3 flex items-center justify-between gap-4 text-left hover:bg-slate-50"
+                          >
+                            <div>
+                              <div className="font-extrabold text-slate-900">🔍 機械・道具の明細</div>
+                              <div className="text-xs text-slate-500 mt-0.5">通常は合計だけで照合できます。差額の確認が必要なときだけ開いてください。</div>
+                            </div>
+                            <span className="font-extrabold text-blue-700 whitespace-nowrap">{showExpenseInvoiceDetails ? '▲ 閉じる' : `▼ 開く（${visibleLines.length}件）`}</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-xs font-bold text-slate-500">現在の明細合計</div>
+                          <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(totalAmount)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="text-xs font-bold text-emerald-700">明細数</div>
+                          <div className="text-2xl font-extrabold text-emerald-700 mt-1">{visibleLines.length}件</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {detailsOpen && (
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200 max-w-4xl mx-auto">
+                        <table className="w-full min-w-[820px] text-sm">
+                          <thead className="bg-slate-100 text-slate-600">
+                            <tr>
+                              <th className="py-3 px-3 text-left">日付</th>
+                              <th className="py-3 px-3 text-left">内容</th>
+                              <th className="py-3 px-3 text-right">数量</th>
+                              <th className="py-3 px-3 text-right">単価</th>
+                              <th className="py-3 px-3 text-right">金額</th>
+                              <th className="py-3 px-3 text-center">修正</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {visibleLines.map((line: any) => {
+                              const isEditing = expenseInvoiceEditingKey === line.lineKey;
+                              const draft = expenseInvoiceDrafts[line.lineKey] || {};
+                              return (
+                                <tr key={line.lineKey} className={line.hasOverride ? 'bg-amber-50/50' : ''}>
+                                  <td className="py-3 px-3 font-bold whitespace-nowrap">{line.date}</td>
+                                  <td className="py-3 px-3">
+                                    {isEditing ? <input type="text" value={draft.label ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), label: e.target.value } }))} className="w-full p-2 border-2 border-blue-300 rounded-lg font-bold" /> : <div><span className="font-extrabold text-slate-900">{line.label}</span>{line.hasOverride && <span className="ml-2 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">修正済み</span>}</div>}
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    {isEditing ? <input type="number" min="0" step="0.01" value={draft.quantity ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), quantity: e.target.value } }))} className="w-24 p-2 border-2 border-blue-300 rounded-lg text-right font-bold" /> : <span className="font-extrabold">{Number(line.quantity || 0).toLocaleString('ja-JP', { maximumFractionDigits: 2 })}{line.unitLabel ? ` ${line.unitLabel}` : ''}</span>}
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    {isEditing ? <div className="flex items-center justify-end gap-1"><span>¥</span><input type="number" min="0" step="0.01" value={draft.unitPrice ?? ''} onChange={(e) => setExpenseInvoiceDrafts((prev:any) => ({ ...prev, [line.lineKey]: { ...(prev[line.lineKey] || {}), unitPrice: e.target.value } }))} className="w-28 p-2 border-2 border-blue-300 rounded-lg text-right font-extrabold" /></div> : <span className="font-bold">{formatAmount(line.unitPrice)}</span>}
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-extrabold text-slate-900">{isEditing ? formatAmount(Number(draft.quantity || 0) * Number(draft.unitPrice || 0)) : formatAmount(line.amount)}</td>
+                                  <td className="py-3 px-3 text-center">
+                                    {isEditing ? (
+                                      <div className="flex justify-center gap-1.5"><button type="button" onClick={() => saveExpenseInvoiceRow(modalLocation, categoryKey, line)} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-extrabold">保存</button><button type="button" onClick={() => setExpenseInvoiceEditingKey(null)} className="px-2.5 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-bold">戻る</button></div>
+                                    ) : (
+                                      <div className="flex justify-center gap-1.5"><button type="button" onClick={() => startExpenseInvoiceEdit(line)} className="w-9 h-9 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 font-extrabold text-lg" title="この明細を修正">✏️</button>{line.hasOverride && <button type="button" onClick={() => resetExpenseInvoiceRow(modalLocation, categoryKey, line.lineKey)} className="px-2 py-1.5 rounded-lg bg-red-50 text-red-600 font-bold text-xs border border-red-200">元に戻す</button>}</div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {!isLeaseInvoice && (
+                      <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
+                          <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、現在の明細合計との差額を確認できます。入力値は比較用で、原価は上の明細修正で確定します。</div></div>
+                          <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
+                          <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 現在合計）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -14404,7 +14438,7 @@ export default function AdminPage() {
                         hadChanges: visibleLines.some((line: any) => line.hasOverride),
                         invoiceAmount: invoiceAmountNumber,
                         diff,
-                        systemAmount: totalAmount,
+                        systemAmount: reconcileBaseAmount,
                         applyToCost: isLeaseInvoice,
                         existingId: isLeaseInvoice ? expenseInvoiceReconcileEditingId : null
                       });
