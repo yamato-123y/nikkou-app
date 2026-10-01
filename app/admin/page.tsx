@@ -3295,6 +3295,49 @@ export default function AdminPage() {
     setShowExpenseInvoiceModal(true);
   };
 
+  const deleteLeaseInvoiceConfirmed = (entry: any) => {
+    if (!modalLocation || authRole !== 'admin' || !entry) return;
+    if (!window.confirm('この請求書確定・原価反映の履歴を削除しますか？\n削除後はこの確定金額が原価反映から外れます。')) return;
+
+    const isSameEntry = (candidate: any) => {
+      if (entry?.id && candidate?.id) return candidate.id === entry.id;
+      return String(candidate?.checkedAt || '') === String(entry?.checkedAt || '')
+        && String(candidate?.startDate || '') === String(entry?.startDate || '')
+        && String(candidate?.endDate || '') === String(entry?.endDate || '')
+        && String(candidate?.company || '') === String(entry?.company || '');
+    };
+
+    const currentHistory = getInvoiceReconcileHistory(modalLocation, 'lease');
+    const nextHistory = currentHistory.filter((candidate: any) => !isSameEntry(candidate));
+
+    setInvoiceReconcileHistory((prev: any) => ({
+      ...prev,
+      [modalLocation]: {
+        ...(prev?.[modalLocation] || {}),
+        lease: nextHistory
+      }
+    }));
+
+    setInvoiceReconcileStatus((prev: any) => {
+      const currentStatus = prev?.[modalLocation]?.lease;
+      const nextLocationStatus = { ...(prev?.[modalLocation] || {}) };
+      if (currentStatus && isSameEntry(currentStatus)) {
+        if (nextHistory.length > 0) nextLocationStatus.lease = nextHistory[0];
+        else delete nextLocationStatus.lease;
+      }
+      return {
+        ...prev,
+        [modalLocation]: nextLocationStatus
+      };
+    });
+
+    if (expenseInvoiceReconcileEditingId && entry?.id === expenseInvoiceReconcileEditingId) {
+      setExpenseInvoiceReconcileEditingId(null);
+      setShowExpenseInvoiceModal(false);
+    }
+    setFinancialDirty(true);
+  };
+
   const startExpenseInvoiceEdit = (line: any) => {
     if (authRole !== 'admin') return;
     setExpenseInvoiceEditingKey(line.lineKey);
@@ -13092,7 +13135,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:gap-5">
+            <div className="grid grid-cols-1 gap-4 md:gap-5 max-w-5xl w-full mx-auto">
               {[
                 { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost, isLabor: true },
                 { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSubWithCustom, val: modalData.subCostTotal, isSubcontractor: true },
@@ -13137,7 +13180,7 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {['sub', 'lease', 'disposal', 'fuel'].includes(item.key) && (() => {
+                    {['sub', 'lease', 'fuel'].includes(item.key) && (() => {
                       const st = getInvoiceReconcileStatus(modalLocation, item.key);
                       const history = getInvoiceReconcileHistory(modalLocation, item.key);
                       const historyKey = `${modalLocation}__${item.key}`;
@@ -13150,13 +13193,22 @@ export default function AdminPage() {
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="font-extrabold">{st.applyToCost ? '✅ 請求書確定・原価反映' : (st.hadChanges ? '✏️ 修正あり・照合済み' : '✅ 照合済み')}</div>
                                   {item.isLease && st.applyToCost && authRole === 'admin' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => openLeaseInvoiceConfirmedEdit(st)}
-                                      className="shrink-0 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100"
-                                    >
-                                      ✏️ 編集
-                                    </button>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => openLeaseInvoiceConfirmedEdit(st)}
+                                        className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100"
+                                      >
+                                        ✏️ 編集
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteLeaseInvoiceConfirmed(st)}
+                                        className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-extrabold text-red-600 hover:bg-red-50"
+                                      >
+                                        🗑️ 削除
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                                 <div><span className="font-bold">対象期間：</span>{formatInvoicePeriod(st.startDate, st.endDate)}</div>
