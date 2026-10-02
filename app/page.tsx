@@ -272,8 +272,8 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/settings').then(res => res.json()),
-      fetch('/api/reports').then(res => res.json())
+      fetch('/api/settings', { cache: 'no-store' }).then(res => res.json()),
+      fetch('/api/reports', { cache: 'no-store' }).then(res => res.json())
     ])
       .then(([settingsData, reportsData]) => {
         setSettings(settingsData || {});
@@ -1422,6 +1422,54 @@ export default function Home() {
     setIsReporterEditing(false);
   };
 
+  // 管理者からの未読返信。現在この端末で選択している報告者本人の分だけ表示する。
+  const unreadAdminReplies = reports
+    .filter((r: any) => {
+      const reportReporter = String(r?.reporter || r?.data?.reporter || '').trim();
+      const reply = String(r?.adminReply || r?.data?.adminReply || '').trim();
+      const readAt = r?.adminReplyReadAt || r?.data?.adminReplyReadAt;
+      return !!reporter && reportReporter === reporter && !!reply && !readAt;
+    })
+    .sort((a: any, b: any) =>
+      String(b?.adminReplyAt || b?.data?.adminReplyAt || b?.createdAt || '').localeCompare(
+        String(a?.adminReplyAt || a?.data?.adminReplyAt || a?.createdAt || '')
+      )
+    );
+
+  const markAdminReplyRead = async (report: any) => {
+    if (!report) return;
+    const reportReporter = String(report?.reporter || report?.data?.reporter || '').trim();
+    if (!reporter || reportReporter !== reporter) return;
+
+    const readAt = new Date().toISOString();
+    const payload = {
+      ...report,
+      adminReplyReadAt: readAt,
+      id: report.id || report._id
+    };
+
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        alert('確認状態の保存に失敗しました。');
+        return;
+      }
+      setReports((prev: any[]) =>
+        prev.map((r: any) => {
+          const sameId = (r.id || r._id) && (r.id || r._id) === (report.id || report._id);
+          return sameId ? { ...r, adminReplyReadAt: readAt } : r;
+        })
+      );
+    } catch (e) {
+      console.error(e);
+      alert('確認状態の保存に失敗しました。');
+    }
+  };
+
   const announcementToday = new Date().toLocaleDateString('sv-SE');
   const manualAnnouncements = (Array.isArray(settings.dailyAnnouncements) ? settings.dailyAnnouncements : [])
     .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
@@ -1535,6 +1583,48 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {unreadAdminReplies.length > 0 && (
+        <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-emerald-200 bg-white/70">
+            <div className="font-black text-emerald-900">💬 管理者からの返信</div>
+            <div className="mt-1 text-xs font-bold text-emerald-700">{reporter}さん宛の未確認メッセージです。</div>
+          </div>
+          <div className="p-4 space-y-3">
+            {unreadAdminReplies.map((r: any, idx: number) => {
+              const replyText = String(r?.adminReply || r?.data?.adminReply || '');
+              const originalMessage = String(r?.officeMessage || r?.data?.officeMessage || '');
+              const replyAt = r?.adminReplyAt || r?.data?.adminReplyAt;
+              return (
+                <div key={r?.id || r?._id || `admin-reply-${idx}`} className="rounded-2xl border border-emerald-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500">
+                    <span>📅 {r?.date || '-'}</span>
+                    <span>📍 {r?.location || '-'}</span>
+                    {replyAt && <span>返信：{new Date(replyAt).toLocaleString('ja-JP')}</span>}
+                  </div>
+                  {originalMessage && (
+                    <div className="mt-3 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2">
+                      <div className="text-[11px] font-black text-amber-700">あなたの報告</div>
+                      <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-slate-700">{originalMessage}</div>
+                    </div>
+                  )}
+                  <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3">
+                    <div className="text-[11px] font-black text-emerald-700">管理者からの返信</div>
+                    <div className="mt-1 whitespace-pre-wrap text-base font-black text-slate-900">{replyText}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => markAdminReplyRead(r)}
+                    className="mt-3 w-full rounded-xl bg-emerald-600 py-3 text-white font-black shadow-sm"
+                  >
+                    ✓ 確認しました
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 送信内容確認ポップアップ */}
 
