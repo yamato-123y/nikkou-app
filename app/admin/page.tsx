@@ -12789,6 +12789,37 @@ export default function AdminPage() {
             </div>
 
 
+            {authRole === 'admin' && (
+              <div className="sticky top-0 z-30 -mx-2 md:-mx-3 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <span className="shrink-0 text-xs font-extrabold text-slate-500">項目へ移動</span>
+                  {[
+                    ['detail-summary', '📊 集計結果'],
+                    ['detail-expense-labor', '👷 社員'],
+                    ['detail-expense-sub', '👥 外注'],
+                    ['detail-expense-lease', '🧾 リース'],
+                    ['detail-expense-ownMachine', '🚜 自社重機'],
+                    ['detail-expense-vehicle', '🚚 自社車両'],
+                    ['detail-expense-disposal', '🗑️ 処分費'],
+                    ...(modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' ? [['detail-expense-fuel', '⛽ 燃料']] : []),
+                    ['detail-expense-etc', '🛣️ ETC'],
+                    ['detail-expense-parking', '🅿️ 駐車場'],
+                    ['detail-expense-other', '🧮 その他'],
+                    ['detail-scrap-card', '♻️ スクラップ'],
+                  ].map(([targetId, label]) => (
+                    <button
+                      key={targetId}
+                      type="button"
+                      onClick={() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 現場写真（着工前・完了後） */}
             <div className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
               <div className="px-5 md:px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -12906,7 +12937,7 @@ export default function AdminPage() {
             </div>
 
             {authRole === 'admin' ? (
-              <div className="w-full max-w-4xl mx-auto space-y-3">
+              <div id="detail-summary" className="w-full max-w-4xl mx-auto space-y-3 scroll-mt-24">
                 <div>
                   <div className="text-lg md:text-xl font-extrabold text-slate-800">📊 現在の集計結果</div>
                 </div>
@@ -12984,7 +13015,7 @@ export default function AdminPage() {
                 <button onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 内訳を確認</button>
               </div>
 
-              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4">
+              <div id="detail-scrap-card" className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4 scroll-mt-24">
                 <div>
                   <div className="font-extrabold text-emerald-900 text-lg">♻️ スクラップ売却計</div>
                   <div className="mt-3 rounded-xl bg-white border border-emerald-100 px-4 py-3">
@@ -13285,7 +13316,7 @@ export default function AdminPage() {
                 { key: 'other', label: 'その他雑費', estimate: modalData.reportEstimateOther, val: modalData.otherCost },
               ].map((item) => {
                 return (
-                  <div key={item.key} className={`bg-white p-5 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-4 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                  <div id={`detail-expense-${item.key}`} key={item.key} className={`bg-white p-5 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-4 scroll-mt-24 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
                       <span className={`text-lg md:text-xl font-extrabold ${item.isDisposal ? 'text-orange-700' : 'text-slate-800'}`}>{item.label}</span>
                       <div className="flex items-center gap-2">
