@@ -12790,9 +12790,9 @@ export default function AdminPage() {
 
 
             {authRole === 'admin' && (
-              <div className="sticky top-0 z-30 -mx-2 md:-mx-3 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <span className="shrink-0 text-xs font-extrabold text-slate-500">項目へ移動</span>
+              <div className="sticky top-0 z-40 -mx-6 md:-mx-9 bg-white px-6 md:px-9 py-3.5 border-b border-slate-200 shadow-sm">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="shrink-0 text-sm font-extrabold text-slate-600 mr-1">項目へ移動</span>
                   {[
                     ['detail-summary', '📊 集計結果'],
                     ['detail-expense-labor', '👷 社員'],
@@ -12811,7 +12811,7 @@ export default function AdminPage() {
                       key={targetId}
                       type="button"
                       onClick={() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-extrabold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
                     >
                       {label}
                     </button>
