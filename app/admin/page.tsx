@@ -12790,7 +12790,7 @@ export default function AdminPage() {
 
 
             {authRole === 'admin' && (
-              <div className="sticky top-0 z-40 -mx-6 md:-mx-9 bg-white px-6 md:px-9 py-3.5 border-b border-slate-200 shadow-sm">
+              <div className="sticky top-0 z-40 !mt-0 -mx-6 md:-mx-9 bg-white px-6 md:px-9 py-3.5 border-b border-slate-200 shadow-sm">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="shrink-0 text-sm font-extrabold text-slate-600 mr-1">項目へ移動</span>
                   {[
