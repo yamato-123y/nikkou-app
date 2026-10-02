@@ -275,6 +275,10 @@ export default function AdminPage() {
   const [projectMetaSaving, setProjectMetaSaving] = useState(false);
 
   const [editingReport, setEditingReport] = useState<any | null>(null);
+  // 日報の報告事項に対する管理者返信。返信は日報そのものへ保存し、報告者本人だけに表示する。
+  const [replyingReport, setReplyingReport] = useState<any | null>(null);
+  const [adminReplyDraft, setAdminReplyDraft] = useState('');
+  const [adminReplySaving, setAdminReplySaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
@@ -2567,7 +2571,8 @@ export default function AdminPage() {
   ) => {
     if (authRole === 'viewer') return;
 
-    const targetTotal = Number(val) || 0;
+    const isClearing = String(val).trim() === '';
+    const targetTotal = isClearing ? 0 : Number(val);
     const currentReportTotal = rows.reduce((sum: number, row: any) => sum + Number(row.reportTotal || 0), 0);
     const nextAllOverrides = { ...disposalOverrides };
 
@@ -2575,17 +2580,20 @@ export default function AdminPage() {
     rows.forEach((row: any, idx: number) => {
       let rowConfirmed = 0;
 
-      if (idx === rows.length - 1) {
-        rowConfirmed = Math.round((targetTotal - distributed) * 100) / 100;
-      } else if (currentReportTotal > 0) {
-        rowConfirmed = Math.round((targetTotal * (Number(row.reportTotal || 0) / currentReportTotal)) * 100) / 100;
-        distributed += rowConfirmed;
+      if (!isClearing) {
+        if (idx === rows.length - 1) {
+          rowConfirmed = Math.round((targetTotal - distributed) * 100) / 100;
+        } else if (currentReportTotal > 0) {
+          rowConfirmed = Math.round((targetTotal * (Number(row.reportTotal || 0) / currentReportTotal)) * 100) / 100;
+          distributed += rowConfirmed;
+        }
       }
 
       const targetLocation = row.locationName || locName;
       const targetOverrides = { ...(nextAllOverrides[targetLocation] || {}) };
       const subKey = `invoice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
-      targetOverrides[subKey] = String(rowConfirmed);
+      // 空欄に戻した場合は、日報由来の金額を原価として使う。
+      targetOverrides[subKey] = isClearing ? '' : String(rowConfirmed);
       nextAllOverrides[targetLocation] = targetOverrides;
     });
 
@@ -3857,6 +3865,52 @@ export default function AdminPage() {
     }
   };
 
+  const openReportReply = (report: any) => {
+    if (authRole !== 'admin' || !report) return;
+    setReplyingReport({ ...report });
+    setAdminReplyDraft(String(report.adminReply || report.data?.adminReply || ''));
+  };
+
+  const saveReportReply = async () => {
+    if (authRole !== 'admin' || !replyingReport || adminReplySaving) return;
+    const replyText = adminReplyDraft.trim();
+    if (!replyText) {
+      alert('返信内容を入力してください。');
+      return;
+    }
+
+    try {
+      setAdminReplySaving(true);
+      const payload = {
+        ...replyingReport,
+        adminReply: replyText,
+        adminReplyAt: new Date().toISOString(),
+        // 内容を更新した場合は、報告者側でもう一度未読として表示する。
+        adminReplyReadAt: '',
+        id: replyingReport.id || replyingReport._id
+      };
+      const res = await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        alert('返信の保存に失敗しました。');
+        return;
+      }
+      setReplyingReport(null);
+      setAdminReplyDraft('');
+      await fetchData();
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2500);
+    } catch (e) {
+      console.error(e);
+      alert('返信の保存に失敗しました。');
+    } finally {
+      setAdminReplySaving(false);
+    }
+  };
+
   const buildReportCostSnapshot = (
     r: any,
     pricingSettings: any,
@@ -4666,11 +4720,11 @@ export default function AdminPage() {
           savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : rawUnitPrice;
         const reportTotal = quantity * effectiveUnitPrice;
 
+        // 請求確定額は日付別に実際に入力した値だけを共有する。
+        // 月×品目の旧確定額は、複数行へ同じ金額が流れ込むためここでは使用しない。
         const savedInvoice =
           reportOv[invoiceKey] !== undefined ? reportOv[invoiceKey]
-          : canonicalOv[invoiceKey] !== undefined ? canonicalOv[invoiceKey]
-          : reportOv[legacyInvoiceKey] !== undefined ? reportOv[legacyInvoiceKey]
-          : canonicalOv[legacyInvoiceKey];
+          : canonicalOv[invoiceKey];
 
         const confirmedTotal =
           savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
@@ -6070,8 +6124,9 @@ export default function AdminPage() {
           savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : originalUnitPrice;
         const reportTotal = quantity * unitPrice;
 
-        const savedInvoice =
-          locOv[invoiceKey] !== undefined ? locOv[invoiceKey] : locOv[legacyInvoiceKey];
+        // 請求確定額は、その日・その品目へ実際に入力した値だけを使用する。
+        // 旧「月×品目」確定額は別行へ流れ込む恐れがあるため、日付別一覧では使用しない。
+        const savedInvoice = locOv[invoiceKey];
         const confirmedTotal =
           savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
 
@@ -6593,13 +6648,32 @@ export default function AdminPage() {
                               📣 {officeMessage.length > 90 ? `${officeMessage.slice(0, 90)}…` : officeMessage}
                             </div>
                           )}
+                          {(report?.adminReply || report?.data?.adminReply) && (
+                            <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs md:text-sm font-bold text-emerald-900">
+                              💬 返信済み：{String(report?.adminReply || report?.data?.adminReply)}
+                              {(report?.adminReplyReadAt || report?.data?.adminReplyReadAt) && (
+                                <span className="ml-2 text-[10px] text-emerald-600">✓ 本人確認済み</span>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <button
-                          onClick={() => setEditingReport({ ...report })}
-                          className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs md:text-sm font-black text-slate-700 hover:bg-slate-100 transition"
-                        >
-                          日報を見る
-                        </button>
+                        <div className="shrink-0 flex flex-wrap items-center gap-2">
+                          {officeMessage && (
+                            <button
+                              type="button"
+                              onClick={() => openReportReply(report)}
+                              className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs md:text-sm font-black text-emerald-700 hover:bg-emerald-100 transition"
+                            >
+                              💬 {(report?.adminReply || report?.data?.adminReply) ? '返信を編集' : '返信する'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setEditingReport({ ...report })}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs md:text-sm font-black text-slate-700 hover:bg-slate-100 transition"
+                          >
+                            日報を見る
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -9981,7 +10055,7 @@ export default function AdminPage() {
                                     <div className="font-extrabold text-slate-800">{formatAmount(reportMonthlyTotal)}</div>
                                   </div>
                                   <div className="rounded-xl border border-blue-200 bg-blue-50/50 px-3 py-2">
-                                    <div className="text-[11px] font-bold text-blue-600">確定額 合計（原価反映）</div>
+                                    <div className="text-[11px] font-bold text-blue-600">原価反映額 合計</div>
                                     <div className="font-extrabold text-blue-700">{formatAmount(confirmedMonthlyTotal)}</div>
                                   </div>
                                   <div className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2">
@@ -10003,7 +10077,7 @@ export default function AdminPage() {
                             </div>
 
                             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm md:text-base text-slate-700 font-bold leading-relaxed">
-                              「日報由来」＝日報からの計算額　／　「確定額」＝請求書を確認して必要なら修正する金額
+                              「日報由来」＝通常の経費額　／　「確定額」＝日報由来が間違っている時だけ入力。入力した行は確定額を原価に優先します。
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full min-w-[1180px] text-left border-collapse text-base">
@@ -10029,7 +10103,7 @@ export default function AdminPage() {
                                     const displayInvoice =
                                       it.invoiceOverride !== '' && it.invoiceOverride !== undefined
                                         ? it.invoiceOverride
-                                        : formatInputNumber(it.reportTotal);
+                                        : '';
 
                                     return (
                                       <tr
@@ -10938,6 +11012,66 @@ export default function AdminPage() {
       )}
 
       {/* 日報編集モーダル */}
+      {replyingReport && authRole === 'admin' && (
+        <div className="fixed inset-0 z-[75] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setReplyingReport(null)}>
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-black text-slate-900">💬 報告者へ返信</h3>
+                <div className="mt-1 text-sm font-bold text-slate-500">
+                  📨 {replyingReport.reporter || replyingReport.data?.reporter || '報告者未記録'} ・ {replyingReport.date || '-'} ・ {replyingReport.location || '-'}
+                </div>
+              </div>
+              <button type="button" onClick={() => setReplyingReport(null)} className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 font-black">✕</button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-xs font-black text-amber-700 mb-1">📣 報告事項</div>
+                <div className="whitespace-pre-wrap text-sm md:text-base font-bold text-slate-800">
+                  {replyingReport.officeMessage || replyingReport.data?.officeMessage || '報告事項なし'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-black text-slate-700 mb-2">かんたん返信</div>
+                <div className="flex flex-wrap gap-2">
+                  {['確認しました。', '了解しました。', 'ありがとうございます。確認しました。', '後ほど確認して対応します。'].map((text) => (
+                    <button
+                      key={text}
+                      type="button"
+                      onClick={() => setAdminReplyDraft(text)}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-black text-slate-700 block mb-2">返信内容</label>
+                <textarea
+                  rows={4}
+                  value={adminReplyDraft}
+                  onChange={(e) => setAdminReplyDraft(e.target.value)}
+                  className="w-full rounded-2xl border-2 border-emerald-200 bg-white p-4 text-base font-bold text-slate-900 focus:border-emerald-500 outline-none"
+                  placeholder="報告者へ返信する内容を入力してください"
+                />
+                <div className="mt-2 text-xs font-bold text-slate-500">この返信は、報告者本人が次に日報入力画面を開いたときだけ表示されます。</div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3">
+              <button type="button" onClick={() => setReplyingReport(null)} className="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 font-black">キャンセル</button>
+              <button type="button" onClick={saveReportReply} disabled={adminReplySaving} className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-black disabled:opacity-50">
+                {adminReplySaving ? '保存中…' : '💬 返信を保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingReport && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setEditingReport(null)}>
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
@@ -11902,6 +12036,32 @@ export default function AdminPage() {
                   className="w-full p-4 border border-orange-200 rounded-2xl text-sm bg-white font-medium shadow-2xs leading-relaxed"
                   placeholder="事務所への報告・相談があれば入力..."
                 />
+                {(editingReport.officeMessage || editingReport.data?.officeMessage) && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-black text-emerald-700">💬 報告者への返信</div>
+                        <div className="mt-1 text-sm font-bold text-slate-800">
+                          {(editingReport.adminReply || editingReport.data?.adminReply) || 'まだ返信していません。'}
+                        </div>
+                        {(editingReport.adminReplyReadAt || editingReport.data?.adminReplyReadAt) && (
+                          <div className="mt-1 text-[11px] font-bold text-emerald-600">✓ 報告者本人が確認済み</div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reportId = editingReport.id || editingReport._id;
+                          const originalReport = reports.find((r:any) => (r.id || r._id) === reportId) || editingReport;
+                          openReportReply(originalReport);
+                        }}
+                        className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-700"
+                      >
+                        💬 {(editingReport.adminReply || editingReport.data?.adminReply) ? '返信を編集' : '返信する'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -14131,7 +14291,7 @@ export default function AdminPage() {
                 <div className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1">{formatAmount(modalData.reportEstimateDisposal)}</div>
               </div>
               <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-5">
-                <div className="text-sm font-bold text-blue-700">請求確定額 合計（原価反映）</div>
+                <div className="text-sm font-bold text-blue-700">原価反映額 合計</div>
                 <div className="text-2xl md:text-3xl font-extrabold text-blue-900 mt-1">{formatAmount(modalData.disposalCost)}</div>
               </div>
             </div>
@@ -14166,12 +14326,16 @@ export default function AdminPage() {
                                   unit: row.unit,
                                   reportTotal: 0,
                                   confirmedTotal: 0,
+                                  hasInvoiceOverride: false,
                                   rows: []
                                 };
                               }
                               summaryByItem[row.item].quantity += Number(row.quantity || 0);
                               summaryByItem[row.item].reportTotal += Number(row.reportTotal || 0);
                               summaryByItem[row.item].confirmedTotal += Number(row.confirmedTotal || 0);
+                              summaryByItem[row.item].hasInvoiceOverride =
+                                summaryByItem[row.item].hasInvoiceOverride ||
+                                (row.invoiceOverride !== '' && row.invoiceOverride !== undefined);
                               summaryByItem[row.item].rows.push(row);
                             });
                           });
@@ -14241,7 +14405,7 @@ export default function AdminPage() {
                                                 <span className="text-blue-500 font-bold">¥</span>
                                                 <input
                                                   type="number"
-                                                  value={formatInputNumber(summary.confirmedTotal)}
+                                                  value={summary.hasInvoiceOverride ? formatInputNumber(summary.confirmedTotal) : ''}
                                                   onChange={(e) => handleDisposalMonthlyItemInvoiceChange(
                                                     modalLocation, dLoc, ym, summary.item, summary.rows, e.target.value
                                                   )}
