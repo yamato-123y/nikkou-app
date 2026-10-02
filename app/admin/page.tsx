@@ -5217,6 +5217,7 @@ export default function AdminPage() {
       subcontractorBreakdown,
       subcontractorMonthlyBreakdown,
       subcontractorConfirmedTotal,
+      customSubsList,
       customSubsTotal,
       reportEstimateSubWithCustom,
       reportEstimateLease,
@@ -12908,7 +12909,6 @@ export default function AdminPage() {
               <div className="w-full max-w-4xl mx-auto space-y-3">
                 <div>
                   <div className="text-lg md:text-xl font-extrabold text-slate-800">📊 現在の集計結果</div>
-                  <div className="text-sm text-slate-500 mt-1">PC画面で全体像を確認しやすいよう、主要4項目をコンパクトにまとめています。</div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 flex items-center justify-between gap-4">
@@ -12929,7 +12929,23 @@ export default function AdminPage() {
                       <span className="font-extrabold text-slate-700">{formatAmount(modalData.reportEstimatedTotal)}</span>
                     </div>
                     {Number(modalData.customSubsTotal || 0) > 0 && (
-                      <div className="mt-2 text-xs text-orange-800 font-bold">うち手動追加・一括外注分 {formatAmount(modalData.customSubsTotal)}</div>
+                      <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50/70 px-3.5 py-3">
+                        <div className="flex items-center justify-between gap-3 text-xs md:text-sm">
+                          <span className="font-extrabold text-orange-900">うち手動追加・一括外注分</span>
+                          <span className="font-black text-orange-800 whitespace-nowrap">{formatAmount(modalData.customSubsTotal)}</span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {(modalData.customSubsList || []).map((cs: any, csIdx: number) => (
+                            <div key={csIdx} className="flex items-start justify-between gap-4 rounded-lg bg-white/80 border border-orange-100 px-3 py-2 text-xs md:text-sm">
+                              <div className="min-w-0 text-slate-700">
+                                <span className="font-extrabold">{String(cs?.company || '').trim() || '業者未設定'}</span>
+                                {String(cs?.task || '').trim() && <span className="text-slate-500"> ／ {cs.task}</span>}
+                              </div>
+                              <div className="shrink-0 font-extrabold text-orange-800">{formatAmount(Number(cs?.price || 0))}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                   <div className="bg-amber-50/60 px-5 py-4 rounded-2xl border border-amber-200 md:col-span-2 flex items-center justify-between gap-4">
@@ -14025,7 +14041,17 @@ export default function AdminPage() {
                         <div>
                           <div className="font-extrabold text-slate-900">{row.vendor}</div>
                           <div className="text-xs text-slate-500 mt-0.5">
-                            {row.isReconciled ? `日報由来の概算 ${formatAmount(row.estimate)} → 請求書金額` : '日報由来の概算を原価に使用'}
+                            {row.isReconciled ? (
+                              <span className="inline-flex flex-wrap items-center gap-x-1">
+                                <span>日報由来の概算</span>
+                                <span className="font-bold text-slate-700">{formatAmount(row.estimate)}</span>
+                                <span>→</span>
+                                <span>請求書金額</span>
+                                <span className="font-bold text-slate-700">{formatAmount(row.appliedAmount)}</span>
+                              </span>
+                            ) : (
+                              '日報由来の概算を原価に使用'
+                            )}
                           </div>
                         </div>
                         <div className="md:text-right font-black text-lg text-slate-900">{formatAmount(row.appliedAmount)}</div>
