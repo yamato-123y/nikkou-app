@@ -255,6 +255,9 @@ export default function Home() {
   const [showPreviousCopyModal, setShowPreviousCopyModal] = useState(false);
   // 日報の二重送信防止。送信中は確認画面の操作をロックする。
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // 日報の自動下書き保存。報告者ごとにこの端末の localStorage へ保持する。
+  const [draftReady, setDraftReady] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<any>(null);
 
   useEffect(() => {
     try {
@@ -1069,6 +1072,23 @@ export default function Home() {
         return;
       }
     }
+
+    // 同日・同現場・同報告者の日報が既にある場合は、禁止せず確認してから進める。
+    const duplicateReport = reports
+      .map((raw:any) => raw?.data && typeof raw.data === 'object' ? { ...raw.data, id: raw.id || raw.data.id } : raw)
+      .find((r:any) =>
+        String(r?.date || '') === String(date || '') &&
+        String(r?.location || '') === String(location || '') &&
+        String(r?.reporter || r?.manager || '') === String(effectiveReporter || '')
+      );
+    if (duplicateReport) {
+      const proceed = window.confirm(
+        `⚠️ 同じ日付・現場・報告者の日報がすでに登録されています。\n\n` +
+        `${date}\n${location}\n報告者：${effectiveReporter}\n\n` +
+        `二重送信の可能性があります。内容を確認したうえで、それでも送信する場合は「OK」を押してください。`
+      );
+      if (!proceed) return;
+    }
     setShowConfirmModal(true);
   };
 
@@ -1139,6 +1159,14 @@ export default function Home() {
 
       if (!res.ok) {
         throw new Error('日報の送信に失敗しました。');
+      }
+
+      // 正常送信できた日報の下書きだけ削除する。
+      try {
+        const draftOwner = String(effectiveReporter || reporter || '未設定').trim() || '未設定';
+        window.localStorage.removeItem(`yamato_daily_draft_v1_${draftOwner}`);
+      } catch (draftError) {
+        console.error('下書きの削除に失敗しました。', draftError);
       }
 
       // 正常に保存できた時だけ入力内容をクリアする。
@@ -1409,6 +1437,124 @@ export default function Home() {
       : '湯浅';
   const effectiveReporter = isStorageYardSelected ? yardManagerName : reporter;
   const effectiveManager = isStorageYardSelected ? yardManagerName : manager;
+
+  const getDailyDraftKey = (owner: string) => `yamato_daily_draft_v1_${String(owner || '未設定').trim() || '未設定'}`;
+
+  // 報告者が確定した時、この端末に未送信の下書きがあれば復元確認を出す。
+  useEffect(() => {
+    if (!effectiveReporter) return;
+    try {
+      const raw = window.localStorage.getItem(getDailyDraftKey(effectiveReporter));
+      if (!raw) {
+        setPendingDraft(null);
+        setDraftReady(true);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        window.localStorage.removeItem(getDailyDraftKey(effectiveReporter));
+        setPendingDraft(null);
+        setDraftReady(true);
+        return;
+      }
+      setPendingDraft(parsed);
+      setDraftReady(false);
+    } catch (e) {
+      console.error('日報下書きの読み込みに失敗しました。', e);
+      setPendingDraft(null);
+      setDraftReady(true);
+    }
+  }, [effectiveReporter]);
+
+  const restoreDailyDraft = () => {
+    const d = pendingDraft?.data || pendingDraft || {};
+    setDate(String(d.date || date));
+    setLocation(String(d.location || ''));
+    setManager(String(d.manager || ''));
+    setSelectedWorkers(Array.isArray(d.selectedWorkers) ? d.selectedWorkers : []);
+    setWorkerOvertimeHours(d.workerOvertimeHours && typeof d.workerOvertimeHours === 'object' ? d.workerOvertimeHours : {});
+    setWorkerHalfDay(d.workerHalfDay && typeof d.workerHalfDay === 'object' ? d.workerHalfDay : {});
+    setWorkerHolidayWorkHours(d.workerHolidayWorkHours && typeof d.workerHolidayWorkHours === 'object' ? d.workerHolidayWorkHours : {});
+    setJobTypesCount(d.jobTypesCount && typeof d.jobTypesCount === 'object' ? d.jobTypesCount : {});
+    setSubcontractors(Array.isArray(d.subcontractors) ? d.subcontractors : []);
+    setLeaseHeavy(Array.isArray(d.leaseHeavy) ? d.leaseHeavy : []);
+    setLeaseAttach(Array.isArray(d.leaseAttach) ? d.leaseAttach : []);
+    setLeaseOther(Array.isArray(d.leaseOther) ? d.leaseOther : []);
+    setOtherLeaseVendor(String(d.otherLeaseVendor || ''));
+    setIshikawaLeaseHeavy(Array.isArray(d.ishikawaLeaseHeavy) ? d.ishikawaLeaseHeavy : []);
+    setIshikawaLeaseAttach(Array.isArray(d.ishikawaLeaseAttach) ? d.ishikawaLeaseAttach : []);
+    setIshikawaLeaseOther(Array.isArray(d.ishikawaLeaseOther) ? d.ishikawaLeaseOther : []);
+    setIshikawaCustomMachines(Array.isArray(d.ishikawaCustomMachines) ? d.ishikawaCustomMachines : []);
+    setMokCustomMachines(Array.isArray(d.mokCustomMachines) ? d.mokCustomMachines : []);
+    setOtherLeases(Array.isArray(d.otherLeases) ? d.otherLeases : []);
+    setSelectedOwnMachines(Array.isArray(d.selectedOwnMachines) ? d.selectedOwnMachines : []);
+    setSelectedVehicles(Array.isArray(d.selectedVehicles) ? d.selectedVehicles : []);
+    setFuel(String(d.fuel || ''));
+    setRegularPrice(String(d.regularPrice || ''));
+    setEtcPrice(String(d.etcPrice || ''));
+    setParkingPrice(String(d.parkingPrice || ''));
+    setUnokeFuel(String(d.unokeFuel || ''));
+    setUnokeRegular(String(d.unokeRegular || ''));
+    setOtherItem(String(d.otherItem || ''));
+    setOtherPrice(String(d.otherPrice || ''));
+    setDisposals(Array.isArray(d.disposals) ? d.disposals : []);
+    setScraps(Array.isArray(d.scraps) ? d.scraps : []);
+    setYardGeneralRequests(Array.isArray(d.yardGeneralRequests) ? d.yardGeneralRequests : []);
+    setDescription(String(d.description || ''));
+    setOfficeMessage(String(d.officeMessage || ''));
+    setPendingDraft(null);
+    setDraftReady(true);
+  };
+
+  const discardDailyDraft = () => {
+    try {
+      window.localStorage.removeItem(getDailyDraftKey(effectiveReporter));
+    } catch (e) {
+      console.error('日報下書きの破棄に失敗しました。', e);
+    }
+    setPendingDraft(null);
+    setDraftReady(true);
+  };
+
+  // 入力変更から約0.8秒後に自動保存。送信前なら通信が切れてもこの端末から復元できる。
+  useEffect(() => {
+    if (!draftReady || !effectiveReporter) return;
+    const hasMeaningfulInput = selectedWorkers.length > 0 || subcontractors.length > 0 || Object.values(jobTypesCount || {}).some((v:any) => Number(v || 0) > 0) ||
+      leaseHeavy.length > 0 || leaseAttach.length > 0 || leaseOther.length > 0 ||
+      ishikawaLeaseHeavy.length > 0 || ishikawaLeaseAttach.length > 0 || ishikawaLeaseOther.length > 0 ||
+      mokCustomMachines.length > 0 || otherLeases.length > 0 || selectedOwnMachines.length > 0 || selectedVehicles.length > 0 ||
+      disposals.length > 0 || scraps.length > 0 || yardGeneralRequests.length > 0 ||
+      !!description.trim() || !!officeMessage.trim() || !!fuel || !!regularPrice || !!etcPrice || !!parkingPrice || !!otherItem || !!otherPrice;
+
+    const timer = window.setTimeout(() => {
+      try {
+        const key = getDailyDraftKey(effectiveReporter);
+        if (!hasMeaningfulInput) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+        window.localStorage.setItem(key, JSON.stringify({
+          savedAt: new Date().toISOString(),
+          data: {
+            date, location, manager, selectedWorkers, workerOvertimeHours, workerHalfDay, workerHolidayWorkHours, jobTypesCount,
+            subcontractors, leaseHeavy, leaseAttach, leaseOther, otherLeaseVendor,
+            ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther, ishikawaCustomMachines, mokCustomMachines, otherLeases,
+            selectedOwnMachines, selectedVehicles, fuel, regularPrice, etcPrice, parkingPrice, unokeFuel, unokeRegular,
+            otherItem, otherPrice, disposals, scraps, yardGeneralRequests, description, officeMessage
+          }
+        }));
+      } catch (e) {
+        console.error('日報下書きの自動保存に失敗しました。', e);
+      }
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [
+    draftReady, effectiveReporter, date, location, manager, selectedWorkers, workerOvertimeHours, workerHalfDay, workerHolidayWorkHours, jobTypesCount,
+    subcontractors, leaseHeavy, leaseAttach, leaseOther, otherLeaseVendor, ishikawaLeaseHeavy, ishikawaLeaseAttach, ishikawaLeaseOther,
+    ishikawaCustomMachines, mokCustomMachines, otherLeases, selectedOwnMachines, selectedVehicles, fuel, regularPrice, etcPrice, parkingPrice,
+    unokeFuel, unokeRegular, otherItem, otherPrice, disposals, scraps, yardGeneralRequests, description, officeMessage
+  ]);
+
   const yardSourceLocationOptions = (settings.locations || [])
     .map((l: any) => typeof l === 'string' ? { name: l, isFinished: false, locationType: l === '置場' ? 'yard' : 'site' } : l)
     .filter((l: any) => l?.name && l.name !== location && l.locationType !== 'yard' && !l.isFinished);
@@ -1662,6 +1808,30 @@ export default function Home() {
             })}
           </div>
         </section>
+      )}
+
+      {/* 自動保存された未送信の日報を復元するか確認 */}
+      {pendingDraft && effectiveReporter && (
+        <div className="fixed inset-0 z-[70] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 bg-amber-50">
+              <h2 className="text-xl font-black text-slate-950">📝 未送信の下書きがあります</h2>
+              <p className="mt-1 text-sm font-bold text-amber-800">{effectiveReporter}さんがこの端末で入力していた日報です。</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm">
+                <div><span className="font-bold text-slate-500">日付：</span><span className="font-black text-slate-900">{pendingDraft?.data?.date || '未設定'}</span></div>
+                <div className="mt-1"><span className="font-bold text-slate-500">現場：</span><span className="font-black text-slate-900">{pendingDraft?.data?.location || '未設定'}</span></div>
+                <div className="mt-1 text-xs text-slate-500">保存：{pendingDraft?.savedAt ? new Date(pendingDraft.savedAt).toLocaleString('ja-JP') : '時刻不明'}</div>
+              </div>
+              <p className="text-sm text-slate-600">続きから入力する場合は復元してください。不要な下書きなら破棄して新しく入力できます。</p>
+            </div>
+            <div className="px-5 pb-5 flex flex-col sm:flex-row gap-2 justify-end">
+              <button type="button" onClick={discardDailyDraft} className="px-4 py-3 rounded-xl bg-slate-200 text-slate-700 font-black">破棄して新規入力</button>
+              <button type="button" onClick={restoreDailyDraft} className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black">下書きを復元</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 送信内容確認ポップアップ */}
