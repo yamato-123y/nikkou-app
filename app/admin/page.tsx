@@ -2545,16 +2545,14 @@ export default function AdminPage() {
 
   const handleDisposalDetailOverrideChange = (
     locName: string,
-    disposalName: string,
-    yearMonth: string,
-    dateKey: string,
-    itemKey: string,
+    rowKey: string,
     field: 'unitPrice' | 'invoice',
     val: string
   ) => {
     if (authRole === 'viewer') return;
 
-    const subKey = `${field}__${disposalName}__${yearMonth}__${dateKey}__${itemKey}`;
+    // 同日・同現場・同品目でも、日報内の処分明細1行ごとに別データとして保存する。
+    const subKey = `${field}Row__${rowKey}`;
     const newDisposalOverrides = {
       ...disposalOverrides,
       [locName]: {
@@ -2583,7 +2581,7 @@ export default function AdminPage() {
     rows.forEach((row: any) => {
       const targetLocation = row.locationName || locName;
       const targetOverrides = { ...(nextAllOverrides[targetLocation] || {}) };
-      const subKey = `unitPrice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
+      const subKey = `unitPriceRow__${row.rowKey}`;
       targetOverrides[subKey] = val;
       nextAllOverrides[targetLocation] = targetOverrides;
     });
@@ -2622,7 +2620,7 @@ export default function AdminPage() {
 
       const targetLocation = row.locationName || locName;
       const targetOverrides = { ...(nextAllOverrides[targetLocation] || {}) };
-      const subKey = `invoice__${disposalName}__${yearMonth}__${row.dateKey}__${itemKey}`;
+      const subKey = `invoiceRow__${row.rowKey}`;
       // 空欄に戻した場合は、日報由来の金額を原価として使う。
       targetOverrides[subKey] = isClearing ? '' : String(rowConfirmed);
       nextAllOverrides[targetLocation] = targetOverrides;
@@ -4730,7 +4728,7 @@ export default function AdminPage() {
         : String(r.date || '日付不明');
       const disposals = Array.isArray(r.disposals) ? r.disposals : [];
 
-      disposals.forEach((d: any) => {
+      disposals.forEach((d: any, disposalIndex: number) => {
         const isDirectReport = targetNames.includes(r.location);
         const isYardReport = isStorageYardLocationName(r.location);
         const sourceType = String(d?.yardSourceType || '').trim();
@@ -4751,30 +4749,36 @@ export default function AdminPage() {
             : Number(masterRecord?.price || 0);
         const quantity = Number(d.quantity || 0);
 
-        // 新：日付単位。旧：月×品目単位の上書きもフォールバックで読み込む。
-        const priceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
-        const invoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
-        const legacyPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
-        const legacyInvoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
+        const rowKey = getDisposalRowKey(r, d, disposalIndex);
+        const rowPriceKey = `unitPriceRow__${rowKey}`;
+        const rowInvoiceKey = `invoiceRow__${rowKey}`;
 
-        // 月別処分一覧では「実際の日報の現場名」で確定額を保存しているため、
-        // 詳細分析でもまず同じ現場名の値を読む。
-        // 過去に詳細分析側で保存した旧データは canonicalOv からフォールバックして互換維持する。
+        // 旧形式は同じ日・同じ処分場・同じ品目の行が1件だけの場合に限って互換で読む。
+        // 複数行ある場合は、どの行の値か判別できないため誤反映させない。
+        const legacyDatePriceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyDateInvoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyMonthPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
+        const legacyMatchCount = getDisposalLegacyMatchCount(reportLocationName, dateKey, dLoc, itemKey);
+        const canUseLegacyRowValue = legacyMatchCount === 1;
+
         const savedPrice =
-          reportOv[priceKey] !== undefined ? reportOv[priceKey]
-          : canonicalOv[priceKey] !== undefined ? canonicalOv[priceKey]
-          : reportOv[legacyPriceKey] !== undefined ? reportOv[legacyPriceKey]
-          : canonicalOv[legacyPriceKey];
+          reportOv[rowPriceKey] !== undefined ? reportOv[rowPriceKey]
+          : canonicalOv[rowPriceKey] !== undefined ? canonicalOv[rowPriceKey]
+          : canUseLegacyRowValue && reportOv[legacyDatePriceKey] !== undefined ? reportOv[legacyDatePriceKey]
+          : canUseLegacyRowValue && canonicalOv[legacyDatePriceKey] !== undefined ? canonicalOv[legacyDatePriceKey]
+          : canUseLegacyRowValue && reportOv[legacyMonthPriceKey] !== undefined ? reportOv[legacyMonthPriceKey]
+          : canUseLegacyRowValue ? canonicalOv[legacyMonthPriceKey] : undefined;
 
         const effectiveUnitPrice =
           savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : rawUnitPrice;
         const reportTotal = quantity * effectiveUnitPrice;
 
-        // 請求確定額は日付別に実際に入力した値だけを共有する。
-        // 月×品目の旧確定額は、複数行へ同じ金額が流れ込むためここでは使用しない。
+        // 確定額は行単位で共有する。旧日付単位データは行が一意な場合だけ互換で読む。
         const savedInvoice =
-          reportOv[invoiceKey] !== undefined ? reportOv[invoiceKey]
-          : canonicalOv[invoiceKey];
+          reportOv[rowInvoiceKey] !== undefined ? reportOv[rowInvoiceKey]
+          : canonicalOv[rowInvoiceKey] !== undefined ? canonicalOv[rowInvoiceKey]
+          : canUseLegacyRowValue && reportOv[legacyDateInvoiceKey] !== undefined ? reportOv[legacyDateInvoiceKey]
+          : canUseLegacyRowValue ? canonicalOv[legacyDateInvoiceKey] : undefined;
 
         const confirmedTotal =
           savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
@@ -4795,6 +4799,7 @@ export default function AdminPage() {
         }
 
         const row = {
+          rowKey,
           dateKey,
           displayDate,
           locationName: reportLocationName,
@@ -6063,6 +6068,30 @@ export default function AdminPage() {
     return cleaned;
   };
 
+  const getDisposalRowKey = (report: any, disposal: any, disposalIndex: number) => {
+    const reportId = report?.id || report?._id || report?.reportId || '';
+    const dateKey = normalizeDateStr(report?.date || '') || String(report?.date || '');
+    const locationName = report?.location || '現場名未設定';
+    const reporterName = report?.reporter || report?.manager || '';
+    const createdKey = report?.createdAt || report?.timestamp || '';
+    const disposalSite = disposal?.location || 'その他処分場';
+    const item = disposal?.item || '品目未指定';
+    const reportKey = reportId || `${dateKey}_${locationName}_${reporterName}_${createdKey}`;
+    return `${reportKey}__${disposalSite}__${item}__${disposalIndex}`;
+  };
+
+  const getDisposalLegacyMatchCount = (locationName: string, dateKey: string, disposalSite: string, item: string) => {
+    return reports.reduce((count: number, report: any) => {
+      const reportDateKey = normalizeDateStr(report?.date || '') || String(report?.date || '');
+      if (String(report?.location || '現場名未設定') !== locationName || reportDateKey !== dateKey) return count;
+      const list = Array.isArray(report?.disposals) ? report.disposals : [];
+      return count + list.filter((d: any) =>
+        String(d?.location || 'その他処分場') === disposalSite &&
+        String(d?.item || '品目未指定') === item
+      ).length;
+    }, 0);
+  };
+
   const getScrapRowKey = (report: any, scrap: any, scrapIndex: number) => {
     const reportId = report?.id || report?._id || report?.reportId || '';
     const dateKey = normalizeDateStr(report?.date || '') || String(report?.date || '');
@@ -6163,20 +6192,27 @@ export default function AdminPage() {
             : Number(masterRecord?.price || 0);
         const quantity = Number(d.quantity || 0);
 
-        const priceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
-        const invoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
-        const legacyPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
-        const legacyInvoiceKey = `invoice__${dLoc}__${ym}__${itemKey}`;
+        const rowKey = getDisposalRowKey(r, d, disposalIndex);
+        const rowPriceKey = `unitPriceRow__${rowKey}`;
+        const rowInvoiceKey = `invoiceRow__${rowKey}`;
+        const legacyDatePriceKey = `unitPrice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyDateInvoiceKey = `invoice__${dLoc}__${ym}__${dateKey}__${itemKey}`;
+        const legacyMonthPriceKey = `unitPrice__${dLoc}__${ym}__${itemKey}`;
+        const legacyMatchCount = getDisposalLegacyMatchCount(locationName, dateKey, dLoc, itemKey);
+        const canUseLegacyRowValue = legacyMatchCount === 1;
 
         const savedPrice =
-          locOv[priceKey] !== undefined ? locOv[priceKey] : locOv[legacyPriceKey];
+          locOv[rowPriceKey] !== undefined ? locOv[rowPriceKey]
+          : canUseLegacyRowValue && locOv[legacyDatePriceKey] !== undefined ? locOv[legacyDatePriceKey]
+          : canUseLegacyRowValue ? locOv[legacyMonthPriceKey] : undefined;
         const unitPrice =
           savedPrice !== '' && savedPrice !== undefined ? Number(savedPrice) : originalUnitPrice;
         const reportTotal = quantity * unitPrice;
 
-        // 請求確定額は、その日・その品目へ実際に入力した値だけを使用する。
-        // 旧「月×品目」確定額は別行へ流れ込む恐れがあるため、日付別一覧では使用しない。
-        const savedInvoice = locOv[invoiceKey];
+        // 確定額は処分明細1行ごとに保持する。旧日付単位データは行が一意な場合だけ互換で読む。
+        const savedInvoice =
+          locOv[rowInvoiceKey] !== undefined ? locOv[rowInvoiceKey]
+          : canUseLegacyRowValue ? locOv[legacyDateInvoiceKey] : undefined;
         const confirmedTotal =
           savedInvoice !== '' && savedInvoice !== undefined ? Number(savedInvoice) : reportTotal;
 
@@ -6196,7 +6232,7 @@ export default function AdminPage() {
           reportTotal,
           invoiceOverride: savedInvoice ?? '',
           confirmedTotal,
-          rowKey: `${dLoc}_${ym}_${dateKey}_${locationName}_${itemKey}_${disposalIndex}`
+          rowKey
         });
       });
     });
@@ -10419,7 +10455,7 @@ export default function AdminPage() {
                                               value={displayPrice}
                                               onClick={(e) => e.stopPropagation()}
                                               onChange={(e) => handleDisposalDetailOverrideChange(
-                                                it.locationName, dSite, ym, it.dateKey, it.item, 'unitPrice', e.target.value
+                                                it.locationName, it.rowKey, 'unitPrice', e.target.value
                                               )}
                                               className="w-28 p-2.5 border border-slate-300 rounded-lg text-right font-extrabold bg-white text-base"
                                             />
@@ -10436,7 +10472,7 @@ export default function AdminPage() {
                                               value={displayInvoice}
                                               onClick={(e) => e.stopPropagation()}
                                               onChange={(e) => handleDisposalDetailOverrideChange(
-                                                it.locationName, dSite, ym, it.dateKey, it.item, 'invoice', e.target.value
+                                                it.locationName, it.rowKey, 'invoice', e.target.value
                                               )}
                                               className="w-32 p-2.5 border border-blue-300 rounded-lg text-right font-extrabold bg-blue-50/40 text-blue-900 text-base"
                                             />
