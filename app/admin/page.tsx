@@ -469,7 +469,8 @@ export default function AdminPage() {
   // 請求書照合の履歴。対象期間・照合日時・請求書金額・差額を現場／カテゴリーごとに残す。
   const [invoiceReconcileHistory, setInvoiceReconcileHistory] = useState<any>({});
   const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState<any>({});
-  // 管理画面上部の請求書照合進捗。月ごとにリースの未照合を一覧化する。
+  // 請求書照合進捗。ボタンからポップアップを開き、月ごとにリース・処分場を確認する。
+  const [showInvoiceProgressModal, setShowInvoiceProgressModal] = useState(false);
   const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
   // 日報入力画面へ表示する管理者アナウンス。表示期間を指定して公開する。
   const [dailyAnnouncementDraft, setDailyAnnouncementDraft] = useState(() => {
@@ -3387,6 +3388,7 @@ export default function AdminPage() {
     setExpenseInvoiceAmount('');
     setExpenseInvoiceReconcileEditingId(null);
     setShowExpenseInvoiceDetails(false);
+    setShowInvoiceProgressModal(false);
     setShowExpenseInvoiceModal(true);
   };
 
@@ -6483,6 +6485,44 @@ export default function AdminPage() {
   const invoiceProgressDoneCount = invoiceProgressRows.filter((row:any) => row.isReconciled).length;
   const invoiceProgressPendingCount = invoiceProgressRows.length - invoiceProgressDoneCount;
 
+  // 処分場の進捗は、既存の月別処分一覧の確認状態と請求書金額をそのまま利用する。
+  // 新しい保存項目は増やさず、全明細確認済み＝照合済み、一部確認・請求書入力あり＝確認中、それ以外＝未照合。
+  const disposalInvoiceProgressRows = (() => {
+    if (!/^\d{4}-\d{2}$/.test(invoiceProgressMonth)) return [];
+    const grouped = getAllMonthlyDisposalGroupedData();
+    const rows:any[] = [];
+    Object.entries(grouped).forEach(([disposalSite, monthMap]:any) => {
+      const items:any[] = Array.isArray(monthMap?.[invoiceProgressMonth]) ? monthMap[invoiceProgressMonth] : [];
+      if (items.length === 0) return;
+      const invoiceKey = `${disposalSite}__${invoiceProgressMonth}`;
+      const invoiceRaw = monthlyDisposalInvoices[invoiceKey];
+      const hasInvoiceAmount = invoiceRaw !== '' && invoiceRaw !== undefined && invoiceRaw !== null;
+      const checkedCount = items.filter((item:any) => !!checkedDisposalRows[item.rowKey]).length;
+      const allChecked = items.length > 0 && checkedCount === items.length;
+      const status = allChecked ? 'done' : (checkedCount > 0 || hasInvoiceAmount ? 'progress' : 'pending');
+      rows.push({
+        key: invoiceKey,
+        disposalSite,
+        reportTotal: items.reduce((sum:number, item:any) => sum + Number(item.reportTotal || 0), 0),
+        confirmedTotal: items.reduce((sum:number, item:any) => sum + Number(item.confirmedTotal || 0), 0),
+        invoiceAmount: hasInvoiceAmount ? Number(invoiceRaw || 0) : null,
+        itemCount: items.length,
+        checkedCount,
+        status
+      });
+    });
+    const order:any = { pending: 0, progress: 1, done: 2 };
+    return rows.sort((a:any,b:any) => order[a.status] - order[b.status] || String(a.disposalSite).localeCompare(String(b.disposalSite), 'ja'));
+  })();
+  const disposalInvoiceProgressDoneCount = disposalInvoiceProgressRows.filter((row:any) => row.status === 'done').length;
+  const disposalInvoiceProgressProgressCount = disposalInvoiceProgressRows.filter((row:any) => row.status === 'progress').length;
+  const disposalInvoiceProgressPendingCount = disposalInvoiceProgressRows.filter((row:any) => row.status === 'pending').length;
+
+  const openInvoiceProgressDisposal = () => {
+    setShowInvoiceProgressModal(false);
+    setShowAllMonthlyDisposalModal(true);
+  };
+
   const openInvoiceProgressLease = (row:any) => {
     if (!row?.location || !row?.vendor) return;
     const [yearText, monthText] = invoiceProgressMonth.split('-');
@@ -6544,6 +6584,9 @@ export default function AdminPage() {
             <>
               <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 📦 月別処分一覧
+              </button>
+              <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+                🧾 請求書照合進捗
               </button>
               <button onClick={() => setShowAllMonthlyScrapModal(true)} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 ♻️ スクラップ確認表
@@ -6635,46 +6678,6 @@ export default function AdminPage() {
                 )}
               </div>
             )}
-          </div>
-        </section>
-      )}
-
-      {authRole === 'admin' && (
-        <section className="rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
-            <div>
-              <h2 className="text-lg md:text-xl font-black text-slate-900">🧾 請求書照合進捗</h2>
-              <p className="mt-1 text-xs md:text-sm text-slate-500">月ごとに、日報へ入力されたリース業者の照合状況を確認できます。未照合からそのまま請求書照合へ進めます。</p>
-            </div>
-            <label className="text-xs font-black text-slate-600">対象月
-              <input type="month" value={invoiceProgressMonth} onChange={(e)=>setInvoiceProgressMonth(e.target.value)} className="mt-1 block rounded-xl border-2 border-indigo-200 bg-white px-3 py-2 text-sm font-black text-slate-900" />
-            </label>
-          </div>
-          <div className="p-4 md:p-5">
-            <div className="grid grid-cols-3 gap-2.5 max-w-2xl mb-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="text-[11px] font-bold text-slate-500">対象</div><div className="text-2xl font-black text-slate-900">{invoiceProgressRows.length}<span className="ml-1 text-xs">件</span></div></div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><div className="text-[11px] font-bold text-emerald-700">✅ 照合済み</div><div className="text-2xl font-black text-emerald-700">{invoiceProgressDoneCount}<span className="ml-1 text-xs">件</span></div></div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3"><div className="text-[11px] font-bold text-amber-700">○ 未照合</div><div className="text-2xl font-black text-amber-700">{invoiceProgressPendingCount}<span className="ml-1 text-xs">件</span></div></div>
-            </div>
-            {invoiceProgressRows.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 py-7 text-center text-sm font-bold text-slate-400">この月のリース日報データはありません。</div>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
-                <div className="hidden md:grid md:grid-cols-[1.2fr_1fr_160px_120px_120px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>リース業者</div><div className="text-right">日報由来の概算</div><div className="text-center">状態</div><div></div></div>
-                <div className="divide-y divide-slate-100">
-                  {invoiceProgressRows.map((row:any) => (
-                    <div key={row.key} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_160px_120px_120px] gap-2 md:gap-3 md:items-center px-4 py-3 bg-white">
-                      <div className="font-extrabold text-slate-900">{row.location}</div>
-                      <div className="font-bold text-slate-700">{row.vendor}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
-                      <div className="md:text-right font-black text-slate-900">{formatAmount(row.estimate)}</div>
-                      <div className="md:text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
-                      <div className="md:text-right"><button type="button" onClick={()=>openInvoiceProgressLease(row)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <p className="mt-3 text-[11px] text-slate-500">※処分費は「請求確定額を必要な時だけ修正する」運用のため、リースのような済／未の判定対象にはしていません。</p>
           </div>
         </section>
       )}
@@ -10127,6 +10130,104 @@ export default function AdminPage() {
               >
                 閉じる
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 請求書照合進捗 ポップアップ */}
+      {showInvoiceProgressModal && authRole === 'admin' && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowInvoiceProgressModal(false)}>
+          <div className="bg-white rounded-[28px] w-full max-w-6xl max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 md:px-7 py-4 md:py-5">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900">🧾 請求書照合進捗</h3>
+                  <p className="mt-1 text-sm text-slate-500">対象月のリース業者と処分場をまとめて確認します。</p>
+                </div>
+                <div className="flex items-end gap-3">
+                  <label className="text-xs font-black text-slate-600">対象月
+                    <input type="month" value={invoiceProgressMonth} onChange={(e)=>setInvoiceProgressMonth(e.target.value)} className="mt-1 block rounded-xl border-2 border-indigo-200 bg-white px-3 py-2 text-sm font-black text-slate-900" />
+                  </label>
+                  <button onClick={() => setShowInvoiceProgressModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 md:p-7 space-y-7 bg-slate-50/60">
+              <section className="rounded-3xl border border-indigo-200 bg-white overflow-hidden shadow-sm">
+                <div className="px-5 py-4 bg-indigo-50 border-b border-indigo-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-black text-indigo-950">🚜 リース</h4>
+                    <p className="mt-0.5 text-xs text-indigo-700">現場 × リース業者ごとの請求書照合状況</p>
+                  </div>
+                  <div className="flex gap-2 text-xs font-black">
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {invoiceProgressDoneCount}</span>
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {invoiceProgressPendingCount}</span>
+                  </div>
+                </div>
+                {invoiceProgressRows.length === 0 ? (
+                  <div className="py-8 text-center text-sm font-bold text-slate-400">この月のリース日報データはありません。</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[820px]">
+                      <div className="grid grid-cols-[1.25fr_1fr_160px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>リース業者</div><div className="text-right">日報由来の概算</div><div className="text-center">状態</div><div></div></div>
+                      <div className="divide-y divide-slate-100">
+                        {invoiceProgressRows.map((row:any) => (
+                          <div key={row.key} className="grid grid-cols-[1.25fr_1fr_160px_120px_110px] gap-3 items-center px-4 py-3 bg-white">
+                            <div className="font-extrabold text-slate-900">{row.location}</div>
+                            <div className="font-bold text-slate-700">{row.vendor}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
+                            <div className="text-right font-black text-slate-900">{formatAmount(row.estimate)}</div>
+                            <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
+                            <div className="text-right"><button type="button" onClick={()=>openInvoiceProgressLease(row)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-amber-200 bg-white overflow-hidden shadow-sm">
+                <div className="px-5 py-4 bg-amber-50 border-b border-amber-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-black text-amber-950">🗑️ 処分場</h4>
+                    <p className="mt-0.5 text-xs text-amber-800">処分場ごとの請求書確認状況。確定額の有無ではなく、月別処分一覧の確認状態を表示します。</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs font-black">
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {disposalInvoiceProgressDoneCount}</span>
+                    <span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">🟡 確認中 {disposalInvoiceProgressProgressCount}</span>
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {disposalInvoiceProgressPendingCount}</span>
+                  </div>
+                </div>
+                {disposalInvoiceProgressRows.length === 0 ? (
+                  <div className="py-8 text-center text-sm font-bold text-slate-400">この月の処分データはありません。</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[850px]">
+                      <div className="grid grid-cols-[1.2fr_150px_150px_130px_120px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>処分場</div><div className="text-right">日報由来 合計</div><div className="text-right">請求書金額</div><div className="text-center">状態</div><div></div></div>
+                      <div className="divide-y divide-slate-100">
+                        {disposalInvoiceProgressRows.map((row:any) => (
+                          <div key={row.key} className="grid grid-cols-[1.2fr_150px_150px_130px_120px] gap-3 items-center px-4 py-3 bg-white">
+                            <div>
+                              <div className="font-extrabold text-slate-900">{row.disposalSite}</div>
+                              <div className="mt-0.5 text-[11px] font-bold text-slate-400">{row.checkedCount}/{row.itemCount}明細 確認</div>
+                            </div>
+                            <div className="text-right font-black text-slate-900">{formatAmount(row.reportTotal)}</div>
+                            <div className="text-right font-black text-violet-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div>
+                            <div className="text-center">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.status === 'done' ? 'bg-emerald-100 text-emerald-800' : row.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {row.status === 'done' ? '✅ 照合済み' : row.status === 'progress' ? '🟡 確認中' : '○ 未照合'}
+                              </span>
+                            </div>
+                            <div className="text-right"><button type="button" onClick={openInvoiceProgressDisposal} className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-xs font-black">月別一覧へ</button></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           </div>
         </div>
