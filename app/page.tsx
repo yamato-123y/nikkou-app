@@ -138,8 +138,9 @@ export default function Home() {
   const [otherItem, setOtherItem] = useState('');
   const [otherPrice, setOtherPrice] = useState('');
 
-  const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
-  const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string}[]>([]);
+  const [disposals, setDisposals] = useState<{location: string, item: string, quantity: string, unit: string, yardSourceType?: string, yardSourceLocation?: string, yardSourceNote?: string}[]>([]);
+  const [scraps, setScraps] = useState<{location: string, item: string, quantity: string, unit: string, yardSourceType?: string, yardSourceLocation?: string, yardSourceNote?: string}[]>([]);
+  const [yardGeneralRequests, setYardGeneralRequests] = useState<{requester: string, description: string, receivedAmount: string, note: string}[]>([]);
   const [description, setDescription] = useState('');
   const [officeMessage, setOfficeMessage] = useState('');
 
@@ -1047,7 +1048,7 @@ export default function Home() {
   // 「日報を送信する」ボタンを押したときは、直接送信せず確認モーダルを開く
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reporter) {
+    if (!effectiveReporter) {
       alert('最初に報告者を選択してください。');
       setIsReporterEditing(true);
       return;
@@ -1056,9 +1057,17 @@ export default function Home() {
       alert('現場名を選択してください。');
       return;
     }
-    if (!manager) {
+    if (!effectiveManager) {
       alert('職長を選択してください。');
       return;
+    }
+    if (isStorageYardSelected) {
+      const invalidDisposal = disposals.some((item:any) => item?.yardSourceType === 'site' && !item?.yardSourceLocation);
+      const invalidScrap = scraps.some((item:any) => item?.yardSourceType === 'site' && !item?.yardSourceLocation);
+      if (invalidDisposal || invalidScrap) {
+        alert('置場の処分・スクラップで「特定の現場分」を選んだ項目は、現場名も選択してください。');
+        return;
+      }
     }
     setShowConfirmModal(true);
   };
@@ -1074,7 +1083,7 @@ export default function Home() {
       const isIshikawaActive = manager === '徳本';
 
       const reportPayload: any = {
-          date, location, manager, reporter, workers: selectedWorkers,
+          date, location, manager: effectiveManager, reporter: effectiveReporter, workers: selectedWorkers,
           workerOvertimeHours: Object.fromEntries(
             Object.entries(workerOvertimeHours)
               .filter(([name, hours]) => selectedWorkers.includes(name) && Number(hours) > 0)
@@ -1111,6 +1120,8 @@ export default function Home() {
           unokeRegular: isIshikawaActive ? (unokeRegular || '0') : '0',
           otherItem, otherPrice: otherPrice || '0',
           disposals, scraps,
+          yardGeneralRequests: isStorageYardSelected ? yardGeneralRequests : [],
+          yardReport: isStorageYardSelected,
           workDescription: description,
           officeMessage,
           createdAt: new Date().toISOString()
@@ -1154,7 +1165,7 @@ export default function Home() {
       setFuel(''); setRegularPrice(''); setEtcPrice(''); setParkingPrice(''); 
       setUnokeFuel(''); setUnokeRegular('');
       setOtherItem(''); setOtherPrice('');
-      setDisposals([]); setScraps([]); setDescription(''); setOfficeMessage('');
+      setDisposals([]); setScraps([]); setYardGeneralRequests([]); setDescription(''); setOfficeMessage('');
 
       setShowConfirmModal(false);
       setShowSuccessModal(true);
@@ -1384,6 +1395,24 @@ export default function Home() {
   const uniqueDisposalLocations = Array.from(new Set((settings.disposalLocations || []).map((d:any) => d.location).filter(Boolean)));
   const uniqueScrapLocations = Array.from(new Set((settings.scrapLocations || []).map((s:any) => s.location).filter(Boolean)));
 
+  const selectedLocationMaster = (settings.locations || []).find((l: any) => {
+    const locName = typeof l === 'string' ? l : l?.name;
+    return locName === location;
+  });
+  const isStorageYardSelected = !!location && (
+    location === '置場' ||
+    (typeof selectedLocationMaster === 'object' && selectedLocationMaster?.locationType === 'yard')
+  );
+  const yardManagerName =
+    typeof selectedLocationMaster === 'object' && String(selectedLocationMaster?.yardManager || '').trim()
+      ? String(selectedLocationMaster.yardManager).trim()
+      : '湯浅';
+  const effectiveReporter = isStorageYardSelected ? yardManagerName : reporter;
+  const effectiveManager = isStorageYardSelected ? yardManagerName : manager;
+  const yardSourceLocationOptions = (settings.locations || [])
+    .map((l: any) => typeof l === 'string' ? { name: l, isFinished: false, locationType: l === '置場' ? 'yard' : 'site' } : l)
+    .filter((l: any) => l?.name && l.name !== location && l.locationType !== 'yard' && !l.isFinished);
+
   // 日報の報告者は、現場で日報を送信する対象者だけに限定する。
   // 並び順も固定して、不要な実習生名などが候補に出ないようにする。
   const reporterOptions = [
@@ -1428,7 +1457,7 @@ export default function Home() {
       const reportReporter = String(r?.reporter || r?.data?.reporter || '').trim();
       const reply = String(r?.adminReply || r?.data?.adminReply || '').trim();
       const readAt = r?.adminReplyReadAt || r?.data?.adminReplyReadAt;
-      return !!reporter && reportReporter === reporter && !!reply && !readAt;
+      return !!effectiveReporter && reportReporter === effectiveReporter && !!reply && !readAt;
     })
     .sort((a: any, b: any) =>
       String(b?.adminReplyAt || b?.data?.adminReplyAt || b?.createdAt || '').localeCompare(
@@ -1439,7 +1468,7 @@ export default function Home() {
   const markAdminReplyRead = async (report: any) => {
     if (!report) return;
     const reportReporter = String(report?.reporter || report?.data?.reporter || '').trim();
-    if (!reporter || reportReporter !== reporter) return;
+    if (!effectiveReporter || reportReporter !== effectiveReporter) return;
 
     const readAt = new Date().toISOString();
     const payload = {
@@ -1541,7 +1570,16 @@ export default function Home() {
 
       {/* この端末の報告者：初回だけ選択し、次回以降は端末に記憶 */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-        {!reporter || isReporterEditing ? (
+        {isStorageYardSelected ? (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold text-amber-600">📦 置場の報告者</div>
+              <div className="font-black text-lg text-slate-950">👤 {yardManagerName}</div>
+              <div className="mt-1 text-xs font-bold text-slate-500">置場を選択中は報告者を自動固定します。</div>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800">固定</span>
+          </div>
+        ) : (!reporter || isReporterEditing ? (
           <div className="space-y-3">
             <div>
               <div className="font-black text-slate-900">👤 この端末の報告者</div>
@@ -1581,14 +1619,14 @@ export default function Home() {
               変更
             </button>
           </div>
-        )}
+        ))}
       </div>
 
       {unreadAdminReplies.length > 0 && (
         <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-emerald-200 bg-white/70">
             <div className="font-black text-emerald-900">💬 管理者からの返信</div>
-            <div className="mt-1 text-xs font-bold text-emerald-700">{reporter}さん宛の未確認メッセージです。</div>
+            <div className="mt-1 text-xs font-bold text-emerald-700">{effectiveReporter}さん宛の未確認メッセージです。</div>
           </div>
           <div className="p-4 space-y-3">
             {unreadAdminReplies.map((r: any, idx: number) => {
@@ -1817,7 +1855,7 @@ export default function Home() {
             <div className="bg-slate-50 p-4 rounded-2xl border space-y-3 text-sm overflow-y-auto flex-1">
               <div>
                 <span className="font-bold text-slate-500 block text-xs">報告者</span>
-                <span className="font-black text-slate-950">{reporter || '未設定'}</span>
+                <span className="font-black text-slate-950">{effectiveReporter || '未設定'}</span>
               </div>
 
               <div>
@@ -2030,34 +2068,44 @@ export default function Home() {
            </div>
 
            <div>
-             <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
-             <select 
-               value={manager} 
-               onChange={e => {
-                 const newManager = e.target.value;
-                 setManager(newManager);
-                 // 職長が「徳本」以外に変更された場合、石川県や宇野気石油の選択状態をリセットする
-                 if (newManager !== '徳本') {
-                   setIshikawaLeaseHeavy([]);
-                   setIshikawaLeaseAttach([]);
-                   setIshikawaLeaseOther([]);
-                   setIshikawaCustomMachines([]);
-                   setIsOpenIshikawa(false);
-                   setUnokeFuel('');
-                   setUnokeRegular('');
-                 }
-               }} 
-               className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
-             >
-               <option value="">職長を選択してください</option>
-               {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
-             </select>
+             {isStorageYardSelected ? (
+               <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+                 <div className="text-sm font-black text-amber-800">📦 置場専用日報</div>
+                 <div className="mt-1 text-lg font-black text-slate-950">報告者・責任者：{yardManagerName}</div>
+                 <div className="mt-1 text-xs font-bold text-amber-700">置場の日報は自動的に{yardManagerName}さんの報告として保存されます。</div>
+               </div>
+             ) : (
+               <>
+                 <label className="text-base font-bold text-slate-950 block mb-2">【職長】</label>
+                 <select 
+                   value={manager} 
+                   onChange={e => {
+                     const newManager = e.target.value;
+                     setManager(newManager);
+                     // 職長が「徳本」以外に変更された場合、石川県や宇野気石油の選択状態をリセットする
+                     if (newManager !== '徳本') {
+                       setIshikawaLeaseHeavy([]);
+                       setIshikawaLeaseAttach([]);
+                       setIshikawaLeaseOther([]);
+                       setIshikawaCustomMachines([]);
+                       setIsOpenIshikawa(false);
+                       setUnokeFuel('');
+                       setUnokeRegular('');
+                     }
+                   }} 
+                   className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
+                 >
+                   <option value="">職長を選択してください</option>
+                   {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
+                 </select>
+               </>
+             )}
            </div>
         </div>
 
 
         {/* 現場写真：着工前・完了後 */}
-        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+        <div className={`${isStorageYardSelected ? 'hidden' : ''} bg-white p-6 rounded-3xl border shadow-sm space-y-4`}>
           <div className="border-b pb-3">
             <span className="font-black text-lg text-orange-600">📷 現場写真（着工前・完了後）</span>
             <p className="text-xs md:text-sm font-bold text-slate-500 mt-1">
@@ -2135,6 +2183,16 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {isStorageYardSelected && (
+          <div className="rounded-3xl border-2 border-amber-300 bg-amber-50 p-5 shadow-sm">
+            <div className="text-xl font-black text-amber-900">📦 置場専用入力</div>
+            <div className="mt-2 text-sm font-bold leading-6 text-amber-800">
+              置場の日常作業に加えて、処分・スクラップ・一般依頼を記録できます。
+              処分・スクラップは「どの現場分か」を選択でき、分からない場合は「不明」のまま登録できます。
+            </div>
+          </div>
+        )}
 
         {/* 2. 作業員 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
@@ -2364,7 +2422,7 @@ export default function Home() {
         </div>
 
         {/* 作業種別・人数（作業員の内訳） */}
-        <div className="bg-white p-5 rounded-3xl border shadow-sm space-y-4">
+        <div className={`${isStorageYardSelected ? 'hidden' : ''} bg-white p-5 rounded-3xl border shadow-sm space-y-4`}>
           <div className="border-b pb-3">
             <span className="font-black text-lg text-orange-600 block">
               🏷️ 作業種別・人数
@@ -2420,7 +2478,7 @@ export default function Home() {
         </div>
 
         {/* 3. 外注会社・作業内容 */}
-        <div className="bg-white p-5 rounded-3xl border shadow-sm space-y-4">
+        <div className={`${isStorageYardSelected ? 'hidden' : ''} bg-white p-5 rounded-3xl border shadow-sm space-y-4`}>
           <div className="border-b pb-3">
             <span className="font-black text-lg text-orange-600 block">
               🏢 3. 外注会社・作業内容
@@ -2622,7 +2680,7 @@ export default function Home() {
         </div>
 
         {/* 4. 重機・車両 */}
-        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-5">
+        <div className={`${isStorageYardSelected ? 'hidden' : ''} bg-white p-6 rounded-3xl border shadow-sm space-y-5`}>
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">🚜 4. 重機・車両（複数選択可）</span>
            </div>
@@ -3119,7 +3177,7 @@ export default function Home() {
         </div>
 
         {/* 5. 燃料・経費 */}
-        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+        <div className={`${isStorageYardSelected ? 'hidden' : ''} bg-white p-6 rounded-3xl border shadow-sm space-y-4`}>
            <div className="border-b pb-3">
              <span className="font-black text-lg text-orange-600">⛽ 5. 燃料・経費</span>
            </div>
@@ -3165,8 +3223,8 @@ export default function Home() {
         {/* 6. 処分場への搬出 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="flex justify-between items-center border-b pb-3">
-             <span className="font-black text-lg text-orange-600">🗑️ 6. 処分場への搬出</span>
-             <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
+             <span className="font-black text-lg text-orange-600">{isStorageYardSelected ? '🗑️ 置場の処分' : '🗑️ 6. 処分場への搬出'}</span>
+             <button type="button" onClick={() => setDisposals([...disposals, {location: '', item: '', quantity: '', unit: 't', ...(isStorageYardSelected ? { yardSourceType: 'yard', yardSourceLocation: '', yardSourceNote: '' } : {})}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
 
            {disposals.length === 0 && (
@@ -3178,11 +3236,36 @@ export default function Home() {
 
              return (
                <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 {isStorageYardSelected && (
+                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+                     <div className="text-sm font-black text-amber-900">📍 この処分はどこ由来ですか？</div>
+                     <select value={entry.yardSourceType || 'yard'} onChange={(e) => {
+                       const updated = [...disposals];
+                       updated[index] = { ...updated[index], yardSourceType: e.target.value, yardSourceLocation: e.target.value === 'site' ? (updated[index].yardSourceLocation || '') : '' };
+                       setDisposals(updated);
+                     }} className="w-full p-3 border-2 border-amber-200 rounded-xl bg-white font-bold text-slate-900">
+                       <option value="site">特定の現場分</option>
+                       <option value="multiple">複数現場分</option>
+                       <option value="yard">置場の物</option>
+                       <option value="general">一般依頼</option>
+                       <option value="unknown">不明</option>
+                     </select>
+                     {entry.yardSourceType === 'site' && (
+                       <select value={entry.yardSourceLocation || ''} onChange={(e) => { const updated = [...disposals]; updated[index] = { ...updated[index], yardSourceLocation: e.target.value }; setDisposals(updated); }} className="w-full p-3 border-2 border-amber-200 rounded-xl bg-white font-bold text-slate-900">
+                         <option value="">現場を選択してください</option>
+                         {yardSourceLocationOptions.map((l:any) => <option key={l.name} value={l.name}>{l.name}</option>)}
+                       </select>
+                     )}
+                     {entry.yardSourceType !== 'site' && entry.yardSourceType !== 'yard' && (
+                       <input type="text" value={entry.yardSourceNote || ''} onChange={(e) => { const updated = [...disposals]; updated[index] = { ...updated[index], yardSourceNote: e.target.value }; setDisposals(updated); }} placeholder={entry.yardSourceType === 'general' ? '依頼者名・内容など（任意）' : '分かる範囲のメモ（任意）'} className="w-full p-3 border-2 border-amber-200 rounded-xl bg-white font-bold text-slate-900" />
+                     )}
+                   </div>
+                 )}
                  <div>
                    <label className="text-sm font-bold text-slate-950 block mb-1">① 処分場を選択</label>
                    <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
                      const updated = [...disposals];
-                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 't' };
+                     updated[index] = { ...updated[index], location: e.target.value, item: '', quantity: entry.quantity, unit: 't' };
                      setDisposals(updated);
                    }}>
                      <option value="">処分場を選択...</option>
@@ -3233,8 +3316,8 @@ export default function Home() {
         {/* 7. スクラップの搬出 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="flex justify-between items-center border-b pb-3">
-             <span className="font-black text-lg text-orange-600">♻️ 7. スクラップの搬出</span>
-             <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 'kg'}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
+             <span className="font-black text-lg text-orange-600">{isStorageYardSelected ? '♻️ 置場のスクラップ' : '♻️ 7. スクラップの搬出'}</span>
+             <button type="button" onClick={() => setScraps([...scraps, {location: '', item: '', quantity: '', unit: 'kg', ...(isStorageYardSelected ? { yardSourceType: 'yard', yardSourceLocation: '', yardSourceNote: '' } : {})}])} className="bg-emerald-600 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow hover:bg-emerald-700 transition">＋ 追加する</button>
            </div>
 
            {scraps.length === 0 && (
@@ -3246,11 +3329,35 @@ export default function Home() {
 
              return (
                <div key={index} className="p-4 border-2 rounded-2xl bg-slate-50 space-y-3">
+                 {isStorageYardSelected && (
+                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 space-y-3">
+                     <div className="text-sm font-black text-emerald-900">📍 このスクラップはどこ由来ですか？</div>
+                     <select value={entry.yardSourceType || 'yard'} onChange={(e) => {
+                       const updated = [...scraps];
+                       updated[index] = { ...updated[index], yardSourceType: e.target.value, yardSourceLocation: e.target.value === 'site' ? (updated[index].yardSourceLocation || '') : '' };
+                       setScraps(updated);
+                     }} className="w-full p-3 border-2 border-emerald-200 rounded-xl bg-white font-bold text-slate-900">
+                       <option value="site">特定の現場分</option>
+                       <option value="multiple">複数現場分</option>
+                       <option value="yard">置場の物</option>
+                       <option value="unknown">不明</option>
+                     </select>
+                     {entry.yardSourceType === 'site' && (
+                       <select value={entry.yardSourceLocation || ''} onChange={(e) => { const updated = [...scraps]; updated[index] = { ...updated[index], yardSourceLocation: e.target.value }; setScraps(updated); }} className="w-full p-3 border-2 border-emerald-200 rounded-xl bg-white font-bold text-slate-900">
+                         <option value="">現場を選択してください</option>
+                         {yardSourceLocationOptions.map((l:any) => <option key={l.name} value={l.name}>{l.name}</option>)}
+                       </select>
+                     )}
+                     {entry.yardSourceType !== 'site' && entry.yardSourceType !== 'yard' && (
+                       <input type="text" value={entry.yardSourceNote || ''} onChange={(e) => { const updated = [...scraps]; updated[index] = { ...updated[index], yardSourceNote: e.target.value }; setScraps(updated); }} placeholder="分かる範囲のメモ（任意）" className="w-full p-3 border-2 border-emerald-200 rounded-xl bg-white font-bold text-slate-900" />
+                     )}
+                   </div>
+                 )}
                  <div>
                    <label className="text-sm font-bold text-slate-950 block mb-1">① スクラップ場を選択</label>
                    <select className="w-full max-w-full min-w-0 p-3.5 rounded-xl border-2 font-bold text-base bg-white text-slate-950 box-border block" value={entry.location} onChange={(e) => {
                      const updated = [...scraps];
-                     updated[index] = { location: e.target.value, item: '', quantity: entry.quantity, unit: 'kg' };
+                     updated[index] = { ...updated[index], location: e.target.value, item: '', quantity: entry.quantity, unit: 'kg' };
                      setScraps(updated);
                    }}>
                      <option value="">スクラップ場を選択...</option>
@@ -3311,10 +3418,49 @@ export default function Home() {
            </div>
         </div>
 
+        {isStorageYardSelected && (
+          <div className="bg-white p-6 rounded-3xl border-2 border-violet-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between gap-3 border-b pb-3">
+              <div>
+                <div className="font-black text-lg text-violet-700">👤 一般の方からの依頼</div>
+                <div className="mt-1 text-xs font-bold text-slate-500">一般の方からゴミ処分などの依頼があった場合だけ入力します。</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setYardGeneralRequests([...yardGeneralRequests, { requester: '', description: '', receivedAmount: '', note: '' }])}
+                className="shrink-0 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white"
+              >＋ 追加</button>
+            </div>
+            {yardGeneralRequests.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">一般依頼がある日だけ追加してください。</div>
+            ) : (
+              <div className="space-y-3">
+                {yardGeneralRequests.map((req, index) => (
+                  <div key={index} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+                    <input value={req.requester} onChange={(e) => { const next=[...yardGeneralRequests]; next[index]={...next[index], requester:e.target.value}; setYardGeneralRequests(next); }} placeholder="依頼者名（任意）" className="w-full p-3 border-2 border-violet-200 rounded-xl bg-white font-bold text-slate-900" />
+                    <textarea value={req.description} onChange={(e) => { const next=[...yardGeneralRequests]; next[index]={...next[index], description:e.target.value}; setYardGeneralRequests(next); }} placeholder="依頼内容（例：家庭ごみの処分依頼）" rows={2} className="w-full p-3 border-2 border-violet-200 rounded-xl bg-white font-bold text-slate-900" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-black text-violet-800 block mb-1">受取金額（任意）</label>
+                        <input type="number" inputMode="numeric" min="0" value={req.receivedAmount} onChange={(e) => { const next=[...yardGeneralRequests]; next[index]={...next[index], receivedAmount:e.target.value}; setYardGeneralRequests(next); }} placeholder="0" className="w-full p-3 border-2 border-violet-200 rounded-xl bg-white font-bold text-slate-900" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-violet-800 block mb-1">メモ（任意）</label>
+                        <input value={req.note} onChange={(e) => { const next=[...yardGeneralRequests]; next[index]={...next[index], note:e.target.value}; setYardGeneralRequests(next); }} placeholder="補足" className="w-full p-3 border-2 border-violet-200 rounded-xl bg-white font-bold text-slate-900" />
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setYardGeneralRequests(yardGeneralRequests.filter((_,i)=>i!==index))} className="w-full rounded-xl bg-red-100 py-2.5 text-sm font-black text-red-700">削除</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 8. 本日の作業内容 */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
            <div className="border-b pb-3">
-             <span className="font-black text-lg text-orange-600">📝 8. 本日の作業内容</span>
+             <span className="font-black text-lg text-orange-600">{isStorageYardSelected ? '📝 置場の本日の作業内容' : '📝 8. 本日の作業内容'}</span>
            </div>
 
            <div>
