@@ -958,6 +958,23 @@ export default function AdminPage() {
     return loc?.yardManager || '湯浅';
   };
 
+  const isStorageYardLocationName = (locationName: string) => {
+    const matched = (settings.locations || []).find((loc: any) =>
+      (typeof loc === 'string' ? loc : loc?.name) === locationName
+    );
+    return isStorageYardLocation(matched || locationName);
+  };
+
+  const getYardSourceLabel = (item: any) => {
+    const type = String(item?.yardSourceType || '').trim();
+    if (type === 'site') return item?.yardSourceLocation ? `現場：${item.yardSourceLocation}` : '特定現場（未選択）';
+    if (type === 'multiple') return `複数現場分${item?.yardSourceNote ? `：${item.yardSourceNote}` : ''}`;
+    if (type === 'general') return `一般依頼${item?.yardSourceNote ? `：${item.yardSourceNote}` : ''}`;
+    if (type === 'unknown') return `不明${item?.yardSourceNote ? `：${item.yardSourceNote}` : ''}`;
+    if (type === 'yard') return '置場の物';
+    return '置場（旧データ）';
+  };
+
   const getLocationShortName = (locationName: string) => {
     const master = (settings.locations || []).find((loc: any) => {
       const fullName = typeof loc === 'string' ? loc : loc?.name;
@@ -4596,7 +4613,8 @@ export default function AdminPage() {
 
   const getLocationMonthlyScrapData = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
-    const locReports = reports.filter((r: any) => targetNames.includes(r.location));
+    const locReports = reports.filter((r: any) => targetNames.includes(r.location) || isStorageYardLocationName(r.location));
+    const targetIsYard = targetNames.some((name: string) => isStorageYardLocationName(name));
     const months: any = {};
 
     locReports.forEach((r: any) => {
@@ -4611,6 +4629,14 @@ export default function AdminPage() {
       const scraps = Array.isArray(r.scraps) ? r.scraps : [];
 
       scraps.forEach((sc: any, scrapIndex: number) => {
+        const isDirectReport = targetNames.includes(r.location);
+        const isYardReport = isStorageYardLocationName(r.location);
+        const sourceType = String(sc?.yardSourceType || '').trim();
+        const sourceLocation = String(sc?.yardSourceLocation || '').trim();
+        const includeDirectYardRow = !(isYardReport && targetIsYard && sourceType === 'site' && sourceLocation);
+        const includeAttributedRow = !isDirectReport && isYardReport && sourceType === 'site' && targetNames.includes(sourceLocation);
+        if (!(isDirectReport ? includeDirectYardRow : includeAttributedRow)) return;
+
         const scrapSite = sc.location || 'その他スクラップ場';
         const item = sc.item || '品目未指定';
         const master = (settings.scrapLocations || []).find(
@@ -4671,7 +4697,8 @@ export default function AdminPage() {
 
   const getDisposalMonthlyBreakdown = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
-    const locReports = reports.filter(r => targetNames.includes(r.location));
+    const locReports = reports.filter((r: any) => targetNames.includes(r.location) || isStorageYardLocationName(r.location));
+    const targetIsYard = targetNames.some((name: string) => isStorageYardLocationName(name));
     const canonicalOv = disposalOverrides[locName] || {};
     const bySite: any = {};
 
@@ -4689,6 +4716,14 @@ export default function AdminPage() {
       const disposals = Array.isArray(r.disposals) ? r.disposals : [];
 
       disposals.forEach((d: any) => {
+        const isDirectReport = targetNames.includes(r.location);
+        const isYardReport = isStorageYardLocationName(r.location);
+        const sourceType = String(d?.yardSourceType || '').trim();
+        const sourceLocation = String(d?.yardSourceLocation || '').trim();
+        const includeDirectYardRow = !(isYardReport && targetIsYard && sourceType === 'site' && sourceLocation);
+        const includeAttributedRow = !isDirectReport && isYardReport && sourceType === 'site' && targetNames.includes(sourceLocation);
+        if (!(isDirectReport ? includeDirectYardRow : includeAttributedRow)) return;
+
         const dLoc = d.location || 'その他処分場';
         const itemKey = d.item || '品目未指定';
         const masterRecord = (settings.disposalLocations || []).find(
@@ -12689,6 +12724,16 @@ export default function AdminPage() {
         });
 
         const latestReports = yardReports.slice(0, 20);
+        const yardDisposalRows = yardReports.flatMap((r:any) =>
+          (Array.isArray(r.disposals) ? r.disposals : []).map((item:any) => ({ ...item, reportDate: r.date || '', reportId: r.id }))
+        );
+        const yardScrapRows = yardReports.flatMap((r:any) =>
+          (Array.isArray(r.scraps) ? r.scraps : []).map((item:any) => ({ ...item, reportDate: r.date || '', reportId: r.id }))
+        );
+        const yardGeneralRequestRows = yardReports.flatMap((r:any) =>
+          (Array.isArray(r.yardGeneralRequests) ? r.yardGeneralRequests : []).map((item:any) => ({ ...item, reportDate: r.date || '', reportId: r.id }))
+        );
+        const yardGeneralRequestReceivedTotal = yardGeneralRequestRows.reduce((sum:number, row:any) => sum + Number(row.receivedAmount || 0), 0);
 
         return (
           <div
@@ -12728,7 +12773,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="text-xs font-bold text-slate-500">日報件数</div>
                   <div className="text-3xl font-black text-slate-900 mt-1">{yardReports.length}</div>
@@ -12744,6 +12789,14 @@ export default function AdminPage() {
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="text-xs font-bold text-slate-500">責任者</div>
                   <div className="text-lg font-black text-slate-900 mt-1">{getStorageYardManager(yardLoc)}</div>
+                </div>
+                <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                  <div className="text-xs font-bold text-orange-700">処分記録</div>
+                  <div className="text-3xl font-black text-slate-900 mt-1">{yardDisposalRows.length}</div>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="text-xs font-bold text-emerald-700">スクラップ記録</div>
+                  <div className="text-3xl font-black text-slate-900 mt-1">{yardScrapRows.length}</div>
                 </div>
               </div>
 
@@ -12768,6 +12821,64 @@ export default function AdminPage() {
                         </span>
                       ))
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-orange-200 bg-white overflow-hidden">
+                  <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
+                    <div className="font-black text-orange-900">🗑️ 置場の処分</div>
+                    <div className="text-xs text-orange-700 mt-1">由来・帰属先を確認できます。特定現場分はその現場の処分費にも反映します。</div>
+                  </div>
+                  <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
+                    {yardDisposalRows.length === 0 ? <div className="p-4 text-sm text-slate-400">処分記録はありません</div> : yardDisposalRows.slice(0, 50).map((row:any, idx:number) => (
+                      <div key={`${row.reportId || idx}-yard-disposal-${idx}`} className="p-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <span className="font-black text-slate-900">{row.reportDate || '日付なし'}　{row.location || '処分場未指定'}</span>
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">{getYardSourceLabel(row)}</span>
+                        </div>
+                        <div className="mt-1 text-sm font-bold text-slate-700">{row.item || '品目未指定'}　{row.quantity || 0}{row.unit || ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-white overflow-hidden">
+                  <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-200">
+                    <div className="font-black text-emerald-900">♻️ 置場のスクラップ</div>
+                    <div className="text-xs text-emerald-700 mt-1">由来・帰属先を確認できます。特定現場分はその現場のスクラップにも反映します。</div>
+                  </div>
+                  <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
+                    {yardScrapRows.length === 0 ? <div className="p-4 text-sm text-slate-400">スクラップ記録はありません</div> : yardScrapRows.slice(0, 50).map((row:any, idx:number) => (
+                      <div key={`${row.reportId || idx}-yard-scrap-${idx}`} className="p-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <span className="font-black text-slate-900">{row.reportDate || '日付なし'}　{row.location || 'スクラップ場未指定'}</span>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">{getYardSourceLabel(row)}</span>
+                        </div>
+                        <div className="mt-1 text-sm font-bold text-slate-700">{row.item || '品目未指定'}　{row.quantity || 0}{row.unit || ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-violet-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-violet-50 border-b border-violet-200 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="font-black text-violet-900">👤 一般の方からの依頼</div>
+                    <div className="text-xs text-violet-700 mt-1">置場日報で登録された一般依頼です。</div>
+                  </div>
+                  <div className="text-sm font-black text-violet-900">受取金額合計 ¥{Math.round(yardGeneralRequestReceivedTotal).toLocaleString('ja-JP')}</div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {yardGeneralRequestRows.length === 0 ? <div className="p-4 text-sm text-slate-400">一般依頼の記録はありません</div> : yardGeneralRequestRows.slice(0, 50).map((row:any, idx:number) => (
+                    <div key={`${row.reportId || idx}-yard-general-${idx}`} className="p-4 grid grid-cols-1 md:grid-cols-[120px_180px_minmax(0,1fr)_150px] gap-2 md:gap-4 items-start">
+                      <div className="font-black text-slate-900">{row.reportDate || '日付なし'}</div>
+                      <div className="font-bold text-slate-700">{row.requester || '依頼者未入力'}</div>
+                      <div className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{row.description || row.note || '内容未入力'}</div>
+                      <div className="font-black text-violet-800 md:text-right">{row.receivedAmount ? `¥${Number(row.receivedAmount).toLocaleString('ja-JP')}` : '金額未入力'}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
