@@ -482,9 +482,14 @@ export default function AdminPage() {
       message: '',
       startDate: today,
       endDate: end.toLocaleDateString('sv-SE'),
-      priority: 'normal' as 'normal' | 'important'
+      priority: 'normal' as 'normal' | 'important',
+      audienceMode: 'all' as 'all' | 'selected',
+      targetReporters: [] as string[]
     };
   });
+  const announcementReporterOptions = [
+    '岩橋', '寺岡', '塩澤', '徳本', '吉田', '湯浅', '島村', '鳥羽', '嶋田'
+  ];
   const [dailyAnnouncementSaving, setDailyAnnouncementSaving] = useState(false);
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
@@ -2049,6 +2054,10 @@ export default function AdminPage() {
       alert('表示終了日は開始日以降にしてください。');
       return;
     }
+    if (dailyAnnouncementDraft.audienceMode === 'selected' && dailyAnnouncementDraft.targetReporters.length === 0) {
+      alert('表示対象の報告者を1人以上選択してください。');
+      return;
+    }
     try {
       setDailyAnnouncementSaving(true);
       const item = {
@@ -2059,6 +2068,8 @@ export default function AdminPage() {
         startDate: dailyAnnouncementDraft.startDate,
         endDate: dailyAnnouncementDraft.endDate,
         priority: dailyAnnouncementDraft.priority,
+        audience: dailyAnnouncementDraft.audienceMode === 'all' ? 'all' : 'selected',
+        targetReporters: dailyAnnouncementDraft.audienceMode === 'all' ? [] : [...dailyAnnouncementDraft.targetReporters],
         createdAt: new Date().toISOString()
       };
       const nextAnnouncements = [item, ...(settings.dailyAnnouncements || [])];
@@ -2071,7 +2082,7 @@ export default function AdminPage() {
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
       const today = new Date().toLocaleDateString('sv-SE');
       const end = new Date(); end.setDate(end.getDate() + 7);
-      setDailyAnnouncementDraft({ title: '', message: '', startDate: today, endDate: end.toLocaleDateString('sv-SE'), priority: 'normal' });
+      setDailyAnnouncementDraft({ title: '', message: '', startDate: today, endDate: end.toLocaleDateString('sv-SE'), priority: 'normal', audienceMode: 'all', targetReporters: [] });
       alert('日報入力画面へのお知らせを公開しました。');
     } catch (e) {
       console.error(e);
@@ -6643,6 +6654,39 @@ export default function AdminPage() {
               </select>
             </div>
             <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースを項目に追加しました。手入力せずリストから選択してください。" rows={3} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="shrink-0">
+                  <div className="text-xs font-black text-indigo-700">表示対象</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">全員、1人、複数人を選択できます。</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={()=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,audienceMode:'all',targetReporters:[]})} className={`rounded-xl px-4 py-2 text-sm font-black border ${dailyAnnouncementDraft.audienceMode==='all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}`}>👥 全員</button>
+                  <button type="button" onClick={()=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,audienceMode:'selected'})} className={`rounded-xl px-4 py-2 text-sm font-black border ${dailyAnnouncementDraft.audienceMode==='selected' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}`}>👤 報告者を選択</button>
+                </div>
+              </div>
+              {dailyAnnouncementDraft.audienceMode === 'selected' && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                    {announcementReporterOptions.map((name) => {
+                      const checked = dailyAnnouncementDraft.targetReporters.includes(name);
+                      return (
+                        <label key={name} className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer select-none ${checked ? 'border-indigo-500 bg-white text-indigo-950 shadow-sm' : 'border-slate-200 bg-white/70 text-slate-700'}`}>
+                          <input type="checkbox" checked={checked} onChange={(e)=>{
+                            const next = e.target.checked
+                              ? Array.from(new Set([...dailyAnnouncementDraft.targetReporters, name]))
+                              : dailyAnnouncementDraft.targetReporters.filter((x)=>x!==name);
+                            setDailyAnnouncementDraft({...dailyAnnouncementDraft,targetReporters:next});
+                          }} className="h-4 w-4 accent-indigo-600" />
+                          <span className="font-black text-sm">{name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 text-xs font-bold text-indigo-700">選択中：{dailyAnnouncementDraft.targetReporters.length}名{dailyAnnouncementDraft.targetReporters.length > 0 ? `（${dailyAnnouncementDraft.targetReporters.join('・')}）` : ''}</div>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
               <label className="text-xs font-black text-slate-600">表示開始日<input type="date" value={dailyAnnouncementDraft.startDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,startDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
               <label className="text-xs font-black text-slate-600">表示終了日<input type="date" value={dailyAnnouncementDraft.endDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,endDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
@@ -6656,7 +6700,7 @@ export default function AdminPage() {
                     <div className="divide-y divide-slate-100">
                       {(settings.dailyAnnouncements || []).slice(0, 10).map((n:any) => (
                         <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                          <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
+                          <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-xs font-black text-indigo-700">表示対象：{n?.audience === 'selected' && Array.isArray(n?.targetReporters) && n.targetReporters.length > 0 ? n.targetReporters.join('・') : '全員'}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
                           <button type="button" onClick={()=>deleteDailyAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
                         </div>
                       ))}
