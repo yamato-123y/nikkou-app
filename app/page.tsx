@@ -1646,8 +1646,17 @@ export default function Home() {
   };
 
   const announcementToday = new Date().toLocaleDateString('sv-SE');
+  const isManualAnnouncementForCurrentReporter = (n: any) => {
+    const targets = Array.isArray(n?.targetReporters)
+      ? n.targetReporters.map((x: any) => String(x || '').trim()).filter(Boolean)
+      : [];
+    // 既存のお知らせには対象指定がないため、従来どおり全員向けとして扱う。
+    if (n?.audience !== 'selected' || targets.length === 0) return true;
+    return !!effectiveReporter && targets.includes(String(effectiveReporter).trim());
+  };
   const manualAnnouncements = (Array.isArray(settings.dailyAnnouncements) ? settings.dailyAnnouncements : [])
     .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
+    .filter((n: any) => isManualAnnouncementForCurrentReporter(n))
     .sort((a: any, b: any) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')));
   const automaticAnnouncements = (Array.isArray(settings.masterAnnouncements) ? settings.masterAnnouncements : [])
     .filter((n: any) => (!n?.startDate || n.startDate <= announcementToday) && (!n?.endDate || n.endDate >= announcementToday))
