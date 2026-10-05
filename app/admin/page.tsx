@@ -469,6 +469,8 @@ export default function AdminPage() {
   // 請求書照合の履歴。対象期間・照合日時・請求書金額・差額を現場／カテゴリーごとに残す。
   const [invoiceReconcileHistory, setInvoiceReconcileHistory] = useState<any>({});
   const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState<any>({});
+  // 管理画面上部の請求書照合進捗。月ごとにリースの未照合を一覧化する。
+  const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
   // 日報入力画面へ表示する管理者アナウンス。表示期間を指定して公開する。
   const [dailyAnnouncementDraft, setDailyAnnouncementDraft] = useState(() => {
     const today = new Date().toLocaleDateString('sv-SE');
@@ -6443,6 +6445,63 @@ export default function AdminPage() {
     })
     .map((worker: any) => worker.name);
 
+  // 請求書照合進捗：選択月の日報に実際に登場した「現場 × リース業者」だけを対象にする。
+  // 確定履歴が指定期間の全明細を覆っている場合だけ「照合済み」とする。
+  const invoiceProgressRows = (() => {
+    if (!/^\d{4}-\d{2}$/.test(invoiceProgressMonth)) return [];
+    const monthLocations = Array.from(new Set(
+      dashboardReports
+        .filter((r:any) => normalizeDashboardDate(r?.date).slice(0, 7) === invoiceProgressMonth)
+        .map((r:any) => String(r?.location || '').trim())
+        .filter(Boolean)
+    ));
+    const rows:any[] = [];
+    monthLocations.forEach((locName:string) => {
+      const application = getLeaseCostApplication(locName);
+      const monthLines = (application.lines || []).filter((line:any) => String(line?.date || '').slice(0, 7) === invoiceProgressMonth);
+      const byVendor:Record<string, any[]> = {};
+      monthLines.forEach((line:any) => {
+        const vendor = String(line?.vendor || '未設定').trim() || '未設定';
+        if (!byVendor[vendor]) byVendor[vendor] = [];
+        byVendor[vendor].push(line);
+      });
+      Object.entries(byVendor).forEach(([vendor, lines]:any) => {
+        const isReconciled = lines.length > 0 && lines.every((line:any) => application.coveredLineKeys.has(String(line?.lineKey || '')));
+        const estimate = lines.reduce((sum:number, line:any) => sum + Number(line?.baseAmount ?? line?.amount ?? 0), 0);
+        rows.push({
+          key: `${locName}__${vendor}`,
+          location: locName,
+          vendor,
+          estimate,
+          lineCount: lines.length,
+          isReconciled
+        });
+      });
+    });
+    return rows.sort((a:any,b:any) => Number(a.isReconciled) - Number(b.isReconciled) || String(a.vendor).localeCompare(String(b.vendor), 'ja') || String(a.location).localeCompare(String(b.location), 'ja'));
+  })();
+  const invoiceProgressDoneCount = invoiceProgressRows.filter((row:any) => row.isReconciled).length;
+  const invoiceProgressPendingCount = invoiceProgressRows.length - invoiceProgressDoneCount;
+
+  const openInvoiceProgressLease = (row:any) => {
+    if (!row?.location || !row?.vendor) return;
+    const [yearText, monthText] = invoiceProgressMonth.split('-');
+    const y = Number(yearText);
+    const m = Number(monthText);
+    const lastDay = new Date(y, m, 0).getDate();
+    const startDate = `${invoiceProgressMonth}-01`;
+    const endDate = `${invoiceProgressMonth}-${String(lastDay).padStart(2, '0')}`;
+    setModalLocation(row.location);
+    setExpenseInvoiceCategory({ key: 'lease', label: 'リース' });
+    setExpenseInvoiceFilter({ startDate, endDate, vendor: row.vendor });
+    setExpenseInvoiceEditingKey(null);
+    setExpenseInvoiceDrafts({});
+    setExpenseInvoiceAmount('');
+    setExpenseInvoiceReconcileEditingId(null);
+    setShowExpenseInvoiceDetails(false);
+    setShowExpenseInvoiceModal(true);
+  };
+
   const dashboardFeed = [
     ...dashboardReports.map((report: any) => ({
       kind: 'report' as const,
@@ -6576,6 +6635,46 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {authRole === 'admin' && (
+        <section className="rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-white">
+            <div>
+              <h2 className="text-lg md:text-xl font-black text-slate-900">🧾 請求書照合進捗</h2>
+              <p className="mt-1 text-xs md:text-sm text-slate-500">月ごとに、日報へ入力されたリース業者の照合状況を確認できます。未照合からそのまま請求書照合へ進めます。</p>
+            </div>
+            <label className="text-xs font-black text-slate-600">対象月
+              <input type="month" value={invoiceProgressMonth} onChange={(e)=>setInvoiceProgressMonth(e.target.value)} className="mt-1 block rounded-xl border-2 border-indigo-200 bg-white px-3 py-2 text-sm font-black text-slate-900" />
+            </label>
+          </div>
+          <div className="p-4 md:p-5">
+            <div className="grid grid-cols-3 gap-2.5 max-w-2xl mb-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="text-[11px] font-bold text-slate-500">対象</div><div className="text-2xl font-black text-slate-900">{invoiceProgressRows.length}<span className="ml-1 text-xs">件</span></div></div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><div className="text-[11px] font-bold text-emerald-700">✅ 照合済み</div><div className="text-2xl font-black text-emerald-700">{invoiceProgressDoneCount}<span className="ml-1 text-xs">件</span></div></div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3"><div className="text-[11px] font-bold text-amber-700">○ 未照合</div><div className="text-2xl font-black text-amber-700">{invoiceProgressPendingCount}<span className="ml-1 text-xs">件</span></div></div>
+            </div>
+            {invoiceProgressRows.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 py-7 text-center text-sm font-bold text-slate-400">この月のリース日報データはありません。</div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="hidden md:grid md:grid-cols-[1.2fr_1fr_160px_120px_120px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>リース業者</div><div className="text-right">日報由来の概算</div><div className="text-center">状態</div><div></div></div>
+                <div className="divide-y divide-slate-100">
+                  {invoiceProgressRows.map((row:any) => (
+                    <div key={row.key} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_160px_120px_120px] gap-2 md:gap-3 md:items-center px-4 py-3 bg-white">
+                      <div className="font-extrabold text-slate-900">{row.location}</div>
+                      <div className="font-bold text-slate-700">{row.vendor}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
+                      <div className="md:text-right font-black text-slate-900">{formatAmount(row.estimate)}</div>
+                      <div className="md:text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
+                      <div className="md:text-right"><button type="button" onClick={()=>openInvoiceProgressLease(row)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="mt-3 text-[11px] text-slate-500">※処分費は「請求確定額を必要な時だけ修正する」運用のため、リースのような済／未の判定対象にはしていません。</p>
           </div>
         </section>
       )}
