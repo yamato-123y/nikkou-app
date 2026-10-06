@@ -6627,22 +6627,22 @@ export default function AdminPage() {
 
   const openInvoiceProgressDisposal = (row:any) => {
     const site = String(row?.disposalSite || '').trim();
-    setDisposalJumpTarget(site ? { site, month: invoiceProgressMonth } : null);
+    const month = invoiceProgressMonth;
+    setDisposalJumpTarget(site ? { site, month } : null);
     setShowInvoiceProgressModal(false);
     setShowAllMonthlyDisposalModal(true);
-  };
 
-  useEffect(() => {
-    if (!showAllMonthlyDisposalModal || !disposalJumpTarget?.site) return;
-    const timer = window.setTimeout(() => {
-      const monthId = `disposal-month-${encodeURIComponent(disposalJumpTarget.site)}-${disposalJumpTarget.month}`;
-      const siteId = `disposal-site-${encodeURIComponent(disposalJumpTarget.site)}`;
+    // ログイン状態によってHook数が変わらないよう、ここではuseEffectを追加せず、
+    // モーダル描画後に対象の処分場・月へ直接スクロールする。
+    window.setTimeout(() => {
+      if (!site) return;
+      const monthId = `disposal-month-${encodeURIComponent(site)}-${month}`;
+      const siteId = `disposal-site-${encodeURIComponent(site)}`;
       const target = document.getElementById(monthId) || document.getElementById(siteId);
       target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setDisposalJumpTarget(null);
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [showAllMonthlyDisposalModal, disposalJumpTarget]);
+    }, 180);
+  };
 
   const openInvoiceProgressLease = (row:any) => {
     if (!row?.location || !row?.vendor) return;
