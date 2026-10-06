@@ -6688,13 +6688,13 @@ export default function AdminPage() {
           {authRole === 'admin' && (
             <>
               <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                📦 月別処分一覧
+                🗑️ 処分費を確認
               </button>
               <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🧾 請求書照合進捗
               </button>
               <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                ♻️ スクラップ確認表
+                ♻️ スクラップを確認
               </button>
             </>
           )}
@@ -6730,7 +6730,87 @@ export default function AdminPage() {
       </div>
 
       {authRole === 'admin' && (
-        <section className="rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-3xl border-2 border-blue-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 via-white to-indigo-50 px-5 md:px-7 py-5 border-b border-blue-100">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2">
+              <div>
+                <div className="text-xs font-black tracking-wider text-blue-600">目的から選ぶ</div>
+                <h2 className="mt-1 text-xl md:text-2xl font-black text-slate-950">何をしたいですか？</h2>
+                <p className="mt-1 text-sm md:text-base text-slate-600">操作する順番は決まっていません。今やりたい仕事を選んでください。</p>
+              </div>
+              <div className="text-xs md:text-sm font-bold text-slate-500">迷ったときは下の「？ 困ったときのヘルプ」を開けます。</div>
+            </div>
+          </div>
+          <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <button type="button" onClick={() => document.getElementById('admin-new')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="group rounded-2xl border-2 border-amber-200 bg-amber-50/60 p-4 text-left hover:bg-amber-50 hover:border-amber-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">🔔</span><span className="font-black text-slate-950">新しい日報・報告を見る</span></div>
+              <p className="mt-2 text-sm text-slate-600">直近の日報、報告事項、未入力候補などを確認します。</p>
+            </button>
+            <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="group rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 p-4 text-left hover:bg-indigo-50 hover:border-indigo-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">🧾</span><span className="font-black text-slate-950">請求書を照合する</span></div>
+              <p className="mt-2 text-sm text-slate-600">リース・処分場の照合状況を確認し、未処理のものへ進みます。</p>
+            </button>
+            <button type="button" onClick={() => document.getElementById('admin-sites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="group rounded-2xl border-2 border-blue-200 bg-blue-50/60 p-4 text-left hover:bg-blue-50 hover:border-blue-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">🏢</span><span className="font-black text-slate-950">現場の原価・利益を見る</span></div>
+              <p className="mt-2 text-sm text-slate-600">現場を選んで、売上・経費・利益と詳しい内訳を確認します。</p>
+            </button>
+            <button type="button" onClick={() => document.getElementById('admin-reports')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="group rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 text-left hover:bg-slate-100 hover:border-slate-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">📥</span><span className="font-black text-slate-950">送信済みの日報を見る</span></div>
+              <p className="mt-2 text-sm text-slate-600">現場ごとの過去日報を開いて内容を確認・編集します。</p>
+            </button>
+            <button type="button" onClick={() => setShowAllMonthlyDisposalModal(true)} className="group rounded-2xl border-2 border-orange-200 bg-orange-50/60 p-4 text-left hover:bg-orange-50 hover:border-orange-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">🗑️</span><span className="font-black text-slate-950">処分費を確認・修正する</span></div>
+              <p className="mt-2 text-sm text-slate-600">日報由来の金額を確認し、必要なときだけ確定額を修正します。</p>
+            </button>
+            <button type="button" onClick={openScrapReconcileModal} className="group rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4 text-left hover:bg-emerald-50 hover:border-emerald-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">♻️</span><span className="font-black text-slate-950">スクラップを確認する</span></div>
+              <p className="mt-2 text-sm text-slate-600">期間と業者を指定して、売却金額や確認状態をチェックします。</p>
+            </button>
+            <button type="button" onClick={() => document.getElementById('admin-announcements')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="group rounded-2xl border-2 border-fuchsia-200 bg-fuchsia-50/60 p-4 text-left hover:bg-fuchsia-50 hover:border-fuchsia-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">📢</span><span className="font-black text-slate-950">日報入力者へ知らせる</span></div>
+              <p className="mt-2 text-sm text-slate-600">全員・1人・複数人を選んで入力画面へお知らせを表示します。</p>
+            </button>
+            <button type="button" onClick={() => { setShowAdminSection(true); setTimeout(() => document.getElementById('admin-master')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }} className="group rounded-2xl border-2 border-violet-200 bg-violet-50/60 p-4 text-left hover:bg-violet-50 hover:border-violet-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">⚙️</span><span className="font-black text-slate-950">項目・単価を登録する</span></div>
+              <p className="mt-2 text-sm text-slate-600">作業員、業者、リース、処分場、単価などの日報用マスタを登録します。</p>
+            </button>
+          </div>
+        </section>
+      )}
+
+      {authRole === 'admin' && (
+        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <summary className="cursor-pointer select-none px-4 md:px-6 py-3.5 font-black text-slate-800 hover:bg-slate-50 transition flex items-center gap-2">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm">？</span>
+            困ったときのヘルプ
+            <span className="ml-auto text-xs font-bold text-slate-400">分からない言葉や機能を確認</span>
+          </summary>
+          <div className="border-t border-slate-200 p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm md:text-base">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+              <div className="font-black text-slate-900">🔔 新着・要確認</div>
+              <div className="mt-1 text-slate-600">直近の日報や報告事項など、確認が必要な内容を見る場所です。</div>
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5">
+              <div className="font-black text-indigo-950">🧾 請求書照合</div>
+              <div className="mt-1 text-slate-600">日報由来の概算と実際の請求書金額を比べ、必要な金額を確定します。</div>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5">
+              <div className="font-black text-blue-950">🔍 詳細分析</div>
+              <div className="mt-1 text-slate-600">現場ごとの原価・売上・利益と、その内訳を確認する画面です。</div>
+            </div>
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3.5">
+              <div className="font-black text-violet-950">⚙️ マスタ登録</div>
+              <div className="mt-1 text-slate-600">日報で選ぶ業者・機械・単価などの基礎情報を登録します。</div>
+            </div>
+            <div className="md:col-span-2 xl:col-span-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-950">
+              <span className="font-black">💡 用語：</span> 「日報由来の概算」は日報から自動計算した金額です。「確定額・請求書金額」が入力されている項目は、その金額を優先して原価へ反映します。
+            </div>
+          </div>
+        </details>
+      )}
+
+      {authRole === 'admin' && (
+        <section id="admin-announcements" className="scroll-mt-6 rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 md:px-6 py-4 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div>
@@ -6741,6 +6821,10 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="p-4 md:p-5 space-y-4">
+            <details className="rounded-xl border border-indigo-100 bg-indigo-50/40">
+              <summary className="cursor-pointer px-3.5 py-2.5 text-sm font-black text-indigo-900">？ この機能は？</summary>
+              <div className="px-3.5 pb-3 text-sm text-slate-600">日報入力画面へ事務所からのお知らせを表示します。全員向けのほか、1人・複数人だけを対象にできます。</div>
+            </details>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input value={dailyAnnouncementDraft.title} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,title:e.target.value})} placeholder="タイトル　例：リース項目を追加しました" className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900" />
               <select value={dailyAnnouncementDraft.priority} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,priority:e.target.value as 'normal'|'important'})} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900">
@@ -6821,11 +6905,14 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <section className="rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section id="admin-new" className="scroll-mt-6 rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg md:text-xl font-black text-slate-900">🔔 新着・要確認</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg md:text-xl font-black text-slate-900">🔔 新着・要確認</h2>
+                  <span title="今日より前で日報が存在する最新日を中心に、確認が必要な内容を表示します。" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600 text-xs font-black cursor-help">？</span>
+                </div>
                 <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">最新10件</span>
               </div>
               <p className="mt-1 text-xs md:text-sm text-slate-500">新しい日報・報告事項・勤怠変更を、管理画面を開いた時にまとめて確認できます。</p>
@@ -7296,8 +7383,11 @@ export default function AdminPage() {
       })()}
 
       {/* 稼働中の現場サマリー */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5`}>
-        <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 稼働中の現場 一覧</h2>
+      <div id="admin-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} scroll-mt-6 bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5`}>
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 現場ごとの原価・利益を見る</h2>
+          <p className="mt-1 text-sm text-slate-500">稼働中の現場を選ぶと、売上・経費・利益と詳しい内訳を確認できます。</p>
+        </div>
 
         <div className="block md:hidden space-y-4">
           {activeLocList.map((loc:any) => {
@@ -8720,7 +8810,7 @@ export default function AdminPage() {
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
+        <div id="admin-master" className="scroll-mt-6 bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
           <div
             role="button"
             tabIndex={0}
@@ -8734,7 +8824,10 @@ export default function AdminPage() {
             className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
           >
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-violet-900">⚙️ マスタ登録・単価設定（PC管理者用）</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl md:text-2xl font-bold text-violet-900">⚙️ 日報で使う項目・単価を登録</h2>
+                <span title="日報で選択する業者・機械・処分場・単価などの基礎情報を登録する場所です。" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-700 text-xs font-black cursor-help">？</span>
+              </div>
               <p className="text-sm md:text-base text-violet-700 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
             </div>
             <button 
@@ -9761,9 +9854,12 @@ export default function AdminPage() {
         </div>
 
         {/* 送信された日報一覧（稼働中の現場） */}
-        <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
+        <div id="admin-reports" className="scroll-mt-6 bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-3">
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（稼働中の現場）</h2>
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信済みの日報を見る</h2>
+              <p className="mt-1 text-sm text-slate-500">現場ごとに送信済みの日報を開いて、内容の確認・編集ができます。</p>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -13289,23 +13385,27 @@ export default function AdminPage() {
                   </div>
 
                                     {authRole === 'admin' && (
-                    <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 md:p-5">
-                      <div className="text-lg md:text-xl font-extrabold text-blue-900 mb-3">📘 この画面の見方</div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-base leading-relaxed">
+                    <details className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/40 overflow-hidden">
+                      <summary className="cursor-pointer select-none px-4 md:px-5 py-3.5 font-extrabold text-blue-900 flex items-center gap-2">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm">？</span>
+                        詳細分析の見方
+                        <span className="ml-auto text-xs font-bold text-blue-500">必要なときだけ開く</span>
+                      </summary>
+                      <div className="border-t border-blue-100 p-4 md:p-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-base leading-relaxed">
                         <div className="bg-white rounded-xl border border-slate-200 p-3.5">
-                          <div className="font-extrabold text-slate-800">① 日報由来の概算</div>
+                          <div className="font-extrabold text-slate-800">日報由来の概算</div>
                           <div className="text-slate-600 mt-1">日々の日報から自動計算された金額です。</div>
                         </div>
                         <div className="bg-white rounded-xl border border-blue-200 p-3.5">
-                          <div className="font-extrabold text-blue-700">② 確定金額</div>
-                          <div className="text-slate-600 mt-1">請求書が届いたら、実際の金額に修正します。変更後は画面下の「💾 保存」を押します。</div>
+                          <div className="font-extrabold text-blue-700">確定額・請求書金額</div>
+                          <div className="text-slate-600 mt-1">実際の金額が違う場合に入力します。入力されている場合は、日報由来の概算より優先します。</div>
                         </div>
                         <div className="bg-white rounded-xl border border-emerald-200 p-3.5">
-                          <div className="font-extrabold text-emerald-700">③ 原価への反映額</div>
+                          <div className="font-extrabold text-emerald-700">原価への反映額</div>
                           <div className="text-slate-600 mt-1">利益・粗利の計算に実際に使われている金額です。</div>
                         </div>
                       </div>
-                    </div>
+                    </details>
                   )}
 
                   <div className="flex items-center gap-3 mt-4 flex-wrap">
