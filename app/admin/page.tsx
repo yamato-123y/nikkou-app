@@ -475,6 +475,8 @@ export default function AdminPage() {
   // 請求書照合進捗。ボタンからポップアップを開き、月ごとにリース・処分場を確認する。
   const [showInvoiceProgressModal, setShowInvoiceProgressModal] = useState(false);
   const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
+  // 請求書照合進捗から月別処分一覧を開いたとき、選んだ処分場・対象月へ直接移動する。
+  const [disposalJumpTarget, setDisposalJumpTarget] = useState<{ site: string; month: string } | null>(null);
   // 日報入力画面へ表示する管理者アナウンス。表示期間を指定して公開する。
   const [dailyAnnouncementDraft, setDailyAnnouncementDraft] = useState(() => {
     const today = new Date().toLocaleDateString('sv-SE');
@@ -6623,10 +6625,24 @@ export default function AdminPage() {
   const disposalInvoiceProgressProgressCount = disposalInvoiceProgressRows.filter((row:any) => row.status === 'progress').length;
   const disposalInvoiceProgressPendingCount = disposalInvoiceProgressRows.filter((row:any) => row.status === 'pending').length;
 
-  const openInvoiceProgressDisposal = () => {
+  const openInvoiceProgressDisposal = (row:any) => {
+    const site = String(row?.disposalSite || '').trim();
+    setDisposalJumpTarget(site ? { site, month: invoiceProgressMonth } : null);
     setShowInvoiceProgressModal(false);
     setShowAllMonthlyDisposalModal(true);
   };
+
+  useEffect(() => {
+    if (!showAllMonthlyDisposalModal || !disposalJumpTarget?.site) return;
+    const timer = window.setTimeout(() => {
+      const monthId = `disposal-month-${encodeURIComponent(disposalJumpTarget.site)}-${disposalJumpTarget.month}`;
+      const siteId = `disposal-site-${encodeURIComponent(disposalJumpTarget.site)}`;
+      const target = document.getElementById(monthId) || document.getElementById(siteId);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setDisposalJumpTarget(null);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [showAllMonthlyDisposalModal, disposalJumpTarget]);
 
   const openInvoiceProgressLease = (row:any) => {
     if (!row?.location || !row?.vendor) return;
@@ -10454,7 +10470,7 @@ export default function AdminPage() {
                                 {row.status === 'done' ? '✅ 照合済み' : row.status === 'progress' ? '🟡 確認中' : '○ 未照合'}
                               </span>
                             </div>
-                            <div className="text-right"><button type="button" onClick={openInvoiceProgressDisposal} className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-xs font-black">月別一覧へ</button></div>
+                            <div className="text-right"><button type="button" onClick={() => openInvoiceProgressDisposal(row)} className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-xs font-black">月別一覧へ</button></div>
                           </div>
                         ))}
                       </div>
@@ -10495,7 +10511,7 @@ export default function AdminPage() {
                 }
 
                 return disposalSites.map(dSite => (
-                  <section key={dSite} className="space-y-4">
+                  <section id={`disposal-site-${encodeURIComponent(dSite)}`} key={dSite} className="space-y-4 scroll-mt-4">
                     <div className="sticky top-0 z-10 bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-sm">
                       <div className="font-extrabold text-lg">🏢 {dSite}</div>
                     </div>
@@ -10514,7 +10530,7 @@ export default function AdminPage() {
                         const invoiceValue = monthlyDisposalInvoices[invoiceKey] ?? '';
 
                         return (
-                          <div key={ym} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden shadow-2xs">
+                          <div id={`disposal-month-${encodeURIComponent(dSite)}-${ym}`} key={ym} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden shadow-2xs scroll-mt-4">
                             <div className="p-4 bg-white border-b border-slate-200">
                               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                                 <div className="font-extrabold text-lg text-slate-900">📅 {y}年{Number(m)}月</div>
@@ -15673,6 +15689,19 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* 管理画面：常時表示の最上部へ戻るボタン */}
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed right-5 bottom-5 md:right-7 md:bottom-7 z-40 inline-flex items-center gap-2 rounded-full bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 md:px-5 md:py-3.5 shadow-2xl border border-white/20 font-extrabold text-sm md:text-base transition"
+        title="最上部へ戻る"
+        aria-label="最上部へ戻る"
+      >
+        <span className="text-lg leading-none">↑</span>
+        <span>最上部へ</span>
+      </button>
+
     </div>
   );
 }
