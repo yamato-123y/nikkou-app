@@ -286,6 +286,9 @@ export default function AdminPage() {
 
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
   const [showAllMonthlyScrapModal, setShowAllMonthlyScrapModal] = useState(false);
+  const [scrapReconcileStartDate, setScrapReconcileStartDate] = useState('');
+  const [scrapReconcileEndDate, setScrapReconcileEndDate] = useState('');
+  const [scrapReconcileVendor, setScrapReconcileVendor] = useState('');
   const [checkedDisposalRows, setCheckedDisposalRows] = useState<{ [key: string]: boolean }>({});
   const [checkedScrapRows, setCheckedScrapRows] = useState<{ [key: string]: boolean }>({});
   const [scrapRowOverrides, setScrapRowOverrides] = useState<{ [key: string]: string }>({});
@@ -6163,6 +6166,61 @@ export default function AdminPage() {
     return grouped;
   };
 
+  const getAllScrapReconcileRows = () => {
+    const rows: any[] = [];
+
+    reports.forEach((r: any) => {
+      const normalized = normalizeDateStr(r.date || '');
+      if (!normalized) return;
+      const locationName = r.location || '現場名未設定';
+      const canonicalLocation = getCanonicalLocationForReport(locationName);
+      const scraps = Array.isArray(r.scraps) ? r.scraps : [];
+
+      scraps.forEach((sc: any, scrapIndex: number) => {
+        const scrapSite = sc.location || 'その他スクラップ場';
+        const item = sc.item || '品目未指定';
+        const master = (settings.scrapLocations || []).find(
+          (x: any) => x.location === scrapSite && x.item === item
+        );
+        const unit = sc.unit || master?.unit || 'kg';
+        const quantity = Number(sc.quantity || 0);
+        const rowKey = getScrapRowKey(r, sc, scrapIndex);
+        const override = scrapRowOverrides[rowKey];
+        const saleAmount = override !== '' && override !== undefined ? Number(override) : 0;
+
+        rows.push({
+          rowKey,
+          dateKey: normalized,
+          locationName,
+          canonicalLocation,
+          scrapSite,
+          item,
+          quantity,
+          unit,
+          saleAmount,
+          saleOverride: override ?? ''
+        });
+      });
+    });
+
+    return rows.sort((a: any, b: any) =>
+      String(a.dateKey).localeCompare(String(b.dateKey)) ||
+      String(a.scrapSite).localeCompare(String(b.scrapSite), 'ja') ||
+      String(a.locationName).localeCompare(String(b.locationName), 'ja') ||
+      String(a.item).localeCompare(String(b.item), 'ja')
+    );
+  };
+
+  const openScrapReconcileModal = () => {
+    const rows = getAllScrapReconcileRows();
+    const dates = rows.map((x: any) => x.dateKey).filter(Boolean).sort();
+    const vendors = Array.from(new Set(rows.map((x: any) => x.scrapSite).filter(Boolean))).sort((a: any, b: any) => String(a).localeCompare(String(b), 'ja'));
+    if (!scrapReconcileStartDate) setScrapReconcileStartDate(dates[0] || '');
+    if (!scrapReconcileEndDate) setScrapReconcileEndDate(dates[dates.length - 1] || '');
+    if (!scrapReconcileVendor && vendors.length === 1) setScrapReconcileVendor(String(vendors[0]));
+    setShowAllMonthlyScrapModal(true);
+  };
+
   const getAllMonthlyDisposalGroupedData = () => {
     const grouped: any = {};
 
@@ -6635,7 +6693,7 @@ export default function AdminPage() {
               <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🧾 請求書照合進捗
               </button>
-              <button onClick={() => setShowAllMonthlyScrapModal(true)} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 ♻️ スクラップ確認表
               </button>
             </>
@@ -10558,310 +10616,233 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 全現場：スクラップ確認表 */}
-      {showAllMonthlyScrapModal && authRole === 'admin' && (
-        <div
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn"
-          onClick={() => setShowAllMonthlyScrapModal(false)}
-        >
+      {/* 全現場：スクラップ・仕切り書照合 */}
+      {showAllMonthlyScrapModal && authRole === 'admin' && (() => {
+        const allRows = getAllScrapReconcileRows();
+        const vendorOptions = Array.from(new Set(allRows.map((x: any) => x.scrapSite).filter(Boolean)))
+          .sort((a: any, b: any) => String(a).localeCompare(String(b), 'ja'));
+        const conditionsReady = !!scrapReconcileStartDate && !!scrapReconcileEndDate && !!scrapReconcileVendor;
+        const visibleRows = conditionsReady
+          ? allRows.filter((x: any) =>
+              x.scrapSite === scrapReconcileVendor &&
+              x.dateKey >= scrapReconcileStartDate &&
+              x.dateKey <= scrapReconcileEndDate
+            )
+          : [];
+        const totalSale = visibleRows.reduce((sum: number, x: any) => sum + Number(x.saleAmount || 0), 0);
+        const checkedCount = visibleRows.filter((x: any) => !!checkedScrapRows[x.rowKey]).length;
+        const allChecked = visibleRows.length > 0 && checkedCount === visibleRows.length;
+        const qtyByUnit: Record<string, number> = {};
+        visibleRows.forEach((x: any) => {
+          qtyByUnit[x.unit] = (qtyByUnit[x.unit] || 0) + Number(x.quantity || 0);
+        });
+
+        return (
           <div
-            className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 !pb-0 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn"
+            onClick={() => setShowAllMonthlyScrapModal(false)}
           >
-            <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-900">
-                  ♻️ スクラップ確認表（全現場・スクラップ場別）
-                </h3>
-                <p className="text-sm md:text-base text-slate-600 mt-1.5 leading-relaxed">
-                  各現場の日報で登録されたスクラップ搬出を、スクラップ場・月ごとにまとめて確認します。
-                </p>
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm md:text-base text-emerald-900 font-bold leading-relaxed">
-                  💰 売却明細・計量票と照らし合わせて、各日の売却金額を入力してください。<br />
-                  「売却金額」は各現場の「詳細分析 → スクラップ搬出明細」と連動します。仕切り書の月合計も同じ画面間で共有されます。<br />
-                  日付をクリックすると「✓ 確認済」にできます。<br />
-                  <span className="text-emerald-700">
-                    金額や確認済み状態を変更したら、最後に「💾 保存」を押してください。
-                  </span>
+            <div
+              className="bg-white rounded-[28px] w-full max-w-[1500px] max-h-[94vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 md:px-7 py-5 border-b border-slate-200 bg-white shrink-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900">♻️ スクラップ・仕切り書照合</h3>
+                    <p className="text-sm text-slate-600 mt-1">期間とスクラップ業者を指定し、対象明細だけを仕切り書と照合します。</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMonthlyScrapModal(false)}
+                    className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-[190px_190px_minmax(260px,1fr)] gap-3">
+                    <label className="text-sm font-extrabold text-slate-700">
+                      開始日
+                      <input
+                        type="date"
+                        value={scrapReconcileStartDate}
+                        onChange={(e) => setScrapReconcileStartDate(e.target.value)}
+                        className="mt-1 w-full p-2.5 border-2 border-emerald-200 rounded-xl bg-white font-bold"
+                      />
+                    </label>
+                    <label className="text-sm font-extrabold text-slate-700">
+                      終了日
+                      <input
+                        type="date"
+                        value={scrapReconcileEndDate}
+                        onChange={(e) => setScrapReconcileEndDate(e.target.value)}
+                        className="mt-1 w-full p-2.5 border-2 border-emerald-200 rounded-xl bg-white font-bold"
+                      />
+                    </label>
+                    <label className="text-sm font-extrabold text-slate-700">
+                      スクラップ業者
+                      <select
+                        value={scrapReconcileVendor}
+                        onChange={(e) => setScrapReconcileVendor(e.target.value)}
+                        className="mt-1 w-full p-2.5 border-2 border-emerald-200 rounded-xl bg-white font-bold"
+                      >
+                        <option value="">業者を選択</option>
+                        {vendorOptions.map((vendor: any) => (
+                          <option key={String(vendor)} value={String(vendor)}>{String(vendor)}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowAllMonthlyScrapModal(false)}
-                className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-8">
-              {(() => {
-                const groupedData = getAllMonthlyScrapGroupedData();
-                const scrapSites = Object.keys(groupedData);
-
-                if (scrapSites.length === 0) {
-                  return (
-                    <p className="text-base text-slate-500 text-center py-8">
-                      スクラップ搬出データはありません
-                    </p>
-                  );
-                }
-
-                return scrapSites.map((scrapSite) => (
-                  <section key={scrapSite} className="space-y-4">
-                    <div className="sticky top-0 z-10 bg-emerald-800 text-white px-4 py-3 rounded-2xl shadow-sm">
-                      <div className="font-extrabold text-lg">♻️ {scrapSite}</div>
+              <div className="flex-1 overflow-y-auto px-5 md:px-7 py-5 space-y-4">
+                {!conditionsReady ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-slate-500 font-bold">
+                    開始日・終了日・スクラップ業者を指定してください。
+                  </div>
+                ) : scrapReconcileStartDate > scrapReconcileEndDate ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700 font-bold">
+                    開始日は終了日以前の日付を指定してください。
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-xs font-bold text-slate-500">対象期間</div>
+                        <div className="mt-1 font-black text-slate-900">{scrapReconcileStartDate} ～ {scrapReconcileEndDate}</div>
+                      </div>
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="text-xs font-bold text-emerald-700">対象明細</div>
+                        <div className="mt-1 text-2xl font-black text-emerald-900">{visibleRows.length}件</div>
+                      </div>
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                        <div className="text-xs font-bold text-blue-700">確認済み</div>
+                        <div className="mt-1 text-2xl font-black text-blue-900">{checkedCount} / {visibleRows.length}件</div>
+                      </div>
+                      <div className="rounded-2xl border border-emerald-300 bg-white p-4">
+                        <div className="text-xs font-bold text-slate-500">売却金額 合計</div>
+                        <div className="mt-1 text-2xl font-black text-emerald-700">{formatAmount(totalSale)}</div>
+                      </div>
                     </div>
 
-                    {Object.entries(groupedData[scrapSite])
-                      .sort(([a], [b]) => b.localeCompare(a))
-                      .map(([ym, items]: any) => {
-                        const [y, m] = ym.split('-');
-                        const monthlyQuantityByUnit: { [unit: string]: number } = {};
-                        items.forEach((it: any) => {
-                          monthlyQuantityByUnit[it.unit] =
-                            (monthlyQuantityByUnit[it.unit] || 0) + Number(it.quantity || 0);
-                        });
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="text-sm font-bold text-slate-600">
+                        総数量：{Object.keys(qtyByUnit).length === 0 ? '—' : Object.entries(qtyByUnit).map(([unit, qty], idx) => (
+                          <span key={unit}>{idx > 0 ? ' / ' : ''}{Number(qty).toLocaleString('ja-JP')} {unit}</span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={visibleRows.length === 0}
+                        onClick={() => {
+                          setCheckedScrapRows((prev) => {
+                            const next = { ...prev };
+                            visibleRows.forEach((row: any) => { next[row.rowKey] = !allChecked; });
+                            return next;
+                          });
+                          if (visibleRows.length > 0) setFinancialDirty(true);
+                        }}
+                        className={`px-4 py-2 rounded-xl font-extrabold ${visibleRows.length === 0 ? 'bg-slate-100 text-slate-400' : allChecked ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                      >
+                        {allChecked ? '確認済みを一括解除' : '✓ 表示中を一括確認済み'}
+                      </button>
+                    </div>
 
-                        const monthlySaleTotal = items.reduce(
-                          (sum: number, it: any) => sum + Number(it.saleAmount || 0),
-                          0
-                        );
-
-                        const projectMonthlyGroups: any = {};
-                        items.forEach((it: any) => {
-                          if (!projectMonthlyGroups[it.canonicalLocation]) {
-                            projectMonthlyGroups[it.canonicalLocation] = {
-                              statementKey: it.statementKey,
-                              rowTotal: 0
-                            };
-                          }
-                          projectMonthlyGroups[it.canonicalLocation].rowTotal += Number(it.saleAmount || 0);
-                        });
-
-                        return (
-                          <div
-                            key={ym}
-                            className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-2xs"
-                          >
-                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                              <div className="space-y-2">
-                                <div className="font-extrabold text-lg text-slate-900">
-                                  📅 {y}年{Number(m)}月
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <label className="text-xs md:text-sm font-extrabold text-emerald-700 whitespace-nowrap">
-                                    🧾 仕切った日
-                                  </label>
-                                  <input
-                                    type="date"
-                                    value={scrapSettlementDates[`${scrapSite}__${ym}`] ?? ''}
-                                    onChange={(e) => {
-                                      const dateKey = `${scrapSite}__${ym}`;
-                                      setScrapSettlementDates((prev) => ({
-                                        ...prev,
-                                        [dateKey]: e.target.value
-                                      }));
-                                      setFinancialDirty(true);
-                                    }}
-                                    className="bg-white text-slate-900 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-sm font-bold"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2 md:gap-3">
-                                <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
-                                  <div className="text-xs font-bold text-slate-500">月の総数量</div>
-                                  <div className="font-extrabold text-slate-900 mt-0.5">
-                                    {Object.entries(monthlyQuantityByUnit).map(([unit, qty], idx) => (
-                                      <span key={unit}>
-                                        {idx > 0 && ' / '}
-                                        {Number(qty).toLocaleString('ja-JP')} {unit}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
-                                  <div className="text-xs font-bold text-emerald-700">売却額 合計</div>
-                                  <div className="font-extrabold text-emerald-900 mt-0.5">
-                                    {formatAmount(monthlySaleTotal)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="px-4 py-3 bg-emerald-50/50 border-b border-emerald-100 space-y-2">
-                              <div className="text-xs md:text-sm font-extrabold text-emerald-900">
-                                📄 仕切り書 月合計（現場別）
-                              </div>
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                                {Object.entries(projectMonthlyGroups).map(([projectName, projectData]: any) => (
-                                  <div
-                                    key={projectName}
-                                    className="bg-white rounded-xl border border-emerald-200 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="font-bold text-sm text-slate-800 truncate">
-                                        {projectName}
-                                      </div>
-                                      <div className="text-xs text-slate-500 mt-0.5">
-                                        日別入力合計 {formatAmount(projectData.rowTotal || 0)}
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <span className="font-bold text-emerald-700">¥</span>
-                                      <input
-                                        type="number"
-                                        value={monthlyScrapStatementTotals[projectData.statementKey] ?? ''}
-                                        onChange={(e) =>
-                                          handleMonthlyScrapStatementTotalChange(
-                                            projectData.statementKey,
-                                            e.target.value
-                                          )
-                                        }
-                                        placeholder={String(Number(projectData.rowTotal || 0))}
-                                        className="w-36 p-2 border border-emerald-300 rounded-lg text-right font-extrabold bg-white text-emerald-900"
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                              <table className="w-full min-w-[980px] text-left border-collapse text-base">
-                                <thead>
-                                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold">
-                                    <th className="py-3 px-3">日付</th>
-                                    <th className="py-3 px-3">現場名</th>
-                                    <th className="py-3 px-3">品目</th>
-                                    <th className="py-3 px-3 text-right">数量</th>
-                                    <th className="py-3 px-3 text-right">売却金額</th>
-                                  </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-slate-200">
-                                  {items.map((it: any) => {
-                                    const isChecked = !!checkedScrapRows[it.rowKey];
-                                    const displayAmount =
-                                      it.saleOverride !== '' && it.saleOverride !== undefined
-                                        ? it.saleOverride
-                                        : '';
-
-                                    return (
-                                      <tr
-                                        key={it.rowKey}
-                                        className={
-                                          "transition " +
-                                          (isChecked
-                                            ? "bg-emerald-100/80 text-slate-500"
-                                            : "bg-white hover:bg-emerald-50")
-                                        }
+                    {visibleRows.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-slate-500 font-bold">
+                        指定した条件のスクラップ搬出はありません。
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[1050px] text-left border-collapse text-sm md:text-base">
+                            <thead>
+                              <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold">
+                                <th className="py-3 px-3 w-24">確認</th>
+                                <th className="py-3 px-3 w-28">日付</th>
+                                <th className="py-3 px-3">現場名</th>
+                                <th className="py-3 px-3">品目</th>
+                                <th className="py-3 px-3 text-right w-36">数量</th>
+                                <th className="py-3 px-3 text-right w-48">売却金額</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                              {visibleRows.map((it: any) => {
+                                const isChecked = !!checkedScrapRows[it.rowKey];
+                                return (
+                                  <tr key={it.rowKey} className={isChecked ? 'bg-emerald-50/80' : 'bg-white hover:bg-slate-50'}>
+                                    <td className="py-3 px-3 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCheckedScrapRows((prev) => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }));
+                                          setFinancialDirty(true);
+                                        }}
+                                        className={`px-2.5 py-1.5 rounded-lg font-extrabold text-xs ${isChecked ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-100'}`}
                                       >
-                                        <td className="py-3 px-3 align-top">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setCheckedScrapRows((prev) => ({
-                                                ...prev,
-                                                [it.rowKey]: !prev[it.rowKey]
-                                              }));
-                                              setFinancialDirty(true);
-                                            }}
-                                            className={
-                                              "font-extrabold rounded-lg px-2 py-1 inline-block " +
-                                              (isChecked
-                                                ? "bg-emerald-200 text-emerald-900"
-                                                : "bg-slate-100 text-slate-800 hover:bg-emerald-100")
-                                            }
-                                          >
-                                            {it.formattedDate || '-'}
-                                          </button>
-                                          {isChecked && (
-                                            <div className="text-[11px] font-extrabold text-emerald-700 mt-1">
-                                              ✓ 確認済
-                                            </div>
-                                          )}
-                                        </td>
-
-                                        <td className="py-3 px-3 font-bold max-w-[360px] align-top">
-                                          {it.locationName}
-                                        </td>
-
-                                        <td className="py-3 px-3 font-bold align-top">
-                                          {it.item}
-                                        </td>
-
-                                        <td className="py-3 px-3 text-right font-bold align-top">
-                                          {Number(it.quantity || 0).toLocaleString('ja-JP')} {it.unit}
-                                        </td>
-
-                                        <td className="py-3 px-3 text-right align-top">
-                                          <div className="flex items-center justify-end gap-1">
-                                            <span className="text-emerald-600 font-bold">¥</span>
-                                            <input
-                                              type="number"
-                                              value={displayAmount}
-                                              onChange={(e) =>
-                                                handleScrapRowOverrideChange(
-                                                  it.rowKey,
-                                                  e.target.value
-                                                )
-                                              }
-                                              placeholder="売却額"
-                                              className="w-36 p-2.5 border border-emerald-300 rounded-lg text-right font-extrabold bg-emerald-50/40 text-emerald-900 text-base"
-                                            />
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-
-                            <div className="px-4 py-2 text-[11px] text-slate-400 bg-white border-t border-slate-100">
-                              💡 日付ボタンを押すと「確認済み」の状態を保存できます。
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </section>
-                ));
-              })()}
-            </div>
-
-            <div className="sticky bottom-0 z-20 -mx-4 md:-mx-7 px-4 md:px-7 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
-              <div className="flex items-center gap-3 mr-auto">
-                <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                  {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
-                </span>
-                <button
-                  type="button"
-                  onClick={saveFinancialEdits}
-                  disabled={!financialDirty || isFinancialSaving}
-                  className={`px-6 py-3 rounded-xl font-extrabold text-base transition shadow-sm ${
-                    !financialDirty || isFinancialSaving
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  }`}
-                >
-                  {isFinancialSaving ? '保存中…' : '💾 保存'}
-                </button>
+                                        {isChecked ? '✓ 確認済' : '未確認'}
+                                      </button>
+                                    </td>
+                                    <td className="py-3 px-3 font-bold whitespace-nowrap">{it.dateKey}</td>
+                                    <td className="py-3 px-3 font-bold">{it.locationName}</td>
+                                    <td className="py-3 px-3 font-bold">{it.item}</td>
+                                    <td className="py-3 px-3 text-right font-bold">{Number(it.quantity || 0).toLocaleString('ja-JP')} {it.unit}</td>
+                                    <td className="py-3 px-3">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="font-bold text-emerald-600">¥</span>
+                                        <input
+                                          type="number"
+                                          value={it.saleOverride}
+                                          onChange={(e) => handleScrapRowOverrideChange(it.rowKey, e.target.value)}
+                                          placeholder="売却金額"
+                                          className="w-40 p-2.5 border-2 border-emerald-200 rounded-xl text-right font-extrabold bg-white"
+                                        />
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="px-4 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
+                          売却金額と確認済み状態は既存のスクラップ明細データと連動します。変更後は下の「💾 保存」を押してください。
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
-              <button
-                onClick={() => setShowAllMonthlyScrapModal(false)}
-                className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition"
-              >
-                閉じる
-              </button>
+              <div className="px-5 md:px-7 py-4 border-t border-slate-200 bg-white shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
+                  {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMonthlyScrapModal(false)}
+                    className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold"
+                  >
+                    閉じる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveFinancialEdits}
+                    disabled={!financialDirty || isFinancialSaving}
+                    className={`px-6 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                  >
+                    {isFinancialSaving ? '保存中…' : '💾 変更を保存'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* 社長モード専用：工程表優先UI（試験版・保存なし） */}
