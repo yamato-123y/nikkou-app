@@ -647,6 +647,31 @@ export default function AdminPage() {
     }
   };
 
+  // 設定保存の直前にサーバー側の最新設定を取り直し、
+  // 画面で編集中の内容は従来どおり保持しつつ、
+  // お知らせだけはサーバー側の最新版を優先して古い画面状態による消失を防ぐ。
+  const buildLatestSettingsForSave = async (patch: any) => {
+    let latestSettings = settings;
+    try {
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (latestRes.ok) {
+        const latest = await latestRes.json();
+        if (latest && typeof latest === 'object') latestSettings = latest;
+      }
+    } catch (e) {
+      console.warn('保存前の最新設定取得に失敗しました。現在画面の設定を基準に保存します。', e);
+    }
+
+    const merged = { ...latestSettings, ...settings, ...patch };
+    if (!Object.prototype.hasOwnProperty.call(patch || {}, 'dailyAnnouncements')) {
+      merged.dailyAnnouncements = latestSettings.dailyAnnouncements || [];
+    }
+    if (!Object.prototype.hasOwnProperty.call(patch || {}, 'masterAnnouncements')) {
+      merged.masterAnnouncements = latestSettings.masterAnnouncements || [];
+    }
+    return merged;
+  };
+
   useEffect(() => {
     if (isAuthed && authRole) fetchData();
   }, [isAuthed, authRole]);
@@ -933,10 +958,7 @@ export default function AdminPage() {
         };
       });
 
-      const newData = {
-        ...settings,
-        locations: nextLocations
-      };
+      const newData = await buildLatestSettingsForSave({ locations: nextLocations });
 
       setSettings(newData);
 
@@ -1656,7 +1678,7 @@ export default function AdminPage() {
     if (authRole !== 'admin') return;
     try {
       setCompanyCalendarSaving(true);
-      const newData = { ...settings, companyCalendars: nextCalendars };
+      const newData = await buildLatestSettingsForSave({ companyCalendars: nextCalendars });
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2077,8 +2099,9 @@ export default function AdminPage() {
         targetReporters: dailyAnnouncementDraft.audienceMode === 'all' ? [] : [...dailyAnnouncementDraft.targetReporters],
         createdAt: new Date().toISOString()
       };
-      const nextAnnouncements = [item, ...(settings.dailyAnnouncements || [])];
-      const newData = { ...settings, dailyAnnouncements: nextAnnouncements };
+      const latestSettings = await buildLatestSettingsForSave({});
+      const nextAnnouncements = [item, ...(latestSettings.dailyAnnouncements || [])];
+      const newData = { ...latestSettings, dailyAnnouncements: nextAnnouncements };
       const res = await fetch('/api/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
       });
@@ -2100,9 +2123,10 @@ export default function AdminPage() {
   const deleteDailyAnnouncement = async (id: string) => {
     if (authRole !== 'admin') return;
     if (!confirm('このお知らせを削除しますか？')) return;
-    const nextAnnouncements = (settings.dailyAnnouncements || []).filter((x: any) => x?.id !== id);
-    const newData = { ...settings, dailyAnnouncements: nextAnnouncements };
     try {
+      const latestSettings = await buildLatestSettingsForSave({});
+      const nextAnnouncements = (latestSettings.dailyAnnouncements || []).filter((x: any) => x?.id !== id);
+      const newData = { ...latestSettings, dailyAnnouncements: nextAnnouncements };
       const res = await fetch('/api/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
       });
@@ -2118,9 +2142,10 @@ export default function AdminPage() {
   const deleteMasterAnnouncement = async (id: string) => {
     if (authRole !== 'admin') return;
     if (!confirm('この自動お知らせを削除しますか？')) return;
-    const nextAnnouncements = (settings.masterAnnouncements || []).filter((x: any) => x?.id !== id);
-    const newData = { ...settings, masterAnnouncements: nextAnnouncements };
     try {
+      const latestSettings = await buildLatestSettingsForSave({});
+      const nextAnnouncements = (latestSettings.masterAnnouncements || []).filter((x: any) => x?.id !== id);
+      const newData = { ...latestSettings, masterAnnouncements: nextAnnouncements };
       const res = await fetch('/api/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData)
       });
@@ -2183,10 +2208,11 @@ export default function AdminPage() {
       }
 
       const automaticMasterAnnouncements = makeAutomaticMasterAnnouncements(key, oldList, newList);
+      const latestSettings = await buildLatestSettingsForSave({});
       const nextMasterAnnouncements = automaticMasterAnnouncements.length > 0
-        ? [...automaticMasterAnnouncements, ...(settings.masterAnnouncements || [])].slice(0, 100)
-        : (settings.masterAnnouncements || []);
-      const newData = { ...settings, [key]: targetList, masterAnnouncements: nextMasterAnnouncements };
+        ? [...automaticMasterAnnouncements, ...(latestSettings.masterAnnouncements || [])].slice(0, 100)
+        : (latestSettings.masterAnnouncements || []);
+      const newData = { ...latestSettings, [key]: targetList, masterAnnouncements: nextMasterAnnouncements };
       const res = await fetch('/api/settings', {  
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
@@ -2312,10 +2338,18 @@ export default function AdminPage() {
       const announcements = keys.flatMap((key) =>
         makeAutomaticMasterAnnouncements(key, originalSettings[key] || [], settings[key] || [])
       );
+      const latestSettings = await buildLatestSettingsForSave({});
       const nextMasterAnnouncements = announcements.length > 0
-        ? [...announcements, ...(settings.masterAnnouncements || [])].slice(0, 100)
-        : (settings.masterAnnouncements || []);
-      const newData = { ...settings, masterAnnouncements: nextMasterAnnouncements };
+        ? [...announcements, ...(latestSettings.masterAnnouncements || [])].slice(0, 100)
+        : (latestSettings.masterAnnouncements || []);
+      const newData = {
+        ...latestSettings,
+        leaseVendors: settings.leaseVendors || [],
+        leaseHeavy: settings.leaseHeavy || [],
+        leaseAttach: settings.leaseAttach || [],
+        leaseOther: settings.leaseOther || [],
+        masterAnnouncements: nextMasterAnnouncements
+      };
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2347,10 +2381,18 @@ export default function AdminPage() {
       const announcements = keys.flatMap((key) =>
         makeAutomaticMasterAnnouncements(key, originalSettings[key] || [], settings[key] || [])
       );
+      const latestSettings = await buildLatestSettingsForSave({});
       const nextMasterAnnouncements = announcements.length > 0
-        ? [...announcements, ...(settings.masterAnnouncements || [])].slice(0, 100)
-        : (settings.masterAnnouncements || []);
-      const newData = { ...settings, masterAnnouncements: nextMasterAnnouncements };
+        ? [...announcements, ...(latestSettings.masterAnnouncements || [])].slice(0, 100)
+        : (latestSettings.masterAnnouncements || []);
+      const newData = {
+        ...latestSettings,
+        ishikawaLeaseVendors: settings.ishikawaLeaseVendors || [],
+        ishikawaHeavy: settings.ishikawaHeavy || [],
+        ishikawaAttach: settings.ishikawaAttach || [],
+        ishikawaOther: settings.ishikawaOther || [],
+        masterAnnouncements: nextMasterAnnouncements
+      };
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2421,10 +2463,9 @@ export default function AdminPage() {
       return typeof l === 'string' ? { name: l, price: 0, isFinished: false } : l;
     });
 
-    const newData = { ...settings, locations: currentLocs };
-    setSettings(newData);
-
     try {
+      const newData = await buildLatestSettingsForSave({ locations: currentLocs });
+      setSettings(newData);
       await fetch('/api/settings', {  
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
@@ -3576,8 +3617,9 @@ export default function AdminPage() {
 
       // 画面内で編集した金額関連を1回のPOSTにまとめる。
       // 入力のたびにSupabaseへ送らないため、連続書き込みを防ぎます。
+      const latestSettings = await buildLatestSettingsForSave({});
       const newData = {
-        ...settings,
+        ...latestSettings,
         costOverrides,
         disposalOverrides,
         scrapOverrides,
@@ -3638,7 +3680,7 @@ export default function AdminPage() {
     setCustomSubcontractors(newCustomSubs);
     setCustomSubForm({ ...customSubForm, [locName]: { company: '', task: '', price: '' } });
 
-    const newData = { ...settings, customSubcontractors: newCustomSubs };
+    const newData = await buildLatestSettingsForSave({ customSubcontractors: newCustomSubs });
     setSettings(newData);
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
@@ -3650,7 +3692,7 @@ export default function AdminPage() {
     const newCustomSubs = { ...customSubcontractors, [locName]: updatedList };
     setCustomSubcontractors(newCustomSubs);
 
-    const newData = { ...settings, customSubcontractors: newCustomSubs };
+    const newData = await buildLatestSettingsForSave({ customSubcontractors: newCustomSubs });
     setSettings(newData);
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newData) });
   };
