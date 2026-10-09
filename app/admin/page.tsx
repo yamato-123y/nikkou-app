@@ -10885,11 +10885,19 @@ export default function AdminPage() {
                               {visibleRows.map((it: any) => {
                                 const isChecked = !!checkedScrapRows[it.rowKey];
                                 return (
-                                  <tr key={it.rowKey} className={isChecked ? 'bg-emerald-50/80' : 'bg-white hover:bg-slate-50'}>
+                                  <tr
+                                    key={it.rowKey}
+                                    onClick={() => {
+                                      setCheckedScrapRows((prev) => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }));
+                                      setFinancialDirty(true);
+                                    }}
+                                    className={`cursor-pointer transition ${isChecked ? 'bg-emerald-50/80' : 'bg-white hover:bg-slate-50'}`}
+                                  >
                                     <td className="py-3 px-3 text-center">
                                       <button
                                         type="button"
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           setCheckedScrapRows((prev) => ({ ...prev, [it.rowKey]: !prev[it.rowKey] }));
                                           setFinancialDirty(true);
                                         }}
@@ -10908,6 +10916,7 @@ export default function AdminPage() {
                                         <input
                                           type="number"
                                           value={it.saleOverride}
+                                          onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => handleScrapRowOverrideChange(it.rowKey, e.target.value)}
                                           placeholder="売却金額"
                                           className="w-40 p-2.5 border-2 border-emerald-200 rounded-xl text-right font-extrabold bg-white"
