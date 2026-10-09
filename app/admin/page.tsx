@@ -6936,7 +6936,37 @@ export default function AdminPage() {
                     <div className="divide-y divide-slate-100">
                       {(settings.dailyAnnouncements || []).slice(0, 10).map((n:any) => (
                         <div key={n.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                          <div className="min-w-0"><div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div><div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div><div className="mt-1 text-xs font-black text-indigo-700">表示対象：{n?.audience === 'selected' && Array.isArray(n?.targetReporters) && n.targetReporters.length > 0 ? n.targetReporters.join('・') : '全員'}</div><div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div></div>
+                          <div className="min-w-0">
+                            <div className="font-black text-slate-900">{n.priority==='important'?'⚠️ ':''}{n.title}</div>
+                            <div className="mt-0.5 text-xs text-slate-500">{n.startDate} ～ {n.endDate}</div>
+                            <div className="mt-1 text-xs font-black text-indigo-700">表示対象：{n?.audience === 'selected' && Array.isArray(n?.targetReporters) && n.targetReporters.length > 0 ? n.targetReporters.join('・') : '全員'}</div>
+                            <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{n.message}</div>
+                            {(() => {
+                              const acknowledgements = Array.isArray(n?.acknowledgements) ? n.acknowledgements.filter((x:any) => x?.reporter) : [];
+                              const ackMap = new Map(acknowledgements.map((x:any) => [String(x.reporter).trim(), x]));
+                              const targets = n?.audience === 'selected' && Array.isArray(n?.targetReporters)
+                                ? n.targetReporters.map((x:any) => String(x || '').trim()).filter(Boolean)
+                                : [];
+                              if (targets.length > 0) {
+                                return (
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {targets.map((name:string) => {
+                                      const ack:any = ackMap.get(name);
+                                      return (
+                                        <span key={name} className={`rounded-full px-2.5 py-1 text-[11px] font-black ${ack ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`} title={ack?.acknowledgedAt ? new Date(ack.acknowledgedAt).toLocaleString('ja-JP') : ''}>
+                                          {ack ? '✓ ' : '○ '}{name}{ack ? ' 確認済み' : ' 未確認'}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+                              if (acknowledgements.length > 0) {
+                                return <div className="mt-2 text-xs font-black text-emerald-700">✓ 確認済み：{acknowledgements.map((x:any) => x.reporter).join('・')}（{acknowledgements.length}名）</div>;
+                              }
+                              return <div className="mt-2 text-xs font-bold text-slate-400">確認済み：まだありません</div>;
+                            })()}
+                          </div>
                           <button type="button" onClick={()=>deleteDailyAnnouncement(n.id)} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-black text-rose-700">削除</button>
                         </div>
                       ))}
