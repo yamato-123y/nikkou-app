@@ -6826,8 +6826,8 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <section id="admin-announcements" className="scroll-mt-6 rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 md:px-6 py-4 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
+        <section id="admin-announcements" className="scroll-mt-6 w-full max-w-6xl mx-auto rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 md:px-5 py-3.5 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div>
                 <h2 className="text-lg md:text-xl font-black text-indigo-950">📢 日報入力者へのお知らせ</h2>
@@ -6836,19 +6836,19 @@ export default function AdminPage() {
               <span className="self-start rounded-full bg-indigo-600 px-3 py-1 text-xs font-black text-white">公開中 {(settings.dailyAnnouncements || []).filter((x:any) => { const t=new Date().toLocaleDateString('sv-SE'); return (!x.startDate || x.startDate<=t) && (!x.endDate || x.endDate>=t); }).length}件</span>
             </div>
           </div>
-          <div className="p-4 md:p-5 space-y-4">
+          <div className="w-full max-w-5xl mx-auto p-4 md:p-5 space-y-3.5">
             <details className="rounded-xl border border-indigo-100 bg-indigo-50/40">
               <summary className="cursor-pointer px-3.5 py-2.5 text-sm font-black text-indigo-900">？ この機能は？</summary>
               <div className="px-3.5 pb-3 text-sm text-slate-600">日報入力画面へ事務所からのお知らせを表示します。全員向けのほか、1人・複数人だけを対象にできます。</div>
             </details>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(220px,0.6fr)] gap-3">
               <input value={dailyAnnouncementDraft.title} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,title:e.target.value})} placeholder="タイトル　例：リース項目を追加しました" className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900" />
               <select value={dailyAnnouncementDraft.priority} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,priority:e.target.value as 'normal'|'important'})} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-bold text-slate-900">
                 <option value="normal">通常のお知らせ</option><option value="important">⚠️ 重要なお知らせ</option>
               </select>
             </div>
-            <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースを項目に追加しました。手入力せずリストから選択してください。" rows={3} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+            <textarea value={dailyAnnouncementDraft.message} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,message:e.target.value})} placeholder="本文　例：○○リースを項目に追加しました。手入力せずリストから選択してください。" rows={2} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900" />
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3.5">
               <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 <div className="shrink-0">
                   <div className="text-xs font-black text-indigo-700">表示対象</div>
@@ -6881,7 +6881,7 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 items-end">
               <label className="text-xs font-black text-slate-600">表示開始日<input type="date" value={dailyAnnouncementDraft.startDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,startDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
               <label className="text-xs font-black text-slate-600">表示終了日<input type="date" value={dailyAnnouncementDraft.endDate} onChange={(e)=>setDailyAnnouncementDraft({...dailyAnnouncementDraft,endDate:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold" /></label>
               <button type="button" disabled={dailyAnnouncementSaving} onClick={publishDailyAnnouncement} className="h-[44px] rounded-xl bg-indigo-600 px-5 font-black text-white hover:bg-indigo-700 disabled:opacity-50">{dailyAnnouncementSaving ? '送信中...' : '📨 入力画面へ公開'}</button>
