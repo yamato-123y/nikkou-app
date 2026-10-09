@@ -156,6 +156,7 @@ export default function WorkerLedgerPage() {
   const [uploading, setUploading] = useState(false);
   const [excelImportLoading, setExcelImportLoading] = useState(false);
   const [excelImportPreview, setExcelImportPreview] = useState<ExcelImportPreview | null>(null);
+  const [excelImportFile, setExcelImportFile] = useState<File | null>(null);
 
   const token = () => sessionStorage.getItem('yamato-admin-token') || '';
 
@@ -300,18 +301,21 @@ export default function WorkerLedgerPage() {
     } catch (e: any) { alert(e?.message || '削除に失敗しました。'); }
   };
 
-  const previewQualificationExcel = async (file: File) => {
+  const previewQualificationExcel = async () => {
+    if (!excelImportFile) return alert('先にExcelファイルを選択してください。');
     try {
       setExcelImportLoading(true);
       setExcelImportPreview(null);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', excelImportFile);
       form.append('workers', JSON.stringify(workerNames));
       const data = await api('/api/worker-ledger/excel-import', { method: 'POST', body: form });
       setExcelImportPreview(data as ExcelImportPreview);
     } catch (e: any) {
       alert(e?.message || 'Excelの読み取りに失敗しました。');
     } finally {
+      // Excel本体は保存しない。読み取り処理後はブラウザ側の選択状態も破棄する。
+      setExcelImportFile(null);
       setExcelImportLoading(false);
     }
   };
@@ -410,16 +414,29 @@ export default function WorkerLedgerPage() {
 
                   {!loading && tab==='qualification' && <div className="space-y-5">
                     <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 md:p-5">
-                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-                        <div>
-                          <div className="font-black text-blue-950 text-lg">📥 Excelから資格を一括登録</div>
-                          <p className="mt-1 text-sm text-blue-800 font-bold">現在使用している資格管理Excel（作業員ごとのシート）を選ぶと、作業員名・区分・資格名・修了証番号・取得日を自動で読み取ります。</p>
-                          <p className="mt-1 text-xs text-blue-700">※ すぐには登録せず、まず読み取り結果を確認します。既存データは上書き・削除しません。</p>
+                      <div>
+                        <div className="font-black text-blue-950 text-lg">📥 Excelから資格を読み取る</div>
+                        <p className="mt-1 text-sm text-blue-800 font-bold">資格管理Excel（作業員ごとのシート）を選択し、「読み取る」を押すと、作業員名・区分・資格名・修了証番号・取得日をプレビューします。</p>
+                        <div className="mt-2 rounded-xl border border-blue-200 bg-white/70 px-3 py-2 text-xs leading-relaxed text-blue-900 font-bold">
+                          🔒 「読み取る」だけではSupabaseへ資格情報を保存しません。Excelファイル本体もDatabase・Storageには保存せず、読み取り処理後に破棄します。
                         </div>
-                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-                          {excelImportLoading ? 'Excel確認中…' : '📄 Excelを選択'}
-                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={excelImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewQualificationExcel(f); e.currentTarget.value='';}} />
+                      </div>
+                      <div className="mt-4 flex flex-col lg:flex-row lg:items-center gap-3">
+                        <label className={`rounded-xl px-5 py-3 font-black text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-white hover:bg-blue-100 text-blue-800 border-2 border-blue-300'}`}>
+                          📄 Excelを選択
+                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={excelImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0] || null; setExcelImportFile(f); setExcelImportPreview(null); e.currentTarget.value='';}} />
                         </label>
+                        <div className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 truncate">
+                          {excelImportFile ? `選択中：${excelImportFile.name}` : 'Excelファイルを選択してください'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={previewQualificationExcel}
+                          disabled={excelImportLoading || !excelImportFile}
+                          className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-black disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {excelImportLoading ? '🔄 読み取り中…' : '🔍 読み取る'}
+                        </button>
                       </div>
                     </div>
 
