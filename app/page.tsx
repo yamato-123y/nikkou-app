@@ -82,6 +82,7 @@ export default function Home() {
   const [reporter, setReporter] = useState('');
   const [isReporterEditing, setIsReporterEditing] = useState(false);
   const [showMoreAnnouncements, setShowMoreAnnouncements] = useState(false);
+  const [announcementAckSavingId, setAnnouncementAckSavingId] = useState<string | null>(null);
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [workerOvertimeHours, setWorkerOvertimeHours] = useState<{[key: string]: number}>({});
   const [workerHalfDay, setWorkerHalfDay] = useState<{[key: string]: boolean}>({});
@@ -1645,6 +1646,67 @@ export default function Home() {
     }
   };
 
+  const getAnnouncementAcknowledgements = (announcement: any) =>
+    Array.isArray(announcement?.acknowledgements)
+      ? announcement.acknowledgements.filter((x: any) => x?.reporter)
+      : [];
+
+  const isAnnouncementAcknowledgedByCurrentReporter = (announcement: any) => {
+    const currentReporter = String(effectiveReporter || '').trim();
+    if (!currentReporter) return false;
+    return getAnnouncementAcknowledgements(announcement).some(
+      (x: any) => String(x?.reporter || '').trim() === currentReporter
+    );
+  };
+
+  const acknowledgeDailyAnnouncement = async (announcement: any) => {
+    const announcementId = String(announcement?.id || '').trim();
+    const currentReporter = String(effectiveReporter || '').trim();
+    if (!announcementId || !currentReporter || announcementAckSavingId) return;
+    if (isAnnouncementAcknowledgedByCurrentReporter(announcement)) return;
+
+    try {
+      setAnnouncementAckSavingId(announcementId);
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (!latestRes.ok) throw new Error('最新設定の取得に失敗しました');
+      const latestSettings = await latestRes.json();
+      const latestAnnouncements = Array.isArray(latestSettings?.dailyAnnouncements)
+        ? latestSettings.dailyAnnouncements
+        : [];
+      const targetExists = latestAnnouncements.some((n: any) => String(n?.id || '') === announcementId);
+      if (!targetExists) {
+        alert('このお知らせはすでに削除されています。');
+        setSettings(latestSettings || {});
+        return;
+      }
+
+      const acknowledgedAt = new Date().toISOString();
+      const nextAnnouncements = latestAnnouncements.map((n: any) => {
+        if (String(n?.id || '') !== announcementId) return n;
+        const currentAcks = Array.isArray(n?.acknowledgements) ? n.acknowledgements : [];
+        if (currentAcks.some((x: any) => String(x?.reporter || '').trim() === currentReporter)) return n;
+        return {
+          ...n,
+          acknowledgements: [...currentAcks, { reporter: currentReporter, acknowledgedAt }]
+        };
+      });
+
+      const newData = { ...latestSettings, dailyAnnouncements: nextAnnouncements };
+      const saveRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!saveRes.ok) throw new Error('確認状態の保存に失敗しました');
+      setSettings(newData);
+    } catch (e) {
+      console.error(e);
+      alert('お知らせの確認状態を保存できませんでした。');
+    } finally {
+      setAnnouncementAckSavingId(null);
+    }
+  };
+
   const announcementToday = new Date().toLocaleDateString('sv-SE');
   const isManualAnnouncementForCurrentReporter = (n: any) => {
     const targets = Array.isArray(n?.targetReporters)
@@ -1690,6 +1752,20 @@ export default function Home() {
                 <div className={`font-black text-base ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
                 <div className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{isMaster ? String(n.message || '').replace(/マスタに追加しました/g, '項目に追加しました') : n.message}</div>
                 <div className="mt-2 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
+                {!isMaster && effectiveReporter && (() => {
+                  const acknowledged = isAnnouncementAcknowledgedByCurrentReporter(n);
+                  const saving = announcementAckSavingId === String(n?.id || '');
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => acknowledgeDailyAnnouncement(n)}
+                      disabled={acknowledged || saving}
+                      className={`mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-black transition ${acknowledged ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default' : 'bg-white text-blue-800 border-2 border-blue-300 hover:bg-blue-100 disabled:opacity-60'}`}
+                    >
+                      {saving ? '保存中…' : acknowledged ? '✓ 確認済み' : '確認しました ✓'}
+                    </button>
+                  );
+                })()}
               </div>
             );
           })}
@@ -1713,6 +1789,20 @@ export default function Home() {
                         <div className={`font-black text-sm ${important ? 'text-rose-900' : isMaster ? 'text-emerald-900' : 'text-blue-900'}`}>{important ? '⚠️ ' : ''}{n.title}</div>
                         <div className="mt-1.5 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-800">{isMaster ? String(n.message || '').replace(/マスタに追加しました/g, '項目に追加しました') : n.message}</div>
                         <div className="mt-1.5 text-[11px] font-bold text-slate-500">表示期間：{n.startDate || '-'} ～ {n.endDate || '-'}</div>
+                        {!isMaster && effectiveReporter && (() => {
+                          const acknowledged = isAnnouncementAcknowledgedByCurrentReporter(n);
+                          const saving = announcementAckSavingId === String(n?.id || '');
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => acknowledgeDailyAnnouncement(n)}
+                              disabled={acknowledged || saving}
+                              className={`mt-2.5 w-full rounded-xl px-4 py-2 text-sm font-black transition ${acknowledged ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default' : 'bg-white text-blue-800 border-2 border-blue-300 hover:bg-blue-100 disabled:opacity-60'}`}
+                            >
+                              {saving ? '保存中…' : acknowledged ? '✓ 確認済み' : '確認しました ✓'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     );
                   })}
