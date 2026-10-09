@@ -2002,6 +2002,10 @@ export default function AdminPage() {
       setAuthRole(role);
       setIsAuthed(true);
       setShowAdminSection(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('yamato-admin-auth', role);
+        sessionStorage.setItem('yamato-admin-token', targetPassword);
+      }
       if (role === 'viewer') setViewerSection('home');
     } else {
       alert('パスワードが間違っています。');
@@ -6744,6 +6748,14 @@ export default function AdminPage() {
         </div>
         <div className="flex w-full md:w-auto gap-2 flex-wrap items-center">
           {authRole === 'admin' && (
+            <a
+              href="/admin/workers"
+              className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              👷 作業員台帳・資格管理
+            </a>
+          )}
+          {authRole === 'admin' && (
             <>
               <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🗑️ 処分費を確認
@@ -6779,6 +6791,10 @@ export default function AdminPage() {
             onClick={() => {
               setIsAuthed(false);
               setAuthRole(null);
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('yamato-admin-auth');
+                sessionStorage.removeItem('yamato-admin-token');
+              }
             }}
             className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition"
           >
