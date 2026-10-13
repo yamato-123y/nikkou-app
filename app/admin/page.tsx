@@ -475,6 +475,15 @@ export default function AdminPage() {
   // 請求書照合進捗。ボタンからポップアップを開き、月ごとにリース・処分場を確認する。
   const [showInvoiceProgressModal, setShowInvoiceProgressModal] = useState(false);
   const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
+  // 決算・期跨ぎ集計。既存データは変更せず、指定した決算日を境に日報由来の現場経費を集計する。
+  const [showFiscalClosingModal, setShowFiscalClosingModal] = useState(false);
+  const [fiscalClosingDate, setFiscalClosingDate] = useState(() => {
+    const now = new Date();
+    const targetYear = now.getMonth() + 1 > 2 ? now.getFullYear() + 1 : now.getFullYear();
+    const lastDay = new Date(targetYear, 2, 0).getDate();
+    return `${targetYear}-02-${String(lastDay).padStart(2, '0')}`;
+  });
+  const [fiscalClosingExpanded, setFiscalClosingExpanded] = useState<any>({});
   // 請求書照合進捗から月別処分一覧を開いたとき、選んだ処分場・対象月へ直接移動する。
   const [disposalJumpTarget, setDisposalJumpTarget] = useState<{ site: string; month: string } | null>(null);
   // 日報入力画面へ表示する管理者アナウンス。表示期間を指定して公開する。
@@ -6709,6 +6718,423 @@ export default function AdminPage() {
     setShowExpenseInvoiceModal(true);
   };
 
+
+  const summarizeFiscalReports = (targetReports: any[]) => {
+    const summary = {
+      labor: 0,
+      subcontractor: 0,
+      lease: 0,
+      ownMachine: 0,
+      vehicle: 0,
+      disposal: 0,
+      fuel: 0,
+      regular: 0,
+      etc: 0,
+      parking: 0,
+      other: 0,
+      total: 0,
+      scrap: 0
+    };
+
+    (targetReports || []).forEach((report: any) => {
+      const dc = calculateReportDailyCost(report);
+      summary.labor += Number(dc.lCost || 0);
+      summary.subcontractor += Number(dc.subCost || 0);
+      summary.lease += Number(dc.leaseC || 0) + Number(dc.otherLeaseC || 0);
+      summary.ownMachine += Number(dc.ownMachineC || 0);
+      summary.vehicle += Number(dc.vehicleC || 0);
+      summary.disposal += Number(dc.dispC || 0);
+      summary.fuel += Number(dc.fC || 0);
+      summary.regular += Number(dc.regularPrice || 0);
+      summary.etc += Number(dc.eC || 0);
+      summary.parking += Number(dc.pC || 0);
+      summary.other += Number(dc.oC || 0);
+      summary.scrap += Number(dc.scrapC || 0);
+    });
+
+    summary.total =
+      summary.labor +
+      summary.subcontractor +
+      summary.lease +
+      summary.ownMachine +
+      summary.vehicle +
+      summary.disposal +
+      summary.fuel +
+      summary.regular +
+      summary.etc +
+      summary.parking +
+      summary.other;
+
+    return summary;
+  };
+
+  const fiscalClosingRows = (() => {
+    const cutoff = normalizeDashboardDate(fiscalClosingDate);
+    if (!cutoff) return [];
+
+    const configuredNames = (settings.locations || [])
+      .map((loc: any) => typeof loc === 'string' ? loc : loc?.name)
+      .map((name: any) => String(name || '').trim())
+      .filter(Boolean);
+
+    const extraReportNames = dashboardReports
+      .map((report: any) => String(report?.location || '').trim())
+      .filter(Boolean)
+      .filter((reportName: string) => {
+        return !configuredNames.some((configuredName: string) =>
+          getTargetLocationNames(configuredName).includes(reportName)
+        );
+      });
+
+    const locationNames = Array.from(new Set([...configuredNames, ...extraReportNames])).filter((name: string) => {
+      const master = (settings.locations || []).find((loc: any) =>
+        (typeof loc === 'string' ? loc : loc?.name) === name
+      );
+      return !isStorageYardLocation(master || name);
+    });
+
+    return locationNames.flatMap((locationName: string) => {
+      const targetNames = getTargetLocationNames(locationName);
+      const locationReports = dashboardReports
+        .filter((report: any) => targetNames.includes(String(report?.location || '')))
+        .filter((report: any) => !!normalizeDashboardDate(report?.date))
+        .sort((a: any, b: any) =>
+          normalizeDashboardDate(a?.date).localeCompare(normalizeDashboardDate(b?.date))
+        );
+
+      const beforeReports = locationReports.filter(
+        (report: any) => normalizeDashboardDate(report?.date) <= cutoff
+      );
+      const afterReports = locationReports.filter(
+        (report: any) => normalizeDashboardDate(report?.date) > cutoff
+      );
+
+      // 「期跨ぎ」は、決算日以前と翌期側の両方に日報がある現場だけ。
+      if (beforeReports.length === 0 || afterReports.length === 0) return [];
+
+      const locMaster = (settings.locations || []).find((loc: any) =>
+        (typeof loc === 'string' ? loc : loc?.name) === locationName
+      );
+      const reportClients = Array.from(
+        new Set(locationReports.map((r: any) => String(r?.client || '').trim()).filter(Boolean))
+      );
+      const clientName =
+        (typeof locMaster === 'object' ? String(locMaster?.clientName || '').trim() : '') ||
+        reportClients.join('、');
+
+      return [{
+        locationName,
+        targetNames,
+        clientName,
+        contractPrice: typeof locMaster === 'object' ? Number(locMaster?.price || 0) : 0,
+        firstDate: normalizeDashboardDate(locationReports[0]?.date),
+        lastDate: normalizeDashboardDate(locationReports[locationReports.length - 1]?.date),
+        beforeReports,
+        afterReports,
+        allReports: locationReports,
+        before: summarizeFiscalReports(beforeReports),
+        after: summarizeFiscalReports(afterReports),
+        total: summarizeFiscalReports(locationReports)
+      }];
+    }).sort((a: any, b: any) => a.locationName.localeCompare(b.locationName, 'ja'));
+  })();
+
+  const getFiscalExpenseVendorRows = (locName: string, targetReports: any[]) => {
+    const totals: Record<string, number> = {};
+    const add = (label: string, amount: any) => {
+      const value = Number(amount || 0);
+      if (!label || value === 0) return;
+      totals[label] = Number(totals[label] || 0) + value;
+    };
+
+    const addLeaseSelection = (
+      values: any[],
+      masters: any[],
+      fallbackVendor: string
+    ) => {
+      (Array.isArray(values) ? values : []).forEach((stored: any) => {
+        const master = findLeaseMasterForSelection(masters || [], stored, fallbackVendor);
+        const parsed = parseLeaseSelectionValue(stored);
+        const vendor =
+          (master ? getLeaseMasterVendor(master, fallbackVendor) : parsed.vendor) ||
+          fallbackVendor ||
+          'リース';
+        add(vendor, Number(master?.price || 0));
+      });
+    };
+
+    (targetReports || []).forEach((report: any) => {
+      const dc = calculateReportDailyCost(report);
+
+      // 日報から業者名まで特定できる経費は業者名でまとめる。
+      (Array.isArray(report.subcontractors) ? report.subcontractors : []).forEach((sub: any, index: number) => {
+        const line = getEffectiveSubcontractorInvoiceLine(locName, report, sub, index);
+        add(String(line?.company || sub?.company || '外注').trim() || '外注', Number(line?.amount || 0));
+      });
+
+      const leaseHeavy = Array.isArray(report.leaseHeavy) ? report.leaseHeavy : [];
+      const legacyMachines = leaseHeavy.length === 0 && Array.isArray(report.machines) ? report.machines : [];
+      addLeaseSelection(legacyMachines, settings.leases || [], '南大阪建機');
+      addLeaseSelection(leaseHeavy, settings.leaseHeavy || [], '南大阪建機');
+      addLeaseSelection(report.leaseAttach || [], settings.leaseAttach || [], '南大阪建機');
+      addLeaseSelection(report.leaseOther || [], settings.leaseOther || [], '南大阪建機');
+      addLeaseSelection(report.ishikawaHeavy || [], settings.ishikawaHeavy || [], '');
+      addLeaseSelection(report.ishikawaAttach || [], settings.ishikawaAttach || [], '');
+      addLeaseSelection(report.ishikawaOther || [], settings.ishikawaOther || [], '');
+
+      (Array.isArray(report.otherLeases) ? report.otherLeases : []).forEach((item: any) => {
+        add('南大阪建機', Number(item?.price || 0));
+      });
+      (Array.isArray(report.ishikawaCustomMachines) ? report.ishikawaCustomMachines : []).forEach((item: any) => {
+        const amount = Number(item?.price || 0) * Number(item?.count || 0);
+        if (amount) add('石川県リース（自由入力）', amount);
+      });
+      (Array.isArray(report.mokCustomMachines) ? report.mokCustomMachines : []).forEach((item: any) => {
+        const master =
+          (settings.leaseHeavy || []).find((x: any) => x.name === item?.name) ||
+          (settings.leaseAttach || []).find((x: any) => x.name === item?.name) ||
+          (settings.leaseOther || []).find((x: any) => x.name === item?.name);
+        const unit = item?.price !== '' && item?.price !== undefined
+          ? Number(item.price)
+          : Number(master?.price || 0);
+        add('南大阪建機', unit * Number(item?.count || 0));
+      });
+
+      Object.entries(dc.disposalBreakdown || {}).forEach(([disposalSite, data]: any) => {
+        add(String(disposalSite || '処分費'), Number(data?.total || 0));
+      });
+
+      // 業者名を日報から特定できないものは費目名で表示。
+      add('自社人件費（日報）', dc.lCost);
+      add('自社重機（日報）', dc.ownMachineC);
+      add('車両（日報）', dc.vehicleC);
+      add('燃料（日報）', dc.fC);
+      add('レギュラー（日報）', dc.regularPrice);
+      add('ETC（日報）', dc.eC);
+      add('駐車場（日報）', dc.pC);
+      add('その他（日報）', dc.oC);
+    });
+
+    return Object.entries(totals)
+      .map(([vendor, amount]) => ({ vendor, amount: Number(amount || 0) }))
+      .filter((row: any) => row.amount !== 0)
+      .sort((a: any, b: any) => b.amount - a.amount || a.vendor.localeCompare(b.vendor, 'ja'));
+  };
+
+  const downloadFiscalClosingExcel = () => {
+    if (!fiscalClosingDate) {
+      alert('決算日を選択してください。');
+      return;
+    }
+    if (fiscalClosingRows.length === 0) {
+      alert('指定した決算日をまたぐ現場がありません。');
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+    const fiscalIndexLabel = (index: number) => circledNumbers[index] || String(index + 1);
+    const yenFormat = '#,##0"円"';
+    const decimalFormat = '#,##0.00';
+    const border = {
+      top: { style: 'thin', color: { rgb: '808080' } },
+      bottom: { style: 'thin', color: { rgb: '808080' } },
+      left: { style: 'thin', color: { rgb: '808080' } },
+      right: { style: 'thin', color: { rgb: '808080' } }
+    };
+    const styleCell = (ws: any, address: string, style: any) => {
+      if (!ws[address]) return;
+      ws[address].s = {
+        ...(ws[address].s || {}),
+        font: { name: 'Yu Gothic', sz: 11, ...(ws[address].s?.font || {}), ...(style?.font || {}) },
+        alignment: { vertical: 'center', wrapText: true, ...(ws[address].s?.alignment || {}), ...(style?.alignment || {}) },
+        ...style
+      };
+    };
+    const styleRange = (ws: any, range: string, style: any) => {
+      const decoded = XLSX.utils.decode_range(range);
+      for (let r = decoded.s.r; r <= decoded.e.r; r++) {
+        for (let c = decoded.s.c; c <= decoded.e.c; c++) {
+          const address = XLSX.utils.encode_cell({ r, c });
+          if (ws[address]) styleCell(ws, address, style);
+        }
+      }
+    };
+
+    // 旧「2-3月またがっている現場」シートの並びを踏襲。
+    const summaryRows: any[][] = [[
+      '決算書類', '', '', `（${fiscalClosingDate}をまたがっている現場`, '', '', '', '', '', '', '', fiscalClosingRows.length, '件）', '', '', ''
+    ], []];
+
+    fiscalClosingRows.forEach((row: any, index: number) => {
+      const no = fiscalIndexLabel(index);
+      const beforeTotal = Number(row.before?.total || 0);
+      const afterTotal = Number(row.after?.total || 0);
+      summaryRows.push([no, '得意先', row.clientName || '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      summaryRows.push(['', '工事名称', row.locationName, '', '', '', '', '', '', '', '', '', '', '', '', '']);
+
+      const [sy, sm, sd] = String(row.firstDate || '').split('-');
+      const [ey, em, ed] = String(row.lastDate || '').split('-');
+      summaryRows.push([
+        '', '工事期間',
+        sy || '', '年', sm ? Number(sm) : '', '月', sd ? Number(sd) : '', '日',
+        '～',
+        ey || '', '年', em ? Number(em) : '', '月', ed ? Number(ed) : '', '日', ''
+      ]);
+
+      const contractPrice = Number(row.contractPrice || 0);
+      summaryRows.push([
+        '', '請負金額', '本工事', '', '', '', '', '', contractPrice || '', '', '', '(税抜)',
+        contractPrice ? Math.round(contractPrice * 1.1) : '', '', '', '(税込)'
+      ]);
+
+      // 請求日は後日入力する前提で空欄を残す。
+      summaryRows.push(['', '請求日', '', '', '', '本工事', '', '', '', '', '', '(税抜)', '', '', '', '(税込)']);
+      summaryRows.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      summaryRows.push(['', '', '', '', '', '合計', '', '', '', '', '', '(税抜)', '', '', '', '(税込)']);
+      summaryRows.push([
+        '', '現場経費',
+        `決算日まで（日報由来概算） ${beforeTotal.toLocaleString('ja-JP')}円`,
+        '', '', '', '', '',
+        `翌期分（日報由来概算） ${afterTotal.toLocaleString('ja-JP')}円`,
+        '', '', '', '', '', '', ''
+      ]);
+      summaryRows.push([]);
+    });
+
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+    summaryWs['!cols'] = [
+      { wch: 6 }, { wch: 16 }, { wch: 42 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 8 },
+      { wch: 18 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 12 }
+    ];
+
+    styleRange(summaryWs, `A1:P${summaryRows.length}`, {
+      font: { name: 'Yu Gothic', sz: 11 },
+      alignment: { vertical: 'center', wrapText: true }
+    });
+    styleRange(summaryWs, 'A1:P1', {
+      font: { name: 'Yu Gothic', sz: 14, bold: true },
+      fill: { fgColor: { rgb: 'D9EAF7' } }
+    });
+
+    let cursor = 3;
+    fiscalClosingRows.forEach((_: any) => {
+      styleRange(summaryWs, `A${cursor}:P${cursor + 7}`, { border });
+      styleRange(summaryWs, `A${cursor}:A${cursor}`, {
+        fill: { fgColor: { rgb: 'FFF2CC' } },
+        font: { name: 'Yu Gothic', bold: true, sz: 12 },
+        alignment: { horizontal: 'center' }
+      });
+      styleRange(summaryWs, `B${cursor}:B${cursor + 7}`, {
+        fill: { fgColor: { rgb: 'F2F2F2' } },
+        font: { name: 'Yu Gothic', bold: true }
+      });
+      styleRange(summaryWs, `B${cursor + 7}:I${cursor + 7}`, {
+        fill: { fgColor: { rgb: 'E2F0D9' } },
+        font: { name: 'Yu Gothic', bold: true }
+      });
+      cursor += 9;
+    });
+
+    XLSX.utils.book_append_sheet(workbook, summaryWs, '2-3月またがっている現場');
+
+    // 現場ごとの旧形式（支払先 / 請求日 / 金額（税込） / 支払日）。
+    fiscalClosingRows.forEach((row: any, index: number) => {
+      const beforeVendorRows = getFiscalExpenseVendorRows(row.locationName, row.beforeReports);
+      const afterVendorRows = getFiscalExpenseVendorRows(row.locationName, row.afterReports);
+      const detailRows: any[][] = [
+        [`${fiscalIndexLabel(index)}${row.locationName}`, '', '', ''],
+        ['支払先', '請求日', '金額（税込）', '支払日'],
+        [`【決算日まで：${fiscalClosingDate}】`, '', '', ''],
+        ...beforeVendorRows.map((item: any) => [item.vendor, '', item.amount, '']),
+        ['決算日まで 合計（日報由来概算）', '', beforeVendorRows.reduce((sum: number, x: any) => sum + Number(x.amount || 0), 0), ''],
+        [],
+        ['【翌期分】', '', '', ''],
+        ...afterVendorRows.map((item: any) => [item.vendor, '', item.amount, '']),
+        ['翌期分 合計（日報由来概算）', '', afterVendorRows.reduce((sum: number, x: any) => sum + Number(x.amount || 0), 0), '']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(detailRows);
+      ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 20 }, { wch: 20 }];
+      styleRange(ws, `A1:D${detailRows.length}`, {
+        border,
+        font: { name: 'Yu Gothic', sz: 11 },
+        alignment: { vertical: 'center', wrapText: true }
+      });
+      styleRange(ws, 'A1:D1', {
+        fill: { fgColor: { rgb: 'D9EAF7' } },
+        font: { name: 'Yu Gothic', sz: 13, bold: true }
+      });
+      styleRange(ws, 'A2:D2', {
+        fill: { fgColor: { rgb: '4472C4' } },
+        font: { name: 'Yu Gothic', bold: true, color: { rgb: 'FFFFFF' } },
+        alignment: { horizontal: 'center' }
+      });
+      for (let r = 3; r <= detailRows.length; r++) {
+        const c = ws[`C${r}`];
+        if (c && typeof c.v === 'number') c.z = yenFormat;
+      }
+      const sheetName = fiscalIndexLabel(index).slice(0, 31);
+      XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+    });
+
+    // 旧ブックと同じ考え方で、期跨ぎ現場に関係するスクラップを業者別に分ける。
+    const scrapByVendor: Record<string, any[]> = {};
+    const crossingNames = new Set<string>();
+    fiscalClosingRows.forEach((row: any) => row.targetNames.forEach((name: string) => crossingNames.add(name)));
+    dashboardReports
+      .filter((report: any) => crossingNames.has(String(report?.location || '')))
+      .forEach((report: any) => {
+        (Array.isArray(report.scraps) ? report.scraps : []).forEach((scrap: any, scrapIndex: number) => {
+          const vendor = String(scrap?.location || 'スクラップ').trim() || 'スクラップ';
+          if (!scrapByVendor[vendor]) scrapByVendor[vendor] = [];
+          const rowKey = getScrapRowKey(report, scrap, scrapIndex);
+          const saleAmount =
+            scrapRowOverrides[rowKey] !== '' && scrapRowOverrides[rowKey] !== undefined
+              ? Number(scrapRowOverrides[rowKey] || 0)
+              : 0;
+          scrapByVendor[vendor].push([
+            normalizeDashboardDate(report?.date),
+            String(report?.location || ''),
+            Number(scrap?.quantity || 0),
+            saleAmount,
+            ''
+          ]);
+        });
+      });
+
+    Object.entries(scrapByVendor).forEach(([vendor, rows]: any) => {
+      const ws = XLSX.utils.aoa_to_sheet([
+        [vendor, '', '', '', ''],
+        [],
+        ['日付', '現場名', '数量', '金額(税込）', '入金日'],
+        ...rows
+      ]);
+      ws['!cols'] = [{ wch: 14 }, { wch: 38 }, { wch: 14 }, { wch: 18 }, { wch: 18 }];
+      styleRange(ws, `A1:E${rows.length + 3}`, {
+        border,
+        font: { name: 'Yu Gothic', sz: 11 },
+        alignment: { vertical: 'center', wrapText: true }
+      });
+      styleRange(ws, 'A1:E1', {
+        fill: { fgColor: { rgb: 'E2F0D9' } },
+        font: { name: 'Yu Gothic', sz: 13, bold: true }
+      });
+      styleRange(ws, 'A3:E3', {
+        fill: { fgColor: { rgb: '70AD47' } },
+        font: { name: 'Yu Gothic', bold: true, color: { rgb: 'FFFFFF' } },
+        alignment: { horizontal: 'center' }
+      });
+      for (let r = 4; r <= rows.length + 3; r++) {
+        if (ws[`C${r}`]) ws[`C${r}`].z = decimalFormat;
+        if (ws[`D${r}`]) ws[`D${r}`].z = yenFormat;
+      }
+      const safeName = `スクラップ ${vendor}`.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
+      XLSX.utils.book_append_sheet(workbook, ws, safeName || 'スクラップ');
+    });
+
+    XLSX.writeFile(workbook, `決算書類_${fiscalClosingDate.replace(/-/g, '.')}.xlsx`);
+  };
+
   const dashboardFeed = [
     ...dashboardReports.map((report: any) => ({
       kind: 'report' as const,
@@ -6762,6 +7188,9 @@ export default function AdminPage() {
               </button>
               <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🧾 請求書照合進捗
+              </button>
+              <button onClick={() => setShowFiscalClosingModal(true)} className="flex-1 md:flex-none bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+                📊 決算・期跨ぎ集計
               </button>
               <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 ♻️ スクラップを確認
@@ -6823,6 +7252,10 @@ export default function AdminPage() {
             <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="group rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 p-4 text-left hover:bg-indigo-50 hover:border-indigo-300 transition">
               <div className="flex items-center gap-3"><span className="text-2xl">🧾</span><span className="font-black text-slate-950">請求書を照合する</span></div>
               <p className="mt-2 text-sm text-slate-600">リース・処分場の照合状況を確認し、未処理のものへ進みます。</p>
+            </button>
+            <button type="button" onClick={() => setShowFiscalClosingModal(true)} className="group rounded-2xl border-2 border-cyan-200 bg-cyan-50/60 p-4 text-left hover:bg-cyan-50 hover:border-cyan-300 transition">
+              <div className="flex items-center gap-3"><span className="text-2xl">📊</span><span className="font-black text-slate-950">決算の期跨ぎ現場を集計する</span></div>
+              <p className="mt-2 text-sm text-slate-600">決算日を選ぶだけで、期をまたぐ現場と現場経費を日報から自動抽出します。</p>
             </button>
             <button type="button" onClick={() => document.getElementById('admin-sites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="group rounded-2xl border-2 border-blue-200 bg-blue-50/60 p-4 text-left hover:bg-blue-50 hover:border-blue-300 transition">
               <div className="flex items-center gap-3"><span className="text-2xl">🏢</span><span className="font-black text-slate-950">現場の原価・利益を見る</span></div>
@@ -10468,6 +10901,153 @@ export default function AdminPage() {
               >
                 閉じる
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 決算・期跨ぎ集計 ポップアップ */}
+      {showFiscalClosingModal && authRole === 'admin' && (
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowFiscalClosingModal(false)}>
+          <div className="bg-white rounded-[28px] w-full max-w-7xl max-h-[94vh] overflow-y-auto shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-5 md:px-7 py-4 md:py-5">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900">📊 決算・期跨ぎ集計</h3>
+                  <p className="mt-1 text-sm text-slate-500">決算日より前と後の両方に日報がある現場だけを自動で拾います。</p>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="text-xs font-black text-slate-600">
+                    決算日
+                    <input
+                      type="date"
+                      value={fiscalClosingDate}
+                      onChange={(e) => setFiscalClosingDate(e.target.value)}
+                      className="mt-1 block rounded-xl border-2 border-cyan-200 bg-white px-3 py-2 text-sm font-black text-slate-900"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={downloadFiscalClosingExcel}
+                    disabled={fiscalClosingRows.length === 0}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                      fiscalClosingRows.length === 0
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    📥 今までの形式でExcel出力
+                  </button>
+                  <button onClick={() => setShowFiscalClosingModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 md:p-7 space-y-5 bg-slate-50/60">
+              <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 leading-relaxed">
+                <span className="font-black">今回の初回版：</span>
+                日報の作業日を基準に「決算日まで」と「翌期分」を分けます。請求日・請求額・支払日は後日Excelで入力できるよう空欄で書き出します。
+                金額はまず日報由来の概算です。既存の日報・請求書照合・マスタデータは変更しません。
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm font-black">
+                <span className="rounded-full bg-cyan-100 text-cyan-800 px-3 py-1.5">期跨ぎ現場 {fiscalClosingRows.length}件</span>
+                <span className="rounded-full bg-white border border-slate-200 text-slate-700 px-3 py-1.5">決算日 {fiscalClosingDate || '未選択'}</span>
+              </div>
+
+              {fiscalClosingRows.length === 0 ? (
+                <div className="rounded-3xl border border-slate-200 bg-white py-12 text-center text-slate-400 font-bold">
+                  この決算日をまたぐ現場はありません。
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {fiscalClosingRows.map((row: any, index: number) => {
+                    const open = !!fiscalClosingExpanded[row.locationName];
+                    const before = row.before || {};
+                    const after = row.after || {};
+                    const categories = [
+                      ['人件費', 'labor'],
+                      ['外注費', 'subcontractor'],
+                      ['リース', 'lease'],
+                      ['自社重機', 'ownMachine'],
+                      ['車両', 'vehicle'],
+                      ['処分費', 'disposal'],
+                      ['燃料', 'fuel'],
+                      ['レギュラー', 'regular'],
+                      ['ETC', 'etc'],
+                      ['駐車場', 'parking'],
+                      ['その他', 'other']
+                    ];
+                    return (
+                      <div key={row.locationName} className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => setFiscalClosingExpanded((prev: any) => ({ ...prev, [row.locationName]: !prev[row.locationName] }))}
+                          className="w-full p-4 md:p-5 text-left hover:bg-slate-50 transition"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-cyan-700">対象 {index + 1}</div>
+                              <div className="mt-1 text-base md:text-lg font-black text-slate-950">{row.locationName}</div>
+                              <div className="mt-1 text-xs md:text-sm text-slate-500">
+                                {row.clientName ? `得意先：${row.clientName}　／　` : ''}
+                                日報期間：{row.firstDate} ～ {row.lastDate}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 min-w-[320px]">
+                              <div className="rounded-xl bg-cyan-50 border border-cyan-100 px-3 py-2 text-right">
+                                <div className="text-[11px] font-bold text-cyan-700">決算日まで</div>
+                                <div className="font-black text-cyan-950">{formatAmount(before.total || 0)}</div>
+                              </div>
+                              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2 text-right">
+                                <div className="text-[11px] font-bold text-indigo-700">翌期分</div>
+                                <div className="font-black text-indigo-950">{formatAmount(after.total || 0)}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs font-black text-slate-500">{open ? '▲ 内訳を閉じる' : '▼ 内訳を見る'}</div>
+                        </button>
+
+                        {open && (
+                          <div className="border-t border-slate-200 p-4 md:p-5 bg-slate-50/70">
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[680px] text-sm">
+                                <thead>
+                                  <tr className="bg-slate-200 text-slate-700">
+                                    <th className="text-left px-3 py-2.5">費目</th>
+                                    <th className="text-right px-3 py-2.5">決算日まで</th>
+                                    <th className="text-right px-3 py-2.5">翌期分</th>
+                                    <th className="text-right px-3 py-2.5">現場合計</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 bg-white">
+                                  {categories.map(([label, key]) => (
+                                    <tr key={key}>
+                                      <td className="px-3 py-2.5 font-bold text-slate-700">{label}</td>
+                                      <td className="px-3 py-2.5 text-right font-bold">{formatAmount(before[key] || 0)}</td>
+                                      <td className="px-3 py-2.5 text-right font-bold">{formatAmount(after[key] || 0)}</td>
+                                      <td className="px-3 py-2.5 text-right font-black">{formatAmount(Number(before[key] || 0) + Number(after[key] || 0))}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="bg-emerald-50">
+                                    <td className="px-3 py-3 font-black text-emerald-900">合計</td>
+                                    <td className="px-3 py-3 text-right font-black text-emerald-900">{formatAmount(before.total || 0)}</td>
+                                    <td className="px-3 py-3 text-right font-black text-emerald-900">{formatAmount(after.total || 0)}</td>
+                                    <td className="px-3 py-3 text-right font-black text-emerald-900">{formatAmount(Number(before.total || 0) + Number(after.total || 0))}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                            <div className="mt-3 text-xs text-slate-500">
+                              ※ スクラップ売却は経費から差し引かず別管理です。Excel出力では、対象現場のスクラップを業者別シートへ分けます。
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
