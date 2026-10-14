@@ -8610,25 +8610,25 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="max-h-[72vh] overflow-auto rounded-2xl border border-slate-300 bg-white">
-                <table className="border-collapse text-[8px] min-w-max lg:w-full">
+              <div className="max-h-[72vh] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-300 bg-white">
+                <table className="w-full table-fixed border-collapse text-[8px]">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th rowSpan={2} className="sticky left-0 top-0 z-40 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-teal-100 text-left text-[9px]">作業員</th>
+                      <th rowSpan={2} className="sticky left-0 top-0 z-40 w-[64px] px-0.5 py-1 border border-slate-300 bg-teal-100 text-left text-[9px]">作業員</th>
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [, , d] = dateStr.split('-').map(Number);
-                        return <th key={dateStr} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 bg-slate-100 text-center">{d}</th>;
+                        return <th key={dateStr} className="sticky top-0 z-30 px-0 py-1 border border-slate-300 bg-slate-100 text-center text-[8px]">{d}</th>;
                       })}
-                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-emerald-300 bg-emerald-50 text-emerald-900">証紙<br/>あり</th>
-                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-amber-300 bg-amber-50 text-amber-900">証紙<br/>なし</th>
-                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-rose-300 bg-rose-50 text-rose-900">未設定</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[52px] px-0.5 border border-emerald-300 bg-emerald-50 text-[8px] text-emerald-900">証紙<br/>あり</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[52px] px-0.5 border border-amber-300 bg-amber-50 text-[8px] text-amber-900">証紙<br/>なし</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[52px] px-0.5 border border-rose-300 bg-rose-50 text-[8px] text-rose-900">未設定</th>
                     </tr>
                     <tr className="bg-slate-50">
                       {attendancePeriodInfo.dates.map((dateStr) => {
                         const [y,m,d] = dateStr.split('-').map(Number);
                         const weekday = ['日','月','火','水','木','金','土'][new Date(y, m - 1, d).getDay()];
                         return (
-                          <th key={`${dateStr}-kentai-w`} className={`sticky top-[25px] z-30 px-1 py-1 border border-slate-300 bg-slate-50 text-center ${weekday === '日' ? 'text-rose-600' : weekday === '土' ? 'text-blue-600' : 'text-slate-500'}`}>
+                          <th key={`${dateStr}-kentai-w`} className={`sticky top-[25px] z-30 px-0 py-1 border border-slate-300 bg-slate-50 text-center text-[7px] ${weekday === '日' ? 'text-rose-600' : weekday === '土' ? 'text-blue-600' : 'text-slate-500'}`}>
                             {weekday}
                           </th>
                         );
@@ -8650,7 +8650,7 @@ export default function AdminPage() {
                             </tr>
                           )}
                           <tr>
-                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">{row.name}</td>
+                            <td className="sticky left-0 z-10 w-[64px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[8px] whitespace-nowrap overflow-hidden text-ellipsis">{row.name}</td>
                             {row.details.map((d: any) => {
                               const hasWork = Number(d.fraction || 0) > 0;
                               const statuses = Array.isArray(d.kentaiKyoStatuses) ? d.kentaiKyoStatuses : [];
@@ -8672,7 +8672,7 @@ export default function AdminPage() {
                               const daySites = Array.from(new Set((d.sites || []).map((site: string) => String(site || '')).filter(Boolean)));
                               const siteLabels = daySites.map((site: string) => `${getLocationShortName(site)}：${getKentaiKyoStatusForSite(site) === 'yes' ? 'あり' : getKentaiKyoStatusForSite(site) === 'no' ? 'なし' : '未設定'}`).join(' / ');
                               return (
-                                <td key={`kentai-${row.name}-${d.date}`} title={siteLabels || d.date} className={`w-[72px] min-w-[72px] max-w-[88px] h-[54px] px-1 py-1 border border-slate-300 text-center align-middle ${bg} ${textColor}`}>
+                                <td key={`kentai-${row.name}-${d.date}`} title={siteLabels || d.date} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
                                   {hasWork && daySites.length > 0 ? (
                                     <div className="space-y-0.5">
                                       {daySites.map((site: string) => {
@@ -8680,8 +8680,8 @@ export default function AdminPage() {
                                         const statusLabel = status === 'yes' ? 'あり' : status === 'no' ? 'なし' : '未';
                                         return (
                                           <div key={`${d.date}-${site}`} className="leading-tight">
-                                            <div className="truncate text-[8px] font-black text-slate-800">{getLocationShortName(site)}</div>
-                                            <div className={`text-[7px] font-black ${status === 'yes' ? 'text-emerald-800' : status === 'no' ? 'text-amber-900' : 'text-rose-800'}`}>{statusLabel}{d.fraction === 0.5 && daySites.length === 1 ? '・半' : ''}</div>
+                                            <div className="truncate text-[7px] font-black leading-tight text-slate-800">{getLocationShortName(site)}</div>
+                                            <div className={`text-[6px] font-black leading-tight ${status === 'yes' ? 'text-emerald-800' : status === 'no' ? 'text-amber-900' : 'text-rose-800'}`}>{statusLabel}{d.fraction === 0.5 && daySites.length === 1 ? '・半' : ''}</div>
                                           </div>
                                         );
                                       })}
@@ -8692,9 +8692,9 @@ export default function AdminPage() {
                                 </td>
                               );
                             })}
-                            <td className="px-1 border border-emerald-300 bg-emerald-50/50 text-center font-black text-emerald-800">{formatKentaiKyoDays(row.kentaiKyoYesDays)}</td>
-                            <td className="px-1 border border-amber-300 bg-amber-50/50 text-center font-black text-amber-900">{formatKentaiKyoDays(row.kentaiKyoNoDays)}</td>
-                            <td className="px-1 border border-rose-300 bg-rose-50/50 text-center font-black text-rose-800">{formatKentaiKyoDays(row.kentaiKyoUnsetDays)}</td>
+                            <td className="w-[52px] px-0.5 border border-emerald-300 bg-emerald-50/50 text-center text-[8px] font-black text-emerald-800">{formatKentaiKyoDays(row.kentaiKyoYesDays)}</td>
+                            <td className="w-[52px] px-0.5 border border-amber-300 bg-amber-50/50 text-center text-[8px] font-black text-amber-900">{formatKentaiKyoDays(row.kentaiKyoNoDays)}</td>
+                            <td className="w-[52px] px-0.5 border border-rose-300 bg-rose-50/50 text-center text-[8px] font-black text-rose-800">{formatKentaiKyoDays(row.kentaiKyoUnsetDays)}</td>
                           </tr>
                         </Fragment>
                       );
