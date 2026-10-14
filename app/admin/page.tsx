@@ -6450,6 +6450,74 @@ export default function AdminPage() {
     return grouped;
   };
 
+
+  // 日報の「リスト以外の機械（自由入力）」のうち、まだマスタ登録されていないものを上部通知に出す。
+  // 通知は日報データから毎回算出するだけで保存しない。マスタ登録後は自動で通知対象から外れる。
+  const unregisteredCustomMachineAlerts = (() => {
+    const normalizeName = (value: any) => String(value || '').normalize('NFKC').replace(/[\s　]+/g, '').toLowerCase();
+    const generalMasters = [
+      ...(settings.leaseHeavy || []),
+      ...(settings.leaseAttach || []),
+      ...(settings.leaseOther || [])
+    ];
+    const ishikawaMasters = [
+      ...(settings.ishikawaHeavy || []),
+      ...(settings.ishikawaAttach || []),
+      ...(settings.ishikawaOther || [])
+    ];
+
+    const generalRegistered = (name: string, vendor = '') => generalMasters.some((master: any) => {
+      const masterName = normalizeName(getLeaseMasterCleanName(master));
+      if (!masterName || masterName !== normalizeName(name)) return false;
+      const masterVendor = normalizeName(getLeaseMasterVendor(master, '南大阪建機'));
+      return !vendor || masterVendor === normalizeName(vendor);
+    });
+    const ishikawaRegistered = (name: string) => ishikawaMasters.some((master: any) =>
+      normalizeName(getLeaseMasterCleanName(master)) === normalizeName(name)
+    );
+
+    const rows: any[] = [];
+    const seen = new Set<string>();
+    const pushAlert = (report: any, name: string, count: any, source: 'general' | 'ishikawa', vendor = '') => {
+      const cleanName = String(name || '').trim();
+      if (!cleanName) return;
+      const registered = source === 'ishikawa'
+        ? ishikawaRegistered(cleanName)
+        : generalRegistered(cleanName, vendor);
+      if (registered) return;
+
+      const date = String(report?.date || report?.data?.date || '').trim() || '日付未設定';
+      const location = String(report?.location || report?.data?.location || '').trim() || '現場未設定';
+      const key = [date, location, source, normalizeName(vendor), normalizeName(cleanName)].join('|');
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push({ date, location, name: cleanName, count: Number(count || 0), source, vendor });
+    };
+
+    reports.forEach((report: any) => {
+      (Array.isArray(report?.ishikawaCustomMachines) ? report.ishikawaCustomMachines : []).forEach((item: any) =>
+        pushAlert(report, item?.name, item?.count, 'ishikawa')
+      );
+      (Array.isArray(report?.otherLeases) ? report.otherLeases : []).forEach((item: any) =>
+        pushAlert(report, item?.name, item?.count, 'general', String(item?.company || '南大阪建機'))
+      );
+      // 旧データ互換：過去の mokCustomMachines も通知対象にする。
+      (Array.isArray(report?.mokCustomMachines) ? report.mokCustomMachines : []).forEach((item: any) =>
+        pushAlert(report, item?.name, item?.count, 'general', '南大阪建機')
+      );
+    });
+
+    return rows.sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)) || String(a.location).localeCompare(String(b.location), 'ja'));
+  })();
+
+  const openCustomMachineMaster = (source: 'general' | 'ishikawa') => {
+    setShowAdminSection(true);
+    setTimeout(() => {
+      document.getElementById(source === 'ishikawa' ? 'master-ishikawa-group' : 'master-leaseMasterUnified')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  };
+
   if (!isAuthed) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
       <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl space-y-8 w-full max-w-lg border border-slate-100 text-center">
@@ -7366,6 +7434,46 @@ export default function AdminPage() {
               <div className="flex items-center gap-3"><span className="text-2xl">⚙️</span><span className="font-black text-slate-950">項目・単価を登録する</span></div>
               <p className="mt-2 text-sm text-slate-600">作業員、業者、リース、処分場、単価などの日報用マスタを登録します。</p>
             </button>
+          </div>
+        </section>
+      )}
+
+
+      {authRole === 'admin' && unregisteredCustomMachineAlerts.length > 0 && (
+        <section className="rounded-2xl md:rounded-3xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
+          <div className="px-4 md:px-6 py-4 border-b border-amber-200 bg-gradient-to-r from-amber-100 via-amber-50 to-white">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  <h2 className="text-lg md:text-xl font-black text-amber-950">リスト以外の機械が入力されています</h2>
+                  <span className="rounded-full bg-amber-600 px-2.5 py-1 text-xs font-black text-white">{unregisteredCustomMachineAlerts.length}件</span>
+                </div>
+                <p className="mt-1 text-xs md:text-sm font-bold text-amber-800">まだリースマスタに同名の機械がない日報だけを表示しています。マスタ登録すると、この通知から自動で外れます。</p>
+              </div>
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto divide-y divide-amber-100 bg-white">
+            {unregisteredCustomMachineAlerts.map((item: any, idx: number) => (
+              <div key={`${item.date}-${item.location}-${item.source}-${item.name}-${idx}`} className="px-4 md:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${item.source === 'ishikawa' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {item.source === 'ishikawa' ? '石川県用' : (item.vendor || '通常リース')}
+                    </span>
+                    <span className="text-sm md:text-base font-black text-slate-900">{item.date}・{item.location} に「{item.name}」が入力されました。</span>
+                    {item.count > 0 && <span className="text-xs font-bold text-slate-500">{item.count}個</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openCustomMachineMaster(item.source)}
+                  className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs md:text-sm font-black transition"
+                >
+                  ⚙️ マスタ登録へ
+                </button>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -11134,6 +11242,7 @@ export default function AdminPage() {
                   const ishikawaHeavy = Array.isArray(r.ishikawaHeavy) ? r.ishikawaHeavy : [];
                   const ishikawaAttach = Array.isArray(r.ishikawaAttach) ? r.ishikawaAttach : [];
                   const ishikawaOther = Array.isArray(r.ishikawaOther) ? r.ishikawaOther : [];
+                  const ishikawaCustomMachines = Array.isArray(r.ishikawaCustomMachines) ? r.ishikawaCustomMachines : [];
                   const mokCustomMachines = Array.isArray(r.mokCustomMachines) ? r.mokCustomMachines : [];
                   const otherLeases = Array.isArray(r.otherLeases) ? r.otherLeases : [];
                   const ownMachines = Array.isArray(r.ownMachines) ? r.ownMachines : [];
@@ -11194,6 +11303,11 @@ export default function AdminPage() {
                         {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
                         {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
                         {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
+                        {ishikawaCustomMachines.length > 0 && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
+                            📦 <b>石川県 リスト以外の機械（自由入力）:</b> {ishikawaCustomMachines.map((m:any)=>`${m?.name || '名称未入力'}(${m?.count || 0}個)`).join(', ')}
+                          </div>
+                        )}
                         {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
                         {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
                         {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
