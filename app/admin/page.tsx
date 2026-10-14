@@ -1490,9 +1490,7 @@ export default function AdminPage() {
           const isJapaneseHoliday = getDayInfo(date).isHoliday;
           const noneCategoryHoliday = calendarType === 'none' && (isJapaneseSunday || isJapaneseHoliday);
           const baseHoliday = isCalendarLinked ? holidays.has(date) : noneCategoryHoliday;
-          const isHoliday = isCalendarLinked
-            ? isEffectiveWorkerHoliday(workerMaster, date, baseHoliday)
-            : noneCategoryHoliday;
+          const isHoliday = isEffectiveWorkerHoliday(workerMaster, date, baseHoliday);
           const isScheduled = isCalendarLinked ? !isHoliday : false;
           const holidayMoves = holidayMovesForWorker;
           const holidayMove = holidayMoves.find((x: any) => x.to === date) || null;
@@ -1509,11 +1507,11 @@ export default function AdminPage() {
           const [yy, mm, dd] = date.split('-').map(Number);
           const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
           const isAutoHolidayWork =
-            fraction > 0 && isCalendarLinked && isHoliday;
+            fraction > 0 && isHoliday;
           const defaultHolidayHours =
             Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
           const effectiveHolidayWorkHours =
-            (isCalendarLinked && isHoliday)
+            isHoliday
               ? (explicitHolidayWorkHours > 0
                   ? explicitHolidayWorkHours
                   : isAutoHolidayWork
@@ -8921,9 +8919,7 @@ export default function AdminPage() {
                                 hasReportWork &&
                                 d.sites.some((site: string) => selectedSiteNames.has(site));
                               const isShiftedHoliday = !!d.holidayMove;
-                              const canDragHoliday =
-                                row.calendarType !== 'none' &&
-                                d.isHoliday;
+                              const canDragHoliday = d.isHoliday;
                               const canDropManagement =
                                 !hasReportWork &&
                                 !isManagement &&
@@ -9138,14 +9134,6 @@ export default function AdminPage() {
                                     <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
-                                    {row.calendarType === 'none' && d.isHoliday && !hasReportWork && !isManagement && !isSansei && !isAbsence && (
-                                      <div
-                                        title="日曜日・日本の祝日（表示用）"
-                                        className="select-none rounded bg-slate-900 px-1 py-1 text-[8px] font-black leading-none text-white min-w-[24px]"
-                                      >
-                                        休
-                                      </div>
-                                    )}
                                     {canDragHoliday && (
                                       <div
                                         draggable
