@@ -1704,7 +1704,14 @@ export default function AdminPage() {
   // 建退共（証紙）確認：月次勤怠と同じ20日締め期間を使い、
   // 日報に入っている現場を「あり／なし／未設定」に分けて作業員ごとに集計する。
   // 同じ日に複数現場へ入っている場合は、その日の人工を現場区分数で按分して二重計上を避ける。
-  const monthlyKentaiKyoRows = monthlyAttendanceRows.map((row: any) => {
+  const isKentaiKyoMember = (workerName: string) => {
+    const worker = (settings.workers || []).find((w: any) => String(w?.name || '').trim() === String(workerName || '').trim());
+    return worker?.kentaiKyoMember === 'yes';
+  };
+
+  const monthlyKentaiKyoRows = monthlyAttendanceRows
+    .filter((row: any) => isKentaiKyoMember(row.name))
+    .map((row: any) => {
     let yesDays = 0;
     let noDays = 0;
     let unsetDays = 0;
@@ -8558,7 +8565,7 @@ export default function AdminPage() {
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-teal-950">🎫 建退共（証紙）管理・確認</h2>
               <p className="text-sm md:text-base text-teal-800 mt-1">
-                現場マスタの「あり／なし」を日報と照合し、20日締めで「誰が・いつ・どの現場へ行ったか」と証紙日数を確認します
+                建退共「加入」の作業員だけを対象に、現場・置場の「あり／なし」を日報と照合して証紙日数を確認します
               </p>
             </div>
             <button
@@ -8636,6 +8643,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
+                    {monthlyKentaiKyoRows.length === 0 && (
+                      <tr>
+                        <td colSpan={attendancePeriodInfo.dates.length + 4} className="px-4 py-8 text-center text-sm font-bold text-slate-500 bg-slate-50">
+                          建退共「加入」の作業員がまだ設定されていません。作業員マスタで加入・未加入を設定してください。
+                        </td>
+                      </tr>
+                    )}
                     {monthlyKentaiKyoRows.map((row: any, index: number) => {
                       const previousType = index > 0 ? monthlyKentaiKyoRows[index - 1].calendarType : null;
                       const showGroup = previousType !== row.calendarType;
@@ -8704,7 +8718,7 @@ export default function AdminPage() {
               </div>
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs md:text-sm text-amber-900 leading-relaxed">
-                <b>見方：</b>各日には、その作業員が入った現場名と「あり／なし／未」を表示します。「証紙あり」は現場側から受け取る日数、「証紙なし」は大和で購入する必要がある日数です。「未設定」がある場合は、現場マスタでその現場の建退共を設定してください。
+                <b>見方：</b>作業員マスタで建退共「加入」に設定した作業員だけ表示します。各日には、その作業員が入った現場名と「あり／なし／未」を表示します。「証紙あり」は現場・置場側から受け取る日数、「証紙なし」は大和で購入する必要がある日数です。「未設定」がある場合は、現場マスタでその現場・置場の建退共を設定してください。
               </div>
             </div>
           )}
@@ -9954,20 +9968,19 @@ export default function AdminPage() {
                                     </div>
                                   )}
 
-                                  {(form.lLocationType || 'site') === 'site' && (
-                                    <div>
-                                      <label className="block text-xs font-bold text-slate-600 mb-1">建退共（証紙）</label>
-                                      <select
-                                        value={form.lKentaiKyo || ''}
-                                        onChange={e=>setForm({...form, lKentaiKyo: e.target.value})}
-                                        className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
-                                      >
-                                        <option value="">選択してください</option>
-                                        <option value="yes">あり（現場で証紙をもらう）</option>
-                                        <option value="no">なし（大和で購入）</option>
-                                      </select>
-                                    </div>
-                                  )}
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">建退共（証紙）</label>
+                                    <select
+                                      value={form.lKentaiKyo || ''}
+                                      onChange={e=>setForm({...form, lKentaiKyo: e.target.value})}
+                                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                    >
+                                      <option value="">選択してください</option>
+                                      <option value="yes">あり（現場・置場側で証紙あり）</option>
+                                      <option value="no">なし（大和で購入）</option>
+                                    </select>
+                                    <div className="text-[11px] text-slate-500 mt-1">工事現場・置場どちらも設定します。</div>
+                                  </div>
 
                                   <div>
                                     <label className="block text-xs font-bold text-slate-600 mb-1">
@@ -10000,7 +10013,7 @@ export default function AdminPage() {
                                   <button
                                     onClick={() => {
                                       const locationType = form.lLocationType || 'site';
-                                      if (locationType === 'site' && !form.lKentaiKyo) {
+                                      if (!form.lKentaiKyo) {
                                         alert('建退共（証紙）の「あり／なし」を選択してください。');
                                         return;
                                       }
@@ -10013,7 +10026,7 @@ export default function AdminPage() {
                                           yardManager: locationType === 'yard'
                                             ? (form.lYardManager || '湯浅')
                                             : '',
-                                          kentaiKyo: locationType === 'site' ? (form.lKentaiKyo || '') : '',
+                                          kentaiKyo: form.lKentaiKyo || '',
                                           closingDay: form.lClosingDay || '',
                                           price: Number(form.lPrice) || 0,
                                           isFinished: false
@@ -10111,8 +10124,26 @@ export default function AdminPage() {
                                     </select>
                                   </div>
 
+                                  <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                                    <div className="text-sm font-bold text-teal-900 mb-2">建退共</div>
+                                    <select
+                                      value={form.wKentaiKyoMember || ''}
+                                      onChange={(e) => setForm({...form, wKentaiKyoMember: e.target.value})}
+                                      className="w-full p-2.5 rounded-xl border-2 border-teal-200 bg-white text-sm font-bold"
+                                    >
+                                      <option value="">選択してください</option>
+                                      <option value="yes">加入</option>
+                                      <option value="no">未加入</option>
+                                    </select>
+                                    <div className="text-[11px] text-teal-800 mt-1">「加入」の作業員だけ建退共（証紙）管理・確認に表示します。</div>
+                                  </div>
+
                                   <button
-                                    onClick={() =>
+                                    onClick={() => {
+                                      if (!form.wKentaiKyoMember) {
+                                        alert('建退共の「加入／未加入」を選択してください。');
+                                        return;
+                                      }
                                       addMaster(
                                         'workers',
                                         {
@@ -10120,11 +10151,12 @@ export default function AdminPage() {
                                           price: Number(form.wPrice) || 0,
                                           shiftHours: Number(form.wShiftHours || 8),
                                           isWeeklyPay: !!form.wWeeklyPay,
-                                          calendarType: form.wCalendarType || 'none'
+                                          calendarType: form.wCalendarType || 'none',
+                                          kentaiKyoMember: form.wKentaiKyoMember || 'no'
                                         },
-                                        ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType']
-                                      )
-                                    }
+                                        ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType', 'wKentaiKyoMember']
+                                      );
+                                    }}
                                     className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                                   >
                                     ＋ 追加
@@ -10141,22 +10173,57 @@ export default function AdminPage() {
 
                             {/* 登録済みリスト */}
                             <div className="space-y-2 mt-1">
-                              <div className="flex items-center justify-between px-1">
-                                <div className="text-sm font-bold text-slate-700">✏️ 登録済みデータ（直接編集できます）</div>
-                                <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2.5">
+                                <div>
+                                  <div className="text-sm font-black text-slate-800">✏️ 登録済みデータ</div>
+                                  <div className="text-[11px] text-slate-500 mt-0.5">内容を確認しながら直接編集できます。</div>
+                                </div>
+                                <div className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-lg px-2.5 py-1.5">変更後は右上の「💾 保存」</div>
                               </div>
-                              <div className="max-h-[380px] overflow-y-auto bg-white border border-slate-300 rounded-xl p-2.5 space-y-2">
+                              <div className="max-h-[560px] overflow-y-auto bg-slate-100/70 border border-slate-300 rounded-2xl p-3 space-y-3">
                               {(settings[sec.key] || []).length === 0 ? (
                                 <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                               ) : (
                                 (settings[sec.key] || []).map((item:any, idx:number)=>(
-                                  <div key={idx} className="flex flex-col gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
-                                    <div className="flex justify-between items-center gap-2">
-                                      <div className="flex items-center gap-1.5 shrink-0">
+                                  <div key={idx} className="flex flex-col gap-3 bg-white p-3.5 rounded-2xl border-2 border-slate-200 shadow-sm hover:border-blue-300 transition">
+                                    <div className="flex justify-between items-start gap-3 border-b border-slate-100 pb-2.5">
+                                      <div className="min-w-0 flex items-center gap-2">
+                                        <span className="shrink-0 rounded-lg bg-slate-800 text-white text-[11px] font-black px-2 py-1">No.{idx + 1}</span>
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-black text-slate-800 truncate">{
+                                            sec.isSub ? `${item.company || '外注会社未入力'} / ${item.task || '作業未入力'}` :
+                                            sec.isDisp ? `${item.location || '処分場未入力'} / ${item.item || '品目未入力'}` :
+                                            sec.isScrap ? `${item.location || 'スクラップ場未入力'} / ${item.item || '品目未入力'}` :
+                                            sec.key === 'locations' ? (typeof item === 'string' ? item : (item.name || '現場名未入力')) :
+                                            (item?.name || '名称未入力')
+                                          }</div>
+                                          <div className="mt-1 flex flex-wrap gap-1.5">
+                                            {sec.key === 'workers' && (
+                                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.kentaiKyoMember === 'yes' ? 'bg-teal-100 text-teal-800' : item.kentaiKyoMember === 'no' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                建退共：{item.kentaiKyoMember === 'yes' ? '加入' : item.kentaiKyoMember === 'no' ? '未加入' : '未設定'}
+                                              </span>
+                                            )}
+                                            {sec.key === 'locations' && (
+                                              <>
+                                                <span className="rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-[10px] font-black">
+                                                  {typeof item === 'string' ? (item === '置場' ? '置場' : '工事現場') : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'yard' ? '置場' : '工事現場')}
+                                                </span>
+                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${typeof item !== 'string' && item.kentaiKyo === 'yes' ? 'bg-emerald-100 text-emerald-800' : typeof item !== 'string' && item.kentaiKyo === 'no' ? 'bg-amber-100 text-amber-900' : 'bg-rose-100 text-rose-800'}`}>
+                                                  建退共：{typeof item !== 'string' && item.kentaiKyo === 'yes' ? 'あり' : typeof item !== 'string' && item.kentaiKyo === 'no' ? 'なし' : '未設定'}
+                                                </span>
+                                              </>
+                                            )}
+                                            {sec.key !== 'workers' && sec.key !== 'locations' && (
+                                              <span className="text-[11px] text-slate-400">登録内容を編集できます</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <div className="flex items-center gap-1.5">
                                         <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
                                         <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
-                                      </div>
-                                      <div className="flex items-center gap-2">
+                                        </div>
                                         {sec.key === 'locations' && (
                                           <button 
                                             type="button" 
@@ -10196,8 +10263,8 @@ export default function AdminPage() {
                                         <input type="text" value={item.unit || ''} onChange={(e)=>updateItemField(sec.key, idx, 'unit', e.target.value)} placeholder="単位" className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white" />
                                       </div>
                                     ) : sec.key === 'locations' ? (
-                                      <div className="space-y-2">
-                                        <div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl bg-slate-50/70 p-3 border border-slate-200">
+                                        <div className="md:col-span-2">
                                           <div className="text-[11px] font-bold text-slate-500 mb-1">正式な現場名</div>
                                           <input
                                             type="text"
@@ -10252,24 +10319,18 @@ export default function AdminPage() {
                                           </div>
                                         )}
 
-                                        {
-                                          (typeof item === 'string'
-                                            ? item !== '置場'
-                                            : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'site')) && (
-                                            <div>
-                                              <div className="text-[11px] font-bold text-slate-500 mb-1">建退共（証紙）</div>
-                                              <select
-                                                value={typeof item === 'string' ? '' : (item.kentaiKyo || '')}
-                                                onChange={(e)=>updateItemField(sec.key, idx, 'kentaiKyo', e.target.value)}
-                                                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
-                                              >
-                                                <option value="">未設定</option>
-                                                <option value="yes">あり（現場で証紙をもらう）</option>
-                                                <option value="no">なし（大和で購入）</option>
-                                              </select>
-                                            </div>
-                                          )
-                                        }
+                                        <div>
+                                          <div className="text-[11px] font-bold text-slate-500 mb-1">建退共（証紙）</div>
+                                          <select
+                                            value={typeof item === 'string' ? '' : (item.kentaiKyo || '')}
+                                            onChange={(e)=>updateItemField(sec.key, idx, 'kentaiKyo', e.target.value)}
+                                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                          >
+                                            <option value="">未設定</option>
+                                            <option value="yes">あり（現場・置場側で証紙あり）</option>
+                                            <option value="no">なし（大和で購入）</option>
+                                          </select>
+                                        </div>
 
                                         <div>
                                           <div className="text-[11px] font-bold text-slate-500 mb-1">
@@ -10389,6 +10450,22 @@ export default function AdminPage() {
                                           <option value="trainee">② 実習生</option>
                                           <option value="none">③ 該当なし</option>
                                         </select>
+                                      </div>
+                                    )}
+
+                                    {sec.key === 'workers' && (
+                                      <div className={`rounded-xl border-2 p-3 ${item.kentaiKyoMember === 'yes' ? 'border-teal-300 bg-teal-50' : item.kentaiKyoMember === 'no' ? 'border-slate-300 bg-slate-50' : 'border-amber-300 bg-amber-50'}`}>
+                                        <div className="text-xs font-bold text-slate-600 mb-2">建退共</div>
+                                        <select
+                                          value={item.kentaiKyoMember || ''}
+                                          onChange={(e) => updateItemField(sec.key, idx, 'kentaiKyoMember', e.target.value)}
+                                          className="w-full p-2.5 rounded-xl border-2 border-slate-300 bg-white text-sm font-bold"
+                                        >
+                                          <option value="">未設定</option>
+                                          <option value="yes">加入</option>
+                                          <option value="no">未加入</option>
+                                        </select>
+                                        <div className="text-[11px] text-slate-500 mt-1">加入者のみ建退共（証紙）管理・確認に表示</div>
                                       </div>
                                     )}
 
