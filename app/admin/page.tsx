@@ -675,24 +675,103 @@ export default function AdminPage() {
     return { ...latest, ...(patch || {}) };
   };
 
+  // 未保存チェック：保存ボタンで確定する項目をまとめて判定する。
+  // 新しい state / Hook は増やさず、現在値と最後に保存済みの値を比較する。
+  const isSameSavedValue = (a: any, b: any) => {
+    try {
+      return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    } catch {
+      return false;
+    }
+  };
+
+  const getUnsavedItemLabels = () => {
+    if (authRole !== 'admin' || isLoading || !originalSettings || Object.keys(originalSettings).length === 0) return [] as string[];
+
+    const labels: string[] = [];
+    const masterGroups = [
+      { label: '現場・置場マスタ', keys: ['locations'] },
+      { label: '職長マスタ', keys: ['managers'] },
+      { label: '作業員マスタ', keys: ['workers'] },
+      { label: '職種マスタ', keys: ['jobTypes'] },
+      { label: '外注会社マスタ', keys: ['subcontractors'] },
+      { label: '自社車両マスタ', keys: ['vehicles'] },
+      { label: '自社重機マスタ', keys: ['companyMachines'] },
+      { label: '通常リースマスタ', keys: ['leaseVendors', 'leaseHeavy', 'leaseAttach', 'leaseOther'] },
+      { label: '石川県用リースマスタ', keys: ['ishikawaLeaseVendors', 'ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther'] },
+      { label: '処分場マスタ', keys: ['disposalLocations'] },
+      { label: 'スクラップマスタ', keys: ['scrapLocations'] }
+    ];
+
+    masterGroups.forEach((group) => {
+      const changed = group.keys.some((key) => !isSameSavedValue(settings?.[key] || [], originalSettings?.[key] || []));
+      if (changed) labels.push(group.label);
+    });
+
+    if (attendanceChangesDirty) labels.push('作業員 月次勤怠');
+    if (financialDirty) labels.push('金額・請求・照合関連');
+    if (projectMetaDirty) labels.push('請負先・開始日');
+
+    const savedCalendars = mergeCompanyCalendars(originalSettings?.companyCalendars || {});
+    if (!isSameSavedValue(companyCalendars, savedCalendars)) labels.push('会社カレンダー');
+
+    if (editingReport) {
+      const editingId = editingReport.id || editingReport._id;
+      const source = reports.find((raw: any) => {
+        const data = raw?.data && typeof raw.data === 'object' && !Array.isArray(raw.data) ? raw.data : raw;
+        const sourceId = raw?.id || raw?._id || data?.id || data?._id;
+        return editingId ? sourceId === editingId : false;
+      });
+      if (source) {
+        const sourceData = source?.data && typeof source.data === 'object' && !Array.isArray(source.data)
+          ? { ...source.data, id: source.id || source.data.id }
+          : source;
+        if (!isSameSavedValue(editingReport, sourceData)) labels.push('日報データの編集');
+      }
+    }
+
+    return Array.from(new Set(labels));
+  };
+
+  const confirmUnsavedBeforeAction = (actionLabel = '移動') => {
+    const labels = getUnsavedItemLabels();
+    if (labels.length === 0) return true;
+
+    return window.confirm(
+      `⚠️ ${labels.join('、')}の項目が保存されていません。\n\n` +
+      `保存せずに${actionLabel}しますか？\n\n` +
+      '「キャンセル」を押すと元の画面に戻ります。'
+    );
+  };
+
+  const closeModalLocationWithUnsavedGuard = () => {
+    if (!confirmUnsavedBeforeAction('詳細画面を閉じる')) return;
+    setModalLocation(null);
+  };
+
+  const closeEditingReportWithUnsavedGuard = () => {
+    if (!confirmUnsavedBeforeAction('日報編集を閉じる')) return;
+    setEditingReport(null);
+  };
+
   useEffect(() => {
     if (isAuthed && authRole) fetchData();
   }, [isAuthed, authRole]);
 
-  // 未保存の勤怠・原価・請負先/開始日がある状態で、
-  // ブラウザ更新・タブを閉じる・別ページへ移動しようとした時に警告する。
+  // 保存ボタンで確定する項目に未保存がある状態で、
+  // ブラウザ更新・タブを閉じる・別ページへ移動しようとした時にも警告する。
   useEffect(() => {
-    const hasUnsavedChanges = attendanceChangesDirty || financialDirty || projectMetaDirty;
-    if (!hasUnsavedChanges) return;
+    const unsavedLabels = getUnsavedItemLabels();
+    if (unsavedLabels.length === 0) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = '';
+      event.returnValue = `${unsavedLabels.join('、')}の項目が保存されていません。`;
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [attendanceChangesDirty, financialDirty, projectMetaDirty]);
+  }, [attendanceChangesDirty, financialDirty, projectMetaDirty, settings, originalSettings, companyCalendars, editingReport, reports, isLoading, authRole]);
 
   useEffect(() => {
     if (modalLocation) {
@@ -2557,11 +2636,13 @@ export default function AdminPage() {
     try {
       const newData = await buildLatestSettingsForSave({ locations: currentLocs });
       setSettings(newData);
-      await fetch('/api/settings', {  
+      const res = await fetch('/api/settings', {  
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
         body: JSON.stringify(newData)  
       });
+      if (!res.ok) throw new Error('現場状態の保存に失敗しました。');
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
     } catch (e) {
       console.error(e);
     }
@@ -8913,11 +8994,11 @@ export default function AdminPage() {
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setShowMonthlyAttendance(!showMonthlyAttendance)}
+            onClick={() => { if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setShowMonthlyAttendance(!showMonthlyAttendance);
+                if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance);
               }
             }}
             className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5 cursor-pointer select-none"
@@ -8933,7 +9014,7 @@ export default function AdminPage() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowMonthlyAttendance(!showMonthlyAttendance);
+                if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance);
               }}
               className="px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-700 text-sm font-bold shadow-sm hover:bg-emerald-50"
             >
@@ -8980,7 +9061,7 @@ export default function AdminPage() {
 
                   <button
                     type="button"
-                    onClick={() => setShowCompanyCalendarSection(!showCompanyCalendarSection)}
+                    onClick={() => { if (!showCompanyCalendarSection || confirmUnsavedBeforeAction('会社カレンダーを閉じる')) setShowCompanyCalendarSection(!showCompanyCalendarSection); }}
                     className="px-4 py-2 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold shadow-sm"
                   >
                     {showCompanyCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを確認・編集 ▼'}
@@ -9786,11 +9867,11 @@ export default function AdminPage() {
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setShowAdminSection(!showAdminSection)}
+            onClick={() => { if (!showAdminSection || confirmUnsavedBeforeAction('マスタ登録を閉じる')) setShowAdminSection(!showAdminSection); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setShowAdminSection(!showAdminSection);
+                if (!showAdminSection || confirmUnsavedBeforeAction('マスタ登録を閉じる')) setShowAdminSection(!showAdminSection);
               }
             }}
             className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
@@ -9805,7 +9886,7 @@ export default function AdminPage() {
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                setShowAdminSection(!showAdminSection);
+                if (!showAdminSection || confirmUnsavedBeforeAction('マスタ登録を閉じる')) setShowAdminSection(!showAdminSection);
               }}
               className="bg-white hover:bg-violet-50 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
             >
@@ -11697,7 +11778,7 @@ export default function AdminPage() {
 
       {/* 全処分対象：月別処分一覧 ポップアップモダール */}
       {showAllMonthlyDisposalModal && authRole === 'admin' && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowAllMonthlyDisposalModal(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }}>
           <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 !pb-0 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
@@ -11711,7 +11792,7 @@ export default function AdminPage() {
                   <span className="text-emerald-700">金額・理由・照合済みの色を変更したら、最後に「💾 保存」を押してください。</span>
                 </div>
               </div>
-              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
             <div className="space-y-8">
@@ -11934,7 +12015,7 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
-              <button onClick={() => setShowAllMonthlyDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
@@ -11964,7 +12045,7 @@ export default function AdminPage() {
         return (
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn"
-            onClick={() => setShowAllMonthlyScrapModal(false)}
+            onClick={() => { if (confirmUnsavedBeforeAction('月別スクラップ一覧を閉じる')) setShowAllMonthlyScrapModal(false); }}
           >
             <div
               className="bg-white rounded-[28px] w-full max-w-[1500px] max-h-[94vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col"
@@ -11978,7 +12059,7 @@ export default function AdminPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowAllMonthlyScrapModal(false)}
+                    onClick={() => { if (confirmUnsavedBeforeAction('月別スクラップ一覧を閉じる')) setShowAllMonthlyScrapModal(false); }}
                     className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black"
                   >
                     ✕
@@ -12157,7 +12238,7 @@ export default function AdminPage() {
                 <div className="flex gap-2 justify-end">
                   <button
                     type="button"
-                    onClick={() => setShowAllMonthlyScrapModal(false)}
+                    onClick={() => { if (confirmUnsavedBeforeAction('月別スクラップ一覧を閉じる')) setShowAllMonthlyScrapModal(false); }}
                     className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold"
                   >
                     閉じる
@@ -12702,7 +12783,7 @@ export default function AdminPage() {
       )}
 
       {editingReport && authRole === 'admin' && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setEditingReport(null)}>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={closeEditingReportWithUnsavedGuard}>
           <form onSubmit={handleUpdateReport} className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-8 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-5">
               <div className="flex items-center gap-3">
@@ -12714,7 +12795,7 @@ export default function AdminPage() {
               </div>
               <button 
                 type="button" 
-                onClick={() => setEditingReport(null)}
+                onClick={closeEditingReportWithUnsavedGuard}
                 className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-lg transition"
               >
                 ✕
@@ -13698,7 +13779,7 @@ export default function AdminPage() {
               <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl font-bold text-base md:text-lg shadow-lg shadow-orange-500/20 transition">
                 💾 更新を保存する
               </button>
-              <button type="button" onClick={() => setEditingReport(null)} className="px-8 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-base transition">
+              <button type="button" onClick={closeEditingReportWithUnsavedGuard} className="px-8 bg-slate-200 hover:bg-slate-300 text-slate-700 py-4 rounded-2xl font-bold text-base transition">
                 キャンセル
               </button>
             </div>
@@ -14007,7 +14088,7 @@ export default function AdminPage() {
                 <div className="flex items-start gap-3">
                   <button
                     type="button"
-                    onClick={() => setModalLocation(null)}
+                    onClick={closeModalLocationWithUnsavedGuard}
                     className="shrink-0 w-12 h-12 rounded-xl bg-slate-100 text-slate-600 text-lg"
                   >
                     ←
@@ -14022,7 +14103,7 @@ export default function AdminPage() {
 
                   <button
                     type="button"
-                    onClick={() => setModalLocation(null)}
+                    onClick={closeModalLocationWithUnsavedGuard}
                     className="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500"
                   >
                     ✕
@@ -14283,7 +14364,7 @@ export default function AdminPage() {
 
                 <button
                   type="button"
-                  onClick={() => setModalLocation(null)}
+                  onClick={closeModalLocationWithUnsavedGuard}
                   className="w-full rounded-2xl bg-slate-900 text-white py-4 text-[17px] font-medium"
                 >
                   閉じる
@@ -14332,7 +14413,7 @@ export default function AdminPage() {
         return (
           <div
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto p-2 md:p-8"
-            onClick={() => setModalLocation(null)}
+            onClick={closeModalLocationWithUnsavedGuard}
           >
             <div
               className="bg-white rounded-3xl w-full max-w-[1250px] max-h-[94vh] overflow-y-auto shadow-2xl border border-slate-100 p-5 md:p-8 !pb-0 space-y-6"
@@ -14340,7 +14421,7 @@ export default function AdminPage() {
             >
               <div className="sticky top-0 z-20 bg-white border-b border-slate-200 pb-4">
                 <button
-                  onClick={() => setModalLocation(null)}
+                  onClick={closeModalLocationWithUnsavedGuard}
                   className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold"
                 >
                   閉じる
@@ -14519,7 +14600,7 @@ export default function AdminPage() {
 
               <div className="sticky bottom-0 bg-white pt-3 pb-5 border-t border-slate-100">
                 <button
-                  onClick={() => setModalLocation(null)}
+                  onClick={closeModalLocationWithUnsavedGuard}
                   className="w-full rounded-2xl bg-slate-900 text-white py-4 text-base font-bold"
                 >
                   閉じる
@@ -14538,7 +14619,7 @@ export default function AdminPage() {
       ) && (
         <div
           className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 animate-fadeIn overflow-y-auto ${authRole === 'viewer' ? 'p-1.5 md:p-8' : 'p-2 md:p-8'}`}
-          onClick={() => setModalLocation(null)}
+          onClick={closeModalLocationWithUnsavedGuard}
         >
           <div
             className={`bg-white rounded-3xl w-full max-h-[94vh] md:max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 ${
@@ -14550,7 +14631,7 @@ export default function AdminPage() {
           >
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 pb-4 md:pb-6 gap-3">
               <div className="flex flex-col items-start gap-3 w-full">
-                <button onClick={() => setModalLocation(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
+                <button onClick={closeModalLocationWithUnsavedGuard} className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 md:px-6 py-2.5 md:py-3 rounded-xl text-sm md:text-base font-bold transition">閉じる</button>
                 <div className="w-full">
                   <h2 className={`${authRole === 'admin' ? 'text-3xl md:text-4xl' : 'text-2xl md:text-4xl'} font-extrabold text-slate-900 leading-tight`}>
                     {modalLocation}
@@ -15872,7 +15953,7 @@ export default function AdminPage() {
               )}
               <button
                 type="button"
-                onClick={() => setModalLocation(null)}
+                onClick={closeModalLocationWithUnsavedGuard}
                 className="bg-slate-800 hover:bg-slate-900 text-white px-8 md:px-12 py-3.5 rounded-2xl font-extrabold text-base md:text-lg transition shadow-lg"
               >
                 閉じる
@@ -15893,7 +15974,7 @@ export default function AdminPage() {
         return (
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn overflow-y-auto"
-            onClick={() => setShowIshikawaLeaseModal(false)}
+            onClick={() => { if (confirmUnsavedBeforeAction('石川県用リース詳細を閉じる')) setShowIshikawaLeaseModal(false); }}
           >
             <div
               className="bg-white rounded-[28px] w-full max-w-4xl max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100"
@@ -15906,7 +15987,7 @@ export default function AdminPage() {
                     未照合は「日報由来の概算」、照合済みは指定した請求期間の「請求書金額」を原価として表示します。
                   </p>
                 </div>
-                <button onClick={() => setShowIshikawaLeaseModal(false)} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+                <button onClick={() => { if (confirmUnsavedBeforeAction('石川県用リース詳細を閉じる')) setShowIshikawaLeaseModal(false); }} className="w-10 h-10 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
               </div>
 
               <div className="p-5 md:p-7 space-y-5">
@@ -15967,7 +16048,7 @@ export default function AdminPage() {
               </div>
 
               <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 px-5 md:px-7 py-4 flex justify-end">
-                <button onClick={() => setShowIshikawaLeaseModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+                <button onClick={() => { if (confirmUnsavedBeforeAction('石川県用リース詳細を閉じる')) setShowIshikawaLeaseModal(false); }} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
               </div>
             </div>
           </div>
@@ -15975,7 +16056,7 @@ export default function AdminPage() {
       })()}
 
       {showDisposalModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => setShowDisposalModal(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => { if (confirmUnsavedBeforeAction('処分費画面を閉じる')) setShowDisposalModal(false); }}>
           <div className="bg-white rounded-[28px] w-full max-w-6xl p-4 md:p-8 !pb-0 max-h-[94vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
@@ -15991,7 +16072,7 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setShowDisposalModal(false)} className="shrink-0 w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xl transition">✕</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('処分費画面を閉じる')) setShowDisposalModal(false); }} className="shrink-0 w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xl transition">✕</button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -16164,7 +16245,7 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
-              <button onClick={() => setShowDisposalModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3.5 rounded-2xl font-bold text-base md:text-lg transition">閉じる</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('処分費画面を閉じる')) setShowDisposalModal(false); }} className="bg-slate-800 hover:bg-slate-900 text-white px-7 py-3.5 rounded-2xl font-bold text-base md:text-lg transition">閉じる</button>
             </div>
           </div>
         </div>
@@ -16196,7 +16277,7 @@ export default function AdminPage() {
         const detailsOpen = isLeaseInvoice ? showExpenseInvoiceDetails : true;
 
         return (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => setShowExpenseInvoiceModal(false)}>
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[96]" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合画面を閉じる')) setShowExpenseInvoiceModal(false); }}>
             <div className="bg-white w-full max-w-5xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-blue-50 flex items-start justify-between gap-4">
                 <div>
@@ -16207,7 +16288,7 @@ export default function AdminPage() {
                       : 'この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。'}
                   </p>
                 </div>
-                <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="w-10 h-10 shrink-0 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
+                <button type="button" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合画面を閉じる')) setShowExpenseInvoiceModal(false); }} className="w-10 h-10 shrink-0 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
               </div>
 
               <div className="p-4 md:p-6 overflow-y-auto space-y-4">
@@ -16383,7 +16464,7 @@ export default function AdminPage() {
                   >
                     {isLeaseInvoice ? (expenseInvoiceReconcileEditingId ? '✓ 確定内容を更新' : '✓ 請求書金額を確定') : '✓ 照合済みにする'}
                   </button>
-                  <button type="button" onClick={() => setShowExpenseInvoiceModal(false)} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
+                  <button type="button" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合画面を閉じる')) setShowExpenseInvoiceModal(false); }} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
                   <button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button>
                 </div>
               </div>
@@ -16426,7 +16507,7 @@ export default function AdminPage() {
         return (
           <div
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-5 z-[95]"
-            onClick={() => setShowSubcontractorInvoiceModal(false)}
+            onClick={() => { if (confirmUnsavedBeforeAction('外注請求書照合画面を閉じる')) setShowSubcontractorInvoiceModal(false); }}
           >
             <div
               className="bg-white w-full max-w-7xl max-h-[94vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
@@ -16440,7 +16521,7 @@ export default function AdminPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowSubcontractorInvoiceModal(false)}
+                  onClick={() => { if (confirmUnsavedBeforeAction('外注請求書照合画面を閉じる')) setShowSubcontractorInvoiceModal(false); }}
                   className="shrink-0 w-10 h-10 rounded-full bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-extrabold"
                 >
                   ✕
@@ -16689,7 +16770,7 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowSubcontractorInvoiceModal(false)}
+                    onClick={() => { if (confirmUnsavedBeforeAction('外注請求書照合画面を閉じる')) setShowSubcontractorInvoiceModal(false); }}
                     className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold"
                   >
                     閉じる
@@ -16710,14 +16791,14 @@ export default function AdminPage() {
       })()}
 
       {showScrapModal && modalLocation && modalData && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => setShowScrapModal(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn" onClick={() => { if (confirmUnsavedBeforeAction('スクラップ画面を閉じる')) setShowScrapModal(false); }}>
           <div className="bg-white rounded-[32px] w-full max-w-4xl p-6 md:p-10 !pb-0 max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">♻️ スクラップ売却の内訳・金額入力</h3>
                 <p className="text-xs md:text-sm text-slate-500 mt-0.5">{modalLocation} のスクラップ売却内訳と金額の設定を行います</p>
               </div>
-              <button onClick={() => setShowScrapModal(false)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('スクラップ画面を閉じる')) setShowScrapModal(false); }} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
             </div>
 
             <div className="space-y-6">
@@ -16905,7 +16986,7 @@ export default function AdminPage() {
                   </button>
                 </div>
               )}
-              <button onClick={() => setShowScrapModal(false)} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
+              <button onClick={() => { if (confirmUnsavedBeforeAction('スクラップ画面を閉じる')) setShowScrapModal(false); }} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-base transition">閉じる</button>
             </div>
           </div>
         </div>
