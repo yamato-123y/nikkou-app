@@ -517,6 +517,7 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(true);
+  const [showKentaiKyoSection, setShowKentaiKyoSection] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
@@ -1029,6 +1030,24 @@ export default function AdminPage() {
 
     const shortName = String(master.shortName || '').trim();
     return shortName || locationName;
+  };
+
+  const getKentaiKyoStatusForSite = (siteName: string) => {
+    const targetName = String(siteName || '').trim();
+    if (!targetName) return 'unset';
+
+    const master = (settings.locations || []).find((loc: any) => {
+      if (typeof loc === 'string') return loc === targetName;
+      const names = [loc?.name, ...(Array.isArray(loc?.pastNames) ? loc.pastNames : [])]
+        .map((name: any) => String(name || '').trim())
+        .filter(Boolean);
+      return names.includes(targetName);
+    });
+
+    if (!master || typeof master === 'string') return 'unset';
+    if (master.kentaiKyo === 'yes') return 'yes';
+    if (master.kentaiKyo === 'no') return 'no';
+    return 'unset';
   };
 
   const isIshikawaAttendanceSite = (siteName: string) => {
@@ -1680,6 +1699,67 @@ export default function AdminPage() {
         return a.name.localeCompare(b.name, 'ja');
       });
   })();
+
+
+  // 建退共（証紙）確認：月次勤怠と同じ20日締め期間を使い、
+  // 日報に入っている現場を「あり／なし／未設定」に分けて作業員ごとに集計する。
+  // 同じ日に複数現場へ入っている場合は、その日の人工を現場区分数で按分して二重計上を避ける。
+  const monthlyKentaiKyoRows = monthlyAttendanceRows.map((row: any) => {
+    let yesDays = 0;
+    let noDays = 0;
+    let unsetDays = 0;
+
+    const details = row.details.map((detail: any) => {
+      const sites = Array.isArray(detail.sites) ? detail.sites : [];
+      const fraction = Math.max(0, Number(detail.fraction || 0));
+      const statuses = Array.from(
+        new Set(
+          sites.map((site: string) => getKentaiKyoStatusForSite(site))
+        )
+      ) as Array<'yes' | 'no' | 'unset'>;
+
+      let yesFraction = 0;
+      let noFraction = 0;
+      let unsetFraction = 0;
+
+      if (fraction > 0 && statuses.length > 0) {
+        const share = fraction / statuses.length;
+        statuses.forEach((status) => {
+          if (status === 'yes') yesFraction += share;
+          else if (status === 'no') noFraction += share;
+          else unsetFraction += share;
+        });
+      }
+
+      yesDays += yesFraction;
+      noDays += noFraction;
+      unsetDays += unsetFraction;
+
+      return {
+        ...detail,
+        kentaiKyoStatuses: statuses,
+        kentaiKyoYesFraction: yesFraction,
+        kentaiKyoNoFraction: noFraction,
+        kentaiKyoUnsetFraction: unsetFraction
+      };
+    });
+
+    const roundDay = (value: number) => Math.round(value * 100) / 100;
+
+    return {
+      ...row,
+      details,
+      kentaiKyoYesDays: roundDay(yesDays),
+      kentaiKyoNoDays: roundDay(noDays),
+      kentaiKyoUnsetDays: roundDay(unsetDays)
+    };
+  });
+
+  const formatKentaiKyoDays = (value: any) => {
+    const num = Number(value || 0);
+    if (num === 0) return '-';
+    return Number.isInteger(num) ? `${num}日` : `${num.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}日`;
+  };
 
   const saveCompanyCalendars = async (nextCalendars = companyCalendars) => {
     if (authRole !== 'admin') return;
@@ -8460,6 +8540,177 @@ export default function AdminPage() {
       </div>
       )}
 
+      {/* 建退共（証紙）管理・確認（管理者のみ） */}
+      {authRole === 'admin' && (
+        <div className="bg-teal-50/50 rounded-3xl shadow-sm border-2 border-teal-200 overflow-hidden">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowKentaiKyoSection(!showKentaiKyoSection)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowKentaiKyoSection(!showKentaiKyoSection);
+              }
+            }}
+            className="flex items-center justify-between gap-3 flex-wrap bg-teal-200 px-4 md:px-7 py-4 md:py-5 cursor-pointer select-none"
+          >
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-teal-950">🎫 建退共（証紙）管理・確認</h2>
+              <p className="text-sm md:text-base text-teal-800 mt-1">
+                現場マスタの「あり／なし」を日報と照合し、20日締めで「誰が・いつ・どの現場へ行ったか」と証紙日数を確認します
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowKentaiKyoSection(!showKentaiKyoSection);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-white border border-teal-300 text-teal-800 text-sm font-bold shadow-sm hover:bg-teal-50"
+            >
+              {showKentaiKyoSection ? '建退共を閉じる ▲' : '建退共を見る ▼'}
+            </button>
+          </div>
+
+          {showKentaiKyoSection && (
+            <div className="space-y-4 p-4 md:p-7">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="month"
+                    value={attendanceYearMonth}
+                    onChange={(e) => {
+                      setAttendanceYearMonth(e.target.value);
+                      setCompanyCalendarEditMonth(e.target.value);
+                    }}
+                    className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
+                  />
+                  <div className="text-sm text-slate-600">
+                    {attendancePeriodInfo.startYmd} ～ {attendancePeriodInfo.endYmd}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('master-locations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="px-4 py-2.5 rounded-xl bg-white border border-teal-300 text-teal-800 text-sm font-bold shadow-sm hover:bg-teal-50"
+                >
+                  🏢 現場のあり／なしを設定
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-teal-200 bg-white px-4 py-3">
+                <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs md:text-sm font-bold">
+                  <span className="inline-flex items-center gap-1.5 text-emerald-800"><span className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300"></span>あり＝現場で証紙をもらう</span>
+                  <span className="inline-flex items-center gap-1.5 text-amber-800"><span className="w-4 h-4 rounded bg-amber-100 border border-amber-300"></span>なし＝大和で購入</span>
+                  <span className="inline-flex items-center gap-1.5 text-rose-800"><span className="w-4 h-4 rounded bg-rose-100 border border-rose-300"></span>未設定＝現場マスタを確認</span>
+                </div>
+                <div className="mt-2 text-xs text-slate-500 leading-relaxed">
+                  ※ 同じ日に「あり」「なし」の現場へ分かれて勤務した場合は、日報の半日設定を基準に日数を按分します。手動の「管理」「サンセイ」は証紙日数に含めません。
+                </div>
+              </div>
+
+              <div className="max-h-[72vh] overflow-auto rounded-2xl border border-slate-300 bg-white">
+                <table className="border-collapse text-[8px] min-w-max lg:w-full">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th rowSpan={2} className="sticky left-0 top-0 z-40 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-teal-100 text-left text-[9px]">作業員</th>
+                      {attendancePeriodInfo.dates.map((dateStr) => {
+                        const [, , d] = dateStr.split('-').map(Number);
+                        return <th key={dateStr} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-0.5 py-1 border border-slate-300 bg-slate-100 text-center">{d}</th>;
+                      })}
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-emerald-300 bg-emerald-50 text-emerald-900">証紙<br/>あり</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-amber-300 bg-amber-50 text-amber-900">証紙<br/>なし</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[48px] min-w-[48px] px-1 border border-rose-300 bg-rose-50 text-rose-900">未設定</th>
+                    </tr>
+                    <tr className="bg-slate-50">
+                      {attendancePeriodInfo.dates.map((dateStr) => {
+                        const [y,m,d] = dateStr.split('-').map(Number);
+                        const weekday = ['日','月','火','水','木','金','土'][new Date(y, m - 1, d).getDay()];
+                        return (
+                          <th key={`${dateStr}-kentai-w`} className={`sticky top-[25px] z-30 px-1 py-1 border border-slate-300 bg-slate-50 text-center ${weekday === '日' ? 'text-rose-600' : weekday === '土' ? 'text-blue-600' : 'text-slate-500'}`}>
+                            {weekday}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyKentaiKyoRows.map((row: any, index: number) => {
+                      const previousType = index > 0 ? monthlyKentaiKyoRows[index - 1].calendarType : null;
+                      const showGroup = previousType !== row.calendarType;
+                      const groupLabel = row.calendarType === 'yamato' ? '社員' : row.calendarType === 'trainee' ? '実習生' : '該当なし';
+                      return (
+                        <Fragment key={`kentai-${row.name}`}>
+                          {showGroup && (
+                            <tr>
+                              <td colSpan={attendancePeriodInfo.dates.length + 4} className={`px-3 py-2 border border-slate-300 font-bold text-sm ${row.calendarType === 'yamato' ? 'bg-blue-50 text-blue-900' : row.calendarType === 'trainee' ? 'bg-amber-50 text-amber-900' : 'bg-slate-100 text-slate-700'}`}>
+                                {groupLabel}
+                              </td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td className="sticky left-0 z-10 w-[54px] min-w-[54px] max-w-[54px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[9px] whitespace-nowrap overflow-hidden text-ellipsis">{row.name}</td>
+                            {row.details.map((d: any) => {
+                              const hasWork = Number(d.fraction || 0) > 0;
+                              const statuses = Array.isArray(d.kentaiKyoStatuses) ? d.kentaiKyoStatuses : [];
+                              const hasYes = statuses.includes('yes');
+                              const hasNo = statuses.includes('no');
+                              const hasUnset = statuses.includes('unset');
+                              let bg = 'bg-white';
+                              let textColor = 'text-slate-400';
+                              let label = '-';
+                              if (hasWork && hasUnset) {
+                                bg = 'bg-rose-100'; textColor = 'text-rose-800'; label = '未';
+                              } else if (hasWork && hasYes && hasNo) {
+                                bg = 'bg-cyan-100'; textColor = 'text-cyan-900'; label = '混';
+                              } else if (hasWork && hasYes) {
+                                bg = 'bg-emerald-100'; textColor = 'text-emerald-800'; label = 'あり';
+                              } else if (hasWork && hasNo) {
+                                bg = 'bg-amber-100'; textColor = 'text-amber-900'; label = 'なし';
+                              }
+                              const daySites = Array.from(new Set((d.sites || []).map((site: string) => String(site || '')).filter(Boolean)));
+                              const siteLabels = daySites.map((site: string) => `${getLocationShortName(site)}：${getKentaiKyoStatusForSite(site) === 'yes' ? 'あり' : getKentaiKyoStatusForSite(site) === 'no' ? 'なし' : '未設定'}`).join(' / ');
+                              return (
+                                <td key={`kentai-${row.name}-${d.date}`} title={siteLabels || d.date} className={`w-[72px] min-w-[72px] max-w-[88px] h-[54px] px-1 py-1 border border-slate-300 text-center align-middle ${bg} ${textColor}`}>
+                                  {hasWork && daySites.length > 0 ? (
+                                    <div className="space-y-0.5">
+                                      {daySites.map((site: string) => {
+                                        const status = getKentaiKyoStatusForSite(site);
+                                        const statusLabel = status === 'yes' ? 'あり' : status === 'no' ? 'なし' : '未';
+                                        return (
+                                          <div key={`${d.date}-${site}`} className="leading-tight">
+                                            <div className="truncate text-[8px] font-black text-slate-800">{getLocationShortName(site)}</div>
+                                            <div className={`text-[7px] font-black ${status === 'yes' ? 'text-emerald-800' : status === 'no' ? 'text-amber-900' : 'text-rose-800'}`}>{statusLabel}{d.fraction === 0.5 && daySites.length === 1 ? '・半' : ''}</div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[8px] font-bold text-slate-300">-</div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-1 border border-emerald-300 bg-emerald-50/50 text-center font-black text-emerald-800">{formatKentaiKyoDays(row.kentaiKyoYesDays)}</td>
+                            <td className="px-1 border border-amber-300 bg-amber-50/50 text-center font-black text-amber-900">{formatKentaiKyoDays(row.kentaiKyoNoDays)}</td>
+                            <td className="px-1 border border-rose-300 bg-rose-50/50 text-center font-black text-rose-800">{formatKentaiKyoDays(row.kentaiKyoUnsetDays)}</td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs md:text-sm text-amber-900 leading-relaxed">
+                <b>見方：</b>各日には、その作業員が入った現場名と「あり／なし／未」を表示します。「証紙あり」は現場側から受け取る日数、「証紙なし」は大和で購入する必要がある日数です。「未設定」がある場合は、現場マスタでその現場の建退共を設定してください。
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
         <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
@@ -9703,6 +9954,21 @@ export default function AdminPage() {
                                     </div>
                                   )}
 
+                                  {(form.lLocationType || 'site') === 'site' && (
+                                    <div>
+                                      <label className="block text-xs font-bold text-slate-600 mb-1">建退共（証紙）</label>
+                                      <select
+                                        value={form.lKentaiKyo || ''}
+                                        onChange={e=>setForm({...form, lKentaiKyo: e.target.value})}
+                                        className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                                      >
+                                        <option value="">選択してください</option>
+                                        <option value="yes">あり（現場で証紙をもらう）</option>
+                                        <option value="no">なし（大和で購入）</option>
+                                      </select>
+                                    </div>
+                                  )}
+
                                   <div>
                                     <label className="block text-xs font-bold text-slate-600 mb-1">
                                       締め日 <span className="font-normal text-slate-400">（任意）</span>
@@ -9732,23 +9998,29 @@ export default function AdminPage() {
                                   </div>
 
                                   <button
-                                    onClick={() =>
+                                    onClick={() => {
+                                      const locationType = form.lLocationType || 'site';
+                                      if (locationType === 'site' && !form.lKentaiKyo) {
+                                        alert('建退共（証紙）の「あり／なし」を選択してください。');
+                                        return;
+                                      }
                                       addMaster(
                                         'locations',
                                         {
                                           name: form.lName,
                                           shortName: form.lShortName || '',
-                                          locationType: form.lLocationType || 'site',
-                                          yardManager: (form.lLocationType || 'site') === 'yard'
+                                          locationType,
+                                          yardManager: locationType === 'yard'
                                             ? (form.lYardManager || '湯浅')
                                             : '',
+                                          kentaiKyo: locationType === 'site' ? (form.lKentaiKyo || '') : '',
                                           closingDay: form.lClosingDay || '',
                                           price: Number(form.lPrice) || 0,
                                           isFinished: false
                                         },
-                                        ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lClosingDay', 'lPrice']
-                                      )
-                                    }
+                                        ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lKentaiKyo', 'lClosingDay', 'lPrice']
+                                      );
+                                    }}
                                     className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                                   >
                                     ＋ 追加
@@ -9979,6 +10251,25 @@ export default function AdminPage() {
                                             </select>
                                           </div>
                                         )}
+
+                                        {
+                                          (typeof item === 'string'
+                                            ? item !== '置場'
+                                            : ((item.locationType || (item.name === '置場' ? 'yard' : 'site')) === 'site')) && (
+                                            <div>
+                                              <div className="text-[11px] font-bold text-slate-500 mb-1">建退共（証紙）</div>
+                                              <select
+                                                value={typeof item === 'string' ? '' : (item.kentaiKyo || '')}
+                                                onChange={(e)=>updateItemField(sec.key, idx, 'kentaiKyo', e.target.value)}
+                                                className="w-full p-2.5 border border-slate-300 rounded-xl text-sm md:text-base font-bold bg-white"
+                                              >
+                                                <option value="">未設定</option>
+                                                <option value="yes">あり（現場で証紙をもらう）</option>
+                                                <option value="no">なし（大和で購入）</option>
+                                              </select>
+                                            </div>
+                                          )
+                                        }
 
                                         <div>
                                           <div className="text-[11px] font-bold text-slate-500 mb-1">
