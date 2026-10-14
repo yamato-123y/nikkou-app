@@ -657,29 +657,22 @@ export default function AdminPage() {
     }
   };
 
-  // 設定保存の直前にサーバー側の最新設定を取り直し、
-  // 画面で編集中の内容は従来どおり保持しつつ、
-  // お知らせだけはサーバー側の最新版を優先して古い画面状態による消失を防ぐ。
+  // 設定保存の直前にサーバー側の最新設定を必ず取り直し、
+  // 「今回変更する項目だけ」を最新設定へ重ねて保存する。
+  // 画面を長時間開いていた場合でも、古い settings 全体で別機能の最新データを巻き戻さない。
+  // 最新設定を取得できない場合は、安全のため保存自体を中止する。
   const buildLatestSettingsForSave = async (patch: any) => {
-    let latestSettings = settings;
-    try {
-      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
-      if (latestRes.ok) {
-        const latest = await latestRes.json();
-        if (latest && typeof latest === 'object') latestSettings = latest;
-      }
-    } catch (e) {
-      console.warn('保存前の最新設定取得に失敗しました。現在画面の設定を基準に保存します。', e);
+    const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+    if (!latestRes.ok) {
+      throw new Error('保存前に最新設定を取得できませんでした。時間をおいて、もう一度保存してください。');
     }
 
-    const merged = { ...latestSettings, ...settings, ...patch };
-    if (!Object.prototype.hasOwnProperty.call(patch || {}, 'dailyAnnouncements')) {
-      merged.dailyAnnouncements = latestSettings.dailyAnnouncements || [];
+    const latest = await latestRes.json();
+    if (!latest || typeof latest !== 'object' || Array.isArray(latest)) {
+      throw new Error('最新設定の形式を確認できなかったため、安全のため保存を中止しました。');
     }
-    if (!Object.prototype.hasOwnProperty.call(patch || {}, 'masterAnnouncements')) {
-      merged.masterAnnouncements = latestSettings.masterAnnouncements || [];
-    }
-    return merged;
+
+    return { ...latest, ...(patch || {}) };
   };
 
   useEffect(() => {
@@ -6452,8 +6445,8 @@ export default function AdminPage() {
 
 
   // 日報の「リスト以外の機械（自由入力）」のうち、まだマスタ登録されていないものを上部通知に出す。
-  // 通知は日報データから毎回算出するだけで保存しない。マスタ登録後は自動で通知対象から外れる。
-  const unregisteredCustomMachineAlerts = (() => {
+  // マスタ登録後は自動で通知対象から外れる。正式名称が異なる場合は「確認済み」で同一入力名の通知を非表示にできる。
+  const allUnregisteredCustomMachineAlerts = (() => {
     const normalizeName = (value: any) => String(value || '').normalize('NFKC').replace(/[\s　]+/g, '').toLowerCase();
     const generalMasters = [
       ...(settings.leaseHeavy || []),
@@ -6509,6 +6502,61 @@ export default function AdminPage() {
 
     return rows.sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)) || String(a.location).localeCompare(String(b.location), 'ja'));
   })();
+
+  const customMachineAlertKey = (item: any) => {
+    const normalize = (value: any) => String(value || '').normalize('NFKC').replace(/[\s　]+/g, '').toLowerCase();
+    return [item?.source || '', normalize(item?.vendor || ''), normalize(item?.name || '')].join('|');
+  };
+
+  const dismissedCustomMachineAlertKeys = new Set(
+    (Array.isArray(settings.dismissedCustomMachineAlerts) ? settings.dismissedCustomMachineAlerts : []).map((key: any) => String(key))
+  );
+  const unregisteredCustomMachineAlerts = allUnregisteredCustomMachineAlerts.filter(
+    (item: any) => !dismissedCustomMachineAlertKeys.has(customMachineAlertKey(item))
+  );
+  const dismissedCustomMachineAlertCount = allUnregisteredCustomMachineAlerts.length - unregisteredCustomMachineAlerts.length;
+
+  const dismissCustomMachineAlert = async (item: any) => {
+    if (authRole !== 'admin') return;
+    const key = customMachineAlertKey(item);
+    if (!key) return;
+    try {
+      const latest = await buildLatestSettingsForSave({});
+      const current = Array.isArray(latest.dismissedCustomMachineAlerts) ? latest.dismissedCustomMachineAlerts.map((x: any) => String(x)) : [];
+      const next = Array.from(new Set([...current, key]));
+      const newData = await buildLatestSettingsForSave({ dismissedCustomMachineAlerts: next });
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('確認済みの保存に失敗しました。');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+    } catch (e) {
+      console.error(e);
+      alert('確認済みの保存に失敗しました。');
+    }
+  };
+
+  const resetDismissedCustomMachineAlerts = async () => {
+    if (authRole !== 'admin') return;
+    if (!confirm('確認済みにした自由入力機械の通知を、もう一度表示しますか？')) return;
+    try {
+      const newData = await buildLatestSettingsForSave({ dismissedCustomMachineAlerts: [] });
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('再表示設定の保存に失敗しました。');
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+    } catch (e) {
+      console.error(e);
+      alert('通知の再表示に失敗しました。');
+    }
+  };
 
   const openCustomMachineMaster = (source: 'general' | 'ishikawa') => {
     setShowAdminSection(true);
@@ -7439,42 +7487,68 @@ export default function AdminPage() {
       )}
 
 
-      {authRole === 'admin' && unregisteredCustomMachineAlerts.length > 0 && (
+      {authRole === 'admin' && allUnregisteredCustomMachineAlerts.length > 0 && (
         <section className="rounded-2xl md:rounded-3xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
           <div className="px-4 md:px-6 py-4 border-b border-amber-200 bg-gradient-to-r from-amber-100 via-amber-50 to-white">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xl">⚠️</span>
                   <h2 className="text-lg md:text-xl font-black text-amber-950">リスト以外の機械が入力されています</h2>
                   <span className="rounded-full bg-amber-600 px-2.5 py-1 text-xs font-black text-white">{unregisteredCustomMachineAlerts.length}件</span>
+                  {dismissedCustomMachineAlertCount > 0 && (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-700">確認済み {dismissedCustomMachineAlertCount}件</span>
+                  )}
                 </div>
-                <p className="mt-1 text-xs md:text-sm font-bold text-amber-800">まだリースマスタに同名の機械がない日報だけを表示しています。マスタ登録すると、この通知から自動で外れます。</p>
+                <p className="mt-1 text-xs md:text-sm font-bold text-amber-800">同名の機械をマスタ登録すると自動で外れます。正式名称を変えて登録した場合などは「✓ 確認済み」で同じ入力名の通知をまとめて非表示にできます。</p>
               </div>
-            </div>
-          </div>
-          <div className="max-h-64 overflow-y-auto divide-y divide-amber-100 bg-white">
-            {unregisteredCustomMachineAlerts.map((item: any, idx: number) => (
-              <div key={`${item.date}-${item.location}-${item.source}-${item.name}-${idx}`} className="px-4 md:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${item.source === 'ishikawa' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {item.source === 'ishikawa' ? '石川県用' : (item.vendor || '通常リース')}
-                    </span>
-                    <span className="text-sm md:text-base font-black text-slate-900">{item.date}・{item.location} に「{item.name}」が入力されました。</span>
-                    {item.count > 0 && <span className="text-xs font-bold text-slate-500">{item.count}個</span>}
-                  </div>
-                </div>
+              {dismissedCustomMachineAlertCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => openCustomMachineMaster(item.source)}
-                  className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs md:text-sm font-black transition"
+                  onClick={resetDismissedCustomMachineAlerts}
+                  className="shrink-0 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-xs md:text-sm font-black transition"
                 >
-                  ⚙️ マスタ登録へ
+                  ↩ 確認済みを再表示
                 </button>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
+          {unregisteredCustomMachineAlerts.length > 0 ? (
+            <div className="max-h-64 overflow-y-auto divide-y divide-amber-100 bg-white">
+              {unregisteredCustomMachineAlerts.map((item: any, idx: number) => (
+                <div key={`${item.date}-${item.location}-${item.source}-${item.name}-${idx}`} className="px-4 md:px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${item.source === 'ishikawa' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {item.source === 'ishikawa' ? '石川県用' : (item.vendor || '通常リース')}
+                      </span>
+                      <span className="text-sm md:text-base font-black text-slate-900">{item.date}・{item.location} に「{item.name}」が入力されました。</span>
+                      {item.count > 0 && <span className="text-xs font-bold text-slate-500">{item.count}個</span>}
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openCustomMachineMaster(item.source)}
+                      className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs md:text-sm font-black transition"
+                    >
+                      ⚙️ マスタ登録へ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissCustomMachineAlert(item)}
+                      className="rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-4 py-2 text-xs md:text-sm font-black transition"
+                      title="同じ入力名の通知をまとめて非表示にします"
+                    >
+                      ✓ 確認済み
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white px-4 md:px-6 py-4 text-sm font-bold text-slate-600">現在表示する通知はありません。必要なら右上の「確認済みを再表示」から戻せます。</div>
+          )}
         </section>
       )}
 
