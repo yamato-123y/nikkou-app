@@ -3643,9 +3643,10 @@ export default function AdminPage() {
     setShowExpenseInvoiceModal(true);
   };
 
-  const openLeaseInvoiceConfirmedEdit = (entry: any) => {
+  // 請求書照合履歴は、リースだけでなく各照合項目から同じ操作で編集・削除できるようにする。
+  const openInvoiceHistoryEdit = (categoryKey: string, categoryLabel: string, entry: any) => {
     if (!modalLocation || authRole !== 'admin' || !entry) return;
-    setExpenseInvoiceCategory({ key: 'lease', label: 'リース' });
+    setExpenseInvoiceCategory({ key: categoryKey, label: categoryLabel });
     setExpenseInvoiceFilter({
       startDate: String(entry.startDate || ''),
       endDate: String(entry.endDate || ''),
@@ -3659,9 +3660,13 @@ export default function AdminPage() {
     setShowExpenseInvoiceModal(true);
   };
 
-  const deleteLeaseInvoiceConfirmed = (entry: any) => {
+  const deleteInvoiceHistoryEntry = (categoryKey: string, entry: any) => {
     if (!modalLocation || authRole !== 'admin' || !entry) return;
-    if (!window.confirm('この請求書確定・原価反映の履歴を削除しますか？\n削除後はこの確定金額が原価反映から外れます。')) return;
+    const affectsProfit = categoryKey === 'lease' && entry?.applyToCost === true;
+    const message = affectsProfit
+      ? 'この請求書照合履歴を削除しますか？\n削除すると、この請求書金額は利益計算への反映対象から外れます。'
+      : 'この請求書照合履歴を削除しますか？\n※明細で修正した金額そのものは削除せず、照合履歴だけを削除します。';
+    if (!window.confirm(message)) return;
 
     const isSameEntry = (candidate: any) => {
       if (entry?.id && candidate?.id) return candidate.id === entry.id;
@@ -3671,23 +3676,23 @@ export default function AdminPage() {
         && String(candidate?.company || '') === String(entry?.company || '');
     };
 
-    const currentHistory = getInvoiceReconcileHistory(modalLocation, 'lease');
+    const currentHistory = getInvoiceReconcileHistory(modalLocation, categoryKey);
     const nextHistory = currentHistory.filter((candidate: any) => !isSameEntry(candidate));
 
     setInvoiceReconcileHistory((prev: any) => ({
       ...prev,
       [modalLocation]: {
         ...(prev?.[modalLocation] || {}),
-        lease: nextHistory
+        [categoryKey]: nextHistory
       }
     }));
 
     setInvoiceReconcileStatus((prev: any) => {
-      const currentStatus = prev?.[modalLocation]?.lease;
+      const currentStatus = prev?.[modalLocation]?.[categoryKey];
       const nextLocationStatus = { ...(prev?.[modalLocation] || {}) };
       if (currentStatus && isSameEntry(currentStatus)) {
-        if (nextHistory.length > 0) nextLocationStatus.lease = nextHistory[0];
-        else delete nextLocationStatus.lease;
+        if (nextHistory.length > 0) nextLocationStatus[categoryKey] = nextHistory[0];
+        else delete nextLocationStatus[categoryKey];
       }
       return {
         ...prev,
@@ -15430,14 +15435,14 @@ export default function AdminPage() {
                                     <div className="flex shrink-0 items-center gap-1.5">
                                       <button
                                         type="button"
-                                        onClick={() => openLeaseInvoiceConfirmedEdit(st)}
+                                        onClick={() => openInvoiceHistoryEdit(item.key, item.label, st)}
                                         className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-extrabold text-emerald-700 hover:bg-emerald-100"
                                       >
                                         ✏️ 編集
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => deleteLeaseInvoiceConfirmed(st)}
+                                        onClick={() => deleteInvoiceHistoryEntry(item.key, st)}
                                         className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-extrabold text-red-600 hover:bg-red-50"
                                       >
                                         🗑️ 削除
@@ -15467,12 +15472,34 @@ export default function AdminPage() {
                                 <div className="mt-2 rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 max-h-52 overflow-y-auto">
                                   {history.map((h: any) => (
                                     <div key={h.id || `${h.checkedAt}_${h.startDate}_${h.endDate}`} className="px-3 py-2 text-xs md:text-sm">
-                                      <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.applyToCost ? '✅ 利益計算に反映済み（請求書金額）' : (h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み')}</div>
-                                      <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
-                                      <div className="text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-1">
-                                        {h.systemAmount !== null && h.systemAmount !== undefined && (<>日報由来の概算 {formatAmount(h.systemAmount)} <span>／</span></>)}
-                                        <span>請求書</span> {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} <span>／</span>
-                                        <span>差額</span> {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="font-extrabold text-slate-800">{formatInvoicePeriod(h.startDate, h.endDate)}　{h.applyToCost ? '✅ 利益計算に反映済み（請求書金額）' : (h.hadChanges ? '✏️ 修正あり' : '✅ 照合済み')}</div>
+                                          <div className="text-slate-500 mt-0.5">{formatInvoiceReconcileTime(h.checkedAt)}{h.company ? `　${h.company}` : ''}</div>
+                                          <div className="text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-1">
+                                            {h.systemAmount !== null && h.systemAmount !== undefined && (<>日報由来の概算 {formatAmount(h.systemAmount)} <span>／</span></>)}
+                                            <span>請求書</span> {h.invoiceAmount === null || h.invoiceAmount === undefined ? '—' : formatAmount(h.invoiceAmount)} <span>／</span>
+                                            <span>差額</span> {h.diff === null || h.diff === undefined ? '—' : formatAmount(h.diff)}
+                                          </div>
+                                        </div>
+                                        {authRole === 'admin' && (
+                                          <div className="flex shrink-0 items-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => openInvoiceHistoryEdit(item.key, item.label, h)}
+                                              className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] md:text-xs font-extrabold text-blue-700 hover:bg-blue-100"
+                                            >
+                                              ✏️ 編集
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => deleteInvoiceHistoryEntry(item.key, h)}
+                                              className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] md:text-xs font-extrabold text-red-600 hover:bg-red-100"
+                                            >
+                                              🗑️ 削除
+                                            </button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   ))}
@@ -16583,14 +16610,14 @@ export default function AdminPage() {
                         diff,
                         systemAmount: reconcileBaseAmount,
                         applyToCost: isLeaseInvoice,
-                        existingId: isLeaseInvoice ? expenseInvoiceReconcileEditingId : null
+                        existingId: expenseInvoiceReconcileEditingId
                       });
                       if (isLeaseInvoice) setExpenseInvoiceReconcileEditingId(null);
                     }}
                     disabled={!canMarkReconciled}
                     className={`px-4 py-2.5 rounded-xl font-extrabold ${!canMarkReconciled ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border border-indigo-200'}`}
                   >
-                    {isLeaseInvoice ? (expenseInvoiceReconcileEditingId ? '✓ 確定内容を更新' : '✓ 請求書金額を確定') : '✓ 照合済みにする'}
+                    {expenseInvoiceReconcileEditingId ? '✓ 照合内容を更新' : (isLeaseInvoice ? '✓ 請求書金額を確定' : '✓ 照合済みにする')}
                   </button>
                   <button type="button" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合画面を閉じる')) setShowExpenseInvoiceModal(false); }} className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-extrabold">閉じる</button>
                   <button type="button" onClick={saveFinancialEdits} disabled={!financialDirty || isFinancialSaving} className={`px-5 py-2.5 rounded-xl font-extrabold ${!financialDirty || isFinancialSaving ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>{isFinancialSaving ? '保存中…' : '💾 変更を保存'}</button>
