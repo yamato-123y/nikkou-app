@@ -112,6 +112,107 @@ type RosterImportPreview = {
   };
 };
 
+
+type QualificationPackEntry = {
+  sourceWorker: string;
+  sourceSheet: string;
+  imageIndex: number;
+  file: string;
+  title: string;
+  mimeType: string;
+  size: number;
+  originalFormat?: string;
+  sha256?: string;
+};
+
+type QualificationPackManifest = {
+  format: 'yamato-worker-qualification-pack';
+  version: number;
+  sourceFile?: string;
+  imagePolicy?: any;
+  workers?: string[];
+  entries: QualificationPackEntry[];
+};
+
+type QualificationPackPreviewRow = QualificationPackEntry & {
+  worker_name: string;
+  status: 'new' | 'duplicate' | 'unmatched';
+  reason?: string;
+};
+
+type QualificationPackPreview = {
+  fileName: string;
+  sourceFile: string;
+  rows: QualificationPackPreviewRow[];
+  summary: { total: number; matchedWorkers: number; newCount: number; duplicateCount: number; unmatchedCount: number };
+};
+
+
+const normalizeWorkerName = (value: any) =>
+  String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\s　]+/g, '')
+    .replace(/[・･]/g, '')
+    .toLowerCase();
+
+const escapeHtml = (value: any) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+// 資格証取込パックは「無圧縮ZIP」で作成する。
+// JPEG自体が圧縮済みなので容量差は小さく、ブラウザだけで安全に展開できる。
+type StoredZipEntry = { name: string; method: number; compressedSize: number; uncompressedSize: number; localOffset: number };
+
+const parseStoredZip = async (file: File) => {
+  const buffer = await file.arrayBuffer();
+  const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+  const u16 = (o: number) => view.getUint16(o, true);
+  const u32 = (o: number) => view.getUint32(o, true);
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65558); i -= 1) {
+    if (u32(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('資格証取込パックを開けませんでした。');
+  const entryCount = u16(eocd + 10);
+  let cursor = u32(eocd + 16);
+  const decoder = new TextDecoder('utf-8');
+  const entries: StoredZipEntry[] = [];
+  for (let i = 0; i < entryCount; i += 1) {
+    if (u32(cursor) !== 0x02014b50) throw new Error('資格証取込パックの形式が正しくありません。');
+    const method = u16(cursor + 10);
+    const compressedSize = u32(cursor + 20);
+    const uncompressedSize = u32(cursor + 24);
+    const nameLen = u16(cursor + 28);
+    const extraLen = u16(cursor + 30);
+    const commentLen = u16(cursor + 32);
+    const localOffset = u32(cursor + 42);
+    const name = decoder.decode(bytes.slice(cursor + 46, cursor + 46 + nameLen));
+    entries.push({ name, method, compressedSize, uncompressedSize, localOffset });
+    cursor += 46 + nameLen + extraLen + commentLen;
+  }
+  const readEntry = (name: string) => {
+    const e = entries.find((x) => x.name === name);
+    if (!e) throw new Error(`取込パック内のファイルが見つかりません：${name}`);
+    if (e.method !== 0) throw new Error('この取込パックは対応していない圧縮形式です。');
+    if (u32(e.localOffset) !== 0x04034b50) throw new Error('取込パックの画像位置を確認できませんでした。');
+    const nameLen = u16(e.localOffset + 26);
+    const extraLen = u16(e.localOffset + 28);
+    const start = e.localOffset + 30 + nameLen + extraLen;
+    return bytes.slice(start, start + e.compressedSize);
+  };
+  const manifestBytes = readEntry('manifest.json');
+  const manifest = JSON.parse(decoder.decode(manifestBytes)) as QualificationPackManifest;
+  if (manifest?.format !== 'yamato-worker-qualification-pack' || !Array.isArray(manifest?.entries)) {
+    throw new Error('大和の資格証取込パックではありません。');
+  }
+  return { manifest, readEntry };
+};
+
 const ADMIN_PASSWORD = '19770323';
 
 const emptyProfile = (name: string): WorkerProfile => ({
@@ -201,6 +302,11 @@ export default function WorkerLedgerPage() {
   const [excelImportPreview, setExcelImportPreview] = useState<ExcelImportPreview | null>(null);
   const [rosterImportLoading, setRosterImportLoading] = useState(false);
   const [rosterImportPreview, setRosterImportPreview] = useState<RosterImportPreview | null>(null);
+  const [qualificationPackLoading, setQualificationPackLoading] = useState(false);
+  const [qualificationPackFile, setQualificationPackFile] = useState<File | null>(null);
+  const [qualificationPackPreview, setQualificationPackPreview] = useState<QualificationPackPreview | null>(null);
+  const [qualificationPackProgress, setQualificationPackProgress] = useState('');
+  const [printSelectedWorkers, setPrintSelectedWorkers] = useState<string[]>([]);
 
   const token = () => sessionStorage.getItem('yamato-admin-token') || '';
 
@@ -442,6 +548,139 @@ export default function WorkerLedgerPage() {
     }
   };
 
+
+  const matchQualificationPackWorker = (sourceWorker: string) => {
+    const src = normalizeWorkerName(sourceWorker);
+    if (!src) return '';
+    const exact = workerNames.filter((name) => normalizeWorkerName(name) === src);
+    if (exact.length === 1) return exact[0];
+
+    // 作業員台帳へ正式氏名を登録済みの場合だけ、略称マスタとの安全な紐付けを許可する。
+    // 例: マスタ「サントソ」／正式氏名「ハディ サントソ」／資格証Excel「ハディ サントソ」。
+    const profileMatches = profiles.filter((profile) => {
+      const masterName = String(profile?.worker_name || '');
+      if (!workerNames.includes(masterName)) return false;
+      const full = normalizeWorkerName(profile?.full_name || '');
+      return !!full && full === src;
+    });
+    return profileMatches.length === 1 ? String(profileMatches[0].worker_name) : '';
+  };
+
+  const previewQualificationPackFile = async (file: File) => {
+    try {
+      setQualificationPackLoading(true);
+      setQualificationPackProgress('取込パックを確認しています…');
+      const { manifest } = await parseStoredZip(file);
+      const existingKeys = new Set(
+        documents
+          .filter((doc) => doc.document_type === 'qualification')
+          .map((doc) => `${normalizeWorkerName(doc.worker_name)}|${String(doc.title || '')}`)
+      );
+      const rows: QualificationPackPreviewRow[] = manifest.entries.map((entry) => {
+        const workerName = matchQualificationPackWorker(entry.sourceWorker);
+        if (!workerName) return { ...entry, worker_name: '', status: 'unmatched' as const, reason: '現在の作業員マスタと一致しません。' };
+        const title = `資格証Excel：${entry.sourceSheet} #${entry.imageIndex}`;
+        const duplicate = existingKeys.has(`${normalizeWorkerName(workerName)}|${title}`);
+        return { ...entry, title, worker_name: workerName, status: duplicate ? 'duplicate' as const : 'new' as const, reason: duplicate ? '同じ取込元の資格証が登録済みです。' : '' };
+      });
+      const matchedWorkers = new Set(rows.filter((row) => row.worker_name).map((row) => row.worker_name)).size;
+      setQualificationPackFile(file);
+      setQualificationPackPreview({
+        fileName: file.name,
+        sourceFile: manifest.sourceFile || '',
+        rows,
+        summary: {
+          total: rows.length,
+          matchedWorkers,
+          newCount: rows.filter((r) => r.status === 'new').length,
+          duplicateCount: rows.filter((r) => r.status === 'duplicate').length,
+          unmatchedCount: rows.filter((r) => r.status === 'unmatched').length
+        }
+      });
+      setQualificationPackProgress('');
+    } catch (e: any) {
+      setQualificationPackFile(null);
+      setQualificationPackPreview(null);
+      setQualificationPackProgress('');
+      alert(e?.message || '資格証取込パックを読み取れませんでした。');
+    } finally {
+      setQualificationPackLoading(false);
+    }
+  };
+
+  const commitQualificationPack = async () => {
+    if (!qualificationPackFile || !qualificationPackPreview) return;
+    const targets = qualificationPackPreview.rows.filter((row) => row.status === 'new' && row.worker_name);
+    if (targets.length === 0) return alert('新しく登録する資格証画像がありません。');
+    if (!confirm(`資格証画像 ${targets.length}枚を登録しますか？\n現在の作業員マスタに一致した人だけ登録します。`)) return;
+    try {
+      setQualificationPackLoading(true);
+      const { readEntry } = await parseStoredZip(qualificationPackFile);
+      let done = 0;
+      const queue = [...targets];
+      const uploadOne = async () => {
+        while (queue.length > 0) {
+          const row = queue.shift();
+          if (!row) return;
+          const bytes = readEntry(row.file);
+          const form = new FormData();
+          const fileName = `${row.worker_name}_${String(row.sourceSheet || '資格証').replace(/[\/:*?"<>|]/g, '_')}_${row.imageIndex}.jpg`;
+          form.append('file', new File([bytes], fileName, { type: 'image/jpeg' }));
+          form.append('workerName', row.worker_name);
+          form.append('documentType', 'qualification');
+          form.append('title', row.title);
+          await api('/api/worker-ledger/upload', { method: 'POST', body: form });
+          done += 1;
+          setQualificationPackProgress(`登録中 ${done} / ${targets.length}枚`);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, targets.length) }, () => uploadOne()));
+      await loadAll();
+      setQualificationPackFile(null);
+      setQualificationPackPreview(null);
+      setQualificationPackProgress('');
+      alert(`資格証画像 ${done}枚を登録しました。`);
+    } catch (e: any) {
+      alert(e?.message || '資格証画像の登録に失敗しました。途中まで登録されている場合があります。もう一度取込パックを確認すると登録済みは除外されます。');
+    } finally {
+      setQualificationPackLoading(false);
+      setQualificationPackProgress('');
+    }
+  };
+
+  const togglePrintWorker = (name: string) => {
+    setPrintSelectedWorkers((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
+  };
+
+  const printSelectedQualificationDocuments = async () => {
+    if (printSelectedWorkers.length === 0) return alert('印刷する作業員を1人以上チェックしてください。');
+    const docs = documents.filter((doc) => doc.document_type === 'qualification' && printSelectedWorkers.includes(doc.worker_name));
+    if (docs.length === 0) return alert('選択した作業員に資格証画像が登録されていません。');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert('印刷画面を開けませんでした。ブラウザのポップアップを許可してください。');
+    printWindow.document.write('<html><body style="font-family:sans-serif;padding:24px">資格証を準備しています…</body></html>');
+    try {
+      const withUrls = await Promise.all(docs.map(async (doc) => {
+        const data = await api(`/api/worker-ledger/file?path=${encodeURIComponent(doc.file_path)}`);
+        return { ...doc, signedUrl: data?.signedUrl || '' };
+      }));
+      const sections = printSelectedWorkers.map((worker) => {
+        const workerDocs = withUrls.filter((doc) => doc.worker_name === worker && doc.signedUrl);
+        if (workerDocs.length === 0) return '';
+        return `<section class="worker"><h1>${escapeHtml(worker)}　資格証</h1><div class="cards">${workerDocs.map((doc) => `<figure><img src="${escapeHtml(doc.signedUrl)}" alt="${escapeHtml(doc.title || '資格証')}"/><figcaption>${escapeHtml(doc.title || '資格証')}</figcaption></figure>`).join('')}</div></section>`;
+      }).join('');
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>資格証 印刷</title><style>
+        @page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;color:#111}.worker{break-after:page}.worker:last-child{break-after:auto}h1{font-size:16pt;margin:0 0 6mm;border-bottom:1px solid #999;padding-bottom:2mm}.cards{display:grid;grid-template-columns:1fr 1fr;gap:7mm 5mm;align-items:start}figure{margin:0;break-inside:avoid;text-align:center}img{display:block;max-width:92mm;max-height:118mm;width:auto;height:auto;object-fit:contain;margin:0 auto;border:1px solid #ddd}figcaption{font-size:8pt;color:#555;margin-top:2mm}@media print{button{display:none}}
+      </style></head><body>${sections}<script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=r;i.onerror=r}))).then(()=>setTimeout(()=>window.print(),300));});<\/script></body></html>`);
+      printWindow.document.close();
+    } catch (e: any) {
+      printWindow.close();
+      alert(e?.message || '資格証の印刷準備に失敗しました。');
+    }
+  };
+
   const uploadDocument = async (file: File) => {
     try {
       setUploading(true);
@@ -489,7 +728,7 @@ export default function WorkerLedgerPage() {
               {visibleWorkers.map((name) => {
                 const s = summaryFor(name);
                 const profileRegistered = hasRegisteredProfile(name);
-                return <button key={name} onClick={()=>setSelectedWorker(name)} className={`w-full text-left p-4 transition ${selectedWorker===name?'bg-blue-50 border-l-4 border-blue-600':'hover:bg-slate-50 border-l-4 border-transparent'}`}><div className="flex items-center justify-between gap-2"><span className="font-black text-slate-900">{name}</span><div className="flex items-center gap-1.5">{profileRegistered?<span className="text-[10px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-1 font-black">台帳登録済み</span>:<span className="text-[10px] rounded-full bg-slate-100 text-slate-500 px-2 py-1 font-black">台帳未登録</span>}{s.warning&&<span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-1 font-black">期限確認</span>}</div></div><div className="mt-1 text-xs text-slate-500">資格 {s.qCount}件{ s.healthDate ? `・健診 ${fmtDate(s.healthDate)}` : '・健診 未登録'}</div></button>;
+                return <button key={name} onClick={()=>setSelectedWorker(name)} className={`w-full text-left p-4 transition ${selectedWorker===name?'bg-blue-50 border-l-4 border-blue-600':'hover:bg-slate-50 border-l-4 border-transparent'}`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><span className="font-black text-slate-900">{name}</span><div className="mt-1 text-xs text-slate-500">資格 {s.qCount}件{ s.healthDate ? `・健診 ${fmtDate(s.healthDate)}` : '・健診 未登録'}</div></div><div className="flex items-center gap-1.5 flex-wrap justify-end">{profileRegistered?<span className="text-[10px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-1 font-black">台帳登録済み</span>:<span className="text-[10px] rounded-full bg-slate-100 text-slate-500 px-2 py-1 font-black">台帳未登録</span>}{s.warning&&<span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-1 font-black">期限確認</span>}<label onClick={(e)=>e.stopPropagation()} className={`text-[10px] rounded-full px-2 py-1 font-black cursor-pointer ${printSelectedWorkers.includes(name)?'bg-violet-600 text-white':'bg-violet-50 text-violet-700 border border-violet-200'}`}><input type="checkbox" checked={printSelectedWorkers.includes(name)} onChange={()=>togglePrintWorker(name)} className="mr-1 align-middle"/>印刷</label></div></div></button>;
               })}
             </div>
           </aside>
@@ -674,8 +913,50 @@ export default function WorkerLedgerPage() {
                   </div>}
 
                   {!loading && tab==='documents' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4"><div className="font-black text-violet-950">資格証・健康診断書を保存</div><p className="mt-1 text-xs text-violet-700">画像はアップロード前に長辺2200px・JPEG品質88%へ自動圧縮します。PDFは原本のまま10MBまで保存します。</p><div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 mt-3"><select value={docType} onChange={(e)=>setDocType(e.target.value)} className="rounded-xl border p-3 font-bold bg-white"><option value="qualification">資格証</option><option value="health">健康診断書</option><option value="safety">安全書類</option><option value="other">その他</option></select><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="書類名（例：車両系資格証）" className="rounded-xl border p-3 font-bold bg-white" /><label className={`rounded-xl px-5 py-3 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-violet-600 text-white hover:bg-violet-700'}`}>{uploading?'アップロード中…':'📎 ファイル追加'}<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) uploadDocument(f); e.currentTarget.value='';}} /></label></div></div>
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 font-bold">🤖 健康診断書・資格証の自動読み取りは第2段階で追加します。今回はまず「安全に保存・一覧・閲覧できる」基盤を作っています。</div>
+                    <div className="rounded-2xl border-2 border-violet-200 bg-violet-50 p-4 md:p-5">
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                        <div>
+                          <div className="font-black text-violet-950 text-lg">📥 資格証画像をExcel取込パックから一括登録</div>
+                          <p className="mt-1 text-sm text-violet-800 font-bold">添付の資格証Excelから変換した取込パックを選ぶと、現在の作業員マスタに一致する人の資格証画像だけを登録します。</p>
+                          <p className="mt-1 text-xs text-violet-700">画像はA4印刷を想定してJPEG品質86%・長辺最大2200pxで保存。元Excel内のEMF画像も印刷用JPEGへ変換済みです。</p>
+                        </div>
+                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${qualificationPackLoading?'bg-slate-300 text-slate-500':'bg-violet-600 hover:bg-violet-700 text-white'}`}>
+                          {qualificationPackLoading ? (qualificationPackProgress || '確認中…') : '📦 資格証取込パックを選択'}
+                          <input type="file" accept=".qpack,.zip,application/zip" disabled={qualificationPackLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewQualificationPackFile(f); e.currentTarget.value='';}} />
+                        </label>
+                      </div>
+
+                      {qualificationPackPreview && <div className="mt-4 rounded-2xl bg-white border border-violet-200 overflow-hidden">
+                        <div className="p-4 border-b border-violet-100">
+                          <div className="font-black text-slate-900">取込確認：{qualificationPackPreview.sourceFile || qualificationPackPreview.fileName}</div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+                            <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規画像 {qualificationPackPreview.summary.newCount}枚</span>
+                            <span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {qualificationPackPreview.summary.matchedWorkers}名</span>
+                            <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {qualificationPackPreview.summary.duplicateCount}枚</span>
+                            <span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {qualificationPackPreview.summary.unmatchedCount}枚</span>
+                          </div>
+                          <div className="mt-3 flex gap-2 justify-end">
+                            <button type="button" onClick={()=>{setQualificationPackPreview(null);setQualificationPackFile(null);}} disabled={qualificationPackLoading} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-black text-slate-700">取消</button>
+                            <button type="button" onClick={commitQualificationPack} disabled={qualificationPackLoading || qualificationPackPreview.summary.newCount===0} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規 {qualificationPackPreview.summary.newCount}枚を登録</button>
+                          </div>
+                        </div>
+                        <div className="max-h-[320px] overflow-auto">
+                          <table className="w-full min-w-[720px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">元シート</th><th className="p-3 text-left">画像</th></tr></thead><tbody className="divide-y divide-slate-100">
+                            {qualificationPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{row.sourceSheet}</td><td className="p-3">{row.imageIndex}枚目</td></tr>)}
+                          </tbody></table>
+                        </div>
+                        {qualificationPackPreview.summary.unmatchedCount>0 && <div className="p-3 bg-rose-50 border-t border-rose-100 text-xs font-bold text-rose-800">⚠️ 未一致の画像は登録しません。現在の作業員マスタにいる人だけが対象です。</div>}
+                      </div>}
+                    </div>
+
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 md:p-5">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div><div className="font-black text-indigo-950">🖨️ 複数人の資格証をA4印刷</div><p className="mt-1 text-xs font-bold text-indigo-700">左の作業員一覧で「印刷」にチェックした人の資格証だけをまとめてA4印刷できます。PDF保存もブラウザの印刷画面から選べます。</p></div>
+                        <div className="flex items-center gap-2 flex-wrap"><span className="rounded-full bg-white border border-indigo-200 px-3 py-2 text-sm font-black text-indigo-800">選択 {printSelectedWorkers.length}名</span><button type="button" onClick={()=>setPrintSelectedWorkers(workerNames)} className="rounded-xl bg-white border border-indigo-200 px-3 py-2 text-xs font-black text-indigo-700">全員選択</button><button type="button" onClick={()=>setPrintSelectedWorkers([])} className="rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">解除</button><button type="button" onClick={printSelectedQualificationDocuments} disabled={printSelectedWorkers.length===0} className="rounded-xl bg-indigo-600 text-white px-5 py-2.5 font-black disabled:opacity-40">🖨️ A4印刷</button></div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4"><div className="font-black text-violet-950">資格証・健康診断書を個別保存</div><p className="mt-1 text-xs text-violet-700">画像はアップロード前に長辺2200px・JPEG品質88%へ自動圧縮します。PDFは原本のまま10MBまで保存します。</p><div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 mt-3"><select value={docType} onChange={(e)=>setDocType(e.target.value)} className="rounded-xl border p-3 font-bold bg-white"><option value="qualification">資格証</option><option value="health">健康診断書</option><option value="safety">安全書類</option><option value="other">その他</option></select><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="書類名（例：車両系資格証）" className="rounded-xl border p-3 font-bold bg-white" /><label className={`rounded-xl px-5 py-3 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-violet-600 text-white hover:bg-violet-700'}`}>{uploading?'アップロード中…':'📎 ファイル追加'}<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) uploadDocument(f); e.currentTarget.value='';}} /></label></div></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{selectedDocuments.map((doc)=><div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-black text-slate-400">{doc.document_type==='qualification'?'資格証':doc.document_type==='health'?'健康診断書':doc.document_type==='safety'?'安全書類':'その他'}</div><div className="mt-1 font-black text-slate-900 break-words">{doc.title||'書類'}</div><div className="mt-1 text-xs text-slate-500">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'} ・ {doc.uploaded_at?new Date(doc.uploaded_at).toLocaleString('ja-JP'):'-'}</div></div><div className="shrink-0 flex gap-2"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-3 py-2 text-xs font-black">開く</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-3 py-2 text-xs font-black">削除</button></div></div>)}{selectedDocuments.length===0&&<div className="md:col-span-2 p-8 text-center text-slate-400 font-bold rounded-2xl border border-dashed border-slate-300">保存済み書類はありません。</div>}</div>
                   </div>}
                 </div>
