@@ -122,6 +122,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === 'renameDocument') {
+      const id = String(body?.id || '').trim();
+      const title = String(body?.title || '').trim();
+      if (!id) return NextResponse.json({ error: '変更対象がありません。' }, { status: 400 });
+      if (!title) return NextResponse.json({ error: '表示名を入力してください。' }, { status: 400 });
+      if (title.length > 120) return NextResponse.json({ error: '表示名は120文字以内にしてください。' }, { status: 400 });
+      const res = await supabaseRest(`/rest/v1/worker_documents?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title })
+      }, { Prefer: 'return=representation' });
+      return NextResponse.json({ ok: true, rows: await readJson(res) });
+    }
+
     if (action === 'deleteDocument') {
       const id = String(body?.id || '').trim();
       const filePath = String(body?.file_path || '').trim();
