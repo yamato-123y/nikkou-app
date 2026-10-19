@@ -69,6 +69,49 @@ type ExcelImportPreview = {
   summary: { sheets: number; total: number; newCount: number; duplicateCount: number; unmatchedCount: number };
 };
 
+
+type RosterImportQualification = { category: string; qualification_name: string };
+type RosterImportRow = {
+  worker_name: string;
+  source_full_name: string;
+  furigana: string;
+  roster_no: string;
+  job_type: string;
+  experience_years: string;
+  hire_date: string;
+  birth_date: string;
+  blood_type: string;
+  address: string;
+  emergency_contact: string;
+  health_exam_date: string;
+  systolic: string;
+  diastolic: string;
+  qualifications: RosterImportQualification[];
+  source_sheet: string;
+  source_row: number;
+  status: 'matched' | 'unmatched';
+  reason?: string;
+  profileAction?: 'new' | 'fill' | 'unchanged' | 'unmatched';
+  fillableFields?: string[];
+  newHealth?: boolean;
+  newQualifications?: number;
+};
+
+type RosterImportPreview = {
+  fileName: string;
+  rows: RosterImportRow[];
+  summary: {
+    sheets: number;
+    workers: number;
+    matched: number;
+    unmatched: number;
+    newProfiles: number;
+    fillProfiles: number;
+    newHealth: number;
+    newQualifications: number;
+  };
+};
+
 const ADMIN_PASSWORD = '19770323';
 
 const emptyProfile = (name: string): WorkerProfile => ({
@@ -156,7 +199,8 @@ export default function WorkerLedgerPage() {
   const [uploading, setUploading] = useState(false);
   const [excelImportLoading, setExcelImportLoading] = useState(false);
   const [excelImportPreview, setExcelImportPreview] = useState<ExcelImportPreview | null>(null);
-  const [excelImportFile, setExcelImportFile] = useState<File | null>(null);
+  const [rosterImportLoading, setRosterImportLoading] = useState(false);
+  const [rosterImportPreview, setRosterImportPreview] = useState<RosterImportPreview | null>(null);
 
   const token = () => sessionStorage.getItem('yamato-admin-token') || '';
 
@@ -224,6 +268,9 @@ export default function WorkerLedgerPage() {
   const selectedQualifications = qualifications.filter((x) => x.worker_name === selectedWorker);
   const selectedHealth = healthChecks.filter((x) => x.worker_name === selectedWorker);
   const selectedDocuments = documents.filter((x) => x.worker_name === selectedWorker);
+  const selectedSavedProfile = profiles.find((x) => x.worker_name === selectedWorker) || null;
+
+  const hasRegisteredProfile = (name: string) => profiles.some((x) => x.worker_name === name);
 
   const summaryFor = (name: string) => {
     const q = qualifications.filter((x) => x.worker_name === name);
@@ -245,9 +292,21 @@ export default function WorkerLedgerPage() {
   const saveProfile = async () => {
     try {
       setSaving(true);
-      await api('/api/worker-ledger', { method: 'POST', body: JSON.stringify({ action: 'saveProfile', data: profileDraft }) });
+      const result = await api('/api/worker-ledger', { method: 'POST', body: JSON.stringify({ action: 'saveProfile', data: profileDraft }) });
+      const savedRow = Array.isArray(result?.rows) ? result.rows[0] : null;
+
+      // 保存直後にも「登録済み」と分かるよう、Supabaseが返した保存済み行を即時反映する。
+      // その後あらためて全データを再取得し、サーバー上の状態と同期する。
+      if (savedRow?.worker_name) {
+        setProfiles((prev) => [
+          ...prev.filter((x) => x.worker_name !== savedRow.worker_name),
+          savedRow
+        ]);
+        setProfileDraft({ ...savedRow });
+      }
+
       await loadAll();
-      alert('作業員台帳を保存しました。');
+      alert('作業員台帳を保存しました。画面上部の「登録済み台帳」に保存内容を表示しています。');
     } catch (e: any) { alert(e?.message || '保存に失敗しました。'); }
     finally { setSaving(false); }
   };
@@ -301,21 +360,18 @@ export default function WorkerLedgerPage() {
     } catch (e: any) { alert(e?.message || '削除に失敗しました。'); }
   };
 
-  const previewQualificationExcel = async () => {
-    if (!excelImportFile) return alert('先にExcelファイルを選択してください。');
+  const previewQualificationExcel = async (file: File) => {
     try {
       setExcelImportLoading(true);
       setExcelImportPreview(null);
       const form = new FormData();
-      form.append('file', excelImportFile);
+      form.append('file', file);
       form.append('workers', JSON.stringify(workerNames));
       const data = await api('/api/worker-ledger/excel-import', { method: 'POST', body: form });
       setExcelImportPreview(data as ExcelImportPreview);
     } catch (e: any) {
       alert(e?.message || 'Excelの読み取りに失敗しました。');
     } finally {
-      // Excel本体は保存しない。読み取り処理後はブラウザ側の選択状態も破棄する。
-      setExcelImportFile(null);
       setExcelImportLoading(false);
     }
   };
@@ -336,6 +392,53 @@ export default function WorkerLedgerPage() {
       alert(e?.message || 'Excelの登録に失敗しました。');
     } finally {
       setExcelImportLoading(false);
+    }
+  };
+
+  const previewRosterExcel = async (file: File) => {
+    try {
+      setRosterImportLoading(true);
+      setRosterImportPreview(null);
+      const form = new FormData();
+      form.append('file', file);
+      form.append('workers', JSON.stringify(workerNames));
+      const data = await api('/api/worker-ledger/roster-import', { method: 'POST', body: form });
+      setRosterImportPreview(data as RosterImportPreview);
+    } catch (e: any) {
+      alert(e?.message || '作業員名簿Excelの読み取りに失敗しました。');
+    } finally {
+      setRosterImportLoading(false);
+    }
+  };
+
+  const commitRosterExcel = async () => {
+    if (!rosterImportPreview || rosterImportPreview.summary.matched === 0) return;
+    const s = rosterImportPreview.summary;
+    if (!confirm(`作業員名簿を取り込みますか？
+
+対象：${s.matched}名
+台帳新規：${s.newProfiles}名
+空欄への追記：${s.fillProfiles}名
+健康診断：${s.newHealth}件
+資格・講習：${s.newQualifications}件
+
+※すでに入力済みの台帳内容は上書きしません。`)) return;
+    try {
+      setRosterImportLoading(true);
+      const result = await api('/api/worker-ledger/roster-import', {
+        method: 'PUT',
+        body: JSON.stringify({ rows: rosterImportPreview.rows })
+      });
+      await loadAll();
+      setRosterImportPreview(null);
+      alert(`作業員名簿の取込が完了しました。
+台帳：${Number(result?.profiles || 0)}名
+健康診断：${Number(result?.healthChecks || 0)}件
+資格・講習：${Number(result?.qualifications || 0)}件`);
+    } catch (e: any) {
+      alert(e?.message || '作業員名簿の登録に失敗しました。');
+    } finally {
+      setRosterImportLoading(false);
     }
   };
 
@@ -385,7 +488,8 @@ export default function WorkerLedgerPage() {
             <div className="max-h-[72vh] overflow-y-auto divide-y divide-slate-100">
               {visibleWorkers.map((name) => {
                 const s = summaryFor(name);
-                return <button key={name} onClick={()=>setSelectedWorker(name)} className={`w-full text-left p-4 transition ${selectedWorker===name?'bg-blue-50 border-l-4 border-blue-600':'hover:bg-slate-50 border-l-4 border-transparent'}`}><div className="flex items-center justify-between gap-2"><span className="font-black text-slate-900">{name}</span>{s.warning&&<span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-1 font-black">期限確認</span>}</div><div className="mt-1 text-xs text-slate-500">資格 {s.qCount}件{ s.healthDate ? `・健診 ${fmtDate(s.healthDate)}` : '・健診 未登録'}</div></button>;
+                const profileRegistered = hasRegisteredProfile(name);
+                return <button key={name} onClick={()=>setSelectedWorker(name)} className={`w-full text-left p-4 transition ${selectedWorker===name?'bg-blue-50 border-l-4 border-blue-600':'hover:bg-slate-50 border-l-4 border-transparent'}`}><div className="flex items-center justify-between gap-2"><span className="font-black text-slate-900">{name}</span><div className="flex items-center gap-1.5">{profileRegistered?<span className="text-[10px] rounded-full bg-emerald-100 text-emerald-800 px-2 py-1 font-black">台帳登録済み</span>:<span className="text-[10px] rounded-full bg-slate-100 text-slate-500 px-2 py-1 font-black">台帳未登録</span>}{s.warning&&<span className="text-xs rounded-full bg-amber-100 text-amber-800 px-2 py-1 font-black">期限確認</span>}</div></div><div className="mt-1 text-xs text-slate-500">資格 {s.qCount}件{ s.healthDate ? `・健診 ${fmtDate(s.healthDate)}` : '・健診 未登録'}</div></button>;
               })}
             </div>
           </aside>
@@ -402,6 +506,95 @@ export default function WorkerLedgerPage() {
                   {loading ? <div className="py-16 text-center font-black text-slate-400">🔄 読み込み中...</div> : null}
 
                   {!loading && tab==='profile' && <div className="space-y-5">
+                    <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-4 md:p-5">
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                        <div>
+                          <div className="font-black text-indigo-950 text-lg">📥 作業員名簿Excelから自動入力</div>
+                          <p className="mt-1 text-sm text-indigo-800 font-bold">現在の「作業員名簿」Excel（.xls / .xlsx）から、氏名・入社日・生年月日・血液型・住所・緊急連絡先・健康診断・資格/講習を読み取ります。</p>
+                          <p className="mt-1 text-xs text-indigo-700">※「退職者」「原本」シートは除外します。既に入力済みの台帳内容は上書きせず、空欄だけ補完します。まず確認画面を出し、登録ボタンを押すまでSupabaseへ保存しません。</p>
+                        </div>
+                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${rosterImportLoading?'bg-slate-300 text-slate-500':'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                          {rosterImportLoading ? '名簿確認中…' : '📄 作業員名簿を選択'}
+                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={rosterImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewRosterExcel(f); e.currentTarget.value='';}} />
+                        </label>
+                      </div>
+
+                      {rosterImportPreview && (
+                        <div className="mt-4 space-y-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 text-xs font-black">
+                            <div className="rounded-xl bg-white border border-indigo-100 p-3">対象<br/><span className="text-lg text-indigo-800">{rosterImportPreview.summary.workers}</span>名</div>
+                            <div className="rounded-xl bg-white border border-emerald-100 p-3">一致<br/><span className="text-lg text-emerald-700">{rosterImportPreview.summary.matched}</span>名</div>
+                            <div className="rounded-xl bg-white border border-blue-100 p-3">台帳新規<br/><span className="text-lg text-blue-700">{rosterImportPreview.summary.newProfiles}</span>名</div>
+                            <div className="rounded-xl bg-white border border-cyan-100 p-3">空欄補完<br/><span className="text-lg text-cyan-700">{rosterImportPreview.summary.fillProfiles}</span>名</div>
+                            <div className="rounded-xl bg-white border border-violet-100 p-3">健診追加<br/><span className="text-lg text-violet-700">{rosterImportPreview.summary.newHealth}</span>件</div>
+                            <div className="rounded-xl bg-white border border-amber-100 p-3">資格追加<br/><span className="text-lg text-amber-700">{rosterImportPreview.summary.newQualifications}</span>件</div>
+                            <div className="rounded-xl bg-white border border-rose-100 p-3">未一致<br/><span className="text-lg text-rose-700">{rosterImportPreview.summary.unmatched}</span>名</div>
+                          </div>
+                          <div className="max-h-80 overflow-auto rounded-xl border border-indigo-200 bg-white">
+                            <table className="w-full min-w-[1000px] text-xs">
+                              <thead className="sticky top-0 bg-slate-100 z-10"><tr><th className="p-2 text-left">状態</th><th className="p-2 text-left">作業員</th><th className="p-2 text-left">氏名</th><th className="p-2 text-left">入社日</th><th className="p-2 text-left">生年月日</th><th className="p-2 text-left">血液型</th><th className="p-2 text-left">健診</th><th className="p-2 text-left">資格</th><th className="p-2 text-left">職種/経験</th></tr></thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {rosterImportPreview.rows.map((row, idx) => (
+                                  <tr key={`${row.source_sheet}-${row.source_row}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':''}>
+                                    <td className="p-2 font-black">{row.status==='unmatched'?<span className="text-rose-700">未一致</span>:row.profileAction==='new'?<span className="text-blue-700">新規</span>:row.profileAction==='fill'?<span className="text-cyan-700">空欄補完</span>:<span className="text-slate-500">登録済み</span>}</td>
+                                    <td className="p-2 font-black">{row.worker_name || '－'}</td>
+                                    <td className="p-2">{row.source_full_name || '－'}</td>
+                                    <td className="p-2">{row.hire_date || '－'}</td>
+                                    <td className="p-2">{row.birth_date || '－'}</td>
+                                    <td className="p-2">{row.blood_type || '－'}</td>
+                                    <td className="p-2">{row.newHealth ? `追加 ${row.health_exam_date}` : (row.health_exam_date || '－')}</td>
+                                    <td className="p-2">{row.newQualifications ? `新規 ${row.newQualifications}件` : `${row.qualifications.length}件`}</td>
+                                    <td className="p-2">{[row.job_type, row.experience_years ? `${row.experience_years}年` : ''].filter(Boolean).join(' / ') || '－'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {rosterImportPreview.summary.unmatched > 0 && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-800">⚠️ 「未一致」は作業員マスタの名前と自動一致できなかったため登録しません。作業員マスタ名を確認してください。</div>}
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button type="button" onClick={()=>setRosterImportPreview(null)} disabled={rosterImportLoading} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-black text-slate-700 disabled:opacity-50">キャンセル</button>
+                            <button type="button" onClick={commitRosterExcel} disabled={rosterImportLoading || rosterImportPreview.summary.matched===0} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 font-black disabled:opacity-50">{rosterImportLoading?'登録中…':'✓ 確認した内容を登録'}</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {selectedSavedProfile ? (
+                      <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-emerald-200 pb-3">
+                          <div>
+                            <div className="text-xs font-black text-emerald-700">✓ 保存済み</div>
+                            <div className="text-lg font-black text-emerald-950">登録済み台帳</div>
+                          </div>
+                          <div className="text-xs font-bold text-emerald-800">最終更新：{selectedSavedProfile.updated_at ? new Date(selectedSavedProfile.updated_at).toLocaleString('ja-JP') : '-'}</div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-5 gap-y-3 mt-4 text-sm">
+                          {[
+                            ['氏名（フルネーム）', selectedSavedProfile.full_name],
+                            ['社員番号', selectedSavedProfile.employee_no],
+                            ['雇用区分', selectedSavedProfile.employment_type],
+                            ['入社日', fmtDate(selectedSavedProfile.hire_date)],
+                            ['生年月日', fmtDate(selectedSavedProfile.birth_date)],
+                            ['血液型', selectedSavedProfile.blood_type],
+                            ['住所', selectedSavedProfile.address],
+                            ['緊急連絡先', selectedSavedProfile.emergency_contact]
+                          ].map(([label, value]) => (
+                            <div key={String(label)} className="rounded-xl bg-white border border-emerald-100 px-3 py-2.5">
+                              <div className="text-[11px] font-black text-slate-400">{label}</div>
+                              <div className="mt-0.5 font-black text-slate-900 break-words">{value || '－'}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {selectedSavedProfile.notes && (
+                          <div className="mt-3 rounded-xl bg-white border border-emerald-100 px-3 py-2.5">
+                            <div className="text-[11px] font-black text-slate-400">管理メモ</div>
+                            <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-slate-800">{selectedSavedProfile.notes}</div>
+                          </div>
+                        )}
+                        <div className="mt-3 text-xs font-bold text-emerald-800">下の入力欄は編集用です。変更後は「💾 台帳を保存」を押してください。</div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-bold text-slate-500">この作業員の台帳はまだ登録されていません。下の入力欄へ入力して保存してください。</div>
+                    )}
                     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 font-bold">既存の日報用作業員名「{selectedWorker}」に紐づく追加台帳です。日報・勤怠の作業員マスタ自体は変更しません。</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {[['full_name','氏名（フルネーム）','text'],['employee_no','社員番号','text'],['employment_type','雇用区分','text'],['hire_date','入社日','date'],['birth_date','生年月日','date'],['blood_type','血液型','text']].map(([key,label,type])=><label key={key} className="text-sm font-black text-slate-700">{label}<input type={type} value={(profileDraft as any)[key]||''} onChange={(e)=>setProfileDraft(p=>({...p,[key]:e.target.value}))} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-bold bg-white" /></label>)}
@@ -414,29 +607,16 @@ export default function WorkerLedgerPage() {
 
                   {!loading && tab==='qualification' && <div className="space-y-5">
                     <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 md:p-5">
-                      <div>
-                        <div className="font-black text-blue-950 text-lg">📥 Excelから資格を読み取る</div>
-                        <p className="mt-1 text-sm text-blue-800 font-bold">資格管理Excel（作業員ごとのシート）を選択し、「読み取る」を押すと、作業員名・区分・資格名・修了証番号・取得日をプレビューします。</p>
-                        <div className="mt-2 rounded-xl border border-blue-200 bg-white/70 px-3 py-2 text-xs leading-relaxed text-blue-900 font-bold">
-                          🔒 「読み取る」だけではSupabaseへ資格情報を保存しません。Excelファイル本体もDatabase・Storageには保存せず、読み取り処理後に破棄します。
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                        <div>
+                          <div className="font-black text-blue-950 text-lg">📥 Excelから資格を一括登録</div>
+                          <p className="mt-1 text-sm text-blue-800 font-bold">現在使用している資格管理Excel（作業員ごとのシート）を選ぶと、作業員名・区分・資格名・修了証番号・取得日を自動で読み取ります。</p>
+                          <p className="mt-1 text-xs text-blue-700">※ すぐには登録せず、まず読み取り結果を確認します。既存データは上書き・削除しません。</p>
                         </div>
-                      </div>
-                      <div className="mt-4 flex flex-col lg:flex-row lg:items-center gap-3">
-                        <label className={`rounded-xl px-5 py-3 font-black text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-white hover:bg-blue-100 text-blue-800 border-2 border-blue-300'}`}>
-                          📄 Excelを選択
-                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={excelImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0] || null; setExcelImportFile(f); setExcelImportPreview(null); e.currentTarget.value='';}} />
+                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                          {excelImportLoading ? 'Excel確認中…' : '📄 Excelを選択'}
+                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={excelImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewQualificationExcel(f); e.currentTarget.value='';}} />
                         </label>
-                        <div className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 truncate">
-                          {excelImportFile ? `選択中：${excelImportFile.name}` : 'Excelファイルを選択してください'}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={previewQualificationExcel}
-                          disabled={excelImportLoading || !excelImportFile}
-                          className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-black disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {excelImportLoading ? '🔄 読み取り中…' : '🔍 読み取る'}
-                        </button>
                       </div>
                     </div>
 
