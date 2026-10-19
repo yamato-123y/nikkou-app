@@ -66,17 +66,32 @@ const splitQualifications = (value: any) => {
     .filter((x, i, arr) => arr.findIndex((y) => normalize(y) === normalize(x)) === i);
 };
 
+const firstNameToken = (value: string) =>
+  String(value || '')
+    .normalize('NFKC')
+    .trim()
+    .split(/[\s　]+/)[0] || '';
+
 const findWorker = (fullName: string, furigana: string, masterWorkers: string[]) => {
   const full = normalize(fullName);
   const kana = normalize(furigana);
-  const candidates = masterWorkers.filter((name) => {
+
+  // まず氏名全体の完全一致だけを優先する。
+  // 「辻」と「辻阪」のような前方一致では別人なので、自動一致させない。
+  const exact = masterWorkers.find((name) => {
     const n = normalize(name);
-    if (!n) return false;
-    return n === full || n === kana || full.startsWith(n) || kana.startsWith(n) || n.startsWith(full) || n.startsWith(kana);
+    return !!n && (n === full || n === kana);
   });
-  const exact = candidates.find((name) => normalize(name) === full || normalize(name) === kana);
   if (exact) return exact;
-  return candidates.length === 1 ? candidates[0] : '';
+
+  // Excel側に「姓 名」のように明確な区切りがある場合だけ、
+  // 姓部分と作業員マスタの完全一致を許可する。
+  // 例: 「辻 幸良」→「辻」は一致するが、「辻阪」には一致しない。
+  const surnameCandidates = [firstNameToken(fullName), firstNameToken(furigana)]
+    .map(normalize)
+    .filter(Boolean);
+  const surnameMatches = masterWorkers.filter((name) => surnameCandidates.includes(normalize(name)));
+  return surnameMatches.length === 1 ? surnameMatches[0] : '';
 };
 
 const qualKey = (worker: string, category: string, name: string) =>
