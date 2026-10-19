@@ -280,6 +280,8 @@ export default function AdminPage() {
   const [adminReplyDraft, setAdminReplyDraft] = useState('');
   const [adminReplySaving, setAdminReplySaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
+  // PC管理画面は左ナビから目的の機能を切り替えて表示し、長い1ページを探してスクロールしない。
+  const [adminNavView, setAdminNavView] = useState<'home' | 'new' | 'sites' | 'reports' | 'kentaikyo' | 'attendance' | 'fuel' | 'custom-machines' | 'announcements' | 'master' | 'completed'>('home');
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
@@ -7726,8 +7728,35 @@ export default function AdminPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const openAdminNavView = (view: typeof adminNavView) => {
+    if (!confirmUnsavedBeforeAction('別の管理メニューへ移動する')) return;
+    setAdminNavView(view);
+    if (view === 'master') setShowAdminSection(true);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const adminNavMeta: Record<typeof adminNavView, { title: string; description: string; icon: string }> = {
+    home: { icon: '🏠', title: '管理トップ', description: '新着・要確認を中心に、今日確認したい内容をまとめています。' },
+    new: { icon: '🔔', title: '新着・要確認', description: '新しい日報や報告事項など、確認が必要な内容を確認します。' },
+    sites: { icon: '🏢', title: '現場・詳細分析', description: '稼働中現場の売上・経費・利益と内訳を確認します。' },
+    reports: { icon: '📥', title: '日報一覧', description: '送信済みの日報を現場ごとに確認・編集します。' },
+    kentaikyo: { icon: '🎫', title: '建退共', description: '作業員ごとの証紙あり・なし・未設定を月単位で確認します。' },
+    attendance: { icon: '👷', title: '月次勤怠・会社カレンダー', description: '20日締めの勤怠と会社カレンダーをまとめて管理します。' },
+    fuel: { icon: '⛽', title: '大阪軽油単価', description: '月ごとの大阪軽油単価を全現場共通で設定します。' },
+    'custom-machines': { icon: '⚠️', title: '自由入力機械', description: '日報で手入力された未登録機械を確認します。' },
+    announcements: { icon: '📢', title: 'お知らせ', description: '日報入力者へ表示するお知らせを作成・管理します。' },
+    master: { icon: '⚙️', title: 'マスタ登録', description: '作業員・業者・車両・リース・処分場などの基礎情報を管理します。' },
+    completed: { icon: '📁', title: '完了済現場', description: '完了した現場の詳細分析・日報・Excelレポートを確認します。' }
+  };
+
+  const adminViewClass = (view: typeof adminNavView | Array<typeof adminNavView>) => {
+    if (authRole !== 'admin') return '';
+    const views = Array.isArray(view) ? view : [view];
+    return views.includes(adminNavView) ? '' : 'hidden';
+  };
+
   return (
-    <div id="admin-top" className={`p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg relative ${authRole === 'admin' ? 'lg:pl-[286px]' : ''}`}>
+    <div id="admin-top" className={`p-3 md:p-6 bg-slate-100 min-h-screen space-y-4 md:space-y-6 w-full font-sans text-slate-800 text-base md:text-lg relative ${authRole === 'admin' ? 'lg:pl-[292px] lg:pr-6' : 'max-w-[1800px] mx-auto'}`}>
       {showSaveToast && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce font-bold text-base md:text-lg">
           <span className="text-2xl">✨</span>
@@ -7736,75 +7765,61 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <aside className="hidden lg:flex fixed left-4 top-4 bottom-4 z-40 w-[250px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-          <div className="border-b border-slate-200 bg-slate-900 px-4 py-4 text-white">
-            <div className="text-[11px] font-black tracking-[0.18em] text-slate-300">ADMIN INDEX</div>
-            <div className="mt-1 text-lg font-black">管理画面メニュー</div>
-            <div className="mt-1 text-xs font-bold text-slate-400">目的の場所へすぐ移動できます</div>
+        <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 z-40 w-[272px] flex-col border-r border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-5">
+            <div className="text-[11px] font-black tracking-[0.16em] text-slate-400">YAMATO ADMIN</div>
+            <div className="mt-1 text-xl font-black text-slate-950">管理メニュー</div>
+            <div className="mt-1 text-xs font-bold leading-5 text-slate-500">左から選ぶだけで右側が切り替わります。目的の機能を探して長くスクロールする必要はありません。</div>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 text-sm space-y-3">
-            <section className="rounded-2xl border border-blue-100 bg-blue-50/50 p-2.5">
-              <div className="mb-2 px-1.5">
-                <div className="text-[11px] font-black tracking-wider text-blue-800">① 日々の確認</div>
-                <div className="mt-0.5 text-[10px] font-bold text-blue-500">まず確認する場所</div>
+          <div className="flex-1 overflow-y-auto px-3 py-4 text-sm">
+            {[
+              { heading: '日々の確認', items: [
+                { key: 'home', icon: '🏠', label: '管理トップ' },
+                { key: 'new', icon: '🔔', label: '新着・要確認' },
+                { key: 'sites', icon: '🏢', label: '現場・詳細分析' },
+                { key: 'reports', icon: '📥', label: '日報一覧' }
+              ]},
+              { heading: '作業員・勤怠', items: [
+                { key: 'attendance', icon: '👷', label: '月次勤怠・カレンダー' },
+                { key: 'kentaikyo', icon: '🎫', label: '建退共' }
+              ]},
+              { heading: '経費・請求書', items: [
+                { key: 'invoice', icon: '🧾', label: '請求書照合センター' },
+                { key: 'fuel', icon: '⛽', label: '大阪軽油単価' },
+                { key: 'disposal', icon: '🗑️', label: '処分費' },
+                { key: 'scrap', icon: '♻️', label: 'スクラップ' },
+                { key: 'fiscal', icon: '📊', label: '決算・期跨ぎ集計' }
+              ]},
+              { heading: '登録・お知らせ', items: [
+                { key: 'custom-machines', icon: '⚠️', label: '自由入力機械' },
+                { key: 'announcements', icon: '📢', label: 'お知らせ' },
+                { key: 'master', icon: '⚙️', label: 'マスタ登録' }
+              ]},
+              { heading: '完了・保管', items: [
+                { key: 'completed', icon: '📁', label: '完了済現場' }
+              ]}
+            ].map((group) => (
+              <div key={group.heading} className="mb-5">
+                <div className="mb-1.5 px-3 text-[10px] font-black tracking-[0.14em] text-slate-400">{group.heading}</div>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const active = item.key === adminNavView;
+                    const baseClass = `flex min-h-[42px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left font-bold transition ${active ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100'}`;
+                    if (item.key === 'invoice') return <button key={item.key} type="button" onClick={() => setShowInvoiceProgressModal(true)} className={baseClass}><span className="w-6 text-center">{item.icon}</span><span>{item.label}</span></button>;
+                    if (item.key === 'disposal') return <button key={item.key} type="button" onClick={() => setShowAllMonthlyDisposalModal(true)} className={baseClass}><span className="w-6 text-center">{item.icon}</span><span>{item.label}</span></button>;
+                    if (item.key === 'scrap') return <button key={item.key} type="button" onClick={openScrapReconcileModal} className={baseClass}><span className="w-6 text-center">{item.icon}</span><span>{item.label}</span></button>;
+                    if (item.key === 'fiscal') return <button key={item.key} type="button" onClick={() => setShowFiscalClosingModal(true)} className={baseClass}><span className="w-6 text-center">{item.icon}</span><span>{item.label}</span></button>;
+                    return <button key={item.key} type="button" onClick={() => openAdminNavView(item.key as typeof adminNavView)} className={baseClass}><span className="w-6 text-center">{item.icon}</span><span className="truncate">{item.label}</span></button>;
+                  })}
+                </div>
               </div>
-              <div className="space-y-1">
-                <button type="button" onClick={() => scrollAdminTo('admin-top')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">🏠 トップ</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-new')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-amber-50">🔔 新着・要確認</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-sites')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-blue-50">🏢 現場・詳細分析</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-reports')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">📥 日報一覧</button>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-2.5">
-              <div className="mb-2 px-1.5">
-                <div className="text-[11px] font-black tracking-wider text-emerald-800">② 作業員・勤怠</div>
-                <div className="mt-0.5 text-[10px] font-bold text-emerald-600">人・出勤・建退共の管理</div>
-              </div>
-              <div className="space-y-1">
-                <button type="button" onClick={() => scrollAdminTo('admin-monthly-attendance')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-emerald-50">👷 月次勤怠・カレンダー</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-kentaikyo')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-teal-50">🎫 建退共</button>
-                <a href="/admin/workers" className="block w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">🪪 作業員台帳・資格</a>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-orange-100 bg-orange-50/50 p-2.5">
-              <div className="mb-2 px-1.5">
-                <div className="text-[11px] font-black tracking-wider text-orange-800">③ 経費・請求書</div>
-                <div className="mt-0.5 text-[10px] font-bold text-orange-600">金額確認・照合・決算</div>
-              </div>
-              <div className="space-y-1">
-                <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-indigo-800 shadow-sm hover:bg-indigo-50">🧾 請求書照合センター</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-fuel-price')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-orange-50">⛽ 大阪軽油単価</button>
-                <button type="button" onClick={() => setShowAllMonthlyDisposalModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-amber-800 shadow-sm hover:bg-amber-50">🗑️ 処分費</button>
-                <button type="button" onClick={openScrapReconcileModal} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-emerald-800 shadow-sm hover:bg-emerald-50">♻️ スクラップ</button>
-                <button type="button" onClick={() => setShowFiscalClosingModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-cyan-800 shadow-sm hover:bg-cyan-50">📊 決算・期跨ぎ集計</button>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-violet-100 bg-violet-50/50 p-2.5">
-              <div className="mb-2 px-1.5">
-                <div className="text-[11px] font-black tracking-wider text-violet-800">④ 登録・お知らせ</div>
-                <div className="mt-0.5 text-[10px] font-bold text-violet-600">マスタ・通知・未登録確認</div>
-              </div>
-              <div className="space-y-1">
-                <button type="button" onClick={() => scrollAdminTo('admin-custom-machines')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-amber-50">⚠️ 自由入力機械</button>
-                <button type="button" onClick={() => scrollAdminTo('admin-announcements')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-indigo-50">📢 お知らせ</button>
-                <button type="button" onClick={() => { setShowAdminSection(true); setTimeout(() => scrollAdminTo('admin-master'), 50); }} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-violet-800 shadow-sm hover:bg-violet-50">⚙️ マスタ登録</button>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-slate-200 bg-slate-100/80 p-2.5">
-              <div className="mb-2 px-1.5">
-                <div className="text-[11px] font-black tracking-wider text-slate-700">⑤ 完了・保管</div>
-                <div className="mt-0.5 text-[10px] font-bold text-slate-500">完了した現場の確認</div>
-              </div>
-              <button type="button" onClick={() => scrollAdminTo('admin-completed-sites')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">📁 完了済現場</button>
-            </section>
+            ))}
+            <div className="mb-5">
+              <div className="mb-1.5 px-3 text-[10px] font-black tracking-[0.14em] text-slate-400">作業員情報</div>
+              <a href="/admin/workers" className="flex min-h-[42px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left font-bold text-slate-700 transition hover:bg-slate-100"><span className="w-6 text-center">🪪</span><span>作業員台帳・資格</span></a>
+            </div>
           </div>
-          <div className="border-t border-slate-200 bg-slate-50 p-3">
-            <button type="button" onClick={() => scrollAdminTo('admin-top')} className="w-full rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-100">↑ ページ上部へ</button>
-          </div>
+          <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-bold text-slate-500">メニュー幅・ボタン幅を統一</div>
         </aside>
       )}
 
@@ -7879,12 +7894,25 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {authRole === 'admin' && (
+        <div className="hidden lg:flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{adminNavMeta[adminNavView].icon}</span>
+              <h2 className="truncate text-xl font-black text-slate-950">{adminNavMeta[adminNavView].title}</h2>
+            </div>
+            <p className="mt-1 text-sm font-medium text-slate-500">{adminNavMeta[adminNavView].description}</p>
+          </div>
+          <button type="button" onClick={fetchData} className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100">↻ 最新の状態にする</button>
+        </div>
+      )}
+
       {authRole === 'admin' && (() => {
         const selectedMonth = String(form.osakaFuelYearMonth || getCurrentYearMonth());
         const savedPrice = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[selectedMonth] ?? '';
         const inputPrice = form.osakaFuelUnitPrice !== undefined ? form.osakaFuelUnitPrice : savedPrice;
         return (
-          <section id="admin-fuel-price" className="scroll-mt-6 rounded-2xl border-2 border-orange-200 bg-orange-50/70 px-4 py-3 md:px-5 md:py-4 shadow-sm">
+          <section id="admin-fuel-price" className={`${adminViewClass('fuel')} scroll-mt-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 md:px-5 md:py-4 shadow-sm`}>
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
               <div>
                 <div className="font-black text-orange-950">⛽ 大阪軽油単価（月別・全現場共通）</div>
@@ -7985,7 +8013,7 @@ export default function AdminPage() {
 
 
       {authRole === 'admin' && allUnregisteredCustomMachineAlerts.length > 0 && (
-        <section id="admin-custom-machines" className="scroll-mt-6 rounded-2xl md:rounded-3xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
+        <section id="admin-custom-machines" className={`${adminViewClass('custom-machines')} scroll-mt-6 rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden`}>
           <div className="px-4 md:px-6 py-4 border-b border-amber-200 bg-gradient-to-r from-amber-100 via-amber-50 to-white">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
@@ -8050,7 +8078,7 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <details className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <details className={`${adminViewClass('home')} rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden`}>
           <summary className="cursor-pointer select-none px-4 md:px-6 py-3.5 font-black text-slate-800 hover:bg-slate-50 transition flex items-center gap-2">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm">？</span>
             困ったときのヘルプ
@@ -8081,7 +8109,7 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <section id="admin-announcements" className="scroll-mt-6 w-full max-w-6xl mx-auto rounded-2xl md:rounded-3xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+        <section id="admin-announcements" className={`${adminViewClass('announcements')} scroll-mt-6 w-full rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden`}>
           <div className="px-4 md:px-5 py-3.5 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-violet-50">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div>
@@ -8231,7 +8259,7 @@ export default function AdminPage() {
       )}
 
       {authRole === 'admin' && (
-        <section id="admin-new" className="scroll-mt-6 rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section id="admin-new" className={`${adminViewClass(['home', 'new'])} scroll-mt-6 rounded-2xl md:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
             <div>
               <div className="flex items-center gap-2">
@@ -8709,7 +8737,7 @@ export default function AdminPage() {
       })()}
 
       {/* 稼働中の現場サマリー */}
-      <div id="admin-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} scroll-mt-6 bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-5`}>
+      <div id="admin-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} ${adminViewClass('sites')} scroll-mt-6 bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5`}>
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 現場ごとの原価・利益を見る</h2>
           <p className="mt-1 text-sm text-slate-500">稼働中の現場を選ぶと、売上・経費・利益と詳しい内訳を確認できます。</p>
@@ -9087,7 +9115,7 @@ export default function AdminPage() {
 
       {/* 建退共（証紙）管理・確認（管理者のみ） */}
       {authRole === 'admin' && (
-        <div id="admin-kentaikyo" className="scroll-mt-6 bg-teal-50/50 rounded-3xl shadow-sm border-2 border-teal-200 overflow-hidden">
+        <div id="admin-kentaikyo" className={`${adminViewClass('kentaikyo')} scroll-mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
           <div
             role="button"
             tabIndex={0}
@@ -9265,7 +9293,7 @@ export default function AdminPage() {
 
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
-        <div id="admin-monthly-attendance" className="scroll-mt-6 bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
+        <div id="admin-monthly-attendance" className={`${adminViewClass('attendance')} scroll-mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
           <div
             role="button"
             tabIndex={0}
@@ -10188,7 +10216,7 @@ export default function AdminPage() {
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
-        <div id="admin-master" className="scroll-mt-6 bg-violet-50/40 rounded-3xl shadow-sm border-2 border-violet-200 overflow-hidden">
+        <div id="admin-master" className={`${adminViewClass('master')} scroll-mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
           <div
             role="button"
             tabIndex={0}
@@ -11335,7 +11363,7 @@ export default function AdminPage() {
         </div>
 
         {/* 送信された日報一覧（稼働中の現場） */}
-        <div id="admin-reports" className="scroll-mt-6 bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6">
+        <div id="admin-reports" className={`${adminViewClass('reports')} scroll-mt-6 bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-6`}>
           <div className="flex justify-between items-center flex-wrap gap-3">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信済みの日報を見る</h2>
@@ -11515,7 +11543,7 @@ export default function AdminPage() {
       </div>
 
       {/* 完了済現場：現場ごとに詳細分析・日報・レポートをまとめて確認 */}
-      <div id="admin-completed-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} scroll-mt-6 bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-300 overflow-hidden`}>
+      <div id="admin-completed-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} ${adminViewClass('completed')} scroll-mt-6 bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
         <div className="bg-slate-300 px-4 md:px-8 py-4 md:py-5">
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">📁 完了済現場</h2>
           <p className="text-sm md:text-base text-slate-600 mt-1">完了した現場ごとに「詳細分析・日報・レポート」をまとめて確認できます</p>
