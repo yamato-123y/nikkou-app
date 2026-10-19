@@ -3706,6 +3706,42 @@ export default function AdminPage() {
   const getInvoiceReconcileHistory = (locName: string, category: string) =>
     Array.isArray(invoiceReconcileHistory?.[locName]?.[category]) ? invoiceReconcileHistory[locName][category] : [];
 
+  // 請求書照合センターの外注行は、請求書照合そのものとは別に
+  // 「事務所で確認した」印を行クリックで付けられる。緑色はこの手動チェックを表す。
+  const getInvoiceCenterSubCheckKey = (row: any) =>
+    ['subcontractor', invoiceProgressMonth, String(row?.location || ''), String(row?.company || '')].join('__');
+
+  const isInvoiceCenterSubChecked = (row: any) => {
+    const key = getInvoiceCenterSubCheckKey(row);
+    return !!settings?.invoiceCenterManualChecks?.[key];
+  };
+
+  const toggleInvoiceCenterSubChecked = async (row: any) => {
+    if (authRole !== 'admin') return;
+    const key = getInvoiceCenterSubCheckKey(row);
+    if (!key) return;
+    try {
+      const latestSettings = await buildLatestSettingsForSave({});
+      const current = latestSettings?.invoiceCenterManualChecks && typeof latestSettings.invoiceCenterManualChecks === 'object'
+        ? { ...latestSettings.invoiceCenterManualChecks }
+        : {};
+      if (current[key]) delete current[key];
+      else current[key] = { checkedAt: new Date().toISOString() };
+      const newData = { ...latestSettings, invoiceCenterManualChecks: current };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('確認チェックの保存に失敗しました。');
+      setSettings((prev: any) => ({ ...prev, invoiceCenterManualChecks: current }));
+      setOriginalSettings((prev: any) => ({ ...prev, invoiceCenterManualChecks: JSON.parse(JSON.stringify(current)) }));
+    } catch (e) {
+      console.error(e);
+      alert('確認チェックの保存に失敗しました。');
+    }
+  };
+
   const openExpenseInvoiceModal = (key: string, label: string) => {
     if (!modalLocation) return;
     setExpenseInvoiceCategory({ key, label });
@@ -5450,7 +5486,7 @@ export default function AdminPage() {
     const reportEstimateVehicle = calcVehicle;
     const disposalMonthlyBreakdown = getDisposalMonthlyBreakdown(locName);
     const reportEstimateDisposal = disposalMonthlyBreakdown.reportTotal;
-    const reportEstimateFuel = calcFuel;
+    let reportEstimateFuel = calcFuel;
     const reportEstimateRegular = calcRegular;
     const reportEstimateEtc = calcEtc;
     const reportEstimateParking = calcParking;
@@ -5508,13 +5544,17 @@ export default function AdminPage() {
     const monthlyOsakaFuelCost = Object.values(monthlyFuelBreakdown)
       .reduce((sum, item) => sum + item.total, 0);
 
-    const osakaFuelCost = isIshikawaFuelSplit ? monthlyOsakaFuelCost : calcFuel;
+    // 大阪軽油は、保存済みの過去スナップショット金額ではなく、
+    // 各日報の軽油L × 管理画面トップの月別共通単価で毎回再計算する。
+    // これにより共通単価を更新した月は、各現場の詳細分析「日報由来」に即反映する。
+    reportEstimateFuel = monthlyOsakaFuelCost;
+    const osakaFuelCost = monthlyOsakaFuelCost;
     const osakaRegularCost = calcRegular;
     const unokeFuelCost = isIshikawaFuelSplit && ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : 0;
     const unokeRegularCost = isIshikawaFuelSplit && ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : 0;
     const fuelBaseCost = isIshikawaFuelSplit
       ? osakaFuelCost + unokeFuelCost
-      : (ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : calcFuel);
+      : (ov.fuel !== '' && ov.fuel !== undefined ? Number(ov.fuel) : monthlyOsakaFuelCost);
     const regularBaseCost = isIshikawaFuelSplit
       ? osakaRegularCost + unokeRegularCost
       : (ov.regular !== '' && ov.regular !== undefined ? Number(ov.regular) : calcRegular);
@@ -5657,7 +5697,7 @@ export default function AdminPage() {
       reportEstimateOwnMachine,
       reportEstimateVehicle,
       reportEstimateDisposal,
-      reportEstimateFuel: isIshikawaFuelSplit ? osakaFuelCost : reportEstimateFuel,
+      reportEstimateFuel,
       reportEstimateRegular,
       reportEstimateEtc,
       reportEstimateParking,
@@ -7681,13 +7721,91 @@ export default function AdminPage() {
     .sort((a: any, b: any) => Number(b.sortTime || 0) - Number(a.sortTime || 0))
     .slice(0, 10);
 
+  const scrollAdminTo = (id: string) => {
+    if (typeof document === 'undefined') return;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <div className="p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg relative">
+    <div id="admin-top" className={`p-3 md:p-10 bg-slate-100 min-h-screen space-y-4 md:space-y-8 w-full max-w-[1800px] mx-auto font-sans text-slate-800 text-base md:text-lg relative ${authRole === 'admin' ? 'lg:pl-[286px]' : ''}`}>
       {showSaveToast && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce font-bold text-base md:text-lg">
           <span className="text-2xl">✨</span>
           <span>保存しました！</span>
         </div>
+      )}
+
+      {authRole === 'admin' && (
+        <aside className="hidden lg:flex fixed left-4 top-4 bottom-4 z-40 w-[250px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-200 bg-slate-900 px-4 py-4 text-white">
+            <div className="text-[11px] font-black tracking-[0.18em] text-slate-300">ADMIN INDEX</div>
+            <div className="mt-1 text-lg font-black">管理画面メニュー</div>
+            <div className="mt-1 text-xs font-bold text-slate-400">目的の場所へすぐ移動できます</div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 text-sm space-y-3">
+            <section className="rounded-2xl border border-blue-100 bg-blue-50/50 p-2.5">
+              <div className="mb-2 px-1.5">
+                <div className="text-[11px] font-black tracking-wider text-blue-800">① 日々の確認</div>
+                <div className="mt-0.5 text-[10px] font-bold text-blue-500">まず確認する場所</div>
+              </div>
+              <div className="space-y-1">
+                <button type="button" onClick={() => scrollAdminTo('admin-top')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">🏠 トップ</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-new')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-amber-50">🔔 新着・要確認</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-sites')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-blue-50">🏢 現場・詳細分析</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-reports')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">📥 日報一覧</button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-2.5">
+              <div className="mb-2 px-1.5">
+                <div className="text-[11px] font-black tracking-wider text-emerald-800">② 作業員・勤怠</div>
+                <div className="mt-0.5 text-[10px] font-bold text-emerald-600">人・出勤・建退共の管理</div>
+              </div>
+              <div className="space-y-1">
+                <button type="button" onClick={() => scrollAdminTo('admin-monthly-attendance')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-emerald-50">👷 月次勤怠・カレンダー</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-kentaikyo')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-teal-50">🎫 建退共</button>
+                <a href="/admin/workers" className="block w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">🪪 作業員台帳・資格</a>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-orange-100 bg-orange-50/50 p-2.5">
+              <div className="mb-2 px-1.5">
+                <div className="text-[11px] font-black tracking-wider text-orange-800">③ 経費・請求書</div>
+                <div className="mt-0.5 text-[10px] font-bold text-orange-600">金額確認・照合・決算</div>
+              </div>
+              <div className="space-y-1">
+                <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-indigo-800 shadow-sm hover:bg-indigo-50">🧾 請求書照合センター</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-fuel-price')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-orange-50">⛽ 大阪軽油単価</button>
+                <button type="button" onClick={() => setShowAllMonthlyDisposalModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-amber-800 shadow-sm hover:bg-amber-50">🗑️ 処分費</button>
+                <button type="button" onClick={openScrapReconcileModal} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-emerald-800 shadow-sm hover:bg-emerald-50">♻️ スクラップ</button>
+                <button type="button" onClick={() => setShowFiscalClosingModal(true)} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-cyan-800 shadow-sm hover:bg-cyan-50">📊 決算・期跨ぎ集計</button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-violet-100 bg-violet-50/50 p-2.5">
+              <div className="mb-2 px-1.5">
+                <div className="text-[11px] font-black tracking-wider text-violet-800">④ 登録・お知らせ</div>
+                <div className="mt-0.5 text-[10px] font-bold text-violet-600">マスタ・通知・未登録確認</div>
+              </div>
+              <div className="space-y-1">
+                <button type="button" onClick={() => scrollAdminTo('admin-custom-machines')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-amber-50">⚠️ 自由入力機械</button>
+                <button type="button" onClick={() => scrollAdminTo('admin-announcements')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-indigo-50">📢 お知らせ</button>
+                <button type="button" onClick={() => { setShowAdminSection(true); setTimeout(() => scrollAdminTo('admin-master'), 50); }} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-violet-800 shadow-sm hover:bg-violet-50">⚙️ マスタ登録</button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-slate-100/80 p-2.5">
+              <div className="mb-2 px-1.5">
+                <div className="text-[11px] font-black tracking-wider text-slate-700">⑤ 完了・保管</div>
+                <div className="mt-0.5 text-[10px] font-bold text-slate-500">完了した現場の確認</div>
+              </div>
+              <button type="button" onClick={() => scrollAdminTo('admin-completed-sites')} className="w-full rounded-xl bg-white px-3 py-2.5 text-left font-black text-slate-800 shadow-sm hover:bg-slate-50">📁 完了済現場</button>
+            </section>
+          </div>
+          <div className="border-t border-slate-200 bg-slate-50 p-3">
+            <button type="button" onClick={() => scrollAdminTo('admin-top')} className="w-full rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-100">↑ ページ上部へ</button>
+          </div>
+        </aside>
       )}
 
       {/* ヘッダー */}
@@ -7705,23 +7823,23 @@ export default function AdminPage() {
           {authRole === 'admin' && (
             <a
               href="/admin/workers"
-              className="flex-1 md:flex-none bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm"
+              className="flex-1 md:flex-none lg:hidden bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm"
             >
               👷 作業員台帳・資格管理
             </a>
           )}
           {authRole === 'admin' && (
             <>
-              <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none lg:hidden bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🗑️ 処分費を確認
               </button>
-              <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none lg:hidden bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 🧾 請求書照合センター
               </button>
-              <button onClick={() => setShowFiscalClosingModal(true)} className="flex-1 md:flex-none bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              <button onClick={() => setShowFiscalClosingModal(true)} className="flex-1 md:flex-none lg:hidden bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 📊 決算・期跨ぎ集計
               </button>
-              <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
+              <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none lg:hidden bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
                 ♻️ スクラップを確認
               </button>
             </>
@@ -7766,7 +7884,7 @@ export default function AdminPage() {
         const savedPrice = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[selectedMonth] ?? '';
         const inputPrice = form.osakaFuelUnitPrice !== undefined ? form.osakaFuelUnitPrice : savedPrice;
         return (
-          <section className="rounded-2xl border-2 border-orange-200 bg-orange-50/70 px-4 py-3 md:px-5 md:py-4 shadow-sm">
+          <section id="admin-fuel-price" className="scroll-mt-6 rounded-2xl border-2 border-orange-200 bg-orange-50/70 px-4 py-3 md:px-5 md:py-4 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
               <div>
                 <div className="font-black text-orange-950">⛽ 大阪軽油単価（月別・全現場共通）</div>
@@ -7813,7 +7931,7 @@ export default function AdminPage() {
       })()}
 
       {authRole === 'admin' && (
-        <section className="rounded-3xl border-2 border-blue-200 bg-white shadow-sm overflow-hidden">
+        <section className="lg:hidden rounded-3xl border-2 border-blue-200 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-blue-50 via-white to-indigo-50 px-5 md:px-7 py-5 border-b border-blue-100">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2">
               <div>
@@ -7867,7 +7985,7 @@ export default function AdminPage() {
 
 
       {authRole === 'admin' && allUnregisteredCustomMachineAlerts.length > 0 && (
-        <section className="rounded-2xl md:rounded-3xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
+        <section id="admin-custom-machines" className="scroll-mt-6 rounded-2xl md:rounded-3xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
           <div className="px-4 md:px-6 py-4 border-b border-amber-200 bg-gradient-to-r from-amber-100 via-amber-50 to-white">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
@@ -8969,7 +9087,7 @@ export default function AdminPage() {
 
       {/* 建退共（証紙）管理・確認（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-teal-50/50 rounded-3xl shadow-sm border-2 border-teal-200 overflow-hidden">
+        <div id="admin-kentaikyo" className="scroll-mt-6 bg-teal-50/50 rounded-3xl shadow-sm border-2 border-teal-200 overflow-hidden">
           <div
             role="button"
             tabIndex={0}
@@ -9147,7 +9265,7 @@ export default function AdminPage() {
 
       {/* 月次勤怠（管理者のみ） */}
       {authRole === 'admin' && (
-        <div className="bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
+        <div id="admin-monthly-attendance" className="scroll-mt-6 bg-emerald-50/40 rounded-3xl shadow-sm border-2 border-emerald-200 overflow-hidden">
           <div
             role="button"
             tabIndex={0}
@@ -11397,7 +11515,7 @@ export default function AdminPage() {
       </div>
 
       {/* 完了済現場：現場ごとに詳細分析・日報・レポートをまとめて確認 */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-300 overflow-hidden`}>
+      <div id="admin-completed-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} scroll-mt-6 bg-slate-50 rounded-2xl md:rounded-3xl shadow-sm border-2 border-slate-300 overflow-hidden`}>
         <div className="bg-slate-300 px-4 md:px-8 py-4 md:py-5">
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">📁 完了済現場</h2>
           <p className="text-sm md:text-base text-slate-600 mt-1">完了した現場ごとに「詳細分析・日報・レポート」をまとめて確認できます</p>
@@ -12000,19 +12118,31 @@ export default function AdminPage() {
 
               <section className="rounded-3xl border border-violet-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-violet-50 border-b border-violet-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4><p className="mt-0.5 text-xs text-violet-700">詳細分析 → 外注人件費 → 請求書照合 と連動。請求書金額は比較用、明細修正後の金額が利益計算に反映されます。</p></div>
+                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4><p className="mt-0.5 text-xs text-violet-700">詳細分析 → 外注人件費 → 請求書照合 と連動。請求書金額は比較用、明細修正後の金額が利益計算に反映されます。<span className="ml-1 font-black text-emerald-700">行をクリックすると事務所確認済みとして緑色になります。</span></p></div>
                   <div className="flex gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {subcontractorInvoiceProgressDoneCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {subcontractorInvoiceProgressPendingCount}</span></div>
                 </div>
                 {subcontractorInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の外注日報データはありません。</div> : (
                   <div className="overflow-x-auto"><div className="min-w-[1040px]">
                     <div className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>外注業者</div><div className="text-right">現在明細合計</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
-                    <div className="divide-y divide-slate-100">{subcontractorInvoiceProgressRows.map((row:any) => (
-                      <div key={row.key} className={`grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 ${row.isReconciled ? 'bg-emerald-50/80' : 'bg-white'}`}>
-                        <div className="font-extrabold text-slate-900">{row.location}</div><div className="font-bold text-slate-700">{row.company}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
+                    <div className="divide-y divide-slate-100">{subcontractorInvoiceProgressRows.map((row:any) => {
+                      const manuallyChecked = isInvoiceCenterSubChecked(row);
+                      return (
+                      <div
+                        key={row.key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleInvoiceCenterSubChecked(row)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleInvoiceCenterSubChecked(row); } }}
+                        title="行をクリックすると事務所確認済みとして緑色になります。もう一度クリックすると解除します。"
+                        className={`grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 cursor-pointer transition ${manuallyChecked ? 'bg-emerald-100/80 hover:bg-emerald-100' : 'bg-white hover:bg-violet-50/50'}`}
+                      >
+                        <div className="font-extrabold text-slate-900">{row.location}{manuallyChecked && <div className="mt-0.5 text-[10px] font-black text-emerald-700">✓ 事務所確認済み</div>}</div><div className="font-bold text-slate-700">{row.company}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
                         <div className="text-right font-black text-slate-900">{formatAmount(row.currentAmount)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right"><div className="font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-[10px] text-slate-400">明細修正後</div></div>
                         <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
-                        <div className="text-right"><button type="button" onClick={()=>openInvoiceProgressSubcontractor(row)} className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
-                      </div>))}</div>
+                        <div className="text-right"><button type="button" onClick={(e)=>{ e.stopPropagation(); openInvoiceProgressSubcontractor(row); }} className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
+                      </div>
+                      );
+                    })}</div>
                   </div></div>
                 )}
               </section>
