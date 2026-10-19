@@ -149,6 +149,55 @@ type QualificationPackPreview = {
   summary: { total: number; matchedWorkers: number; newCount: number; renameCount: number; duplicateCount: number; unmatchedCount: number };
 };
 
+type HealthPackEntry = {
+  sourceWorker: string;
+  examDate: string;
+  examType: string;
+  hospital: string;
+  file: string;
+  title: string;
+  mimeType: string;
+  size: number;
+  sourcePdf: string;
+  page: number;
+  sha256?: string;
+  sourceKey: string;
+};
+
+type HealthPackManifest = {
+  format: 'yamato-worker-health-pack';
+  version: number;
+  sourceFiles?: string[];
+  imagePolicy?: any;
+  entries: HealthPackEntry[];
+};
+
+type HealthPackPreviewRow = HealthPackEntry & {
+  worker_name: string;
+  status: 'new' | 'duplicate' | 'unmatched';
+  reason?: string;
+  recordExists?: boolean;
+  documentExists?: boolean;
+};
+
+type HealthPackPreview = {
+  fileName: string;
+  rows: HealthPackPreviewRow[];
+  summary: { total: number; matchedWorkers: number; newCount: number; duplicateCount: number; unmatchedCount: number };
+};
+
+const healthMetaValue = (notes: any, label: string) => {
+  const line = String(notes || '').split(/\r?\n/).find((x) => x.startsWith(`${label}：`));
+  return line ? line.slice(label.length + 1).trim() : '';
+};
+
+const setHealthMetaValue = (notes: any, label: string, value: string) => {
+  const lines = String(notes || '').split(/\r?\n/).filter(Boolean).filter((x) => !x.startsWith(`${label}：`));
+  const v = String(value || '').trim();
+  if (v) lines.unshift(`${label}：${v}`);
+  return lines.join('\n');
+};
+
 
 const normalizeWorkerName = (value: any) =>
   String(value ?? '')
@@ -211,6 +260,51 @@ const parseStoredZip = async (file: File) => {
   const manifest = JSON.parse(decoder.decode(manifestBytes)) as QualificationPackManifest;
   if (manifest?.format !== 'yamato-worker-qualification-pack' || !Array.isArray(manifest?.entries)) {
     throw new Error('大和の資格証取込パックではありません。');
+  }
+  return { manifest, readEntry };
+};
+
+const parseHealthStoredZip = async (file: File) => {
+  const buffer = await file.arrayBuffer();
+  const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+  const u16 = (o: number) => view.getUint16(o, true);
+  const u32 = (o: number) => view.getUint32(o, true);
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65558); i -= 1) {
+    if (u32(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('健康診断書取込パックを開けませんでした。');
+  const entryCount = u16(eocd + 10);
+  let cursor = u32(eocd + 16);
+  const decoder = new TextDecoder('utf-8');
+  const entries: StoredZipEntry[] = [];
+  for (let i = 0; i < entryCount; i += 1) {
+    if (u32(cursor) !== 0x02014b50) throw new Error('健康診断書取込パックの形式が正しくありません。');
+    const method = u16(cursor + 10);
+    const compressedSize = u32(cursor + 20);
+    const uncompressedSize = u32(cursor + 24);
+    const nameLen = u16(cursor + 28);
+    const extraLen = u16(cursor + 30);
+    const commentLen = u16(cursor + 32);
+    const localOffset = u32(cursor + 42);
+    const name = decoder.decode(bytes.slice(cursor + 46, cursor + 46 + nameLen));
+    entries.push({ name, method, compressedSize, uncompressedSize, localOffset });
+    cursor += 46 + nameLen + extraLen + commentLen;
+  }
+  const readEntry = (name: string) => {
+    const e = entries.find((x) => x.name === name);
+    if (!e) throw new Error(`取込パック内のファイルが見つかりません：${name}`);
+    if (e.method !== 0) throw new Error('この健康診断書取込パックは対応していない圧縮形式です。');
+    if (u32(e.localOffset) !== 0x04034b50) throw new Error('取込パックの画像位置を確認できませんでした。');
+    const nameLen = u16(e.localOffset + 26);
+    const extraLen = u16(e.localOffset + 28);
+    const start = e.localOffset + 30 + nameLen + extraLen;
+    return bytes.slice(start, start + e.compressedSize);
+  };
+  const manifest = JSON.parse(decoder.decode(readEntry('manifest.json'))) as HealthPackManifest;
+  if (manifest?.format !== 'yamato-worker-health-pack' || !Array.isArray(manifest?.entries)) {
+    throw new Error('大和の健康診断書取込パックではありません。');
   }
   return { manifest, readEntry };
 };
@@ -308,6 +402,10 @@ export default function WorkerLedgerPage() {
   const [qualificationPackFile, setQualificationPackFile] = useState<File | null>(null);
   const [qualificationPackPreview, setQualificationPackPreview] = useState<QualificationPackPreview | null>(null);
   const [qualificationPackProgress, setQualificationPackProgress] = useState('');
+  const [healthPackLoading, setHealthPackLoading] = useState(false);
+  const [healthPackFile, setHealthPackFile] = useState<File | null>(null);
+  const [healthPackPreview, setHealthPackPreview] = useState<HealthPackPreview | null>(null);
+  const [healthPackProgress, setHealthPackProgress] = useState('');
   const [printSelectedWorkers, setPrintSelectedWorkers] = useState<string[]>([]);
 
   const token = () => sessionStorage.getItem('yamato-admin-token') || '';
@@ -376,6 +474,8 @@ export default function WorkerLedgerPage() {
   const selectedQualifications = qualifications.filter((x) => x.worker_name === selectedWorker);
   const selectedHealth = healthChecks.filter((x) => x.worker_name === selectedWorker);
   const selectedDocuments = documents.filter((x) => x.worker_name === selectedWorker);
+  const selectedQualificationDocuments = selectedDocuments.filter((x) => x.document_type === 'qualification');
+  const selectedHealthDocuments = selectedDocuments.filter((x) => x.document_type === 'health');
   const selectedSavedProfile = profiles.find((x) => x.worker_name === selectedWorker) || null;
 
   const hasRegisteredProfile = (name: string) => profiles.some((x) => x.worker_name === name);
@@ -710,7 +810,152 @@ export default function WorkerLedgerPage() {
     }
   };
 
-  const uploadDocument = async (file: File) => {
+  const previewHealthPackFile = async (file: File) => {
+    try {
+      setHealthPackLoading(true);
+      setHealthPackProgress('健康診断書取込パックを確認しています…');
+      const { manifest } = await parseHealthStoredZip(file);
+      const healthDocs = documents.filter((doc) => doc.document_type === 'health');
+      const rows: HealthPackPreviewRow[] = manifest.entries.map((entry) => {
+        const workerName = matchQualificationPackWorker(entry.sourceWorker);
+        if (!workerName) return { ...entry, worker_name: '', status: 'unmatched' as const, reason: '現在の作業員マスタと一致しません。' };
+        const marker = `取込キー：${entry.sourceKey}`;
+        const recordExists = healthChecks.some((h) => normalizeWorkerName(h.worker_name) === normalizeWorkerName(workerName) && String(h.notes || '').includes(marker));
+        const documentExists = healthDocs.some((doc) => normalizeWorkerName(doc.worker_name) === normalizeWorkerName(workerName) && String(doc.title || '') === String(entry.title || ''));
+        const duplicate = recordExists && documentExists;
+        return { ...entry, worker_name: workerName, recordExists, documentExists, status: duplicate ? 'duplicate' as const : 'new' as const, reason: duplicate ? '健診記録・健診書とも登録済みです。' : '' };
+      });
+      setHealthPackFile(file);
+      setHealthPackPreview({
+        fileName: file.name,
+        rows,
+        summary: {
+          total: rows.length,
+          matchedWorkers: new Set(rows.filter((r) => r.worker_name).map((r) => r.worker_name)).size,
+          newCount: rows.filter((r) => r.status === 'new').length,
+          duplicateCount: rows.filter((r) => r.status === 'duplicate').length,
+          unmatchedCount: rows.filter((r) => r.status === 'unmatched').length
+        }
+      });
+      setHealthPackProgress('');
+    } catch (e: any) {
+      setHealthPackFile(null);
+      setHealthPackPreview(null);
+      setHealthPackProgress('');
+      alert(e?.message || '健康診断書取込パックを読み取れませんでした。');
+    } finally {
+      setHealthPackLoading(false);
+    }
+  };
+
+  const commitHealthPack = async () => {
+    if (!healthPackFile || !healthPackPreview) return;
+    const targets = healthPackPreview.rows.filter((row) => row.status === 'new' && row.worker_name);
+    if (targets.length === 0) return alert('新しく登録する健康診断書がありません。');
+    if (!confirm(`健康診断を一括登録しますか？\n対象：${new Set(targets.map((x)=>x.worker_name)).size}名\n健診書：${targets.length}枚\n\n現在の作業員マスタに一致した人だけ登録します。`)) return;
+    try {
+      setHealthPackLoading(true);
+      const { readEntry } = await parseHealthStoredZip(healthPackFile);
+      let done = 0;
+      for (const row of targets) {
+        setHealthPackProgress(`登録中 ${done + 1} / ${targets.length}件`);
+        const noteMarker = `取込キー：${row.sourceKey}`;
+        if (!row.recordExists) {
+          const genericSameDate = row.examType === '一般健康診断'
+            ? healthChecks.find((h) => normalizeWorkerName(h.worker_name) === normalizeWorkerName(row.worker_name) && h.exam_date === row.examDate && !String(h.notes || '').includes('健診種類：'))
+            : undefined;
+          const structuredNotes = [
+            `健診種類：${row.examType}`,
+            `医療機関：${row.hospital}`,
+            `資料：${row.sourcePdf} ${row.page}ページ`,
+            noteMarker,
+            genericSameDate?.notes ? String(genericSameDate.notes).trim() : ''
+          ].filter(Boolean).join('\n');
+          await api('/api/worker-ledger', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'saveHealth', data: {
+              ...(genericSameDate || {}),
+              worker_name: row.worker_name,
+              exam_date: row.examDate,
+              notes: structuredNotes
+            } })
+          });
+        }
+        if (!row.documentExists) {
+          const bytes = readEntry(row.file);
+          const form = new FormData();
+          const fileName = `${row.worker_name}_${row.examDate}_${row.examType}.jpg`.replace(/[\/:*?"<>|]/g, '_');
+          form.append('file', new File([bytes], fileName, { type: 'image/jpeg' }));
+          form.append('workerName', row.worker_name);
+          form.append('documentType', 'health');
+          form.append('title', row.title);
+          await api('/api/worker-ledger/upload', { method: 'POST', body: form });
+        }
+        done += 1;
+      }
+      await loadAll();
+      setHealthPackFile(null);
+      setHealthPackPreview(null);
+      setHealthPackProgress('');
+      alert(`健康診断の一括登録が完了しました。\n${done}件を確認しました。`);
+    } catch (e: any) {
+      alert(e?.message || '健康診断書の一括登録に失敗しました。途中まで登録済みの場合は、もう一度同じパックを選ぶと登録済み分を除外して続行できます。');
+    } finally {
+      setHealthPackLoading(false);
+      setHealthPackProgress('');
+    }
+  };
+
+  const printSelectedHealthDocuments = async () => {
+    if (printSelectedWorkers.length === 0) return alert('印刷する作業員を1人以上チェックしてください。');
+    const docs = documents.filter((doc) => doc.document_type === 'health' && printSelectedWorkers.includes(doc.worker_name));
+    if (docs.length === 0) return alert('選択した作業員に健康診断書が登録されていません。');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert('印刷画面を開けませんでした。ブラウザのポップアップを許可してください。');
+    printWindow.document.write('<html><body style="font-family:sans-serif;padding:24px">健康診断書を準備しています…</body></html>');
+    try {
+      const withUrls = await Promise.all(docs.map(async (doc) => {
+        const data = await api(`/api/worker-ledger/file?path=${encodeURIComponent(doc.file_path)}`);
+        return { ...doc, signedUrl: data?.signedUrl || '' };
+      }));
+      const sections = printSelectedWorkers.map((worker) => {
+        const workerDocs = withUrls.filter((doc) => doc.worker_name === worker && doc.signedUrl);
+        if (workerDocs.length === 0) return '';
+        return `<section class="worker"><h1>${escapeHtml(worker)}　健康診断書</h1>${workerDocs.map((doc) => `<figure><img src="${escapeHtml(doc.signedUrl)}" alt="${escapeHtml(doc.title || '健康診断書')}"/><figcaption>${escapeHtml(doc.title || '健康診断書')}</figcaption></figure>`).join('')}</section>`;
+      }).join('');
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>健康診断書 印刷</title><style>@page{size:A4 portrait;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}.worker{break-after:page}.worker:last-child{break-after:auto}h1{font-size:15pt;margin:0 0 4mm;border-bottom:1px solid #999;padding-bottom:2mm}figure{margin:0 0 5mm;break-inside:avoid;text-align:center}img{display:block;max-width:194mm;max-height:270mm;width:auto;height:auto;object-fit:contain;margin:0 auto}figcaption{font-size:8pt;color:#555;margin-top:2mm}</style></head><body>${sections}<script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=r;i.onerror=r}))).then(()=>setTimeout(()=>window.print(),300));});<\/script></body></html>`);
+      printWindow.document.close();
+    } catch (e: any) {
+      printWindow.close();
+      alert(e?.message || '健康診断書の印刷準備に失敗しました。');
+    }
+  };
+
+  const printBasicProfile = () => {
+    const p = profiles.find((x) => x.worker_name === selectedWorker) || profileDraft;
+    const w = window.open('', '_blank');
+    if (!w) return alert('印刷画面を開けませんでした。');
+    const rows = [
+      ['作業員名', selectedWorker], ['正式氏名', p?.full_name || ''], ['社員番号', p?.employee_no || ''],
+      ['雇用区分', p?.employment_type || ''], ['入社日', p?.hire_date || ''], ['生年月日', p?.birth_date || ''],
+      ['血液型', p?.blood_type || ''], ['住所', p?.address || ''], ['緊急連絡先', p?.emergency_contact || ''], ['備考', p?.notes || '']
+    ];
+    w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(selectedWorker)} 基本情報</title><style>@page{size:A4 portrait;margin:15mm}body{font-family:sans-serif}h1{font-size:20px;border-bottom:2px solid #222;padding-bottom:8px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:10px;text-align:left;vertical-align:top}th{width:28%;background:#f3f4f6}</style></head><body><h1>${escapeHtml(selectedWorker)}　基本情報</h1><table>${rows.map(([k,v])=>`<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`).join('')}</table><script>window.onload=()=>window.print();<\/script></body></html>`);
+    w.document.close();
+  };
+
+  const exportBasicProfileCsv = () => {
+    const p = profiles.find((x) => x.worker_name === selectedWorker) || profileDraft;
+    const rows = [
+      ['作業員名', selectedWorker], ['正式氏名', p?.full_name || ''], ['社員番号', p?.employee_no || ''], ['雇用区分', p?.employment_type || ''],
+      ['入社日', p?.hire_date || ''], ['生年月日', p?.birth_date || ''], ['血液型', p?.blood_type || ''], ['住所', p?.address || ''], ['緊急連絡先', p?.emergency_contact || ''], ['備考', p?.notes || '']
+    ];
+    const csv = '\uFEFF' + rows.map((r)=>r.map((v)=>`"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download = `${selectedWorker}_基本情報.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
+  const uploadDocument = async (file: File, forcedType?: string, forcedTitle?: string) => {
     try {
       setUploading(true);
       const prepared = await compressImage(file);
@@ -718,8 +963,8 @@ export default function WorkerLedgerPage() {
       const form = new FormData();
       form.append('file', prepared);
       form.append('workerName', selectedWorker);
-      form.append('documentType', docType);
-      form.append('title', docTitle || file.name);
+      form.append('documentType', forcedType || docType);
+      form.append('title', forcedTitle || docTitle || file.name);
       await api('/api/worker-ledger/upload', { method: 'POST', body: form });
       setDocTitle('');
       await loadAll();
@@ -767,13 +1012,14 @@ export default function WorkerLedgerPage() {
               <div className="rounded-3xl bg-white border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 md:px-7 py-5 bg-slate-900 text-white"><div className="text-sm text-slate-300">作業員台帳</div><div className="text-2xl font-black mt-1">{profileDraft.full_name || selectedWorker}</div></div>
                 <div className="flex overflow-x-auto border-b border-slate-200 bg-white">
-                  {[['profile','基本情報'],['qualification',`資格・講習 (${selectedQualifications.length})`],['health',`健康診断 (${selectedHealth.length})`],['documents',`書類 (${selectedDocuments.length})`]].map(([key,label])=><button key={key} onClick={()=>setTab(key as any)} className={`px-5 py-4 whitespace-nowrap font-black border-b-4 ${tab===key?'border-blue-600 text-blue-700':'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
+                  {[['profile','基本情報'],['qualification',`資格・講習 (${selectedQualifications.length})`],['health',`健康診断 (${selectedHealth.length})`],['documents',`その他書類 (${selectedDocuments.filter((x)=>x.document_type==='safety'||x.document_type==='other').length})`]].map(([key,label])=><button key={key} onClick={()=>setTab(key as any)} className={`px-5 py-4 whitespace-nowrap font-black border-b-4 ${tab===key?'border-blue-600 text-blue-700':'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>)}
                 </div>
 
                 <div className="p-5 md:p-7">
                   {loading ? <div className="py-16 text-center font-black text-slate-400">🔄 読み込み中...</div> : null}
 
                   {!loading && tab==='profile' && <div className="space-y-5">
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><div className="font-black text-blue-950">基本情報の印刷・書き出し</div><p className="text-xs text-blue-700 mt-1">氏名・住所・生年月日・入社日など、この作業員の基本情報をここから出力します。</p></div><div className="flex gap-2"><button type="button" onClick={printBasicProfile} className="rounded-xl bg-white border border-blue-200 px-4 py-2.5 text-sm font-black text-blue-700">🖨️ A4印刷</button><button type="button" onClick={exportBasicProfileCsv} className="rounded-xl bg-blue-600 text-white px-4 py-2.5 text-sm font-black">⬇ CSV</button></div></div>
                     <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-4 md:p-5">
                       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                         <div>
@@ -926,19 +1172,29 @@ export default function WorkerLedgerPage() {
                       <button onClick={saveQualification} disabled={saving} className="rounded-xl bg-emerald-600 text-white p-3 font-black">＋ 追加</button>
                     </div></div>
                     <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[900px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">区分</th><th className="p-3 text-left">資格・講習</th><th className="p-3 text-left">修了証番号</th><th className="p-3 text-left">取得日</th><th className="p-3 text-left">有効期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedQualifications.map((q)=><tr key={q.id||`${q.qualification_name}-${q.acquired_date}`} className={isExpired(q.expiry_date)?'bg-rose-50':isWithinDays(q.expiry_date,60)?'bg-amber-50':''}><td className="p-3 font-bold">{q.category||'-'}</td><td className="p-3 font-black">{q.qualification_name}</td><td className="p-3">{q.certificate_no||'-'}</td><td className="p-3">{fmtDate(q.acquired_date)}</td><td className="p-3">{q.expiry_date?(isExpired(q.expiry_date)?`⚠️ 期限切れ ${fmtDate(q.expiry_date)}`:isWithinDays(q.expiry_date,60)?`⚠️ 60日以内 ${fmtDate(q.expiry_date)}`:fmtDate(q.expiry_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>setQualificationDraft({...q})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteQualification(q.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedQualifications.length===0&&<div className="p-8 text-center text-slate-400 font-bold">資格情報はまだありません。</div>}</div>
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><div className="font-black text-emerald-950">資格証・修了証の写真</div><p className="mt-1 text-xs text-emerald-700">新しく資格を取得・更新した時は、ここから1枚ずつ追加できます。印刷もこの画面から行います。</p></div><div className="flex gap-2 flex-wrap"><button type="button" onClick={printSelectedQualificationDocuments} className="rounded-xl bg-emerald-600 text-white px-4 py-2 text-xs font-black">🖨️ 選択者をA4印刷</button></div></div><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="資格証名（例：玉掛け技能講習修了証）" className="rounded-xl border border-emerald-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-xl px-4 py-2.5 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-white border border-emerald-300 text-emerald-700'}`}>📎 資格証を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'qualification',docTitle);e.currentTarget.value='';}}/></label></div><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedQualificationDocuments.map((doc)=><div key={doc.id} className="rounded-xl bg-white border border-emerald-100 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-black break-words">{doc.title||'資格証'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-2 py-1.5 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-black">名前変更</button></div></div>)}{selectedQualificationDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">資格証画像はまだありません。</div>}</div></div>
                   </div>}
 
                   {!loading && tab==='health' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4"><div className="font-black text-orange-950">健康診断結果を登録</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                    <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4"><div className="font-black text-orange-950">健康診断結果を登録</div><p className="mt-1 text-xs font-bold text-orange-800">「いつ・どこの病院で・どの種類の健診を受けたか」を作業員ごとに記録します。</p><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                       <label className="text-xs font-black">受診日<input type="date" value={healthDraft.exam_date||''} onChange={(e)=>setHealthDraft(h=>({...h,exam_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <input type="number" value={healthDraft.systolic??''} onChange={(e)=>setHealthDraft(h=>({...h,systolic:e.target.value}))} placeholder="最高血圧" className="rounded-xl border p-3 font-bold" />
-                      <input type="number" value={healthDraft.diastolic??''} onChange={(e)=>setHealthDraft(h=>({...h,diastolic:e.target.value}))} placeholder="最低血圧" className="rounded-xl border p-3 font-bold" />
+                      <input value={healthMetaValue(healthDraft.notes,'健診種類')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'健診種類',e.target.value)}))} placeholder="健診種類（一般・じん肺・石綿など）" className="rounded-xl border p-3 font-bold" />
+                      <input value={healthMetaValue(healthDraft.notes,'医療機関')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'医療機関',e.target.value)}))} placeholder="病院・クリニック名" className="rounded-xl border p-3 font-bold" />
                       <input value={healthDraft.judgement||''} onChange={(e)=>setHealthDraft(h=>({...h,judgement:e.target.value}))} placeholder="判定" className="rounded-xl border p-3 font-bold" />
+                      <input type="number" value={healthDraft.systolic??''} onChange={(e)=>setHealthDraft(h=>({...h,systolic:e.target.value}))} placeholder="最高血圧（任意）" className="rounded-xl border p-3 font-bold" />
+                      <input type="number" value={healthDraft.diastolic??''} onChange={(e)=>setHealthDraft(h=>({...h,diastolic:e.target.value}))} placeholder="最低血圧（任意）" className="rounded-xl border p-3 font-bold" />
                       <label className="text-xs font-black">次回期限<input type="date" value={healthDraft.next_due_date||''} onChange={(e)=>setHealthDraft(h=>({...h,next_due_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <input value={healthDraft.notes||''} onChange={(e)=>setHealthDraft(h=>({...h,notes:e.target.value}))} placeholder="メモ" className="rounded-xl border p-3 font-bold xl:col-span-2" />
                       <button onClick={saveHealth} disabled={saving} className="rounded-xl bg-orange-600 text-white p-3 font-black">＋ 登録</button>
                     </div></div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[850px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">受診日</th><th className="p-3 text-left">血圧</th><th className="p-3 text-left">判定</th><th className="p-3 text-left">次回期限</th><th className="p-3 text-left">メモ</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedHealth.map((h)=><tr key={h.id||h.exam_date}><td className="p-3 font-black">{fmtDate(h.exam_date)}</td><td className="p-3">{h.systolic||'-'} / {h.diastolic||'-'}</td><td className="p-3">{h.judgement||'-'}</td><td className="p-3">{h.next_due_date?(isExpired(h.next_due_date)?`⚠️ 期限切れ ${fmtDate(h.next_due_date)}`:isWithinDays(h.next_due_date,60)?`⚠️ 60日以内 ${fmtDate(h.next_due_date)}`:fmtDate(h.next_due_date)):'-'}</td><td className="p-3">{h.notes||'-'}</td><td className="p-3 text-right"><button onClick={()=>setHealthDraft({...h})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteHealth(h.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedHealth.length===0&&<div className="p-8 text-center text-slate-400 font-bold">健康診断履歴はまだありません。</div>}</div>
+
+                    <div className="rounded-2xl border-2 border-orange-200 bg-orange-50/50 p-4 md:p-5">
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4"><div><div className="font-black text-orange-950 text-lg">📥 健康診断書をまとめて一括登録</div><p className="mt-1 text-sm text-orange-800 font-bold">複数人分のPDFを軽量化した取込パックから、現在の作業員マスタにいる人だけ登録します。</p><p className="mt-1 text-xs text-orange-700">A4印刷を想定したJPEGで保存し、元の大きなPDFをそのまま保存しません。</p></div><label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${healthPackLoading?'bg-slate-300 text-slate-500':'bg-orange-600 hover:bg-orange-700 text-white'}`}>{healthPackLoading?(healthPackProgress||'確認中…'):'📦 健康診断書取込パックを選択'}<input type="file" accept=".hpack,.zip,application/zip" disabled={healthPackLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)previewHealthPackFile(f);e.currentTarget.value='';}} /></label></div>
+                      {healthPackPreview&&<div className="mt-4 rounded-2xl bg-white border border-orange-200 overflow-hidden"><div className="p-4 border-b border-orange-100"><div className="font-black">取込確認：{healthPackPreview.fileName}</div><div className="mt-2 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規 {healthPackPreview.summary.newCount}件</span><span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {healthPackPreview.summary.matchedWorkers}名</span><span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {healthPackPreview.summary.duplicateCount}件</span><span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {healthPackPreview.summary.unmatchedCount}件</span></div><div className="mt-3 flex gap-2 justify-end"><button onClick={()=>{setHealthPackPreview(null);setHealthPackFile(null);}} className="rounded-xl border bg-white px-4 py-2.5 font-black">取消</button><button onClick={commitHealthPack} disabled={healthPackLoading||healthPackPreview.summary.newCount===0} className="rounded-xl bg-orange-600 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規{healthPackPreview.summary.newCount}件を登録</button></div></div><div className="max-h-[300px] overflow-auto"><table className="w-full min-w-[850px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">受診日</th><th className="p-3 text-left">種類</th><th className="p-3 text-left">医療機関</th></tr></thead><tbody className="divide-y">{healthPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{fmtDate(row.examDate)}</td><td className="p-3 font-bold">{row.examType}</td><td className="p-3">{row.hospital}</td></tr>)}</tbody></table></div>{healthPackPreview.summary.unmatchedCount>0&&<div className="p-3 bg-rose-50 text-xs font-bold text-rose-800">⚠️ マスタ未一致の人は登録しません。</div>}</div>}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[1000px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">受診日</th><th className="p-3 text-left">健診種類</th><th className="p-3 text-left">医療機関</th><th className="p-3 text-left">血圧</th><th className="p-3 text-left">判定</th><th className="p-3 text-left">次回期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedHealth.map((h)=><tr key={h.id||`${h.exam_date}-${h.notes}`}><td className="p-3 font-black">{fmtDate(h.exam_date)}</td><td className="p-3 font-bold">{healthMetaValue(h.notes,'健診種類')||'-'}</td><td className="p-3">{healthMetaValue(h.notes,'医療機関')||'-'}</td><td className="p-3">{h.systolic||'-'} / {h.diastolic||'-'}</td><td className="p-3">{h.judgement||'-'}</td><td className="p-3">{h.next_due_date?(isExpired(h.next_due_date)?`⚠️ 期限切れ ${fmtDate(h.next_due_date)}`:isWithinDays(h.next_due_date,60)?`⚠️ 60日以内 ${fmtDate(h.next_due_date)}`:fmtDate(h.next_due_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>setHealthDraft({...h})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteHealth(h.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedHealth.length===0&&<div className="p-8 text-center text-slate-400 font-bold">健康診断履歴はまだありません。</div>}</div>
+
+                    <div className="rounded-2xl border border-orange-200 bg-white p-4"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><div className="font-black text-orange-950">健康診断書</div><p className="text-xs text-orange-700 mt-1">診断書・個人票を保管します。必要な作業員を左でチェックしてまとめてA4印刷できます。</p></div><div className="flex gap-2 flex-wrap"><button onClick={printSelectedHealthDocuments} className="rounded-xl bg-orange-600 text-white px-4 py-2 text-xs font-black">🖨️ 選択者をA4印刷</button></div></div><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="診断書名（例：2026/10/19 一般健康診断）" className="rounded-xl border border-orange-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-xl px-4 py-2.5 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-orange-50 border border-orange-300 text-orange-700'}`}>📎 健診書を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'health',docTitle);e.currentTarget.value='';}}/></label></div><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedHealthDocuments.map((doc)=><div key={doc.id} className="rounded-xl border bg-orange-50/40 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-black break-words">{doc.title||'健康診断書'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-2 py-1.5 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-black">名前変更</button></div></div>)}{selectedHealthDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">健康診断書はまだありません。</div>}</div></div>
                   </div>}
 
                   {!loading && tab==='documents' && <div className="space-y-5">
