@@ -59,8 +59,9 @@ type ExcelImportRow = {
   acquired_date: string;
   source_sheet: string;
   source_row: number;
-  status: 'new' | 'duplicate' | 'unmatched';
+  status: 'new' | 'rename' | 'duplicate' | 'unmatched';
   reason?: string;
+  existingDocumentId?: string;
 };
 
 type ExcelImportPreview = {
@@ -136,15 +137,16 @@ type QualificationPackManifest = {
 
 type QualificationPackPreviewRow = QualificationPackEntry & {
   worker_name: string;
-  status: 'new' | 'duplicate' | 'unmatched';
+  status: 'new' | 'rename' | 'duplicate' | 'unmatched';
   reason?: string;
+  existingDocumentId?: string;
 };
 
 type QualificationPackPreview = {
   fileName: string;
   sourceFile: string;
   rows: QualificationPackPreviewRow[];
-  summary: { total: number; matchedWorkers: number; newCount: number; duplicateCount: number; unmatchedCount: number };
+  summary: { total: number; matchedWorkers: number; newCount: number; renameCount: number; duplicateCount: number; unmatchedCount: number };
 };
 
 
@@ -589,17 +591,18 @@ export default function WorkerLedgerPage() {
       setQualificationPackLoading(true);
       setQualificationPackProgress('取込パックを確認しています…');
       const { manifest } = await parseStoredZip(file);
-      const existingKeys = new Set(
-        documents
-          .filter((doc) => doc.document_type === 'qualification')
-          .map((doc) => `${normalizeWorkerName(doc.worker_name)}|${String(doc.title || '')}`)
-      );
+      const qualificationDocs = documents.filter((doc) => doc.document_type === 'qualification');
       const rows: QualificationPackPreviewRow[] = manifest.entries.map((entry) => {
         const workerName = matchQualificationPackWorker(entry.sourceWorker);
         if (!workerName) return { ...entry, worker_name: '', status: 'unmatched' as const, reason: '現在の作業員マスタと一致しません。' };
-        const title = `資格証Excel：${entry.sourceSheet} #${entry.imageIndex}`;
-        const duplicate = existingKeys.has(`${normalizeWorkerName(workerName)}|${title}`);
-        return { ...entry, title, worker_name: workerName, status: duplicate ? 'duplicate' as const : 'new' as const, reason: duplicate ? '同じ取込元の資格証が登録済みです。' : '' };
+        const title = String(entry.title || '').trim() || `資格証：${entry.sourceSheet} #${entry.imageIndex}`;
+        const legacyTitle = `資格証Excel：${entry.sourceSheet} #${entry.imageIndex}`;
+        const workerDocs = qualificationDocs.filter((doc) => normalizeWorkerName(doc.worker_name) === normalizeWorkerName(workerName));
+        const exactDoc = workerDocs.find((doc) => String(doc.title || '') === title);
+        if (exactDoc) return { ...entry, title, worker_name: workerName, status: 'duplicate' as const, existingDocumentId: exactDoc.id, reason: '同じ資格証名で登録済みです。' };
+        const legacyDoc = workerDocs.find((doc) => String(doc.title || '') === legacyTitle);
+        if (legacyDoc) return { ...entry, title, worker_name: workerName, status: 'rename' as const, existingDocumentId: legacyDoc.id, reason: '登録済み画像の表示名をExcelの資格証名へ更新します。' };
+        return { ...entry, title, worker_name: workerName, status: 'new' as const, reason: '' };
       });
       const matchedWorkers = new Set(rows.filter((row) => row.worker_name).map((row) => row.worker_name)).size;
       setQualificationPackFile(file);
@@ -611,6 +614,7 @@ export default function WorkerLedgerPage() {
           total: rows.length,
           matchedWorkers,
           newCount: rows.filter((r) => r.status === 'new').length,
+          renameCount: rows.filter((r) => r.status === 'rename').length,
           duplicateCount: rows.filter((r) => r.status === 'duplicate').length,
           unmatchedCount: rows.filter((r) => r.status === 'unmatched').length
         }
@@ -628,14 +632,21 @@ export default function WorkerLedgerPage() {
 
   const commitQualificationPack = async () => {
     if (!qualificationPackFile || !qualificationPackPreview) return;
-    const targets = qualificationPackPreview.rows.filter((row) => row.status === 'new' && row.worker_name);
-    if (targets.length === 0) return alert('新しく登録する資格証画像がありません。');
-    if (!confirm(`資格証画像 ${targets.length}枚を登録しますか？\n現在の作業員マスタに一致した人だけ登録します。`)) return;
+    const newTargets = qualificationPackPreview.rows.filter((row) => row.status === 'new' && row.worker_name);
+    const renameTargets = qualificationPackPreview.rows.filter((row) => row.status === 'rename' && row.worker_name && row.existingDocumentId);
+    if (newTargets.length === 0 && renameTargets.length === 0) return alert('新しく登録・名称更新する資格証がありません。');
+    if (!confirm(`資格証を反映しますか？\n新規画像：${newTargets.length}枚\n登録済み画像の名称更新：${renameTargets.length}枚\n\n現在の作業員マスタに一致した人だけ対象です。`)) return;
     try {
       setQualificationPackLoading(true);
       const { readEntry } = await parseStoredZip(qualificationPackFile);
       let done = 0;
-      const queue = [...targets];
+      let renamed = 0;
+      for (const row of renameTargets) {
+        setQualificationPackProgress(`名称更新中 ${renamed + 1} / ${renameTargets.length}枚`);
+        await api('/api/worker-ledger', { method: 'POST', body: JSON.stringify({ action: 'renameDocument', id: row.existingDocumentId, title: row.title }) });
+        renamed += 1;
+      }
+      const queue = [...newTargets];
       const uploadOne = async () => {
         while (queue.length > 0) {
           const row = queue.shift();
@@ -649,15 +660,15 @@ export default function WorkerLedgerPage() {
           form.append('title', row.title);
           await api('/api/worker-ledger/upload', { method: 'POST', body: form });
           done += 1;
-          setQualificationPackProgress(`登録中 ${done} / ${targets.length}枚`);
+          setQualificationPackProgress(`登録中 ${done} / ${newTargets.length}枚`);
         }
       };
-      await Promise.all(Array.from({ length: Math.min(3, targets.length) }, () => uploadOne()));
+      await Promise.all(Array.from({ length: Math.min(3, newTargets.length) }, () => uploadOne()));
       await loadAll();
       setQualificationPackFile(null);
       setQualificationPackPreview(null);
       setQualificationPackProgress('');
-      alert(`資格証画像 ${done}枚を登録しました。`);
+      alert(`資格証の反映が完了しました。\n新規画像：${done}枚\n名称更新：${renamed}枚`);
     } catch (e: any) {
       alert(e?.message || '資格証画像の登録に失敗しました。途中まで登録されている場合があります。もう一度取込パックを確認すると登録済みは除外されます。');
     } finally {
@@ -950,17 +961,18 @@ export default function WorkerLedgerPage() {
                           <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
                             <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規画像 {qualificationPackPreview.summary.newCount}枚</span>
                             <span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {qualificationPackPreview.summary.matchedWorkers}名</span>
+                            <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">名称更新 {qualificationPackPreview.summary.renameCount}枚</span>
                             <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {qualificationPackPreview.summary.duplicateCount}枚</span>
                             <span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {qualificationPackPreview.summary.unmatchedCount}枚</span>
                           </div>
                           <div className="mt-3 flex gap-2 justify-end">
                             <button type="button" onClick={()=>{setQualificationPackPreview(null);setQualificationPackFile(null);}} disabled={qualificationPackLoading} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-black text-slate-700">取消</button>
-                            <button type="button" onClick={commitQualificationPack} disabled={qualificationPackLoading || qualificationPackPreview.summary.newCount===0} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規 {qualificationPackPreview.summary.newCount}枚を登録</button>
+                            <button type="button" onClick={commitQualificationPack} disabled={qualificationPackLoading || (qualificationPackPreview.summary.newCount===0 && qualificationPackPreview.summary.renameCount===0)} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規{qualificationPackPreview.summary.newCount}枚・名称更新{qualificationPackPreview.summary.renameCount}枚を反映</button>
                           </div>
                         </div>
                         <div className="max-h-[320px] overflow-auto">
                           <table className="w-full min-w-[720px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">元シート</th><th className="p-3 text-left">画像</th></tr></thead><tbody className="divide-y divide-slate-100">
-                            {qualificationPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{row.sourceSheet}</td><td className="p-3">{row.imageIndex}枚目</td></tr>)}
+                            {qualificationPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':row.status==='rename'?'bg-amber-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='rename'?'bg-amber-100 text-amber-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='rename'?'名称更新':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{row.title}</td><td className="p-3 text-xs text-slate-500">{row.sourceSheet} #{row.imageIndex}</td></tr>)}
                           </tbody></table>
                         </div>
                         {qualificationPackPreview.summary.unmatchedCount>0 && <div className="p-3 bg-rose-50 border-t border-rose-100 text-xs font-bold text-rose-800">⚠️ 未一致の画像は登録しません。現在の作業員マスタにいる人だけが対象です。</div>}
