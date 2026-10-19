@@ -439,6 +439,15 @@ export default function AdminPage() {
   const [disposalOverrides, setDisposalOverrides] = useState<any>({});
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
+  // 大阪の軽油単価は全現場共通。既存の現場別データは互換用に残し、
+  // 共通単価が登録済みの月は共通単価を最優先で使用する。
+  const OSAKA_FUEL_GLOBAL_KEY = '__osaka_all__';
+  const getEffectiveFuelUnitPrice = (locName: string, yearMonth: string) => {
+    const globalPrice = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[yearMonth];
+    if (globalPrice !== '' && globalPrice !== undefined && globalPrice !== null) return globalPrice;
+    const locationPrice = fuelUnitPrices?.[locName]?.[yearMonth];
+    return locationPrice !== '' && locationPrice !== undefined && locationPrice !== null ? locationPrice : '';
+  };
   const [customSubcontractors, setCustomSubcontractors] = useState<any>({});
   // 日報由来の外注費を「業者＋作業内容」単位で確定額調整するための上書き
   const [subcontractorDetailOverrides, setSubcontractorDetailOverrides] = useState<any>({});
@@ -1168,7 +1177,7 @@ export default function AdminPage() {
   const saveManualAttendanceStatus = (
     workerName: string,
     dateStr: string,
-    status: '管理' | 'サンセイ' | '欠勤' | ''
+    status: '管理' | 'サンセイ' | '欠勤' | '休業' | ''
   ) => {
     if (authRole !== 'admin') return;
 
@@ -1181,8 +1190,8 @@ export default function AdminPage() {
     const nextOverrides = { ...current, [workerName]: workerMap };
     if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
 
-    // 「欠勤」と有給は同じ日に重ならないようにする。
-    if (status === '欠勤') {
+    // 「欠勤」「休業」と有給は同じ日に重ならないようにする。
+    if (status === '欠勤' || status === '休業') {
       const currentPaidLeave = settings.paidLeaveOverrides || {};
       const paidLeaveWorkerMap = { ...(currentPaidLeave[workerName] || {}) };
       delete paidLeaveWorkerMap[dateStr];
@@ -1288,11 +1297,11 @@ export default function AdminPage() {
     const nextOverrides = { ...current, [workerName]: workerMap };
     if (Object.keys(workerMap).length === 0) delete nextOverrides[workerName];
 
-    // 有給を設定した日は、手動の「欠勤」があれば解除する。
+    // 有給を設定した日は、手動の「欠勤」「休業」があれば解除する。
     if (status) {
       const currentManual = settings.manualAttendanceOverrides || {};
       const manualWorkerMap = { ...(currentManual[workerName] || {}) };
-      if (manualWorkerMap[dateStr] === '欠勤') {
+      if (manualWorkerMap[dateStr] === '欠勤' || manualWorkerMap[dateStr] === '休業') {
         delete manualWorkerMap[dateStr];
       }
       const nextManual = { ...currentManual };
@@ -1684,12 +1693,15 @@ export default function AdminPage() {
             : dayDetails.filter(
                 (d) =>
                   d.manualStatus !== '欠勤' &&
+                  d.manualStatus !== '休業' &&
                   d.isScheduled &&
                   d.attendanceFraction === 0 &&
                   !d.paidLeaveStatus
               ).length;
 
         const absenceCandidates = manualAbsenceDays + automaticAbsenceCandidates;
+        // 休業は会社都合の休み。出勤・欠勤には加えず、専用欄だけで日数を数える。
+        const shutdownDays = dayDetails.filter((d) => d.manualStatus === '休業').length;
 
         const restHolidayWorkDays = dayDetails.filter((d) => {
           if (Number(d.holidayWorkHours || 0) <= 0) return false;
@@ -1734,6 +1746,7 @@ export default function AdminPage() {
           scheduledDays,
           scheduledHours,
           absenceCandidates,
+          shutdownDays,
           restHolidayWorkDays,
           restHolidayWorkHours,
           legalHolidayWorkDays,
@@ -1993,6 +2006,7 @@ export default function AdminPage() {
       '労働時間',
       '普通残業',
       '欠勤候補',
+      '休業',
       '休出',
       '法出',
       '出勤日数'
@@ -2004,7 +2018,7 @@ export default function AdminPage() {
         const [y,m,day] = d.split('-').map(Number);
         return weekdayJa[new Date(y, m - 1, day).getDay()];
       }),
-      '', '', '', '', '', '', '', ''
+      '', '', '', '', '', '', '', '', ''
     ];
 
     const rows: any[][] = [
@@ -2032,7 +2046,7 @@ export default function AdminPage() {
             return [siteText, marks].filter(Boolean).join(' ');
           }
 
-          if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ') {
+          if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ' || d.manualStatus === '休業') {
             return [d.manualStatus, d.paidLeaveStatus || ''].filter(Boolean).join(' ');
           }
 
@@ -2053,6 +2067,7 @@ export default function AdminPage() {
         row.scheduledHours ?? '',
         row.overtimeHours,
         row.absenceCandidates,
+        row.shutdownDays,
         row.restHolidayWorkDays > 0 || row.restHolidayWorkHours > 0
           ? `${row.restHolidayWorkDays}日\n${row.restHolidayWorkHours}h`
           : '',
@@ -2078,6 +2093,7 @@ export default function AdminPage() {
       { wch: 10 },
       { wch: 11 },
       { wch: 11 },
+      { wch: 9 },
       { wch: 11 },
       { wch: 11 },
       { wch: 9 }
@@ -2119,7 +2135,7 @@ export default function AdminPage() {
         if (d.sites?.some((site: string) => markedSiteNames.has(site))) {
           fill = 'BFDBFE';
           fontColor = '075985';
-        } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理' && d.manualStatus !== 'サンセイ') {
+        } else if (d.paidLeaveStatus && d.fraction === 0 && d.manualStatus !== '管理' && d.manualStatus !== 'サンセイ' && d.manualStatus !== '休業') {
           fill = 'F3E8FF';
           fontColor = '6B21A8';
         } else if (d.manualStatus === '管理' && d.fraction === 0) {
@@ -2128,6 +2144,9 @@ export default function AdminPage() {
         } else if (d.manualStatus === 'サンセイ' && d.fraction === 0) {
           fill = 'D1FAE5';
           fontColor = '047857';
+        } else if (d.manualStatus === '休業' && d.fraction === 0) {
+          fill = 'E0E7FF';
+          fontColor = '4338CA';
         } else if (d.isHoliday) {
           fill = d.attendanceFraction > 0 ? 'FED7AA' : '374151';
           fontColor = d.attendanceFraction > 0 ? '9A3412' : 'FFFFFF';
@@ -2933,6 +2952,63 @@ export default function AdminPage() {
     setFinancialDirty(true);
   };
 
+  const saveOsakaMonthlyFuelUnitPrice = async (yearMonth: string, val: string) => {
+    if (authRole !== 'admin') return;
+    const ym = String(yearMonth || '').trim();
+    const priceText = String(val ?? '').trim();
+    if (!/^\d{4}-\d{2}$/.test(ym)) return alert('対象月を選択してください。');
+    if (priceText === '' || Number(priceText) < 0) return alert('大阪の軽油単価を入力してください。');
+
+    try {
+      // 保存直前に最新settingsを取得し、fuelUnitPricesだけを安全に更新する。
+      // 共通キーに保存しつつ、既存の現場別キーにも同じ月単価を書き込み、
+      // これまでのデータ形式との互換性も維持する。
+      const latestSettings = await buildLatestSettingsForSave({});
+      const latestFuelPrices = latestSettings?.fuelUnitPrices || {};
+      const newFuelPrices: any = {
+        ...latestFuelPrices,
+        [OSAKA_FUEL_GLOBAL_KEY]: {
+          ...(latestFuelPrices[OSAKA_FUEL_GLOBAL_KEY] || {}),
+          [ym]: priceText
+        }
+      };
+
+      const names = new Set<string>();
+      (settings.locations || []).forEach((loc: any) => {
+        const locNames = typeof loc === 'string'
+          ? [loc]
+          : [loc?.name, ...(Array.isArray(loc?.pastNames) ? loc.pastNames : [])];
+        locNames.map((x: any) => String(x || '').trim()).filter(Boolean).forEach((name: string) => names.add(name));
+      });
+      reports.forEach((report: any) => {
+        const name = String(report?.location || report?.data?.location || '').trim();
+        if (name) names.add(name);
+      });
+      names.forEach((name) => {
+        newFuelPrices[name] = { ...(newFuelPrices[name] || {}), [ym]: priceText };
+      });
+
+      const newData = { ...latestSettings, fuelUnitPrices: newFuelPrices };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!res.ok) throw new Error('大阪軽油単価の保存に失敗しました。');
+
+      setFuelUnitPrices(newFuelPrices);
+      // 画面上で別項目を編集中でも、その未保存内容は消さずに燃料単価だけ保存済みに更新する。
+      setSettings((prev: any) => ({ ...prev, fuelUnitPrices: newFuelPrices }));
+      setOriginalSettings((prev: any) => ({ ...prev, fuelUnitPrices: JSON.parse(JSON.stringify(newFuelPrices)) }));
+      setForm((prev: any) => ({ ...prev, osakaFuelYearMonth: ym, osakaFuelUnitPrice: priceText }));
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2200);
+    } catch (e) {
+      console.error(e);
+      alert('大阪軽油単価の保存に失敗しました。');
+    }
+  };
+
   const handleSubcontractorDetailOverrideChange = (
     locName: string,
     key: string,
@@ -3377,7 +3453,7 @@ export default function AdminPage() {
             const fuelPriceLocationKey = r.location && r.location.includes('旧河北郡市クリーンセンター')
               ? '旧河北郡市クリーンセンター等解体工事(石川県)'
               : r.location;
-            const unitPrice = Number((fuelUnitPrices[fuelPriceLocationKey] || fuelUnitPrices[r.location] || {})?.[ym] || 0);
+            const unitPrice = Number(getEffectiveFuelUnitPrice(fuelPriceLocationKey || r.location, ym) || 0);
             addLine(r, idx++, '軽油', liters, unitPrice, { unitLabel: 'L' });
           }
         } else {
@@ -4727,8 +4803,7 @@ export default function AdminPage() {
         r.location && r.location.includes('旧河北郡市クリーンセンター')
           ? '旧河北郡市クリーンセンター等解体工事(石川県)'
           : r.location;
-      const locFuelPrices = fuelUnitPrices[fuelPriceLocationKey] || fuelUnitPrices[r.location] || {};
-      const unitPrice = locFuelPrices[ym];
+      const unitPrice = getEffectiveFuelUnitPrice(fuelPriceLocationKey || r.location, ym);
       if (unitPrice !== '' && unitPrice !== undefined) {
         fuelCost = rawFuelL * Number(unitPrice);
       }
@@ -5424,7 +5499,7 @@ export default function AdminPage() {
     const isIshikawaFuelSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
 
     Object.keys(monthlyFuelBreakdown).forEach(ym => {
-      const rawUnitPrice = fuelUnitPrices[locName]?.[ym];
+      const rawUnitPrice = getEffectiveFuelUnitPrice(locName, ym);
       const unitPrice = rawUnitPrice !== '' && rawUnitPrice !== undefined ? Number(rawUnitPrice) : 0;
       monthlyFuelBreakdown[ym].unitPrice = unitPrice;
       monthlyFuelBreakdown[ym].total = monthlyFuelBreakdown[ym].liters * unitPrice;
@@ -6788,6 +6863,7 @@ export default function AdminPage() {
         <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', '管理'); e.dataTransfer.effectAllowed = 'copy'; }} title="「欠勤?」または「休」のセルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-blue-400 bg-white px-3 py-1.5 font-bold text-blue-700 shadow-sm">管理</div>
         <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', 'サンセイ'); e.dataTransfer.effectAllowed = 'copy'; }} title="日報が入っていない日付セルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-emerald-400 bg-white px-3 py-1.5 font-bold text-emerald-700 shadow-sm">サンセイ</div>
         <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', '欠勤'); e.dataTransfer.effectAllowed = 'copy'; }} title="日報がない出勤日のセルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-rose-400 bg-white px-3 py-1.5 font-bold text-rose-700 shadow-sm">欠勤</div>
+        <div draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', '休業'); e.dataTransfer.effectAllowed = 'copy'; }} title="会社都合で休業になった日付セルへドラッグしてください" className="cursor-grab active:cursor-grabbing select-none rounded-lg border-2 border-indigo-400 bg-white px-3 py-1.5 font-bold text-indigo-700 shadow-sm">休業</div>
         <span className="text-slate-500">→ 日報がないセルへ</span>
       </div>
 
@@ -7684,6 +7760,57 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {authRole === 'admin' && (() => {
+        const selectedMonth = String(form.osakaFuelYearMonth || getCurrentYearMonth());
+        const savedPrice = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[selectedMonth] ?? '';
+        const inputPrice = form.osakaFuelUnitPrice !== undefined ? form.osakaFuelUnitPrice : savedPrice;
+        return (
+          <section className="rounded-2xl border-2 border-orange-200 bg-orange-50/70 px-4 py-3 md:px-5 md:py-4 shadow-sm">
+            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+              <div>
+                <div className="font-black text-orange-950">⛽ 大阪軽油単価（月別・全現場共通）</div>
+                <div className="mt-1 text-xs md:text-sm font-bold text-orange-800">〇年〇月の1L単価を1回保存すると、その月の大阪軽油単価として全現場の利益計算へ反映します。</div>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-xs font-black text-slate-600">対象月
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      const ym = e.target.value;
+                      setForm((prev: any) => ({ ...prev, osakaFuelYearMonth: ym, osakaFuelUnitPrice: fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[ym] ?? '' }));
+                    }}
+                    className="mt-1 block rounded-xl border-2 border-orange-200 bg-white px-3 py-2 text-sm font-black text-slate-900"
+                  />
+                </label>
+                <label className="text-xs font-black text-slate-600">軽油単価（1L）
+                  <div className="mt-1 flex items-center rounded-xl border-2 border-orange-200 bg-white px-3 py-1">
+                    <span className="font-black text-slate-500">¥</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={inputPrice}
+                      onChange={(e) => setForm((prev: any) => ({ ...prev, osakaFuelYearMonth: selectedMonth, osakaFuelUnitPrice: e.target.value }))}
+                      placeholder="例：145"
+                      className="w-28 bg-transparent px-2 py-1 text-right text-base font-black text-slate-900 outline-none"
+                    />
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => saveOsakaMonthlyFuelUnitPrice(selectedMonth, inputPrice)}
+                  className="rounded-xl bg-orange-600 hover:bg-orange-700 px-4 py-2.5 text-sm font-black text-white shadow-sm"
+                >
+                  💾 全現場へ反映・保存
+                </button>
+                <div className="pb-2 text-xs font-bold text-slate-500">保存済み：{savedPrice === '' ? '未設定' : `¥${Number(savedPrice).toLocaleString('ja-JP')}/L`}</div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {authRole === 'admin' && (
         <section className="rounded-3xl border-2 border-blue-200 bg-white shadow-sm overflow-hidden">
@@ -9336,6 +9463,7 @@ export default function AdminPage() {
                       <th rowSpan={2} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-1 border border-slate-300 bg-slate-100">時間</th>
                       <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">残業</th>
                       <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">欠勤</th>
+                      <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-indigo-200 bg-indigo-50 text-indigo-700">休業</th>
                       <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">休出</th>
                       <th rowSpan={2} className="sticky top-0 z-30 w-[28px] min-w-[28px] px-1 border border-slate-300 bg-slate-100">法出</th>
                       <th rowSpan={2} className="sticky top-0 z-30 w-[30px] min-w-[30px] px-1 border border-slate-300 bg-slate-100">出勤</th>
@@ -9464,6 +9592,7 @@ export default function AdminPage() {
                               const isManagement = d.manualStatus === '管理' && !hasReportWork;
                               const isSansei = d.manualStatus === 'サンセイ' && !hasReportWork;
                               const isAbsence = d.manualStatus === '欠勤' && !hasReportWork;
+                              const isShutdown = d.manualStatus === '休業' && !hasReportWork;
                               const paidLeaveStatus = d.paidLeaveStatus || '';
                               const hasAttendance = d.attendanceFraction > 0;
                               const travelMarkNumber = Number(d.travelAllowanceMarkNumber || 0);
@@ -9483,20 +9612,30 @@ export default function AdminPage() {
                                 !isManagement &&
                                 !isSansei &&
                                 !isAbsence &&
+                                !isShutdown &&
                                 row.calendarType !== 'none' &&
                                 (d.isScheduled || d.isHoliday);
                               const canDropSansei =
                                 !hasReportWork &&
                                 !isManagement &&
                                 !isSansei &&
-                                !isAbsence;
+                                !isAbsence &&
+                                !isShutdown;
                               const canDropAbsence =
                                 !hasReportWork &&
                                 !isManagement &&
                                 !isSansei &&
                                 !isAbsence &&
+                                !isShutdown &&
                                 !paidLeaveStatus &&
                                 !d.isHoliday;
+                              const canDropShutdown =
+                                !hasReportWork &&
+                                !isManagement &&
+                                !isSansei &&
+                                !isAbsence &&
+                                !isShutdown &&
+                                !paidLeaveStatus;
 
                               let bg = 'bg-white';
                               let textColor = 'text-slate-700';
@@ -9504,7 +9643,7 @@ export default function AdminPage() {
                               if (isSelectedSite) {
                                 bg = 'bg-sky-200';
                                 textColor = 'text-sky-900';
-                              } else if (paidLeaveStatus && !hasReportWork && !isManagement) {
+                              } else if (paidLeaveStatus && !hasReportWork && !isManagement && !isShutdown) {
                                 bg = 'bg-violet-50';
                                 textColor = 'text-violet-900';
                               } else if (isManagement) {
@@ -9516,6 +9655,9 @@ export default function AdminPage() {
                               } else if (isAbsence) {
                                 bg = 'bg-rose-100';
                                 textColor = 'text-rose-800';
+                              } else if (isShutdown) {
+                                bg = 'bg-indigo-100';
+                                textColor = 'text-indigo-800';
                               } else if (d.isHoliday) {
                                 if (hasAttendance) {
                                   bg = 'bg-orange-100';
@@ -9540,7 +9682,9 @@ export default function AdminPage() {
                                     ? 'サンセイ'
                                     : isAbsence
                                       ? '欠勤'
-                                      : d.isHoliday
+                                      : isShutdown
+                                        ? '休業'
+                                        : d.isHoliday
                                       ? ''
                                       : paidLeaveStatus
                                         ? ''
@@ -9562,10 +9706,12 @@ export default function AdminPage() {
                                           ? `${d.date} / サンセイ（クリックで解除）`
                                         : isAbsence
                                           ? `${d.date} / 欠勤（クリックで解除）`
+                                        : isShutdown
+                                          ? `${d.date} / 休業（クリックで解除）`
                                         : canDropManagement
-                                          ? `${d.date} / 「管理」「サンセイ」「欠勤」をここへドラッグできます。有給はどのセルにもドラッグできます`
-                                        : canDropSansei || canDropAbsence
-                                          ? `${d.date} / 「サンセイ」または「欠勤」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                          ? `${d.date} / 「管理」「サンセイ」「欠勤」「休業」をここへドラッグできます。有給はどのセルにもドラッグできます`
+                                        : canDropSansei || canDropAbsence || canDropShutdown
+                                          ? `${d.date} / 「サンセイ」「欠勤」「休業」をここへドラッグできます。有給はどのセルにもドラッグできます`
                                           : `${d.date}${d.sites.length ? ` / ${d.sites.join(' / ')}` : ''}${paidLeaveStatus ? ` / ${paidLeaveStatus}` : ''}`
                                   }
                                   onContextMenu={(e) => {
@@ -9608,6 +9754,13 @@ export default function AdminPage() {
                                     if (dropped === '欠勤') {
                                       if (canDropAbsence) {
                                         saveManualAttendanceStatus(row.name, d.date, '欠勤');
+                                      }
+                                      return;
+                                    }
+
+                                    if (dropped === '休業') {
+                                      if (canDropShutdown) {
+                                        saveManualAttendanceStatus(row.name, d.date, '休業');
                                       }
                                       return;
                                     }
@@ -9674,11 +9827,19 @@ export default function AdminPage() {
                                       confirm(`${row.name} / ${d.date} の「欠勤」を解除しますか？`)
                                     ) {
                                       saveManualAttendanceStatus(row.name, d.date, '');
+                                      return;
+                                    }
+
+                                    if (
+                                      isShutdown &&
+                                      confirm(`${row.name} / ${d.date} の「休業」を解除しますか？`)
+                                    ) {
+                                      saveManualAttendanceStatus(row.name, d.date, '');
                                     }
                                   }}
                                   className={`w-[30px] min-w-[30px] max-w-[44px] h-[42px] px-0.5 py-0.5 border border-slate-300 text-center align-middle ${bg} ${textColor} ${
-                                    canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : canDropAbsence ? 'hover:ring-2 hover:ring-inset hover:ring-rose-400' : ''
-                                  } ${(isManagement || isSansei || isAbsence || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
+                                    canDropManagement ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : canDropAbsence ? 'hover:ring-2 hover:ring-inset hover:ring-rose-400' : canDropShutdown ? 'hover:ring-2 hover:ring-inset hover:ring-indigo-400' : ''
+                                  } ${(isManagement || isSansei || isAbsence || isShutdown || (hasReportWork && d.sites.length > 0)) ? 'cursor-pointer' : ''} ${
                                     canDragHoliday ? 'cursor-grab active:cursor-grabbing' : ''
                                   } ${
                                     travelMarked ? 'ring-2 ring-inset ring-sky-500' : ''
@@ -9803,6 +9964,9 @@ export default function AdminPage() {
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-rose-700">
                               {row.absenceCandidates}
                             </td>
+                            <td className="px-0.5 border border-indigo-200 bg-indigo-50/60 text-center font-black text-indigo-700">
+                              {row.shutdownDays > 0 ? row.shutdownDays : '-'}
+                            </td>
                             <td className="px-0.5 border border-slate-300 text-center font-bold text-orange-700 leading-tight">
                               {row.restHolidayWorkDays > 0 || row.restHolidayWorkHours > 0 ? (
                                 <div className="flex flex-col items-center justify-center">
@@ -9834,6 +9998,19 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+
+              {monthlyAttendanceRows.some((row: any) => Number(row.shutdownDays || 0) > 0) && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs text-indigo-900">
+                  <div className="font-black mb-1">休業日数</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {monthlyAttendanceRows
+                      .filter((row: any) => Number(row.shutdownDays || 0) > 0)
+                      .map((row: any) => (
+                        <span key={`shutdown-${row.name}`}><b>{row.name}</b>：休業{row.shutdownDays}日</span>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               {/* カレンダー下部にも上部と同じ操作欄を表示 */}
               <div className="pt-2 border-t border-slate-200">{renderAttendanceTools()}</div>
@@ -9876,13 +10053,13 @@ export default function AdminPage() {
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
                 <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
-                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を、欠勤日は「欠勤」を対象セルへドラッグしてください。「管理」「サンセイ」は1日出勤として集計し、「欠勤」は出勤には加算しません。</div>
+                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を、欠勤日は「欠勤」、会社都合で休みになった日は「休業」を対象セルへドラッグしてください。「管理」「サンセイ」は1日出勤として集計し、「欠勤」「休業」は出勤には加算しません。</div>
                 <div>※ 会社カレンダーの「休」は作業員ごとに別の日へ変更できます。「休」を右クリック→移動先を右クリック（ドラッグ／クリック操作も可）。その作業員だけの変更で、会社カレンダー・元の日報・現場情報は変更しません。</div>
                 <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
                 <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
                 <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
-                <div>※ 「管理」「サンセイ」「欠勤」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
-                <div>※ 個別休日変更・有給・管理・サンセイ・欠勤は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
+                <div>※ 「管理」「サンセイ」「欠勤」「休業」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
+                <div>※ 個別休日変更・有給・管理・サンセイ・欠勤・休業は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
               </div>
@@ -11830,7 +12007,7 @@ export default function AdminPage() {
                   <div className="overflow-x-auto"><div className="min-w-[1040px]">
                     <div className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>外注業者</div><div className="text-right">現在明細合計</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
                     <div className="divide-y divide-slate-100">{subcontractorInvoiceProgressRows.map((row:any) => (
-                      <div key={row.key} className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 bg-white">
+                      <div key={row.key} className={`grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 ${row.isReconciled ? 'bg-emerald-50/80' : 'bg-white'}`}>
                         <div className="font-extrabold text-slate-900">{row.location}</div><div className="font-bold text-slate-700">{row.company}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
                         <div className="text-right font-black text-slate-900">{formatAmount(row.currentAmount)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right"><div className="font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-[10px] text-slate-400">明細修正後</div></div>
                         <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
@@ -15213,34 +15390,9 @@ export default function AdminPage() {
                   <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 燃料内訳（大阪・石川県）</h3>
                 </div>
 
-                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
-                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
-                  <p className="text-xs md:text-sm text-orange-700 font-medium">月をまたぐ現場の場合、月ごとの1L単価を入力すると下の「燃料代（大阪）」に自動反映されます。</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
-                    {modalReportYearMonths.length === 0 ? (
-                      <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
-                    ) : (
-                      modalReportYearMonths.map(ym => {
-                        const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
-                        return (
-                          <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
-                            <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm text-slate-500 font-bold">¥</span>
-                              <input 
-                                type="number" 
-                                value={currentPrice} 
-                                onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
-                                readOnly={authRole === 'viewer'}
-                                placeholder="例: 145"
-                                className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200">
+                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 大阪軽油単価は管理画面トップで一括設定</div>
+                  <p className="mt-1 text-xs md:text-sm text-orange-700 font-medium">この現場の「燃料代（大阪）」は、管理画面トップで設定した月別の全現場共通単価を使用します。</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:gap-5">
@@ -15339,34 +15491,9 @@ export default function AdminPage() {
                   <h3 className="font-extrabold text-xl md:text-2xl text-slate-900">📋 経費の確認・確定</h3>
                 </div>
 
-                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200 space-y-3">
-                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 月別 1Lあたりの軽油単価設定</div>
-                  <p className="text-sm md:text-base text-orange-800 font-medium">軽油は月ごとに単価が変わるため、請求書などで確認した1L単価を入力してください。入力すると「燃料代（軽油）」を自動計算します。</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
-                    {modalReportYearMonths.length === 0 ? (
-                      <p className="text-sm text-slate-500 font-medium">この現場の日報データがまだありません</p>
-                    ) : (
-                      modalReportYearMonths.map(ym => {
-                        const currentPrice = fuelUnitPrices[modalLocation]?.[ym] ?? '';
-                        return (
-                          <div key={ym} className="bg-white p-3.5 rounded-xl border border-orange-200 space-y-1.5 shadow-2xs">
-                            <label className="text-xs md:text-sm font-bold text-slate-700 block">{ym} の単価(1L)</label>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm text-slate-500 font-bold">¥</span>
-                              <input 
-                                type="number" 
-                                value={currentPrice} 
-                                onChange={e => handleFuelUnitPriceChange(modalLocation, ym, e.target.value)}
-                                readOnly={authRole === 'viewer'}
-                                placeholder="例: 145"
-                                className={`w-full p-2.5 border border-slate-300 rounded-lg text-base font-bold text-right ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : 'bg-white'}`}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                <div className="bg-orange-50/80 p-4 md:p-5 rounded-2xl border border-orange-200">
+                  <div className="font-bold text-orange-900 text-base md:text-lg">⛽ 大阪軽油単価は管理画面トップで一括設定</div>
+                  <p className="mt-1 text-sm md:text-base text-orange-800 font-medium">この現場の軽油単価は、管理画面トップで設定した月別の全現場共通単価を使用します。</p>
                 </div>
               </div>
             )}
