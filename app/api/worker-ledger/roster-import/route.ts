@@ -175,7 +175,40 @@ export async function POST(request: Request) {
     const profiles = await profilesRes.json().catch(() => []);
     const health = await healthRes.json().catch(() => []);
     const qualifications = await qualRes.json().catch(() => []);
-    const profileMap = new Map((Array.isArray(profiles) ? profiles : []).map((x: any) => [String(x.worker_name), x]));
+
+    // 名前だけでは一致しない作業員は、すでに手入力済みの台帳情報も使って安全に照合する。
+    // 例: マスタ「サントソ」／Excel「ハディ サントソ」でも、
+    // Excel氏名に「サントソ」が含まれ、かつ生年月日が台帳と一致する場合は同一人物として扱う。
+    // ただし候補が複数になる場合は自動一致させない。
+    const profileRows = Array.isArray(profiles) ? profiles : [];
+    const masterWorkerSet = new Set(masterWorkers.map((name: any) => String(name)));
+    for (const row of parsed) {
+      if (row.status !== 'unmatched' || !row.birth_date) continue;
+      const sourceName = normalize(row.source_full_name);
+      const sourceKana = normalize(row.furigana);
+      const candidates = profileRows.filter((profile: any) => {
+        const workerName = String(profile?.worker_name || '');
+        if (!workerName || !masterWorkerSet.has(workerName)) return false;
+        if (!profile?.birth_date || String(profile.birth_date) !== row.birth_date) return false;
+
+        const masterName = normalize(workerName);
+        const registeredFullName = normalize(profile?.full_name || '');
+        const nameMatches =
+          (!!registeredFullName && (registeredFullName === sourceName || registeredFullName === sourceKana)) ||
+          (!!masterName && (sourceName.includes(masterName) || sourceKana.includes(masterName)));
+        return nameMatches;
+      });
+
+      if (candidates.length === 1) {
+        row.worker_name = String(candidates[0].worker_name);
+        row.status = 'matched';
+        row.reason = '登録済み台帳の氏名・生年月日から一致しました。';
+      } else if (candidates.length > 1) {
+        row.reason = '氏名・生年月日が一致する候補が複数あるため、自動一致しませんでした。';
+      }
+    }
+
+    const profileMap = new Map(profileRows.map((x: any) => [String(x.worker_name), x]));
     const healthKeys = new Set((Array.isArray(health) ? health : []).map((x: any) => `${normalize(x.worker_name)}|${x.exam_date || ''}`));
     const qualKeys = new Set((Array.isArray(qualifications) ? qualifications : []).map((x: any) => qualKey(x.worker_name, x.category, x.qualification_name)));
 
