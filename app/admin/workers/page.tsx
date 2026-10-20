@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { exportWorkerRoster } from './roster-export';
 
 type WorkerProfile = {
   id?: string;
@@ -781,6 +782,17 @@ export default function WorkerLedgerPage() {
     setPrintSelectedWorkers((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
   };
 
+  const downloadSelectedRoster = async () => {
+    if (printSelectedWorkers.length === 0) return alert('名簿に載せる作業員を1名以上チェックしてください。');
+    try {
+      // 出力直前に最新の保存データを再取得。GETのみで保存済みデータを変更しない。
+      const latest = await api('/api/worker-ledger');
+      exportWorkerRoster(printSelectedWorkers, latest);
+    } catch (e: any) {
+      alert(e?.message || '名簿のExcel書き出しに失敗しました。');
+    }
+  };
+
   const printSelectedQualificationDocuments = async () => {
     if (printSelectedWorkers.length === 0) return alert('印刷する作業員を1人以上チェックしてください。');
     const docs = documents.filter((doc) => doc.document_type === 'qualification' && printSelectedWorkers.includes(doc.worker_name));
@@ -994,6 +1006,11 @@ export default function WorkerLedgerPage() {
         </header>
 
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 p-4 font-bold">⚠️ {error}<div className="text-xs mt-1 font-medium">初回はSupabase用の追加SQLを実行してから使用してください。</div></div>}
+
+        <section className="rounded-3xl bg-white border border-blue-200 shadow-sm p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div><div className="font-black text-slate-900">📄 作業員名簿の書き出し（試験版）</div><p className="text-xs text-slate-600 mt-1">左側の作業員一覧で「印刷」にチェック → 名簿のExcelを作成します。保存済みデータは読み取り専用です。</p><p className="text-xs text-amber-700 mt-1">※元の全建統一様式第2号Excelと印刷レイアウトが完全一致する版ではありません。まず項目・内容をご確認ください。</p></div>
+          <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-blue-700">選択：{printSelectedWorkers.length}名</span><button type="button" onClick={downloadSelectedRoster} disabled={printSelectedWorkers.length===0} className="rounded-xl bg-blue-700 text-white px-5 py-3 font-black disabled:opacity-40">⬇ 作業員名簿Excelを作成</button></div>
+        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-[330px_minmax(0,1fr)] gap-4">
           <aside className="rounded-3xl bg-white border border-slate-200 shadow-sm overflow-hidden lg:sticky lg:top-4 lg:self-start">
