@@ -45,6 +45,8 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
   const template = source.Sheets[source.SheetNames[0]];
   if (!template || safe(template.A1?.v) !== '全建統一様式第2号') throw new Error('作業員名簿のひな形が正しくありません。');
   const wb = XLSX.utils.book_new();
+  // ブックの基本プロパティは引き継ぐ（既存のシートは読み取りだけ）。
+  if (source.Props) wb.Props = { ...source.Props };
   const profiles = Array.isArray(ledger.profiles) ? ledger.profiles : [];
   const qualifications = Array.isArray(ledger.qualifications) ? ledger.qualifications : [];
   const health = Array.isArray(ledger.healthChecks) ? ledger.healthChecks : [];
@@ -54,7 +56,7 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
   for (let page = 0; page < count; page++) {
     // 原本の730箇所以上ある結合セル、行列幅、書式、印刷設定を複製。
     const ws: XLSX.WorkSheet = JSON.parse(JSON.stringify(template));
-    dateInto(ws, ['BO6', 'BV6', 'CD6'], `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`);
+    dateInto(ws, ['BN6', 'BV6', 'CD6'], `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`);
     // 注：元の様式にある会社名などの既定値は変更しません。
     ordered.slice(page * 10, page * 10 + 10).forEach((name, index) => {
       const r = 20 + 6 * index;
@@ -63,15 +65,21 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
       const h = health.filter(x => x.worker_name === name).sort((a,b) => safe(b.exam_date).localeCompare(safe(a.exam_date)))[0];
       put(ws, `E${r + 2}`, p?.full_name || name);
       put(ws, `E${r}`, noteValue(p?.notes, 'ふりがな'));
-      put(ws, `V${r}`, noteValue(p?.notes, '職種'));
-      put(ws, `AL${r + 3}`, noteValue(p?.notes, '経験年数'));
-      dateInto(ws, [`AL${r}`, `AQ${r}`, `AV${r}`,], p?.hire_date);
-      dateInto(ws, [`BA${r}`, `BF${r}`, `BK${r}`], p?.birth_date);
+      // 旧名簿から取り込んだ「職種／経験年数」の混在を表示用だけで分離する。
+      // 保存済みデータは変更しない。経験年数が曖昧なら空欄のままとする。
+      const jobRaw = noteValue(p?.notes, '職種');
+      const job = jobRaw.split(/\s*[／/]\s*(?=経験年数\s*[：:])/)[0].trim();
+      const expRaw = noteValue(p?.notes, '経験年数') || jobRaw.match(/経験年数\s*[：:]\s*([^／/\n]+)/)?.[1]?.trim() || '';
+      const experience = expRaw.match(/^(\d+(?:\.\d+)?)\s*年(?:\s*\d+\s*か月)?$/)?.[0] || (expRaw.match(/^\d+(?:\.\d+)?$/) ? `${expRaw}年` : '');
+      put(ws, `V${r}`, job);
+      put(ws, `AL${r + 3}`, experience);
+      dateInto(ws, [`AL${r}`, `AT${r}`, `AY${r}`], p?.hire_date);
+      dateInto(ws, [`BA${r}`, `BD${r}`, `BI${r}`], p?.birth_date);
       put(ws, `BA${r + 3}`, age(p?.birth_date, now));
       put(ws, `EP${r}`, p?.blood_type);
       put(ws, `BP${r}`, p?.address);
       put(ws, `BP${r + 3}`, p?.emergency_contact);
-      dateInto(ws, [`EA${r}`, `EF${r}`, `EK${r}`], h?.exam_date);
+      dateInto(ws, [`EA${r}`, `ED${r}`, `EI${r}`], h?.exam_date);
       if (h?.systolic != null || h?.diastolic != null) put(ws, `EA${r+3}`, [h?.systolic, h?.diastolic].filter(x=>x != null && x !== '').join('/'));
       const categories = (word: string) => [...new Set(q.filter(x => safe(x.category).includes(word)).map(x => safe(x.qualification_name)).filter(Boolean))].join('、');
       const training = categories('特別教育');
