@@ -546,6 +546,8 @@ export default function AdminPage() {
   const [selectedHolidayMove, setSelectedHolidayMove] = useState<{ workerName: string; fromDate: string } | null>(null);
   // 月次勤怠の手動変更は、操作ごとに保存せず最後にまとめて保存する。
   const [attendanceMemoTarget, setAttendanceMemoTarget] = useState<{ worker: string; date: string } | null>(null);
+  const [attendanceMemoDraft, setAttendanceMemoDraft] = useState('');
+  const [attendanceMemoSaving, setAttendanceMemoSaving] = useState(false);
   const [attendanceChangesDirty, setAttendanceChangesDirty] = useState(false);
   const [attendanceChangesSaving, setAttendanceChangesSaving] = useState(false);
   // 月次勤怠表の作業員並び順を、区分内だけドラッグで変更する。
@@ -1504,6 +1506,49 @@ export default function AdminPage() {
       alert(`勤怠変更は保存されていません。\n${e instanceof Error ? e.message : '保存に失敗しました。'}\n画面上の入力は残っています。`);
     } finally {
       setAttendanceChangesSaving(false);
+    }
+  };
+
+  // メモだけを保存する。勤怠区分の未保存変更には触れず、同一セルの競合時は中止する。
+  const saveAttendanceMemoPopup = async () => {
+    const target = attendanceMemoTarget;
+    if (!target || attendanceMemoSaving || authRole !== 'admin') return;
+    const value = attendanceMemoDraft.trim();
+    const previous = String(originalSettings.attendanceMemos?.[target.worker]?.[target.date] || '');
+    try {
+      setAttendanceMemoSaving(true);
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (!latestRes.ok) throw new Error('最新のメモを取得できませんでした。');
+      const latest = await latestRes.json();
+      if (!latest || typeof latest !== 'object' || Array.isArray(latest) || !Object.keys(latest).length) {
+        throw new Error('最新の設定を確認できなかったため、保存を中止しました。');
+      }
+      const current = String(latest.attendanceMemos?.[target.worker]?.[target.date] || '');
+      if (current !== previous && current !== value) {
+        throw new Error('別の管理者が同じ日のメモを更新しています。画面を更新して確認してください。');
+      }
+      const allMemos = { ...(latest.attendanceMemos || {}) };
+      const workerMemos = { ...(allMemos[target.worker] || {}) };
+      if (value) workerMemos[target.date] = value;
+      else delete workerMemos[target.date];
+      if (Object.keys(workerMemos).length) allMemos[target.worker] = workerMemos;
+      else delete allMemos[target.worker];
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendanceMemos: allMemos })
+      });
+      if (!res.ok) throw new Error('メモを保存できませんでした。');
+      // 画面内の他の未保存勤怠変更は維持し、メモ部分だけ保存済みに同期する。
+      setSettings((prev: any) => ({ ...prev, attendanceMemos: allMemos }));
+      setOriginalSettings((prev: any) => ({ ...prev, attendanceMemos: allMemos }));
+      setAttendanceMemoTarget(null);
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 1800);
+    } catch (e) {
+      alert(`メモは保存されていません。\n${e instanceof Error ? e.message : '保存に失敗しました。'}`);
+    } finally {
+      setAttendanceMemoSaving(false);
     }
   };
 
@@ -9620,43 +9665,31 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {authRole === 'admin' && (
-                <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
-                  <div className="font-bold text-sm text-slate-800">📝 勤怠メモ（管理者間で共有）</div>
-                  <div className="flex flex-wrap gap-2">
-                    <select className="rounded-lg border border-slate-300 p-2 text-sm" value={attendanceMemoTarget?.worker || ''} onChange={e => setAttendanceMemoTarget(e.target.value ? { worker: e.target.value, date: attendanceMemoTarget?.date || attendancePeriodInfo.dates[0] || '' } : null)}>
-                      <option value="">作業員を選択</option>
-                      {monthlyAttendanceRows.map((row: any) => <option key={row.name} value={row.name}>{row.name}</option>)}
-                    </select>
-                    <select className="rounded-lg border border-slate-300 p-2 text-sm" value={attendanceMemoTarget?.date || ''} onChange={e => setAttendanceMemoTarget(prev => prev ? { ...prev, date: e.target.value } : null)}>
-                      <option value="">日付を選択</option>
-                      {attendancePeriodInfo.dates.map((dateStr: string) => <option key={dateStr} value={dateStr}>{dateStr}</option>)}
-                    </select>
-                  </div>
-                  {attendanceMemoTarget?.worker && attendanceMemoTarget?.date && (
+              {authRole === 'admin' && attendanceMemoTarget && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-4" onClick={() => { if (!attendanceMemoSaving) setAttendanceMemoTarget(null); }}>
+                  <div role="dialog" aria-modal="true" aria-label="勤怠共有メモ" className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-bold text-slate-900">💡 勤怠メモ</div>
+                        <div className="mt-1 text-sm text-slate-600">{attendanceMemoTarget.worker} ／ {attendanceMemoTarget.date}</div>
+                      </div>
+                      <button type="button" disabled={attendanceMemoSaving} onClick={() => setAttendanceMemoTarget(null)} aria-label="閉じる" className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">✕</button>
+                    </div>
                     <textarea
+                      autoFocus
                       aria-label="管理者共有メモ"
-                      className="w-full min-h-[90px] rounded-lg border border-slate-300 p-3 text-sm"
+                      className="mt-4 min-h-[140px] w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-slate-500"
                       placeholder="例：本人から欠勤連絡あり。振替は来週予定。"
-                      value={settings.attendanceMemos?.[attendanceMemoTarget.worker]?.[attendanceMemoTarget.date] || ''}
+                      value={attendanceMemoDraft}
                       maxLength={2000}
-                      onChange={e => {
-                        const target = attendanceMemoTarget;
-                        const memo = e.target.value;
-                        setSettings((prev: any) => {
-                          const all = { ...(prev.attendanceMemos || {}) };
-                          const workerMemos = { ...(all[target.worker] || {}) };
-                          if (memo) workerMemos[target.date] = memo;
-                          else delete workerMemos[target.date];
-                          if (Object.keys(workerMemos).length) all[target.worker] = workerMemos;
-                          else delete all[target.worker];
-                          return { ...prev, attendanceMemos: all };
-                        });
-                        setAttendanceChangesDirty(true);
-                      }}
+                      onChange={(e) => setAttendanceMemoDraft(e.target.value)}
                     />
-                  )}
-                  <p className="text-xs text-slate-500">入力後は上の「勤怠変更を保存」を押してください。ほかの管理者は画面を更新すると保存済みメモを確認できます。</p>
+                    <div className="mt-1 text-xs text-slate-500">内容を空にして保存するとメモを削除できます。保存後はほかの管理者にも共有されます。</div>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button type="button" disabled={attendanceMemoSaving} onClick={() => setAttendanceMemoTarget(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">キャンセル</button>
+                      <button type="button" disabled={attendanceMemoSaving} onClick={saveAttendanceMemoPopup} className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{attendanceMemoSaving ? '保存中…' : 'メモを保存'}</button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -10101,6 +10134,23 @@ export default function AdminPage() {
                                     <div className="max-w-[32px] truncate font-medium leading-tight text-[8px]">
                                       {label}
                                     </div>
+                                    {authRole === 'admin' && (
+                                      <button
+                                        type="button"
+                                        draggable={false}
+                                        title={`${row.name} / ${d.date} の共有メモを${settings.attendanceMemos?.[row.name]?.[d.date] ? '確認・編集' : '追加'}`}
+                                        aria-label={`${row.name} ${d.date} の勤怠メモ`}
+                                        className="block h-[13px] min-w-[22px] rounded text-center text-[10px] font-bold leading-[13px] hover:bg-slate-200/60"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          setAttendanceMemoDraft(String(settings.attendanceMemos?.[row.name]?.[d.date] || ''));
+                                          setAttendanceMemoTarget({ worker: row.name, date: d.date });
+                                        }}
+                                      >
+                                        {settings.attendanceMemos?.[row.name]?.[d.date] ? '💡' : '・・・'}
+                                      </button>
+                                    )}
                                     {canDragHoliday && (
                                       <div
                                         draggable
