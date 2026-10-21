@@ -545,6 +545,7 @@ export default function AdminPage() {
   // 月次勤怠の個別休日変更：会社カレンダーは変えず、作業員ごとに休みの日だけ移動する。
   const [selectedHolidayMove, setSelectedHolidayMove] = useState<{ workerName: string; fromDate: string } | null>(null);
   // 月次勤怠の手動変更は、操作ごとに保存せず最後にまとめて保存する。
+  const [attendanceMemoTarget, setAttendanceMemoTarget] = useState<{ worker: string; date: string } | null>(null);
   const [attendanceChangesDirty, setAttendanceChangesDirty] = useState(false);
   const [attendanceChangesSaving, setAttendanceChangesSaving] = useState(false);
   // 月次勤怠表の作業員並び順を、区分内だけドラッグで変更する。
@@ -1390,6 +1391,17 @@ export default function AdminPage() {
       });
     });
 
+    const oldMemos = originalSettings.attendanceMemos || {};
+    const newMemos = settings.attendanceMemos || {};
+    const memoWorkers = new Set([...Object.keys(oldMemos), ...Object.keys(newMemos)]);
+    memoWorkers.forEach((workerName: string) => {
+      const oldMap = oldMemos[workerName] || {};
+      const newMap = newMemos[workerName] || {};
+      new Set([...Object.keys(oldMap), ...Object.keys(newMap)]).forEach((date: string) => {
+        if ((oldMap[date] || '') !== (newMap[date] || '')) entries.push({ id: makeId(`${workerName}-${date}-memo`), savedAt, workerName, date, category: '勤怠メモ', detail: newMap[date] ? 'メモを更新' : 'メモを削除' });
+      });
+    });
+
     const oldOrder = Array.isArray(originalSettings.attendanceWorkerOrder) ? originalSettings.attendanceWorkerOrder : [];
     const newOrder = Array.isArray(settings.attendanceWorkerOrder) ? settings.attendanceWorkerOrder : [];
     if (JSON.stringify(oldOrder) !== JSON.stringify(newOrder)) {
@@ -1405,36 +1417,72 @@ export default function AdminPage() {
     try {
       setAttendanceChangesSaving(true);
 
-      // 共有履歴は保存時に確定させる。保存直前に最新設定を読み、他の人の履歴をできるだけ取りこぼさない。
-      const historyEntries = buildAttendanceChangeHistoryEntries();
-      let latestHistory = Array.isArray(settings.attendanceChangeHistory)
-        ? settings.attendanceChangeHistory
-        : [];
-      try {
-        const latestRes = await fetch('/api/settings', { cache: 'no-store' });
-        if (latestRes.ok) {
-          const latestSettings = await latestRes.json();
-          latestHistory = Array.isArray(latestSettings?.attendanceChangeHistory)
-            ? latestSettings.attendanceChangeHistory
-            : latestHistory;
-        }
-      } catch (historyFetchError) {
-        console.warn('勤怠変更履歴の最新取得に失敗しました。現在画面の履歴を使います。', historyFetchError);
+      // 保存直前の最新データを1回取得し、他管理者の変更を保持する。
+      // 既存のAPIはトップレベルキーのマージであり、同一キーを丸ごと送ると競合し得るため、
+      // 変更した作業員・日付のみを最新値に適用する。
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (!latestRes.ok) throw new Error('最新の勤怠設定を取得できませんでした。安全のため保存を中止しました。');
+      const latest = await latestRes.json();
+      if (!latest || typeof latest !== 'object' || Array.isArray(latest) || Object.keys(latest).length === 0) {
+        throw new Error('最新の勤怠設定を確認できませんでした。安全のため保存を中止しました。');
       }
 
+      const own = (o: any, k: string) => Object.prototype.hasOwnProperty.call(o || {}, k);
+      const same = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+      const mergeLeafChanges = (key: string, depth: number) => {
+        const before = originalSettings[key] || {};
+        const after = settings[key] || {};
+        const current = latest[key] || {};
+        const merged = JSON.parse(JSON.stringify(current));
+        const visit = (oldNode: any, newNode: any, currentNode: any, outputNode: any, level: number, path: string[]) => {
+          if (level === 0) {
+            if (same(oldNode, newNode)) return;
+            if (!same(oldNode, currentNode) && !same(newNode, currentNode)) {
+              throw new Error(`ほかの管理者が同じ勤怠項目を変更しました（${key}: ${path.join(' / ')}）。画面を更新して確認してください。`);
+            }
+            return newNode;
+          }
+          const oldObj = oldNode && typeof oldNode === 'object' && !Array.isArray(oldNode) ? oldNode : {};
+          const newObj = newNode && typeof newNode === 'object' && !Array.isArray(newNode) ? newNode : {};
+          const curObj = currentNode && typeof currentNode === 'object' && !Array.isArray(currentNode) ? currentNode : {};
+          for (const leafKey of new Set([...Object.keys(oldObj), ...Object.keys(newObj)])) {
+            if (same(oldObj[leafKey], newObj[leafKey])) continue;
+            const nextPath = [...path, leafKey];
+            if (level === 1) {
+              const value = visit(oldObj[leafKey], newObj[leafKey], curObj[leafKey], null, 0, nextPath);
+              if (own(newObj, leafKey)) outputNode[leafKey] = value;
+              else delete outputNode[leafKey];
+            } else {
+              const childOut = outputNode[leafKey] && typeof outputNode[leafKey] === 'object' && !Array.isArray(outputNode[leafKey])
+                ? { ...outputNode[leafKey] } : {};
+              visit(oldObj[leafKey], newObj[leafKey], curObj[leafKey], childOut, level - 1, nextPath);
+              if (Object.keys(childOut).length) outputNode[leafKey] = childOut;
+              else delete outputNode[leafKey];
+            }
+          }
+        };
+        visit(before, after, current, merged, depth, []);
+        return merged;
+      };
+
+      const historyEntries = buildAttendanceChangeHistoryEntries();
+      const latestHistory = Array.isArray(latest.attendanceChangeHistory) ? latest.attendanceChangeHistory : [];
       const attendanceChangeHistory = [...historyEntries, ...latestHistory]
-        .filter((item: any, index: number, arr: any[]) =>
-          item?.id && arr.findIndex((x: any) => x?.id === item.id) === index
-        )
+        .filter((item: any, index: number, arr: any[]) => item?.id && arr.findIndex((x: any) => x?.id === item.id) === index)
         .slice(0, 200);
 
+      const oldOrder = Array.isArray(originalSettings.attendanceWorkerOrder) ? originalSettings.attendanceWorkerOrder : [];
+      const newOrder = Array.isArray(settings.attendanceWorkerOrder) ? settings.attendanceWorkerOrder : [];
+      const latestOrder = Array.isArray(latest.attendanceWorkerOrder) ? latest.attendanceWorkerOrder : [];
+      if (!same(oldOrder, newOrder) && !same(oldOrder, latestOrder) && !same(newOrder, latestOrder)) {
+        throw new Error('ほかの管理者が作業員の表示順を変更しました。画面を更新して確認してください。');
+      }
       const payload = {
-        manualAttendanceOverrides: settings.manualAttendanceOverrides || {},
-        workerHolidayMoves: settings.workerHolidayMoves || {},
-        paidLeaveOverrides: settings.paidLeaveOverrides || {},
-        attendanceWorkerOrder: Array.isArray(settings.attendanceWorkerOrder)
-          ? settings.attendanceWorkerOrder
-          : [],
+        manualAttendanceOverrides: mergeLeafChanges('manualAttendanceOverrides', 2),
+        workerHolidayMoves: mergeLeafChanges('workerHolidayMoves', 2),
+        paidLeaveOverrides: mergeLeafChanges('paidLeaveOverrides', 2),
+        attendanceMemos: mergeLeafChanges('attendanceMemos', 2),
+        attendanceWorkerOrder: same(oldOrder, newOrder) ? latestOrder : newOrder,
         attendanceChangeHistory
       };
 
@@ -1445,7 +1493,7 @@ export default function AdminPage() {
       });
       if (!res.ok) throw new Error('勤怠変更の保存に失敗しました。');
 
-      setSettings((prev: any) => ({ ...prev, attendanceChangeHistory: payload.attendanceChangeHistory }));
+      setSettings((prev: any) => ({ ...prev, ...payload }));
       setOriginalSettings((prev: any) => ({ ...prev, ...payload }));
       setAttendanceChangesDirty(false);
       setSelectedHolidayMove(null);
@@ -1453,7 +1501,7 @@ export default function AdminPage() {
       setTimeout(() => setShowSaveToast(false), 1800);
     } catch (e) {
       console.error(e);
-      alert('勤怠変更の保存に失敗しました。画面上の変更は残っています。もう一度「変更を保存」を押してください。');
+      alert(`勤怠変更は保存されていません。\n${e instanceof Error ? e.message : '保存に失敗しました。'}\n画面上の入力は残っています。`);
     } finally {
       setAttendanceChangesSaving(false);
     }
@@ -1468,6 +1516,7 @@ export default function AdminPage() {
       manualAttendanceOverrides: originalSettings.manualAttendanceOverrides || {},
       workerHolidayMoves: originalSettings.workerHolidayMoves || {},
       paidLeaveOverrides: originalSettings.paidLeaveOverrides || {},
+      attendanceMemos: originalSettings.attendanceMemos || {},
       attendanceWorkerOrder: Array.isArray(originalSettings.attendanceWorkerOrder)
         ? originalSettings.attendanceWorkerOrder
         : []
@@ -1800,9 +1849,16 @@ export default function AdminPage() {
     return worker?.kentaiKyoMember === 'yes';
   };
 
+  const kentaiKyoPurchaseEnabled = (workerName: string) => {
+    const worker = (settings.workers || []).find((w: any) => String(w?.name || '').trim() === String(workerName || '').trim());
+    // 既存の加入者は、購入区分が未設定でも従来の購入対象として扱う。
+    return worker?.kentaiKyoPurchase !== 'no';
+  };
+
   const monthlyKentaiKyoRows = monthlyAttendanceRows
     .filter((row: any) => isKentaiKyoMember(row.name))
     .map((row: any) => {
+    const buyByYamato = kentaiKyoPurchaseEnabled(row.name);
     let yesDays = 0;
     let noDays = 0;
     let unsetDays = 0;
@@ -1830,8 +1886,8 @@ export default function AdminPage() {
       }
 
       yesDays += yesFraction;
-      noDays += noFraction;
-      unsetDays += unsetFraction;
+      noDays += buyByYamato ? noFraction : 0;
+      unsetDays += buyByYamato ? unsetFraction : 0;
 
       return {
         ...detail,
@@ -1847,6 +1903,7 @@ export default function AdminPage() {
     return {
       ...row,
       details,
+      kentaiKyoBuyByYamato: buyByYamato,
       kentaiKyoYesDays: roundDay(yesDays),
       kentaiKyoNoDays: roundDay(noDays),
       kentaiKyoUnsetDays: roundDay(unsetDays)
@@ -9239,8 +9296,8 @@ export default function AdminPage() {
                               const hasWork = Number(d.fraction || 0) > 0;
                               const statuses = Array.isArray(d.kentaiKyoStatuses) ? d.kentaiKyoStatuses : [];
                               const hasYes = statuses.includes('yes');
-                              const hasNo = statuses.includes('no');
-                              const hasUnset = statuses.includes('unset');
+                              const hasNo = row.kentaiKyoBuyByYamato && statuses.includes('no');
+                              const hasUnset = row.kentaiKyoBuyByYamato && statuses.includes('unset');
                               let bg = 'bg-white';
                               let textColor = 'text-slate-400';
                               let label = '-';
@@ -9256,12 +9313,13 @@ export default function AdminPage() {
                               const daySites = Array.from(new Set((d.sites || []).map((site: string) => String(site || '')).filter(Boolean)));
                               const siteLabels = daySites.map((site: string) => `${getLocationShortName(site)}：${getKentaiKyoStatusForSite(site) === 'yes' ? 'あり' : getKentaiKyoStatusForSite(site) === 'no' ? 'なし' : '未設定'}`).join(' / ');
                               return (
-                                <td key={`kentai-${row.name}-${d.date}`} title={siteLabels || d.date} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
-                                  {hasWork && daySites.length > 0 ? (
+                                <td key={`kentai-${row.name}-${d.date}`} title={row.kentaiKyoBuyByYamato ? (siteLabels || d.date) : (hasYes ? siteLabels : d.date)} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
+                                  {hasWork && daySites.length > 0 && (row.kentaiKyoBuyByYamato || hasYes) ? (
                                     <div className="space-y-0.5">
                                       {daySites.map((site: string) => {
                                         const status = getKentaiKyoStatusForSite(site);
                                         const statusLabel = status === 'yes' ? 'あり' : status === 'no' ? 'なし' : '未';
+                                        if (!row.kentaiKyoBuyByYamato && status !== 'yes') return null;
                                         return (
                                           <div key={`${d.date}-${site}`} className="leading-tight">
                                             <div className="truncate text-[7px] font-black leading-tight text-slate-800">{getLocationShortName(site)}</div>
@@ -9271,7 +9329,7 @@ export default function AdminPage() {
                                       })}
                                     </div>
                                   ) : (
-                                    <div className="text-[8px] font-bold text-slate-300">-</div>
+                                    <div className="text-[8px] font-bold text-slate-300">{row.kentaiKyoBuyByYamato ? '-' : ''}</div>
                                   )}
                                 </td>
                               );
@@ -9559,6 +9617,46 @@ export default function AdminPage() {
                       {attendanceChangesSaving ? '保存中…' : '勤怠変更を保存'}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {authRole === 'admin' && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                  <div className="font-bold text-sm text-slate-800">📝 勤怠メモ（管理者間で共有）</div>
+                  <div className="flex flex-wrap gap-2">
+                    <select className="rounded-lg border border-slate-300 p-2 text-sm" value={attendanceMemoTarget?.worker || ''} onChange={e => setAttendanceMemoTarget(e.target.value ? { worker: e.target.value, date: attendanceMemoTarget?.date || attendancePeriodInfo.dates[0] || '' } : null)}>
+                      <option value="">作業員を選択</option>
+                      {monthlyAttendanceRows.map((row: any) => <option key={row.name} value={row.name}>{row.name}</option>)}
+                    </select>
+                    <select className="rounded-lg border border-slate-300 p-2 text-sm" value={attendanceMemoTarget?.date || ''} onChange={e => setAttendanceMemoTarget(prev => prev ? { ...prev, date: e.target.value } : null)}>
+                      <option value="">日付を選択</option>
+                      {attendancePeriodInfo.dates.map((dateStr: string) => <option key={dateStr} value={dateStr}>{dateStr}</option>)}
+                    </select>
+                  </div>
+                  {attendanceMemoTarget?.worker && attendanceMemoTarget?.date && (
+                    <textarea
+                      aria-label="管理者共有メモ"
+                      className="w-full min-h-[90px] rounded-lg border border-slate-300 p-3 text-sm"
+                      placeholder="例：本人から欠勤連絡あり。振替は来週予定。"
+                      value={settings.attendanceMemos?.[attendanceMemoTarget.worker]?.[attendanceMemoTarget.date] || ''}
+                      maxLength={2000}
+                      onChange={e => {
+                        const target = attendanceMemoTarget;
+                        const memo = e.target.value;
+                        setSettings((prev: any) => {
+                          const all = { ...(prev.attendanceMemos || {}) };
+                          const workerMemos = { ...(all[target.worker] || {}) };
+                          if (memo) workerMemos[target.date] = memo;
+                          else delete workerMemos[target.date];
+                          if (Object.keys(workerMemos).length) all[target.worker] = workerMemos;
+                          else delete all[target.worker];
+                          return { ...prev, attendanceMemos: all };
+                        });
+                        setAttendanceChangesDirty(true);
+                      }}
+                    />
+                  )}
+                  <p className="text-xs text-slate-500">入力後は上の「勤怠変更を保存」を押してください。ほかの管理者は画面を更新すると保存済みメモを確認できます。</p>
                 </div>
               )}
 
@@ -10285,9 +10383,14 @@ export default function AdminPage() {
                             key={key}
                             type="button"
                             onClick={() => {
-                              if (selectedMasterPanel === key) return;
-                              if (!confirmUnsavedBeforeAction('別のマスタへ切り替え')) return;
-                              setSelectedMasterPanel(key);
+                              if (selectedMasterPanel !== key) {
+                                if (!confirmUnsavedBeforeAction('別のマスタへ切り替え')) return;
+                                setSelectedMasterPanel(key);
+                              }
+                              window.setTimeout(() => {
+                                const panelId = key === 'leaseVendors' ? 'master-leaseMasterUnified' : key === 'ishikawa-group' ? 'master-ishikawa-group' : `master-${key}`;
+                                document.getElementById(panelId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 80);
                             }}
                             className={`w-full min-h-[88px] px-4 py-4 rounded-xl text-sm md:text-base font-bold transition-colors border flex items-center justify-center text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400'}`}
                           >
@@ -10775,6 +10878,15 @@ export default function AdminPage() {
                                       <option value="yes">加入</option>
                                       <option value="no">未加入</option>
                                     </select>
+                                    {form.wKentaiKyoMember === 'yes' && (
+                                      <div className="mt-3">
+                                        <div className="text-xs font-bold text-slate-700 mb-1">大和で印紙を購入するか</div>
+                                        <select value={form.wKentaiKyoPurchase || 'yes'} onChange={e => setForm({ ...form, wKentaiKyoPurchase: e.target.value })} className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-sm">
+                                          <option value="yes">大和で買う</option>
+                                          <option value="no">大和で買わない</option>
+                                        </select>
+                                      </div>
+                                    )}
                                     <div className="text-[11px] text-teal-800 mt-1">「加入」の作業員だけ建退共（証紙）管理・確認に表示します。</div>
                                   </div>
 
@@ -10792,9 +10904,10 @@ export default function AdminPage() {
                                           shiftHours: Number(form.wShiftHours || 8),
                                           isWeeklyPay: !!form.wWeeklyPay,
                                           calendarType: form.wCalendarType || 'none',
-                                          kentaiKyoMember: form.wKentaiKyoMember || 'no'
+                                          kentaiKyoMember: form.wKentaiKyoMember || 'no',
+                                          kentaiKyoPurchase: form.wKentaiKyoMember === 'yes' ? (form.wKentaiKyoPurchase || 'yes') : 'no'
                                         },
-                                        ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType', 'wKentaiKyoMember']
+                                        ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType', 'wKentaiKyoMember', 'wKentaiKyoPurchase']
                                       );
                                     }}
                                     className="col-span-2 h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
@@ -11116,6 +11229,15 @@ export default function AdminPage() {
                                           <option value="yes">加入</option>
                                           <option value="no">未加入</option>
                                         </select>
+                                        {item.kentaiKyoMember === 'yes' && (
+                                          <div className="mt-2">
+                                            <div className="text-xs font-bold text-slate-600 mb-1">大和で印紙を購入するか</div>
+                                            <select value={item.kentaiKyoPurchase || 'yes'} onChange={e => updateItemField(sec.key, idx, 'kentaiKyoPurchase', e.target.value)} className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-sm">
+                                              <option value="yes">大和で買う</option>
+                                              <option value="no">大和で買わない</option>
+                                            </select>
+                                          </div>
+                                        )}
                                         <div className="text-[11px] text-slate-500 mt-1">加入者のみ建退共（証紙）管理・確認に表示</div>
                                       </div>
                                     )}
