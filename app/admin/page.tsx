@@ -10259,7 +10259,7 @@ export default function AdminPage() {
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
                   <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。選んだ登録画面だけを下に表示します。</p>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+                <div className="space-y-5">
                   {[
                     { title: '👷 人・基本情報', tone: 'blue', items: [
                       ['作業員', 'workers'], ['職長', 'managers'], ['職種', 'jobTypes'], ['現場', 'locations']
@@ -10277,9 +10277,9 @@ export default function AdminPage() {
                       ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
                     ] },
                   ].map((group:any) => (
-                    <div key={group.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                      <div className="font-extrabold text-sm text-slate-800 mb-2">{group.title}</div>
-                      <div className="flex flex-wrap gap-2">
+                    <div key={group.title} className="rounded-xl border border-slate-200 bg-white px-4 py-4 md:px-5">
+                      <div className="font-bold text-sm md:text-base text-slate-800 mb-3">{group.title}</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {group.items.map(([label, key]: string[]) => (
                           <button
                             key={key}
@@ -10289,7 +10289,7 @@ export default function AdminPage() {
                               if (!confirmUnsavedBeforeAction('別のマスタへ切り替え')) return;
                               setSelectedMasterPanel(key);
                             }}
-                            className={`px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm border ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-200 hover:border-slate-300'}`}
+                            className={`w-full min-h-[88px] px-4 py-4 rounded-xl text-sm md:text-base font-bold transition-colors border flex items-center justify-center text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400'}`}
                           >
                             {label}
                           </button>
