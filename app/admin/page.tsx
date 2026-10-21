@@ -10231,21 +10231,21 @@ export default function AdminPage() {
                 if (!showAdminSection || confirmUnsavedBeforeAction('マスタ登録を閉じる')) setShowAdminSection(!showAdminSection);
               }
             }}
-            className="flex justify-between items-center flex-wrap gap-4 bg-violet-200 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
+            className="flex justify-between items-center flex-wrap gap-4 bg-slate-100 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
           >
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl md:text-2xl font-bold text-violet-900">⚙️ 日報で使う項目・単価を登録</h2>
-                <span title="日報で選択する業者・機械・処分場・単価などの基礎情報を登録する場所です。" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-700 text-xs font-black cursor-help">？</span>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900">⚙️ 日報で使う項目・単価を登録</h2>
+                <span title="日報で選択する業者・機械・処分場・単価などの基礎情報を登録する場所です。" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-700 text-xs font-black cursor-help">？</span>
               </div>
-              <p className="text-sm md:text-base text-violet-700 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
+              <p className="text-sm md:text-base text-slate-700 mt-1">作業員・職長・車両・重機・外注・処分場などの登録と単価設定</p>
             </div>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 if (!showAdminSection || confirmUnsavedBeforeAction('マスタ登録を閉じる')) setShowAdminSection(!showAdminSection);
               }}
-              className="bg-white hover:bg-violet-50 text-violet-700 border border-violet-200 px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
             >
               {showAdminSection ? '⚙️ 設定エリアを隠す ▲' : '⚙️ 設定エリアを開く ▼'}
             </button>
@@ -10254,7 +10254,7 @@ export default function AdminPage() {
           {showAdminSection && (
             <div className="p-5 lg:p-6 animate-fadeIn">
               <div className="max-w-[1360px] mx-auto">
-              <div className="mb-5 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+              <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
                   <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。選んだ登録画面だけを下に表示します。</p>
@@ -10289,7 +10289,7 @@ export default function AdminPage() {
                               if (!confirmUnsavedBeforeAction('別のマスタへ切り替え')) return;
                               setSelectedMasterPanel(key);
                             }}
-                            className={`px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm border ${selectedMasterPanel === key ? 'bg-violet-700 border-violet-700 text-white' : 'bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border-slate-200 hover:border-violet-300'}`}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold transition shadow-sm border ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-200 hover:border-slate-300'}`}
                           >
                             {label}
                           </button>
@@ -10298,7 +10298,7 @@ export default function AdminPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 text-xs md:text-sm text-slate-500 bg-violet-50 rounded-xl px-3 py-2.5">
+                <div className="mt-4 text-xs md:text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5">
                   💡 登録の流れ：①「新規追加」に入力 → ②「＋追加」 → ③ 右上の「💾 保存」
                 </div>
               </div>
@@ -10309,10 +10309,10 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <div id="master-leaseMasterUnified" className={`${selectedMasterPanel === 'leaseMasterUnified' || selectedMasterPanel === 'leaseVendors' ? '' : 'hidden'} mb-5 scroll-mt-6 p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/60 space-y-4 shadow-sm` }>
-                <div className="flex justify-between items-start gap-3 pb-3 border-b border-amber-200">
+              <div id="master-leaseMasterUnified" className={`${selectedMasterPanel === 'leaseMasterUnified' || selectedMasterPanel === 'leaseVendors' ? '' : 'hidden'} mb-5 scroll-mt-6 p-4 rounded-2xl border-2 border-slate-200 bg-white space-y-4 shadow-sm` }>
+                <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200">
                   <div>
-                    <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-700 inline-flex mb-1">リース</div>
+                    <div className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-700 inline-flex mb-1">リース</div>
                     <h3 className="font-extrabold text-base md:text-lg text-slate-800">🚜 リースマスタ</h3>
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">リース業者 → カテゴリー → 名称 → 日額単価の順で、通常リースをまとめて登録します。</p>
                     <p className="text-xs text-slate-500 mt-1.5">※既存の重機・アタッチメント・その他機器データはそのまま使用します。業者未設定の既存データは南大阪建機として扱います。</p>
@@ -10320,19 +10320,19 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={saveUnifiedLeaseMaster}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                   >
                     💾 保存
                   </button>
                 </div>
 
-                <div id="master-leaseVendors" className="scroll-mt-6 rounded-2xl border border-amber-200 bg-white p-3.5">
+                <div id="master-leaseVendors" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-3.5">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <div className="font-extrabold text-sm text-slate-800">🏢 リース業者登録</div>
                       <div className="text-xs text-slate-500 mt-0.5">ここで業者を登録すると、下のリースマスタですぐ選択できます。</div>
                     </div>
-                    <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.leaseVendors || []).length} 社</div>
+                    <div className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.leaseVendors || []).length} 社</div>
                   </div>
                   <div className="grid grid-cols-[1fr_110px] gap-2 mb-3">
                     <input
@@ -10350,15 +10350,15 @@ export default function AdminPage() {
                         if (name === '南大阪建機' || (settings.leaseVendors || []).some((v:any) => String(v?.name || '').trim() === name)) return alert('同じリース業者がすでに登録されています。');
                         addMaster('leaseVendors', { name }, ['leaseVendorName']);
                       }}
-                      className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-sm transition"
+                      className="bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-sm transition"
                     >
                       ＋ 追加
                     </button>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50">
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white">
                       <div className="flex-1 font-bold text-sm text-slate-800">南大阪建機</div>
-                      <span className="text-[11px] font-bold text-amber-800 bg-white border border-amber-200 rounded-lg px-2 py-1">標準・常設</span>
+                      <span className="text-[11px] font-bold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1">標準・常設</span>
                     </div>
                     {(settings.leaseVendors || []).map((vendor:any, vendorIdx:number) => (
                       <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50">
@@ -10374,9 +10374,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-amber-300">
+                <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-slate-300">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
-                    <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">＋</span>
+                    <span className="w-7 h-7 rounded-lg bg-amber-100 text-slate-700 flex items-center justify-center">＋</span>
                     リース品を新規追加
                   </div>
                   <div className="grid grid-cols-[1.15fr_1fr_1.35fr_0.75fr_110px] gap-2.5 items-end">
@@ -10412,7 +10412,7 @@ export default function AdminPage() {
                         if (!name) return alert('名称を入力してください。');
                         addMaster(category, { name, price: Number(form.unifiedLeasePrice) || 0, vendor, isFinished: false }, ['unifiedLeaseVendor', 'unifiedLeaseName', 'unifiedLeasePrice']);
                       }}
-                      className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center whitespace-nowrap"
+                      className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center whitespace-nowrap"
                     >
                       ＋ 追加
                     </button>
@@ -10440,7 +10440,7 @@ export default function AdminPage() {
                         <span className="text-xs font-bold text-blue-700 border border-blue-200 px-2 py-1 rounded-lg">編集 ▼</span>
                       </summary>
                       <div className="grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50">
-                        <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
+                        <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-amber-100 text-slate-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
                         <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white min-w-0">
                           <option value="">未設定（南大阪建機扱い）</option>
                           <option value="南大阪建機">南大阪建機</option>
@@ -10480,27 +10480,27 @@ export default function AdminPage() {
                       { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
                     ];
                 const renderMasterSection = (sec: any, idx: number) => (
-                          <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 w-full min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${selectedMasterPanel === sec.key ? '' : 'hidden'} ${sec.isIshikawa ? 'bg-indigo-50/70 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                          <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 w-full min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${selectedMasterPanel === sec.key ? '' : 'hidden'} bg-white border-slate-200`}>
                             <div className="space-y-3">
                               <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2 mb-1">
                                     <span className="text-[11px] font-extrabold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-500">{sec.category}</span>
                                   </div>
-                                  <h3 className={`font-extrabold text-base md:text-lg leading-snug ${sec.isIshikawa ? 'text-indigo-800' : 'text-slate-800'}`}>{sec.title}</h3>
+                                  <h3 className={`font-extrabold text-base md:text-lg leading-snug text-slate-800`}>{sec.title}</h3>
                                   <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
                                   <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                                 </div>
                                 <button 
                                   onClick={() => saveMaster(sec.key)} 
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
+                                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                                 >
                                   💾 保存
                                 </button>
                               </div>
 
                               <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                                <span className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">＋</span>
+                                <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">＋</span>
                                 新規追加
                               </div>
 
@@ -10509,7 +10509,7 @@ export default function AdminPage() {
                                   <input type="text" placeholder="外注会社名" value={form.subComp || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subComp: e.target.value})} />
                                   <input type="text" placeholder="作業内容" value={form.subTask || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, subTask: e.target.value})} />
                                   <input type="number" placeholder="単価" value={form.subPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, subPrice: e.target.value})} />
-                                  <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  <button onClick={() => addMaster('subcontractors', {company: form.subComp, task: form.subTask, price: Number(form.subPrice)||0}, ['subComp', 'subTask', 'subPrice'])} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               ) : sec.isDisp ? (
                                 <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_90px_140px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
@@ -10517,14 +10517,14 @@ export default function AdminPage() {
                                   <input type="text" placeholder="品目" value={form.dItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dItem: e.target.value})} />
                                   <input type="text" placeholder="単位" value={form.dUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, dUnit: e.target.value})} />
                                   <input type="number" placeholder="単価" value={form.dPrice || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, dPrice: e.target.value})} />
-                                  <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  <button onClick={() => addMaster(sec.key, {location: form.dLoc, item: form.dItem, unit: form.dUnit || 't', price: Number(form.dPrice)||0}, ['dLoc', 'dItem', 'dUnit', 'dPrice'])} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               ) : sec.isScrap ? (
                                 <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_110px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                                   <input type="text" placeholder="スクラップ場名" value={form.sLoc || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sLoc: e.target.value})} />
                                   <input type="text" placeholder="品目" value={form.sItem || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sItem: e.target.value})} />
                                   <input type="text" placeholder="単位" value={form.sUnit || ''} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, sUnit: e.target.value})} />
-                                  <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  <button onClick={() => addMaster(sec.key, {location: form.sLoc, item: form.sItem, unit: form.sUnit || 'kg'}, ['sLoc', 'sItem', 'sUnit'])} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               ) : sec.isLeaseMaster ? (
                                 <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
@@ -10544,12 +10544,12 @@ export default function AdminPage() {
                                     const vendor = String(form[`${sec.key}Vendor`] || '').trim();
                                     if (!vendor) return alert('リース業者を選択してください。');
                                     addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, vendor, isFinished: false}, [...sec.addForm, `${sec.key}Vendor`]);
-                                  }} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  }} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               ) : sec.isNoPrice ? (
                                 <div className="grid grid-cols-[1fr_100px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                                   <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
-                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]]}, [sec.addForm[0]])} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               ) : sec.key === 'locations' ? (
                                 <div className="grid grid-cols-2 gap-2.5 bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
@@ -10674,7 +10674,7 @@ export default function AdminPage() {
                                         ['lName', 'lShortName', 'lLocationType', 'lYardManager', 'lKentaiKyo', 'lClosingDay', 'lPrice']
                                       );
                                     }}
-                                    className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
+                                    className="col-span-2 h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                                   >
                                     ＋ 追加
                                   </button>
@@ -10797,7 +10797,7 @@ export default function AdminPage() {
                                         ['wName', 'wPrice', 'wShiftHours', 'wWeeklyPay', 'wCalendarType', 'wKentaiKyoMember']
                                       );
                                     }}
-                                    className="col-span-2 h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
+                                    className="col-span-2 h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-xl font-bold text-sm shadow-sm transition text-center"
                                   >
                                     ＋ 追加
                                   </button>
@@ -10806,7 +10806,7 @@ export default function AdminPage() {
                                 <div className="grid grid-cols-[minmax(0,1fr)_150px_96px] gap-2 items-end bg-white p-3 rounded-xl border-2 border-dashed border-slate-300">
                                   <input type="text" placeholder={sec.placeholders[0]} value={form[sec.addForm[0]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium" onChange={e=>setForm({...form, [sec.addForm[0]]: e.target.value})} />
                                   <input type="number" placeholder={sec.placeholders[1]} value={form[sec.addForm[1]] || ''} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium text-right" onChange={e=>setForm({...form, [sec.addForm[1]]: e.target.value})} />
-                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-orange-600 hover:bg-orange-700 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
+                                  <button onClick={() => addMaster(sec.key, {name: form[sec.addForm[0]], price: Number(form[sec.addForm[1]])||0, isFinished: false}, sec.addForm)} className="h-[42px] bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-xl font-bold text-sm shadow-sm transition text-center">＋ 追加</button>
                                 </div>
                               )}
                             </div>
@@ -10850,7 +10850,7 @@ export default function AdminPage() {
                                           }</div>
                                           <div className="mt-1 flex flex-wrap gap-1.5">
                                             {sec.key === 'workers' && (
-                                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.kentaiKyoMember === 'yes' ? 'bg-teal-100 text-teal-800' : item.kentaiKyoMember === 'no' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-800'}`}>
+                                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.kentaiKyoMember === 'yes' ? 'bg-teal-100 text-teal-800' : item.kentaiKyoMember === 'no' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-slate-800'}`}>
                                                 建退共：{item.kentaiKyoMember === 'yes' ? '加入' : item.kentaiKyoMember === 'no' ? '未加入' : '未設定'}
                                               </span>
                                             )}
@@ -11105,7 +11105,7 @@ export default function AdminPage() {
                                     )}
 
                                     {sec.key === 'workers' && (
-                                      <div className={`rounded-xl border-2 p-3 ${item.kentaiKyoMember === 'yes' ? 'border-teal-300 bg-teal-50' : item.kentaiKyoMember === 'no' ? 'border-slate-300 bg-slate-50' : 'border-amber-300 bg-amber-50'}`}>
+                                      <div className={`rounded-xl border-2 p-3 ${item.kentaiKyoMember === 'yes' ? 'border-teal-300 bg-teal-50' : item.kentaiKyoMember === 'no' ? 'border-slate-300 bg-slate-50' : 'border-slate-300 bg-white'}`}>
                                         <div className="text-xs font-bold text-slate-600 mb-2">建退共</div>
                                         <select
                                           value={item.kentaiKyoMember || ''}
@@ -11144,10 +11144,10 @@ export default function AdminPage() {
 
                 return (
                   <>
-                    <section id="master-ishikawa-group" className={`${selectedMasterPanel === 'ishikawa-group' ? '' : 'hidden'} mb-6 scroll-mt-6 rounded-3xl border-2 border-indigo-300 bg-indigo-50/70 p-4 md:p-5 shadow-sm space-y-4`}>
-                      <div className="flex justify-between items-start gap-3 pb-3 border-b border-indigo-200">
+                    <section id="master-ishikawa-group" className={`${selectedMasterPanel === 'ishikawa-group' ? '' : 'hidden'} mb-6 scroll-mt-6 rounded-3xl border-2 border-slate-300 bg-white p-4 md:p-5 shadow-sm space-y-4`}>
+                      <div className="flex justify-between items-start gap-3 pb-3 border-b border-slate-200">
                         <div>
-                          <div className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white border border-indigo-200 text-indigo-700 inline-flex mb-1.5">石川県専用</div>
+                          <div className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white border border-slate-200 text-indigo-700 inline-flex mb-1.5">石川県専用</div>
                           <h3 className="text-lg md:text-xl font-extrabold text-indigo-950">🗾 石川県用リースマスタ</h3>
                           <p className="text-xs md:text-sm text-indigo-700 mt-1">リース業者 → カテゴリー → 名称 → 日額単価の順で、徳本の石川県出張用リースをまとめて登録します。</p>
                           <p className="text-xs text-slate-500 mt-1.5">※保存先は従来どおり「石川県用 重機・アタッチメント・その他機械」のままです。既存データもそのまま使用します。</p>
@@ -11155,19 +11155,19 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={saveUnifiedIshikawaLeaseMaster}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
+                          className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                         >
                           💾 保存
                         </button>
                       </div>
 
-                      <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 rounded-2xl border border-indigo-200 bg-white p-3.5">
+                      <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-3.5">
                         <div className="flex items-center justify-between gap-3 mb-3">
                           <div>
                             <div className="font-extrabold text-sm text-slate-800">🏢 石川県用リース業者登録</div>
                             <div className="text-xs text-slate-500 mt-0.5">ここで業者を登録すると、下の石川県用リースマスタですぐ選択できます。</div>
                           </div>
-                          <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.ishikawaLeaseVendors || []).length} 社</div>
+                          <div className="text-xs font-bold text-indigo-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.ishikawaLeaseVendors || []).length} 社</div>
                         </div>
                         <div className="grid grid-cols-[1fr_110px] gap-2 mb-3">
                           <input
@@ -11175,7 +11175,7 @@ export default function AdminPage() {
                             placeholder="石川県用リース業者名（例：ヒサヤス）"
                             value={form.ishikawaLeaseVendorName || ''}
                             onChange={(e)=>setForm({...form, ishikawaLeaseVendorName: e.target.value})}
-                            className="w-full p-2.5 border border-indigo-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
+                            className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-slate-50 focus:bg-white focus:outline-none font-medium"
                           />
                           <button
                             type="button"
@@ -11192,9 +11192,9 @@ export default function AdminPage() {
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                           {(settings.ishikawaLeaseVendors || []).length === 0 ? (
-                            <div className="lg:col-span-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
+                            <div className="lg:col-span-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/40 px-4 py-3 text-sm text-slate-500 text-center">石川県用リース業者はまだ登録されていません。</div>
                           ) : (settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
-                            <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-indigo-200 bg-indigo-50/30">
+                            <div key={`${vendor.name || ''}_${vendorIdx}`} className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50/30">
                               <input
                                 type="text"
                                 value={vendor.name || ''}
@@ -11207,7 +11207,7 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-indigo-300">
+                      <div className="bg-white p-3.5 rounded-2xl border-2 border-dashed border-slate-300">
                         <div className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-3">
                           <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">＋</span>
                           石川県用リース品を新規追加
@@ -11257,7 +11257,7 @@ export default function AdminPage() {
                           <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
                         </div>
                         <input type="search" placeholder="🔎 石川県用リースを検索（業者・名称・カテゴリー）" aria-label="石川県用リースを検索" value={masterListSearch['ishikawaLease'] || ''} onChange={(e) => setMasterListSearch(prev => ({ ...prev, ishikawaLease: e.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm mb-2" />
-                        <div className="max-h-[520px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl p-2 space-y-1">
+                        <div className="max-h-[520px] overflow-y-auto bg-white border border-slate-200 rounded-2xl p-2 space-y-1">
                           {[
                             ...(settings.ishikawaHeavy || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaHeavy', categoryLabel: '重機' })),
                             ...(settings.ishikawaAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaAttach', categoryLabel: 'アタッチメント' })),
@@ -11271,8 +11271,8 @@ export default function AdminPage() {
                         <span className="text-xs text-slate-500">¥{Number(row.item.price || 0).toLocaleString('ja-JP')}</span>
                         <span className="text-xs font-bold text-blue-700 border border-blue-200 px-2 py-1 rounded-lg">編集 ▼</span>
                       </summary>
-                      <div id={`master-${row.key}`} className="scroll-mt-6 grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/30">
-                              <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
+                      <div id={`master-${row.key}`} className="scroll-mt-6 grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50/30">
+                              <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-indigo-100 text-slate-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
                               <select value={row.item.vendor || ''} onChange={(e)=>updateItemField(row.key, row.idx, 'vendor', e.target.value)} className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl text-sm font-bold bg-white">
                                 <option value="">業者未設定</option>
                                 {(settings.ishikawaLeaseVendors || []).map((vendor:any, vendorIdx:number) => (
@@ -11308,7 +11308,7 @@ export default function AdminPage() {
       )}
 
       {/* 送信された日報一覧（カレンダー＆現場別リスト） */}
-      <div className={`${authRole === 'viewer' && viewerSection !== 'reports' ? 'hidden' : ''} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6`}>
+      <div className={`${authRole === 'viewer' ? (viewerSection !== 'reports' ? 'hidden' : '') : adminViewClass('reports')} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6`}>
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
           <input 
