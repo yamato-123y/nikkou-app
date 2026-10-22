@@ -1,99 +1,94 @@
 'use client';
 
-// 全建統一様式第2号の原本Excelに、選択された作業員の登録情報のみ書き込みます。
-// データベース・Storageへの保存、更新、削除処理はありません。
+// 添付された「全建統一様式第２号」（A1:V58）のExcel様式を利用する。
+// 書き出し専用。Supabase上の情報は更新・削除しない。
 import * as XLSX from 'xlsx-js-style';
 
-type Profile = { worker_name?: string; full_name?: string | null; birth_date?: string | null; hire_date?: string | null; blood_type?: string | null; address?: string | null; emergency_contact?: string | null; notes?: string | null; employment_type?: string | null };
+type Profile = { worker_name?: string; full_name?: string | null; birth_date?: string | null; hire_date?: string | null; blood_type?: string | null; address?: string | null; emergency_contact?: string | null; notes?: string | null; employment_type?: string | null; employee_no?: string | null };
 type Qual = { worker_name?: string; qualification_name?: string | null; category?: string | null };
 type Health = { worker_name?: string; exam_date?: string | null; notes?: string | null; systolic?: string | number | null; diastolic?: string | number | null };
 type Ledger = { profiles?: Profile[]; qualifications?: Qual[]; healthChecks?: Health[] };
-const safe = (x: unknown) => String(x ?? '').trim();
-const noteValue = (notes: unknown, label: string) => safe(notes).split(/\r?\n/).find(x => x.startsWith(`${label}：`))?.slice(label.length + 1).trim() || '';
-const parts = (input: unknown): string[] => {
-  const match = safe(input).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
-  return match ? [match[1], String(Number(match[2])), String(Number(match[3]))] : ['', '', ''];
+const safe = (v: unknown): string => String(v ?? '').trim();
+const normalizedName = (v: unknown): string => safe(v).normalize('NFKC').replace(/[\s\u3000]+/g, '');
+const noteValue = (notes: unknown, label: string): string => safe(notes).split(/\r?\n/).find(x => x.startsWith(`${label}：`))?.slice(label.length + 1).trim() || '';
+const dateParts = (value: unknown): string[] => {
+  const m = safe(value).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  return m ? [m[1], String(Number(m[2])), String(Number(m[3]))] : [];
 };
-const age = (dob: unknown, at: Date) => {
-  const [y, m, d] = parts(dob).map(Number);
-  if (!y || !m || !d) return '';
-  return String(at.getFullYear() - y - (at.getMonth()+1 < m || (at.getMonth()+1===m && at.getDate()<d) ? 1 : 0));
+const japaneseDate = (value: unknown): string => {
+  const p = dateParts(value);
+  return p.length === 3 ? `${p[0]}年${p[1]}月${p[2]}日` : '';
 };
-const valueStyle = { alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, font: { name: 'ＭＳ Ｐゴシック', sz: 9 } };
-
-/** 結合セルの先頭に値を入れ、元の罫線・セル書式は上書きしない。 */
-const put = (ws: XLSX.WorkSheet, cell: string, value: unknown) => {
+const ageAt = (dob: unknown, now: Date): string => {
+  const p = dateParts(dob).map(Number);
+  if (p.length !== 3) return '';
+  const [y, m, d] = p;
+  return String(now.getFullYear() - y - ((now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) ? 1 : 0));
+};
+const fallbackStyle = { alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, font: { name: 'ＭＳ Ｐゴシック', sz: 9 } };
+const put = (ws: XLSX.WorkSheet, ref: string, value: unknown) => {
   const v = safe(value);
   if (!v) return;
-  const old = (ws[cell] || {}) as XLSX.CellObject;
-  ws[cell] = { ...old, t: 's', v, s: (old as any).s || valueStyle } as XLSX.CellObject;
+  const old = (ws[ref] || {}) as XLSX.CellObject;
+  // 元様式の罫線・背景色・結合設定を保持する。
+  ws[ref] = { ...old, t: 's', v, s: (old as any).s || fallbackStyle } as XLSX.CellObject;
 };
-const dateInto = (ws: XLSX.WorkSheet, positions: [string,string,string], value: unknown) => {
-  const p = parts(value);
-  positions.forEach((ref, i) => put(ws, ref, p[i]));
-};
+const uniqNames = (arr: Qual[]) => [...new Set(arr.map(q => safe(q.qualification_name)).filter(Boolean))].join('、');
 
 export async function exportWorkerRoster(names: string[], ledger: Ledger): Promise<void> {
   const ordered = [...new Set(names.map(safe).filter(Boolean))];
-  if (!ordered.length) throw new Error('作業員を選択してください。');
-
-  // 元Excelはアプリ同梱のテンプレートを読み込むだけで、サーバー上のファイルは変更しません。
+  if (!ordered.length) throw new Error('名簿に載せる作業員を選択してください。');
   const response = await fetch('/templates/worker-roster.xlsx', { cache: 'no-store' });
-  if (!response.ok) throw new Error('全建統一様式第2号のひな形が見つかりません。public/templates/worker-roster.xlsx を配置してください。');
-  const buffer = await response.arrayBuffer();
-  const source = XLSX.read(buffer, { type: 'array', cellStyles: true, cellDates: false });
+  if (!response.ok) throw new Error('作業員名簿の様式が見つかりません。public/templates/worker-roster.xlsx を確認してください。');
+  const source = XLSX.read(await response.arrayBuffer(), { type: 'array', cellStyles: true, cellDates: false });
   const template = source.Sheets[source.SheetNames[0]];
-  if (!template || safe(template.A1?.v) !== '全建統一様式第2号') throw new Error('作業員名簿のひな形が正しくありません。');
-  const wb = XLSX.utils.book_new();
-  // ブックの基本プロパティは引き継ぐ（既存のシートは読み取りだけ）。
-  if (source.Props) wb.Props = { ...source.Props };
+  if (!template || !safe(template.B1?.v).startsWith('全建統一様式第２号')) {
+    throw new Error('テンプレートが今回指定された全建統一様式第２号ではありません。');
+  }
+  const workbook = XLSX.utils.book_new();
+  if (source.Props) workbook.Props = { ...source.Props };
   const profiles = Array.isArray(ledger.profiles) ? ledger.profiles : [];
   const qualifications = Array.isArray(ledger.qualifications) ? ledger.qualifications : [];
-  const health = Array.isArray(ledger.healthChecks) ? ledger.healthChecks : [];
+  const healthChecks = Array.isArray(ledger.healthChecks) ? ledger.healthChecks : [];
   const now = new Date();
   const count = Math.ceil(ordered.length / 10);
-
   for (let page = 0; page < count; page++) {
-    // 原本の730箇所以上ある結合セル、行列幅、書式、印刷設定を複製。
     const ws: XLSX.WorkSheet = JSON.parse(JSON.stringify(template));
-    dateInto(ws, ['BN6', 'BV6', 'CD6'], `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`);
-    // 注：元の様式にある会社名などの既定値は変更しません。
-    ordered.slice(page * 10, page * 10 + 10).forEach((name, index) => {
-      const r = 20 + 6 * index;
-      const p = profiles.find(x => x.worker_name === name);
-      const q = qualifications.filter(x => x.worker_name === name);
-      const h = health.filter(x => x.worker_name === name).sort((a,b) => safe(b.exam_date).localeCompare(safe(a.exam_date)))[0];
-      put(ws, `E${r + 2}`, p?.full_name || name);
-      put(ws, `E${r}`, noteValue(p?.notes, 'ふりがな'));
-      // 旧名簿から取り込んだ「職種／経験年数」の混在を表示用だけで分離する。
-      // 保存済みデータは変更しない。経験年数が曖昧なら空欄のままとする。
-      const jobRaw = noteValue(p?.notes, '職種');
-      const job = jobRaw.split(/\s*[／/]\s*(?=経験年数\s*[：:])/)[0].trim();
-      const expRaw = noteValue(p?.notes, '経験年数') || jobRaw.match(/経験年数\s*[：:]\s*([^／/\n]+)/)?.[1]?.trim() || '';
-      const experience = expRaw.match(/^(\d+(?:\.\d+)?)\s*年(?:\s*\d+\s*か月)?$/)?.[0] || (expRaw.match(/^\d+(?:\.\d+)?$/) ? `${expRaw}年` : '');
-      put(ws, `V${r}`, job);
-      put(ws, `AL${r + 3}`, experience);
-      dateInto(ws, [`AL${r}`, `AT${r}`, `AY${r}`], p?.hire_date);
-      dateInto(ws, [`BA${r}`, `BD${r}`, `BI${r}`], p?.birth_date);
-      put(ws, `BA${r + 3}`, age(p?.birth_date, now));
-      put(ws, `EP${r}`, p?.blood_type);
-      put(ws, `BP${r}`, p?.address);
-      put(ws, `BP${r + 3}`, p?.emergency_contact);
-      dateInto(ws, [`EA${r}`, `ED${r}`, `EI${r}`], h?.exam_date);
-      if (h?.systolic != null || h?.diastolic != null) put(ws, `EA${r+3}`, [h?.systolic, h?.diastolic].filter(x=>x != null && x !== '').join('/'));
-      const categories = (word: string) => [...new Set(q.filter(x => safe(x.category).includes(word)).map(x => safe(x.qualification_name)).filter(Boolean))].join('、');
-      const training = categories('特別教育');
-      const skills = categories('技能講習');
-      const licenses = [...new Set(q.filter(x => !safe(x.category).includes('特別教育') && !safe(x.category).includes('技能講習')).map(x => safe(x.qualification_name)).filter(Boolean))].join('、');
-      put(ws, `GG${r}`, training);
-      put(ws, `GS${r}`, skills);
-      put(ws, `HE${r}`, licenses);
-      put(ws, `FI${r}`, noteValue(p?.notes, '健康保険'));
-      put(ws, `FI${r+2}`, noteValue(p?.notes, '年金保険'));
-      put(ws, `FI${r+4}`, noteValue(p?.notes, '雇用保険'));
+    // 原本は日付を一つの結合セルで表示する様式。
+    put(ws, 'B3', `（ ${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 作成 ）`);
+    ordered.slice(page * 10, (page+1) * 10).forEach((name, idx) => {
+      const r = 11 + idx * 3; // 1名につき3行、全10名
+      const key = normalizedName(name);
+      const profile = profiles.find(p => normalizedName(p.worker_name) === key);
+      const q = qualifications.filter(item => normalizedName(item.worker_name) === key);
+      const health = healthChecks.filter(item => normalizedName(item.worker_name) === key)
+        .sort((a, b) => safe(b.exam_date).localeCompare(safe(a.exam_date)))[0];
+      const rawJob = noteValue(profile?.notes, '職種');
+      const job = rawJob.split(/\s*[／/]\s*(?=経験年数\s*[：:])/)[0].trim();
+      const experience = noteValue(profile?.notes, '経験年数') || rawJob.match(/経験年数\s*[：:]\s*([^／/\n]+)/)?.[1]?.trim() || '';
+      put(ws, `B${r}`, idx+1 + page*10);
+      put(ws, `C${r}`, noteValue(profile?.notes, 'ふりがな'));
+      put(ws, `C${r+1}`, profile?.full_name || name);
+      put(ws, `F${r}`, job);
+      put(ws, `H${r}`, japaneseDate(profile?.hire_date));
+      put(ws, `H${r+2}`, experience);
+      put(ws, `J${r}`, japaneseDate(profile?.birth_date));
+      put(ws, `J${r+2}`, ageAt(profile?.birth_date, now) ? `${ageAt(profile?.birth_date, now)}歳` : '');
+      put(ws, `K${r}`, profile?.address);
+      put(ws, `K${r+2}`, profile?.emergency_contact);
+      put(ws, `P${r}`, japaneseDate(health?.exam_date));
+      if (health?.systolic != null || health?.diastolic != null) {
+        put(ws, `P${r+2}`, [health.systolic, health.diastolic].filter(v=>v !== null && v !== undefined && v !== '').join('／'));
+      }
+      put(ws, `Q${r}`, profile?.blood_type);
+      put(ws, `R${r}`, noteValue(health?.notes, '特殊健康診断日'));
+      put(ws, `S${r}`, uniqNames(q.filter(v => safe(v.category).includes('特別教育'))));
+      put(ws, `T${r}`, uniqNames(q.filter(v => safe(v.category).includes('技能講習'))));
+      put(ws, `U${r}`, uniqNames(q.filter(v => !safe(v.category).includes('特別教育') && !safe(v.category).includes('技能講習'))));
+      // 入場日・受入教育日・現場名・会社名は現状台帳に対応する値が無いため、原本の欄を維持。
     });
-    XLSX.utils.book_append_sheet(wb, ws, count===1 ? '作業員名簿' : `作業員名簿${page + 1}`);
+    XLSX.utils.book_append_sheet(workbook, ws, count === 1 ? '作業員名簿' : `作業員名簿${page+1}`);
   }
-  const yyyyMMdd = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-  XLSX.writeFile(wb, `作業員名簿_全建統一様式第2号_${yyyyMMdd}.xlsx`, { bookType: 'xlsx' });
+  const today = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(workbook, `作業員名簿_全建統一様式第2号_${today}.xlsx`, { bookType: 'xlsx', cellStyles: true });
 }
