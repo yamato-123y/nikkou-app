@@ -521,14 +521,51 @@ export default function WorkerLedgerPage() {
   };
 
   const saveQualification = async () => {
-    if (!qualificationDraft.qualification_name.trim()) return alert('資格名を入力してください。');
+    const workerName = String(selectedWorker || '').trim();
+    const qualificationName = String(qualificationDraft.qualification_name || '').trim();
+    if (!workerName) return alert('作業員を選択してください。');
+    if (!qualificationName) return alert('資格名を入力してください。');
+    if (saving) return;
+
     try {
       setSaving(true);
-      await api('/api/worker-ledger', { method: 'POST', body: JSON.stringify({ action: 'saveQualification', data: qualificationDraft }) });
-      setQualificationDraft(emptyQualification(selectedWorker));
-      await loadAll();
-    } catch (e: any) { alert(e?.message || '保存に失敗しました。'); }
-    finally { setSaving(false); }
+      setError('');
+      const payload = { ...qualificationDraft, worker_name: workerName, qualification_name: qualificationName };
+      const result = await api('/api/worker-ledger', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'saveQualification', data: payload })
+      });
+
+      // APIがHTTP 200を返しても、DBの保存結果が空なら登録完了とはしない。
+      const savedRow = Array.isArray(result?.rows) ? result.rows[0] as Qualification | undefined : undefined;
+      if (!savedRow?.id || savedRow.worker_name !== workerName || savedRow.qualification_name !== qualificationName) {
+        throw new Error('保存先から登録済みの資格情報を確認できませんでした。入力内容は残しています。');
+      }
+
+      // 最新のデータを再取得して、今回の資格IDが実際に一覧へ反映されたか確認する。
+      const latest = await api(`/api/worker-ledger?worker=${encodeURIComponent(workerName)}`);
+      if (!Array.isArray(latest?.qualifications)) {
+        throw new Error('資格一覧を読み取れませんでした。入力内容は残しています。');
+      }
+      const confirmed = latest.qualifications.some((row: Qualification) => String(row.id || '') === String(savedRow.id));
+      if (!confirmed) {
+        throw new Error('保存結果を一覧で確認できませんでした。再度追加すると重複する可能性があるため、先に「更新」で登録状況をご確認ください。');
+      }
+
+      // 確認できた行だけ既存一覧に反映。ほかの作業員・資格は削除しない。
+      setQualifications((prev) => [
+        ...prev.filter((row) => String(row.id || '') !== String(savedRow.id)),
+        savedRow
+      ]);
+      setQualificationDraft(emptyQualification(workerName));
+      alert('資格・講習を登録しました。');
+    } catch (e: any) {
+      const message = e?.message || '資格・講習の登録に失敗しました。';
+      setError(message);
+      alert(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveHealth = async () => {
