@@ -2117,7 +2117,8 @@ export default function AdminPage() {
       '休業',
       '休出',
       '法出',
-      '出勤日数'
+      '出勤日数',
+      '作業員' // 理想版と同様に印刷時の右端にも名前を表示
     ];
 
     const weekdayRow = [
@@ -2126,7 +2127,7 @@ export default function AdminPage() {
         const [y,m,day] = d.split('-').map(Number);
         return weekdayJa[new Date(y, m - 1, day).getDay()];
       }),
-      '', '', '', '', '', '', '', '', ''
+      '', '', '', '', '', '', '', '', '', ''
     ];
 
     const rows: any[][] = [
@@ -2151,7 +2152,7 @@ export default function AdminPage() {
               d.paidLeaveStatus || '',
               d.travelAllowanceMarked ? String(d.travelAllowanceMarkNumber || '') : ''
             ].filter(Boolean).join(' ');
-            return [siteText, marks].filter(Boolean).join(' ');
+            return [siteText, marks].filter(Boolean).join('\n');
           }
 
           if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ' || d.manualStatus === '休業') {
@@ -2184,28 +2185,38 @@ export default function AdminPage() {
           : '',
         row.paidLeaveEquivalent > 0
           ? `${row.equivalentDays}日\n有給${row.paidLeaveEquivalent}`
-          : `${row.equivalentDays}日`
+          : `${row.equivalentDays}日`,
+        row.name
       ]);
     });
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const dateCount = dates.length;
     const summaryStartCol = 1 + dateCount;
+    const lastCol = summaryStartCol + 9; // 右端の作業員名列
 
     ws['!freeze'] = { xSplit: 1, ySplit: 5 };
     ws['!cols'] = [
-      { wch: 16 },
-      ...dates.map(() => ({ wch: 9 })),
-      { wch: 11 },
-      { wch: 11 },
-      { wch: 10 },
-      { wch: 11 },
-      { wch: 11 },
-      { wch: 9 },
-      { wch: 11 },
-      { wch: 11 },
-      { wch: 9 }
+      { wch: 16.85 },
+      ...dates.map(() => ({ wch: 9.85 })),
+      { wch: 11.85 }, // 支払区分
+      { wch: 11.85 }, // カレンダー
+      { wch: 10.85 }, // 労働時間
+      { wch: 11.85 }, // 普通残業
+      { wch: 11.85 }, // 欠勤候補
+      { wch: 9.85 },  // 休業
+      { wch: 11.85 }, // 休出
+      { wch: 8.28 },  // 法出
+      { wch: 12.42 }, // 出勤日数
+      { wch: 12.42 }  // 作業員名（右端）
     ];
+
+    // 理想の出勤確認表に合わせて、各スタッフ行の高さを固定。
+    // 登録人数が変わっても毎月同じ印刷レイアウトにする。
+    ws['!rows'] = rows.map((_, idx) => ({ hpt: idx === 0 || idx === 1 ? 21 : idx >= 5 ? 51.75 : undefined }));
+    ws['!rows'][3] = { hpt: 24 };
+    ws['!rows'][4] = { hpt: 21 };
+
 
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
 
@@ -2213,9 +2224,9 @@ export default function AdminPage() {
       const cell = ws[XLSX.utils.encode_cell({ r: 3, c })];
       if (cell) {
         cell.s = {
-          font: { name: 'Yu Gothic', bold: true },
+          font: { name: 'ＭＳ Ｐゴシック', sz: 11, bold: true },
           alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-          fill: { fgColor: { rgb: c === 0 ? 'D9EAD3' : 'E2E8F0' } },
+          fill: { fgColor: { rgb: c === 0 || c === lastCol ? 'D9EAD3' : 'E2E8F0' } },
           border: {
             top: { style: 'thin', color: { rgb: '94A3B8' } },
             bottom: { style: 'thin', color: { rgb: '94A3B8' } },
@@ -2268,7 +2279,7 @@ export default function AdminPage() {
         }
 
         cell.s = {
-          font: { name: 'Yu Gothic', color: { rgb: fontColor } },
+          font: { name: 'ＭＳ Ｐゴシック', sz: 11, color: { rgb: fontColor } },
           alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
           fill: { fgColor: { rgb: fill } },
           border: {
@@ -2281,8 +2292,59 @@ export default function AdminPage() {
       });
     });
 
+    // 文字・改行・右側の集計を理想版に合わせる。元の勤怠計算には触れない。
+    const centerBase = { horizontal: 'center', vertical: 'center', wrapText: true };
+    const summaryBorder = {
+      top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+    };
+    for (let r = 5; r < rows.length; r++) {
+      // スタッフ名・支払区分・カレンダー・右端の名前
+      for (const c of [0, summaryStartCol, summaryStartCol + 1, lastCol]) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = ws[addr];
+        if (!cell) continue;
+        cell.s = {
+          font: { name: 'ＭＳ Ｐゴシック', sz: 11 },
+          alignment: centerBase,
+          border: summaryBorder,
+          ...(c === lastCol ? { fill: { fgColor: { rgb: 'F1F5F9' } } } : {})
+        };
+      }
+      // 労働時間～出勤日数は14pt。2行の改行も中央揃えで表示。
+      for (let c = summaryStartCol + 2; c < lastCol; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = ws[addr];
+        if (!cell) continue;
+        cell.s = {
+          font: { name: 'ＭＳ Ｐゴシック', sz: 14 },
+          alignment: centerBase,
+          border: summaryBorder
+        };
+      }
+    }
+    for (const addr of ['A1', 'A2', 'B2']) {
+      if (ws[addr]) ws[addr].s = {
+        font: { name: 'ＭＳ Ｐゴシック', sz: 14 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+    }
+    for (let c = 0; c <= lastCol; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 4, c });
+      if (ws[addr]) ws[addr].s = {
+        font: { name: 'ＭＳ Ｐゴシック', sz: 11 }, alignment: centerBase
+      };
+    }
+    // 印刷範囲の自動追従（A3横・1ページ幅の印刷を想定）。
+    // !pageSetupは対応するExcelライターでのみ反映される。
+    (ws as any)['!pageSetup'] = { paperSize: 8, orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
+    (ws as any)['!margins'] = { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.1, footer: 0.1 };
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '出勤確認表');
+    wb.Workbook = { ...(wb.Workbook || {}), Names: [{ Name: '_xlnm.Print_Area', Sheet: 0, Ref: `'出勤確認表'!$A$1:$${XLSX.utils.encode_col(lastCol)}$${rows.length}` }] };
     XLSX.writeFile(wb, `出勤確認表_${attendanceYearMonth}.xlsx`);
   };
 
