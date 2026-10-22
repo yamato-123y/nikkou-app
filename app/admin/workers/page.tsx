@@ -530,7 +530,9 @@ export default function WorkerLedgerPage() {
     try {
       setSaving(true);
       setError('');
-      const payload = { ...qualificationDraft, worker_name: workerName, qualification_name: qualificationName };
+      // 編集中のみIDを送る。新規追加と既存レコードの更新を明確に分離する。
+      const editingId = String(qualificationDraft.id || '').trim();
+      const payload = { ...qualificationDraft, id: editingId || undefined, worker_name: workerName, qualification_name: qualificationName };
       const result = await api('/api/worker-ledger', {
         method: 'POST',
         body: JSON.stringify({ action: 'saveQualification', data: payload })
@@ -547,7 +549,7 @@ export default function WorkerLedgerPage() {
       if (!Array.isArray(latest?.qualifications)) {
         throw new Error('資格一覧を読み取れませんでした。入力内容は残しています。');
       }
-      const confirmed = latest.qualifications.some((row: Qualification) => String(row.id || '') === String(savedRow.id));
+      const confirmed = latest.qualifications.some((row: Qualification) => String(row.id || '') === String(savedRow.id) && row.worker_name === workerName && row.qualification_name === qualificationName);
       if (!confirmed) {
         throw new Error('保存結果を一覧で確認できませんでした。再度追加すると重複する可能性があるため、先に「更新」で登録状況をご確認ください。');
       }
@@ -558,7 +560,7 @@ export default function WorkerLedgerPage() {
         savedRow
       ]);
       setQualificationDraft(emptyQualification(workerName));
-      alert('資格・講習を登録しました。');
+      alert(editingId ? '資格・講習を更新しました。' : '資格・講習を新規登録しました。');
     } catch (e: any) {
       const message = e?.message || '資格・講習の登録に失敗しました。';
       setError(message);
@@ -1215,7 +1217,7 @@ export default function WorkerLedgerPage() {
                       </div>
                     </div>}
 
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="font-black text-emerald-950">資格・講習を追加</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-black text-emerald-950">{qualificationDraft.id ? '資格・講習を編集' : '資格・講習を新規追加'}</div>{qualificationDraft.id && <button type="button" onClick={()=>setQualificationDraft(emptyQualification(selectedWorker))} className="rounded-lg bg-white border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">編集をキャンセル・新規追加へ</button>}</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                       <select value={qualificationDraft.category||''} onChange={(e)=>setQualificationDraft(q=>({...q,category:e.target.value}))} className="rounded-xl border p-3 font-bold"><option>技能講習</option><option>特別教育</option><option>資格</option><option>運転免許証</option><option>その他</option></select>
                       <input value={qualificationDraft.qualification_name||''} onChange={(e)=>setQualificationDraft(q=>({...q,qualification_name:e.target.value}))} placeholder="資格・講習名" className="rounded-xl border p-3 font-bold" />
                       <input value={qualificationDraft.certificate_no||''} onChange={(e)=>setQualificationDraft(q=>({...q,certificate_no:e.target.value}))} placeholder="修了証番号" className="rounded-xl border p-3 font-bold" />
@@ -1223,7 +1225,7 @@ export default function WorkerLedgerPage() {
                       <label className="text-xs font-black text-slate-600">有効期限<input type="date" value={qualificationDraft.expiry_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,expiry_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
                       <input value={qualificationDraft.issuing_body||''} onChange={(e)=>setQualificationDraft(q=>({...q,issuing_body:e.target.value}))} placeholder="発行元（任意）" className="rounded-xl border p-3 font-bold" />
                       <input value={qualificationDraft.notes||''} onChange={(e)=>setQualificationDraft(q=>({...q,notes:e.target.value}))} placeholder="メモ" className="rounded-xl border p-3 font-bold" />
-                      <button onClick={saveQualification} disabled={saving} className="rounded-xl bg-emerald-600 text-white p-3 font-black">＋ 追加</button>
+                      <button onClick={saveQualification} disabled={saving} className="rounded-xl bg-emerald-600 text-white p-3 font-black">{saving ? '保存中…' : qualificationDraft.id ? '変更を保存' : '＋ 新規追加'}</button>
                     </div></div>
                     <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[900px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">区分</th><th className="p-3 text-left">資格・講習</th><th className="p-3 text-left">修了証番号</th><th className="p-3 text-left">取得日</th><th className="p-3 text-left">有効期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedQualifications.map((q)=><tr key={q.id||`${q.qualification_name}-${q.acquired_date}`} className={isExpired(q.expiry_date)?'bg-rose-50':isWithinDays(q.expiry_date,60)?'bg-amber-50':''}><td className="p-3 font-bold">{q.category||'-'}</td><td className="p-3 font-black">{q.qualification_name}</td><td className="p-3">{q.certificate_no||'-'}</td><td className="p-3">{fmtDate(q.acquired_date)}</td><td className="p-3">{q.expiry_date?(isExpired(q.expiry_date)?`⚠️ 期限切れ ${fmtDate(q.expiry_date)}`:isWithinDays(q.expiry_date,60)?`⚠️ 60日以内 ${fmtDate(q.expiry_date)}`:fmtDate(q.expiry_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>setQualificationDraft({...q})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteQualification(q.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedQualifications.length===0&&<div className="p-8 text-center text-slate-400 font-bold">資格情報はまだありません。</div>}</div>
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><div className="font-black text-emerald-950">資格証・修了証の写真</div><p className="mt-1 text-xs text-emerald-700">新しく資格を取得・更新した時は、ここから1枚ずつ追加できます。印刷もこの画面から行います。</p></div><div className="flex gap-2 flex-wrap"><button type="button" onClick={printSelectedQualificationDocuments} className="rounded-xl bg-emerald-600 text-white px-4 py-2 text-xs font-black">🖨️ 選択者をA4印刷</button></div></div><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="資格証名（例：玉掛け技能講習修了証）" className="rounded-xl border border-emerald-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-xl px-4 py-2.5 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-white border border-emerald-300 text-emerald-700'}`}>📎 資格証を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'qualification',docTitle);e.currentTarget.value='';}}/></label></div><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedQualificationDocuments.map((doc)=><div key={doc.id} className="rounded-xl bg-white border border-emerald-100 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-black break-words">{doc.title||'資格証'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-2 py-1.5 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-black">名前変更</button></div></div>)}{selectedQualificationDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">資格証画像はまだありません。</div>}</div></div>
