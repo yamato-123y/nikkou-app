@@ -200,6 +200,7 @@ const setHealthMetaValue = (notes: any, label: string, value: string) => {
 };
 
 
+// 既存資格の作業員名にある前後の空白・全角半角差を表示時だけ吸収する（DBは書き換えない）。
 const normalizeWorkerName = (value: any) =>
   String(value ?? '')
     .normalize('NFKC')
@@ -472,7 +473,7 @@ export default function WorkerLedgerPage() {
 
   const workerNames = useMemo(() => workers.map((w: any) => String(typeof w === 'string' ? w : w?.name || '')).filter(Boolean), [workers]);
   const visibleWorkers = workerNames.filter((name) => name.includes(query.trim()));
-  const selectedQualifications = qualifications.filter((x) => x.worker_name === selectedWorker);
+  const selectedQualifications = qualifications.filter((x) => normalizeWorkerName(x.worker_name) === normalizeWorkerName(selectedWorker));
   const selectedHealth = healthChecks.filter((x) => x.worker_name === selectedWorker);
   const selectedDocuments = documents.filter((x) => x.worker_name === selectedWorker);
   const selectedQualificationDocuments = selectedDocuments.filter((x) => x.document_type === 'qualification');
@@ -482,7 +483,7 @@ export default function WorkerLedgerPage() {
   const hasRegisteredProfile = (name: string) => profiles.some((x) => x.worker_name === name);
 
   const summaryFor = (name: string) => {
-    const q = qualifications.filter((x) => x.worker_name === name);
+    const q = qualifications.filter((x) => normalizeWorkerName(x.worker_name) === normalizeWorkerName(name));
     const h = healthChecks.filter((x) => x.worker_name === name).sort((a, b) => String(b.exam_date || '').localeCompare(String(a.exam_date || '')))[0];
     const warning = q.some((x) => isExpired(x.expiry_date) || isWithinDays(x.expiry_date, 60));
     return { qCount: q.length, healthDate: h?.exam_date || '', warning };
@@ -521,9 +522,10 @@ export default function WorkerLedgerPage() {
   };
 
   const saveQualification = async () => {
-    const workerName = String(selectedWorker || '').trim();
+    // マスタ側の表記をそのまま保存キーに使用。trim() は空欄判定だけに使う。
+    const workerName = String(selectedWorker || '');
     const qualificationName = String(qualificationDraft.qualification_name || '').trim();
-    if (!workerName) return alert('作業員を選択してください。');
+    if (!workerName.trim()) return alert('作業員を選択してください。');
     if (!qualificationName) return alert('資格名を入力してください。');
     if (saving) return;
 
@@ -540,16 +542,16 @@ export default function WorkerLedgerPage() {
 
       // APIがHTTP 200を返しても、DBの保存結果が空なら登録完了とはしない。
       const savedRow = Array.isArray(result?.rows) ? result.rows[0] as Qualification | undefined : undefined;
-      if (!savedRow?.id || savedRow.worker_name !== workerName || savedRow.qualification_name !== qualificationName) {
+      if (!savedRow?.id || normalizeWorkerName(savedRow.worker_name) !== normalizeWorkerName(workerName) || savedRow.qualification_name !== qualificationName) {
         throw new Error('保存先から登録済みの資格情報を確認できませんでした。入力内容は残しています。');
       }
 
       // 最新のデータを再取得して、今回の資格IDが実際に一覧へ反映されたか確認する。
-      const latest = await api(`/api/worker-ledger?worker=${encodeURIComponent(workerName)}`);
+      const latest = await api('/api/worker-ledger');
       if (!Array.isArray(latest?.qualifications)) {
         throw new Error('資格一覧を読み取れませんでした。入力内容は残しています。');
       }
-      const confirmed = latest.qualifications.some((row: Qualification) => String(row.id || '') === String(savedRow.id) && row.worker_name === workerName && row.qualification_name === qualificationName);
+      const confirmed = latest.qualifications.some((row: Qualification) => String(row.id || '') === String(savedRow.id) && normalizeWorkerName(row.worker_name) === normalizeWorkerName(workerName) && row.qualification_name === qualificationName);
       if (!confirmed) {
         throw new Error('保存結果を一覧で確認できませんでした。再度追加すると重複する可能性があるため、先に「更新」で登録状況をご確認ください。');
       }
