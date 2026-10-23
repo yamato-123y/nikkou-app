@@ -31,7 +31,20 @@ const put = (ws: XLSX.WorkSheet, ref: string, value: unknown) => {
   if (!v) return;
   const old = (ws[ref] || {}) as XLSX.CellObject;
   // 元様式の罫線・背景色・結合設定を保持する。
-  ws[ref] = { ...old, t: 's', v, s: (old as any).s || fallbackStyle } as XLSX.CellObject;
+  const previousStyle = ((old as any).s || fallbackStyle) as any;
+  // セルの罫線・結合・文字の強調は維持し、長い文字だけセル内に縮小して収める。
+  ws[ref] = {
+    ...old, t: 's', v,
+    s: {
+      ...previousStyle,
+      alignment: {
+        ...(previousStyle.alignment || {}),
+        vertical: 'center',
+        wrapText: false,
+        shrinkToFit: true,
+      },
+    },
+  } as XLSX.CellObject;
 };
 const uniqNames = (arr: Qual[]) => [...new Set(arr.map(q => safe(q.qualification_name)).filter(Boolean))].join('、');
 
@@ -87,6 +100,17 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
       put(ws, `U${r}`, uniqNames(q.filter(v => !safe(v.category).includes('特別教育') && !safe(v.category).includes('技能講習'))));
       // 入場日・受入教育日・現場名・会社名は現状台帳に対応する値が無いため、原本の欄を維持。
     });
+    // A4横・余白狭め。1シート=1ページとして印刷する。
+    // !margins は xlsx-js-style の出力対象、!pageSetup は対応する実装で利用される。
+    (ws as any)['!margins'] = {
+      left: 0.2, right: 0.2, top: 0.25, bottom: 0.25,
+      header: 0.1, footer: 0.1,
+    };
+    (ws as any)['!pageSetup'] = {
+      paperSize: 9, orientation: 'landscape', fitToWidth: 1, fitToHeight: 1,
+      fitToPage: true, scale: 100,
+    };
+    (ws as any)['!printOptions'] = { horizontalCentered: true };
     XLSX.utils.book_append_sheet(workbook, ws, count === 1 ? '作業員名簿' : `作業員名簿${page+1}`);
   }
   const today = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
