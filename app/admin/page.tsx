@@ -7174,29 +7174,31 @@ export default function AdminPage() {
     (r: any) => !String(r?.reporter || '').trim()
   );
 
-  // 「前日未入力候補」は、会社カレンダー上の出勤日なのに、
-  // 日報・管理・サンセイ・有給のいずれも確認できない人だけを候補表示する。
-  // 「該当なし」区分は所定出勤日の判定ができないため対象外。
+  // 「前日未入力候補」は作業員マスタの全登録者が対象。
+  // 会社カレンダーを設定している人だけ既存の休日判定を使用し、
+  // カレンダー未設定の人も日報・勤怠記録がなければ候補に含める。
   const dashboardYesterdayWorkerNames = new Set<string>();
   dashboardReports.forEach((r: any) => {
     if (normalizeDashboardDate(r?.date) !== dashboardYesterday) return;
     (Array.isArray(r?.workers) ? r.workers : []).forEach((name: string) => {
-      if (name) dashboardYesterdayWorkerNames.add(name);
+      if (name) dashboardYesterdayWorkerNames.add(String(name).trim());
     });
   });
 
   const dashboardMissingYesterday = (settings.workers || [])
     .filter((worker: any) => {
-      const name = String(worker?.name || '');
-      const calendarType = worker?.calendarType || 'none';
-      if (!name || calendarType === 'none') return false;
+      const name = String(typeof worker === 'string' ? worker : worker?.name || '').trim();
+      if (!name) return false;
 
-      const calendarEntry = getCalendarEntryForWorker(worker, dashboardYesterday);
-      if (!calendarEntry) return false;
-
-      const baseHoliday = new Set(calendarEntry?.holidays || []).has(dashboardYesterday);
-      const isHoliday = isEffectiveWorkerHoliday(worker, dashboardYesterday, baseHoliday);
-      if (isHoliday) return false;
+      // 会社カレンダーが存在する人は、従来どおり休日を候補から除く。
+      // カレンダー未設定の人は休日判定で除外せず、記録の有無で判断する。
+      const calendarEntry = typeof worker === 'object' && worker !== null
+        ? getCalendarEntryForWorker(worker, dashboardYesterday)
+        : null;
+      if (calendarEntry) {
+        const baseHoliday = new Set(calendarEntry?.holidays || []).has(dashboardYesterday);
+        if (isEffectiveWorkerHoliday(worker, dashboardYesterday, baseHoliday)) return false;
+      }
 
       const manualStatus = settings.manualAttendanceOverrides?.[name]?.[dashboardYesterday] || '';
       const paidLeaveStatus = settings.paidLeaveOverrides?.[name]?.[dashboardYesterday] || '';
@@ -7204,7 +7206,7 @@ export default function AdminPage() {
 
       return !dashboardYesterdayWorkerNames.has(name);
     })
-    .map((worker: any) => worker.name);
+    .map((worker: any) => String(typeof worker === 'string' ? worker : worker.name || '').trim());
 
   // 請求書照合進捗：選択月の日報に実際に登場した「現場 × リース業者」だけを対象にする。
   // 確定履歴が指定期間の全明細を覆っている場合だけ「照合済み」とする。
