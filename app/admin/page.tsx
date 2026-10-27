@@ -528,6 +528,8 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   // マスタ画面の表示選択のみ。登録済みデータや保存形式には影響させない。
   const [selectedMasterPanel, setSelectedMasterPanel] = useState<string>('');
+  // 作業員の区分変更入力欄（保存ボタンで確定するまではマスタに追加しない）。
+  const [workerChangeDrafts, setWorkerChangeDrafts] = useState<Record<string, { type: string; date: string }>>({});
   // マスタ一覧の表示検索のみ。設定データの保存形式は変えない。
   const [masterListSearch, setMasterListSearch] = useState<{ [key: string]: string }>({});
   const [showCalendarSection, setShowCalendarSection] = useState(false);
@@ -1599,8 +1601,28 @@ export default function AdminPage() {
 
   const attendancePeriodInfo = getAttendancePeriodInfo(attendanceYearMonth);
 
+  // 作業員の区分は日付ごとに判定。旧データの calendarType は変更前の区分として残す。
+  const getWorkerCalendarTypeOnDate = (worker: any, dateStr: string) => {
+    let type = String(worker?.calendarType || 'none');
+    const changes = Array.isArray(worker?.calendarChanges) ? [...worker.calendarChanges] : [];
+    changes.sort((a: any, b: any) => String(a?.date || '').localeCompare(String(b?.date || '')));
+    changes.forEach((change: any) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(change?.date || '')) && change.date <= dateStr &&
+          ['yamato', 'trainee', 'none'].includes(String(change?.type || ''))) {
+        type = change.type;
+      }
+    });
+    return type;
+  };
+
+  // 退職日当日は在籍。翌日から通常の勤怠対象外とする。
+  const isWorkerRetiredOnDate = (worker: any, dateStr: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(worker?.retirementDate || '')) &&
+    dateStr > String(worker.retirementDate);
+
   const getCalendarEntryForWorker = (worker: any, dateStr: string) => {
-    const calendarType = worker?.calendarType || 'none';
+    if (isWorkerRetiredOnDate(worker, dateStr)) return null;
+    const calendarType = getWorkerCalendarTypeOnDate(worker, dateStr);
     if (calendarType === 'none') return null;
 
     const cycle = getCalendarCycleForDate(dateStr);
@@ -1666,6 +1688,12 @@ export default function AdminPage() {
     );
 
     return allNames
+      .filter((name: string) => {
+        const worker = (settings.workers || []).find((w: any) => w?.name === name);
+        // 月次は21日～翌20日。全期間が退職後で日報がない場合だけ除外。
+        return !worker || !isWorkerRetiredOnDate(worker, startYmd) ||
+          !!Object.keys(workerDayMap[name] || {}).length;
+      })
       .map((name: string) => {
         const workerMaster =
           (settings.workers || []).find((w: any) => w.name === name) || {
@@ -1673,7 +1701,7 @@ export default function AdminPage() {
             calendarType: 'none'
           };
 
-        const calendarType = workerMaster?.calendarType || 'none';
+        const calendarType = getWorkerCalendarTypeOnDate(workerMaster, endYmd);
         const holidayMovesForWorker = getWorkerHolidayMoves(name);
 
         const dayDetails = dates.map((date) => {
@@ -1688,10 +1716,12 @@ export default function AdminPage() {
           const [displayY, displayM, displayD] = date.split('-').map(Number);
           const isJapaneseSunday = new Date(displayY, displayM - 1, displayD).getDay() === 0;
           const isJapaneseHoliday = getDayInfo(date).isHoliday;
-          const noneCategoryHoliday = calendarType === 'none' && (isJapaneseSunday || isJapaneseHoliday);
+          const dayCalendarType = getWorkerCalendarTypeOnDate(workerMaster, date);
+          const retiredDay = isWorkerRetiredOnDate(workerMaster, date);
+          const noneCategoryHoliday = dayCalendarType === 'none' && (isJapaneseSunday || isJapaneseHoliday);
           const baseHoliday = isCalendarLinked ? holidays.has(date) : noneCategoryHoliday;
-          const isHoliday = isEffectiveWorkerHoliday(workerMaster, date, baseHoliday);
-          const isScheduled = isCalendarLinked ? !isHoliday : false;
+          const isHoliday = !retiredDay && isEffectiveWorkerHoliday(workerMaster, date, baseHoliday);
+          const isScheduled = !retiredDay && (isCalendarLinked ? !isHoliday : false);
           const holidayMoves = holidayMovesForWorker;
           const holidayMove = holidayMoves.find((x: any) => x.to === date) || null;
           const holidayMovedFrom = holidayMoves.find((x: any) => x.from === date) || null;
@@ -1708,8 +1738,8 @@ export default function AdminPage() {
           const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
           const isAutoHolidayWork =
             fraction > 0 && isHoliday;
-          const defaultHolidayHours =
-            Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8;
+          const defaultHolidayHours = dayCalendarType === 'trainee' ? 7 : dayCalendarType === 'yamato' ? 8 :
+            (Number(workerMaster?.shiftHours || 8) === 7 ? 7 : 8);
           const effectiveHolidayWorkHours =
             isHoliday
               ? (explicitHolidayWorkHours > 0
@@ -1762,24 +1792,16 @@ export default function AdminPage() {
           0
         );
 
-        const scheduledDays =
-          calendarType === 'none'
-            ? null
-            : dayDetails.filter((d) => d.isScheduled).length;
-
-        const calendarHours =
-          calendarType === 'none'
-            ? null
-            : Number(
-                dayDetails.find((d) => d.isCalendarLinked)
-                  ? getCalendarEntryForWorker(workerMaster, dayDetails.find((d) => d.isCalendarLinked)!.date)?.workHours
-                  : workerMaster?.shiftHours || 0
-              );
-
-        const scheduledHours =
-          scheduledDays === null || calendarHours === null
-            ? null
-            : scheduledDays * calendarHours;
+        // 20日締め期間の途中で区分が変わる場合も、日ごとの所定時間で集計する。
+        const hasLinkedCalendar = dayDetails.some((d) => d.isCalendarLinked);
+        const scheduledDays = hasLinkedCalendar ? dayDetails.filter((d) => d.isScheduled).length : null;
+        const scheduledHours = hasLinkedCalendar
+          ? dayDetails.reduce((sum, d) => {
+              if (!d.isScheduled) return sum;
+              const entry = getCalendarEntryForWorker(workerMaster, d.date);
+              return sum + Number(entry?.workHours || 0);
+            }, 0)
+          : null;
 
         // 右側の「欠勤」は、手動で「欠勤」を置いた日を必ずカウントする。
         // それ以外は従来どおり、会社カレンダー上の出勤日に勤務記録がない日を欠勤候補として数える。
@@ -7189,6 +7211,7 @@ export default function AdminPage() {
     .filter((worker: any) => {
       const name = String(typeof worker === 'string' ? worker : worker?.name || '').trim();
       if (!name) return false;
+      if (typeof worker === 'object' && isWorkerRetiredOnDate(worker, dashboardYesterday)) return false;
 
       // 会社カレンダーが存在する人は、従来どおり休日を候補から除く。
       // カレンダー未設定の人は休日判定で除外せず、記録の有無で判断する。
@@ -11300,6 +11323,7 @@ export default function AdminPage() {
                                         <select
                                           value={item.calendarType || 'none'}
                                           onChange={(e) => {
+                                            if (Array.isArray(item.calendarChanges) && item.calendarChanges.length > 0 && !confirm('過去の区分も変わります。日付を指定して変更する場合は下の「区分の変更日を登録」を使ってください。変更しますか？')) return;
                                             const value = e.target.value;
 
                                             setSettings((prev: any) => {
@@ -11328,6 +11352,56 @@ export default function AdminPage() {
                                           <option value="trainee">② 実習生</option>
                                           <option value="none">③ 該当なし</option>
                                         </select>
+                                      </div>
+                                    )}
+
+                                    {sec.key === 'workers' && (
+                                      <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-3">
+                                        <div className="text-sm font-bold text-slate-800">区分の変更日を登録</div>
+                                        <div className="text-xs text-slate-600">上の「会社カレンダー」は変更前の区分です。途中から変更する場合はこちらを使います。</div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          <label className="text-xs font-bold text-slate-700">変更後の区分
+                                            <select value={workerChangeDrafts[String(idx)]?.type || 'yamato'}
+                                              onChange={e => setWorkerChangeDrafts(prev => ({...prev,[String(idx)]:{type:e.target.value,date:prev[String(idx)]?.date || ''}}))}
+                                              className="mt-1 w-full p-2 border rounded-lg bg-white text-sm">
+                                              <option value="yamato">社員</option>
+                                              <option value="trainee">実習生</option>
+                                              <option value="none">その他（該当なし）</option>
+                                            </select>
+                                          </label>
+                                          <label className="text-xs font-bold text-slate-700">いつから変更？
+                                            <input type="date" value={workerChangeDrafts[String(idx)]?.date || ''}
+                                              onChange={e => setWorkerChangeDrafts(prev => ({...prev,[String(idx)]:{type:prev[String(idx)]?.type || 'yamato',date:e.target.value}}))}
+                                              className="mt-1 w-full p-2 border rounded-lg bg-white text-sm" />
+                                          </label>
+                                        </div>
+                                        <button type="button" className="px-3 py-2 bg-blue-700 text-white rounded-lg text-sm font-bold"
+                                          onClick={() => {
+                                            const draft = workerChangeDrafts[String(idx)];
+                                            if (!draft?.date || !/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) { alert('変更日を選んでください。'); return; }
+                                            const history = Array.isArray(item.calendarChanges) ? item.calendarChanges : [];
+                                            if (history.some((x:any)=>x.date===draft.date) && !confirm('同じ日付の変更があります。上書きしますか？')) return;
+                                            const next = [...history.filter((x:any)=>x.date!==draft.date),{date:draft.date,type:draft.type}]
+                                              .sort((a:any,b:any)=>a.date.localeCompare(b.date));
+                                            updateItemField(sec.key, idx, 'calendarChanges', next);
+                                            alert('変更を追加しました。最後に上の「保存」ボタンを押してください。');
+                                          }}>変更を追加</button>
+                                        {(Array.isArray(item.calendarChanges) ? item.calendarChanges : []).map((change:any,i:number) => (
+                                          <div key={`${change.date}_${i}`} className="flex gap-2 items-center justify-between text-xs bg-white rounded-lg p-2 border">
+                                            <span>{change.date}から {change.type==='yamato'?'社員':change.type==='trainee'?'実習生':'その他'}</span>
+                                            <button type="button" className="text-red-700 underline" onClick={() => {
+                                              if (confirm('この区分変更を取り消しますか？')) updateItemField(sec.key,idx,'calendarChanges',item.calendarChanges.filter((_:any,j:number)=>j!==i));
+                                            }}>取り消し</button>
+                                          </div>
+                                        ))}
+                                        <div className="border-t border-blue-200 pt-3">
+                                          <label className="block text-xs font-bold text-slate-700 mb-1">退職日（退職しない場合は空欄）</label>
+                                          <input type="date" value={item.retirementDate || ''}
+                                            onChange={e=>updateItemField(sec.key,idx,'retirementDate',e.target.value)}
+                                            className="w-full p-2 border rounded-lg bg-white text-sm" />
+                                          <div className="text-xs text-slate-600 mt-1">退職日の翌日から通常の勤怠対象外。過去の記録は残ります。</div>
+                                        </div>
+                                        <div className="text-xs font-bold text-blue-800">※ 変更後は「作業員マスタ」の保存ボタンを押してください。</div>
                                       </div>
                                     )}
 
