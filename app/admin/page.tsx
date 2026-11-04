@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
+import { readCompanyCalendarHolidayPdf } from './company-calendar-pdf';
 
 // リース品の互換識別：
 // 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
@@ -160,9 +161,8 @@ const mergeCompanyCalendars = (saved: any) => {
 const getCalendarCycleForDate = (dateStr: string) => {
   const [y, m] = String(dateStr || '').split('-').map(Number);
   if (!y || !m) return '';
-  // 登録済み「2025-2026」カレンダーは2026年11月末まで使用する。
-  // ほかの年度の切り替え日は既存どおり維持し、過去の表示を変えない。
-  if (y === 2026 && m === 11) return '2025-2026';
+  // 年間カレンダーは11月21日〜翌年11月20日。11月20日までは前年度扱い。
+  if (y === 2026 && m === 11 && Number(String(dateStr).slice(8, 10)) <= 20) return '2025-2026';
   return m >= 11 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 };
 
@@ -2065,45 +2065,74 @@ export default function AdminPage() {
 
   const uploadCompanyCalendarPdf = async (file: File | null) => {
     if (!file) return;
-    if (file.type !== 'application/pdf') {
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
       alert('PDFファイルを選択してください。');
       return;
     }
+    if (authRole !== 'admin') return;
 
     try {
       setCompanyCalendarUploading(true);
+      // PDFに含まれる画像から赤い休日を読み取る。判定できなければ保存しない。
+      const parsed = await readCompanyCalendarHolidayPdf(file, companyCalendarPattern);
+      const targetCycle = parsed.cycle;
+      if (!window.confirm(
+        `${companyCalendarPattern === 'yamato' ? '大和社員' : '実習生'}の休日を${parsed.holidays.length}日読み取りました。\n` +
+        `対象期間：${parsed.startDate} ～ ${parsed.endDate}\n\n` +
+        'この休日を登録しますか？（過去の日報・勤怠は変更しません）'
+      )) return;
+
       const formData = new FormData();
-      formData.append('cycle', companyCalendarCycle);
+      formData.append('cycle', targetCycle);
       formData.append('pattern', companyCalendarPattern);
       formData.append('file', file);
-
-      const res = await fetch('/api/company-calendar-files', {
-        method: 'POST',
-        body: formData
-      });
+      const res = await fetch('/api/company-calendar-files', { method: 'POST', body: formData });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'PDFアップロードに失敗しました。');
 
-      const current = companyCalendars?.[companyCalendarCycle]?.[companyCalendarPattern] || {};
+      // 保存直前に最新設定を読み、選択した区分だけを追加。別画面の変更を巻き戻さない。
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (!latestRes.ok) throw new Error('保存前に最新データを取得できませんでした。');
+      const latest = await latestRes.json();
+      if (!latest || typeof latest !== 'object' || Array.isArray(latest)) throw new Error('設定を確認できません。');
+      const latestCalendars = mergeCompanyCalendars(latest.companyCalendars || {});
+      const existing = latestCalendars?.[targetCycle]?.[companyCalendarPattern] || {};
+      // 今回のPDFの期間だけ入れ替え、ほかの期間・区分の休日を残す。
+      const keep = (Array.isArray(existing.holidays) ? existing.holidays : []).filter(
+        (day: string) => day < parsed.startDate || day > parsed.endDate
+      );
       const nextCalendars = {
-        ...companyCalendars,
-        [companyCalendarCycle]: {
-          ...(companyCalendars?.[companyCalendarCycle] || {}),
+        ...latestCalendars,
+        [targetCycle]: {
+          ...(latestCalendars[targetCycle] || {}),
           [companyCalendarPattern]: {
-            ...current,
+            ...existing,
             label: companyCalendarPattern === 'yamato' ? '大和社員' : '実習生',
             workHours: companyCalendarPattern === 'yamato' ? 8 : 7,
             sourceFileName: file.name,
             pdfPath: data.path || '',
-            holidays: current.holidays || []
+            holidays: Array.from(new Set([...keep, ...parsed.holidays])).sort(),
+            calendarStartDate: parsed.startDate,
+            calendarEndDate: parsed.endDate
           }
         }
       };
+      const newData = { ...latest, companyCalendars: nextCalendars };
+      const saveRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
+      if (!saveRes.ok) throw new Error('休日の保存に失敗しました。');
+
+      setCompanyCalendarCycle(targetCycle);
       setCompanyCalendars(nextCalendars);
-      await saveCompanyCalendars(nextCalendars);
+      setSettings(newData);
+      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      alert(`${parsed.holidays.length}日分の休日を登録しました。\n月次勤怠カレンダーを確認してください。`);
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'PDFアップロードに失敗しました。');
+      alert(e?.message || 'PDFから休日を読み取れませんでした。');
     } finally {
       setCompanyCalendarUploading(false);
     }
@@ -9652,7 +9681,7 @@ export default function AdminPage() {
                                 {y}年{m}月 ／ {companyCalendarPattern === 'yamato' ? '大和社員' : '実習生'}
                               </div>
                               <div className="text-xs text-slate-500 mt-1">
-                                黒い日が会社休日です。日付をタップすると休日／出勤日を切り替えられます。
+                                PDFから自動登録した休日を表示します。必要な場合のみ日付を手動で変更できます。
                               </div>
                             </div>
 
