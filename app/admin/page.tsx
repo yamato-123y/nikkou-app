@@ -160,6 +160,9 @@ const mergeCompanyCalendars = (saved: any) => {
 const getCalendarCycleForDate = (dateStr: string) => {
   const [y, m] = String(dateStr || '').split('-').map(Number);
   if (!y || !m) return '';
+  // 登録済み「2025-2026」カレンダーは2026年11月末まで使用する。
+  // ほかの年度の切り替え日は既存どおり維持し、過去の表示を変えない。
+  if (y === 2026 && m === 11) return '2025-2026';
   return m >= 11 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 };
 
@@ -535,7 +538,7 @@ export default function AdminPage() {
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(true);
   const [showKentaiKyoSection, setShowKentaiKyoSection] = useState(false);
-  const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(false);
+  const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(true);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
   // 月次勤怠の現場クリックカウントは「数えるためだけ」の一時チェック。
@@ -558,7 +561,7 @@ export default function AdminPage() {
   const attendanceTopScrollRef = useRef<HTMLDivElement | null>(null);
   const attendanceTableScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(false);
+  const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(true);
   const [companyCalendars, setCompanyCalendars] = useState<any>(() => mergeCompanyCalendars({}));
   const [companyCalendarCycle, setCompanyCalendarCycle] = useState('2025-2026');
   const [companyCalendarPattern, setCompanyCalendarPattern] = useState<'yamato' | 'trainee'>('yamato');
@@ -1718,8 +1721,10 @@ export default function AdminPage() {
           const isJapaneseHoliday = getDayInfo(date).isHoliday;
           const dayCalendarType = getWorkerCalendarTypeOnDate(workerMaster, date);
           const retiredDay = isWorkerRetiredOnDate(workerMaster, date);
-          const noneCategoryHoliday = dayCalendarType === 'none' && (isJapaneseSunday || isJapaneseHoliday);
-          const baseHoliday = isCalendarLinked ? holidays.has(date) : noneCategoryHoliday;
+          // 日曜日・日本の祝日は、年度の会社カレンダーが未登録でも休日として表示する。
+          // 会社独自の休日（土曜など）は登録済み会社カレンダーを優先する。
+          // 休みの個別移動は、この判定のあと従来どおり適用する。
+          const baseHoliday = holidays.has(date) || isJapaneseSunday || isJapaneseHoliday;
           const isHoliday = !retiredDay && isEffectiveWorkerHoliday(workerMaster, date, baseHoliday);
           const isScheduled = !retiredDay && (isCalendarLinked ? !isHoliday : false);
           const holidayMoves = holidayMovesForWorker;
@@ -4403,10 +4408,7 @@ export default function AdminPage() {
 
           const worker = (settings.workers || []).find((w:any) => w.name === name);
           const calendarType = worker?.calendarType || 'none';
-          const cycle =
-            saveM >= 11
-              ? `${saveY}-${saveY + 1}`
-              : `${saveY - 1}-${saveY}`;
+          const cycle = getCalendarCycleForDate(reportDateText);
           const isCompanyHoliday =
             calendarType !== 'none' &&
             (settings.companyCalendars?.[cycle]?.[calendarType]?.holidays || [])
@@ -9489,16 +9491,7 @@ export default function AdminPage() {
       {authRole === 'admin' && (
         <div id="admin-monthly-attendance" className={`${adminViewClass('attendance')} scroll-mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
           <div
-            role="button"
-            tabIndex={0}
-            onClick={() => { if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance);
-              }
-            }}
-            className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5 cursor-pointer select-none"
+            className="flex items-center justify-between gap-3 flex-wrap bg-emerald-200 px-4 md:px-7 py-4 md:py-5"
           >
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-emerald-900">👷 作業員 月次勤怠・会社カレンダー</h2>
@@ -9507,16 +9500,9 @@ export default function AdminPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!showMonthlyAttendance || confirmUnsavedBeforeAction('月次勤怠を閉じる')) setShowMonthlyAttendance(!showMonthlyAttendance);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-700 text-sm font-bold shadow-sm hover:bg-emerald-50"
-            >
-              {showMonthlyAttendance ? '勤怠を閉じる ▲' : '勤怠を見る ▼'}
-            </button>
+            <span className="px-4 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-700 text-sm font-bold shadow-sm">
+              常に表示中
+            </span>
           </div>
 
           {showMonthlyAttendance && (
@@ -9556,13 +9542,9 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { if (!showCompanyCalendarSection || confirmUnsavedBeforeAction('会社カレンダーを閉じる')) setShowCompanyCalendarSection(!showCompanyCalendarSection); }}
-                    className="px-4 py-2 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold shadow-sm"
-                  >
-                    {showCompanyCalendarSection ? 'カレンダーを閉じる ▲' : 'カレンダーを確認・編集 ▼'}
-                  </button>
+                  <span className="px-4 py-2 rounded-xl bg-white border border-sky-300 text-sky-800 text-sm font-bold shadow-sm">
+                    カレンダーを表示中
+                  </span>
                 </div>
 
                 <div className="px-4 py-3 border-t border-sky-200 bg-white/70">
@@ -9579,6 +9561,14 @@ export default function AdminPage() {
                     </span>
                   </div>
                 </div>
+
+                {(!companyCalendars?.[getCalendarCycleForDate(attendancePeriodInfo.endYmd)]?.yamato ||
+                  !companyCalendars?.[getCalendarCycleForDate(attendancePeriodInfo.endYmd)]?.trainee) && (
+                  <div className="mx-4 mt-3 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm">
+                    <strong>{getCalendarCycleForDate(attendancePeriodInfo.endYmd)}年度の会社カレンダーが一部未登録です。</strong>
+                    日曜日・日本の祝日は自動で「休」を表示しますが、会社独自の休日や土曜の休みはカレンダーに登録してください。
+                  </div>
+                )}
 
                 {showCompanyCalendarSection && (
                   <div className="p-4 md:p-5 space-y-5 border-t border-sky-200">
@@ -13688,10 +13678,7 @@ export default function AdminPage() {
                         ? new Date(editY, editM - 1, editD).getDay() === 0
                         : false;
                     const editWorkerCalendarType = w.calendarType || 'none';
-                    const editCycle =
-                      editM >= 11
-                        ? `${editY}-${editY + 1}`
-                        : `${editY - 1}-${editY}`;
+                    const editCycle = getCalendarCycleForDate(reportDateText);
                     const editCompanyHoliday =
                       editWorkerCalendarType !== 'none' &&
                       (settings.companyCalendars?.[editCycle]?.[editWorkerCalendarType]?.holidays || [])
