@@ -566,7 +566,6 @@ export default function AdminPage() {
   const [companyCalendarCycle, setCompanyCalendarCycle] = useState('2025-2026');
   const [companyCalendarPattern, setCompanyCalendarPattern] = useState<'yamato' | 'trainee'>('yamato');
   const [companyCalendarEditMonth, setCompanyCalendarEditMonth] = useState('2026-09');
-  const [companyCalendarSaving, setCompanyCalendarSaving] = useState(false);
   const [companyCalendarUploading, setCompanyCalendarUploading] = useState(false);
 
   const [disposalFilterQuery, setDisposalFilterQuery] = useState('');
@@ -1988,31 +1987,6 @@ export default function AdminPage() {
     return Number.isInteger(num) ? `${num}日` : `${num.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}日`;
   };
 
-  const saveCompanyCalendars = async (nextCalendars = companyCalendars) => {
-    if (authRole !== 'admin') return;
-    try {
-      setCompanyCalendarSaving(true);
-      const newData = await buildLatestSettingsForSave({ companyCalendars: nextCalendars });
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newData)
-      });
-      if (!res.ok) throw new Error('会社カレンダーの保存に失敗しました。');
-
-      setSettings(newData);
-      setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      setCompanyCalendars(nextCalendars);
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 2500);
-    } catch (e) {
-      console.error(e);
-      alert('会社カレンダーの保存に失敗しました。');
-    } finally {
-      setCompanyCalendarSaving(false);
-    }
-  };
-
   const ensureCompanyCalendarCycle = (cycle: string) => {
     setCompanyCalendars((prev: any) => {
       if (prev?.[cycle]) return prev;
@@ -2032,31 +2006,6 @@ export default function AdminPage() {
             sourceFileName: '',
             pdfPath: '',
             holidays: []
-          }
-        }
-      };
-    });
-  };
-
-  const toggleCompanyCalendarHoliday = (dateStr: string) => {
-    setCompanyCalendars((prev: any) => {
-      const cycleData = prev?.[companyCalendarCycle] || {};
-      const current = cycleData?.[companyCalendarPattern] || {
-        label: companyCalendarPattern === 'yamato' ? '大和社員' : '実習生',
-        workHours: companyCalendarPattern === 'yamato' ? 8 : 7,
-        holidays: []
-      };
-      const set = new Set(current.holidays || []);
-      if (set.has(dateStr)) set.delete(dateStr);
-      else set.add(dateStr);
-
-      return {
-        ...prev,
-        [companyCalendarCycle]: {
-          ...cycleData,
-          [companyCalendarPattern]: {
-            ...current,
-            holidays: Array.from(set).sort()
           }
         }
       };
@@ -9681,7 +9630,7 @@ export default function AdminPage() {
                                 {y}年{m}月 ／ {companyCalendarPattern === 'yamato' ? '大和社員' : '実習生'}
                               </div>
                               <div className="text-xs text-slate-500 mt-1">
-                                PDFから自動登録した休日を表示します。必要な場合のみ日付を手動で変更できます。
+                                PDFから登録した休日を表示しています。休日の変更は新しいPDFをアップロードしてください。
                               </div>
                             </div>
 
@@ -9708,18 +9657,17 @@ export default function AdminPage() {
                               const day = Number(dateStr.slice(8));
                               const holiday = holidays.has(dateStr);
                               return (
-                                <button
+                                <div
                                   key={dateStr}
-                                  type="button"
-                                  onClick={() => toggleCompanyCalendarHoliday(dateStr)}
-                                  className={`h-11 rounded-lg border text-sm font-bold transition ${
+                                  aria-label={`${dateStr}：${holiday ? '休日' : '出勤日'}`}
+                                  className={`h-11 rounded-lg border text-sm font-bold flex items-center justify-center ${
                                     holiday
                                       ? 'bg-slate-800 border-slate-800 text-white'
-                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                      : 'bg-white border-slate-200 text-slate-700'
                                   }`}
                                 >
                                   {day}
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -9727,14 +9675,9 @@ export default function AdminPage() {
                       );
                     })()}
 
-                    <button
-                      type="button"
-                      onClick={() => saveCompanyCalendars()}
-                      disabled={companyCalendarSaving}
-                      className="w-full md:w-auto px-6 py-3 rounded-xl bg-sky-700 text-white font-bold disabled:opacity-50"
-                    >
-                      {companyCalendarSaving ? '保存中...' : '会社カレンダーを保存'}
-                    </button>
+                    <div className="text-xs text-slate-600">
+                      PDFの読み取り結果は、アップロード時に確認後、自動で保存されます。過去の日報・勤怠データは変更しません。
+                    </div>
                   </div>
                 )}
               </div>
