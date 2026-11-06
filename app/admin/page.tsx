@@ -578,6 +578,28 @@ export default function AdminPage() {
   const [calendarYearMonth, setCalendarYearMonth] = useState(() => getCurrentYearMonth());
   // 社長モード専用UX：スマホで「何を確認したいか」から入る
   const [viewerSection, setViewerSection] = useState<'home' | 'sites' | 'costs' | 'reports' | 'attendance'>('home');
+  // 社長モードだけ：選んだ画面をすぐ見られる位置へ移動する。
+  // 管理モードの画面切替・表示位置には影響しない。
+  useEffect(() => {
+    if (authRole !== 'viewer') return;
+    const targets: Record<string, string> = {
+      home: 'viewer-mobile-home',
+      sites: 'viewer-mobile-sites',
+      costs: 'viewer-mobile-costs',
+      reports: 'viewer-mobile-reports',
+      attendance: 'viewer-mobile-attendance',
+    };
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const target = document.getElementById(targets[viewerSection]);
+        if (!target) return;
+        const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [viewerSection, authRole]);
+
   // 社長モード専用のスマホ表示。日報・勤怠の保存内容には影響しない。
   const [viewerAttendanceMode, setViewerAttendanceMode] = useState<'day' | 'staff'>('day');
   const [viewerAttendanceDate, setViewerAttendanceDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
@@ -8601,7 +8623,8 @@ export default function AdminPage() {
           `¥${Math.round(Number(value || 0)).toLocaleString('ja-JP')}`;
 
         return (
-          <div className="space-y-4">
+          <div id="viewer-mobile-home" className="space-y-4 scroll-mt-4">
+            {viewerSection === 'home' && <>
             <section className="rounded-[24px] bg-white border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-4 pt-4 pb-3">
                 <div className="flex items-start gap-3">
@@ -8792,8 +8815,20 @@ export default function AdminPage() {
               </section>
             )}
 
+            </>}
+            {viewerSection !== 'home' && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 flex items-center justify-between gap-3 shadow-sm">
+                <button type="button" onClick={() => setViewerSection('home')} className="min-h-[48px] rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-[16px] font-bold text-slate-900">
+                  ← 社長ホーム
+                </button>
+                <span className="min-w-0 break-words text-right text-[16px] font-bold text-slate-700">
+                  {viewerSection === 'sites' ? '現場の状況' : viewerSection === 'reports' ? '日報を見る' : viewerSection === 'attendance' ? '出勤状況' : '経費の流れ'}
+                </span>
+              </div>
+            )}
             {viewerSection === 'costs' && (
-              <section className="space-y-3">
+              <section id="viewer-mobile-costs" className="space-y-3 scroll-mt-4">
+                <h3 className="text-[21px] font-bold text-slate-900">💰 経費の流れ</h3>
                 {activeSummary.map(({ loc, c, spentRate, remaining }: any) => {
                   const otherCosts =
                     Number(c.ownMachineCost || 0) +
@@ -8900,21 +8935,13 @@ export default function AdminPage() {
               </section>
             )}
 
-            {viewerSection !== 'home' && (
-              <button
-                type="button"
-                onClick={() => setViewerSection('home')}
-                className="w-full rounded-2xl bg-white border border-slate-200 py-3.5 text-[15px] font-medium text-slate-600 shadow-sm"
-              >
-                ← 社長ホームへ戻る
-              </button>
-            )}
           </div>
         );
       })()}
 
       {/* 稼働中の現場サマリー */}
       <div id="admin-sites" className={`${authRole === 'viewer' && viewerSection !== 'sites' ? 'hidden' : ''} ${adminViewClass('sites')} scroll-mt-6 bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 space-y-5`}>
+        {authRole === 'viewer' && <div id="viewer-mobile-sites" className="scroll-mt-4"><button type="button" onClick={() => setViewerSection('home')} className="w-full min-h-[48px] rounded-xl bg-slate-900 text-white text-[16px] font-bold mb-4">← 社長ホームへ戻る</button></div>}
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">🏢 現場ごとの原価・利益を見る</h2>
           <p className="mt-1 text-sm text-slate-500">稼働中の現場を選ぶと、売上・経費・利益と詳しい内訳を確認できます。</p>
@@ -9146,58 +9173,23 @@ export default function AdminPage() {
       {/* 出勤確認表：社長モードのみ表示 */}
       {authRole === 'viewer' && (
       <div className={`${viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            if (!showCalendarSection) {
-              setCalendarYearMonth(getCurrentYearMonth());
-            }
-            setShowCalendarSection(!showCalendarSection);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              if (!showCalendarSection) {
-                setCalendarYearMonth(getCurrentYearMonth());
-              }
-              setShowCalendarSection(!showCalendarSection);
-            }
-          }}
-          className="flex justify-between items-center flex-wrap gap-3 bg-blue-100 px-4 md:px-8 py-4 md:py-5 cursor-pointer select-none"
-        >
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-blue-900">📅 出勤確認表</h2>
-            <p className="text-sm md:text-base text-blue-700 mt-1">誰が・いつ・どの現場に入ったか確認する画面です</p>
+        <div id="viewer-mobile-attendance" className="scroll-mt-4">
+          <div className="flex items-center justify-between gap-3 bg-blue-100 px-4 py-4 md:px-8 md:py-5">
+            <div className="min-w-0">
+              <h2 className="text-[21px] md:text-2xl font-bold text-blue-900">📅 出勤確認表</h2>
+              <p className="text-[14px] leading-relaxed text-blue-800 mt-1">日付または作業員を選ぶと、すぐ下に結果が表示されます</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            {showCalendarSection && (
-              <div className="flex w-full sm:w-auto items-center gap-2">
-                <span className="shrink-0 text-sm md:text-base font-bold text-slate-700">表示月:</span>
-                <input 
-                  type="month" 
-                  value={calendarYearMonth} 
-                  onChange={e => { setCalendarYearMonth(e.target.value); setViewerAttendanceDate(`${e.target.value}-01`); }}
-                  className="w-full sm:w-auto min-h-[48px] p-3 border border-slate-300 rounded-xl text-base font-bold bg-white focus:outline-none"
-                />
-              </div>
-            )}
-            <button 
-              onClick={() => {
-                if (!showCalendarSection) {
-                  setCalendarYearMonth(getCurrentYearMonth());
-                }
-                setShowCalendarSection(!showCalendarSection);
-              }}
-              className="w-full sm:w-auto min-h-[48px] bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-4 py-3 rounded-xl font-bold text-sm md:text-base transition shadow-sm"
-            >
-              {showCalendarSection ? '📅 出勤確認表を隠す ▲' : '📅 出勤確認表を開く ▼'}
+          <div className="px-4 pt-3 md:px-8 flex flex-wrap items-end gap-3">
+            <button type="button" onClick={() => setViewerSection('home')} className="min-h-[48px] flex-1 rounded-xl bg-slate-900 px-4 py-2 text-[15px] font-bold text-white">
+              ← 社長ホームへ戻る
             </button>
+            <label className="flex-1 min-w-[130px] space-y-1">
+              <span className="block text-[13px] font-bold text-slate-700">表示月</span>
+              <input type="month" value={calendarYearMonth} onChange={e => { setCalendarYearMonth(e.target.value); setViewerAttendanceDate(`${e.target.value}-01`); }} className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-[16px] font-bold" />
+            </label>
           </div>
-        </div>
-
-        {showCalendarSection && (
-          <div className="p-4 md:p-8 pt-5 animate-fadeIn">
+          <div className="p-4 pt-4 md:p-8">
             {allStaffNames.length === 0 ? (
               <p className="text-base text-slate-500 text-center py-6">登録されているスタッフがいません</p>
             ) : (
@@ -9358,7 +9350,7 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        )}
+        </div>
       </div>
       )}
 
@@ -11657,6 +11649,7 @@ export default function AdminPage() {
 
       {/* 送信された日報一覧（カレンダー＆現場別リスト） */}
       <div className={`${authRole === 'viewer' ? (viewerSection !== 'reports' ? 'hidden' : '') : adminViewClass('reports')} bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 space-y-6`}>
+        {authRole === 'viewer' && <div id="viewer-mobile-reports" className="scroll-mt-4"><button type="button" onClick={() => setViewerSection('home')} className="w-full min-h-[48px] rounded-xl bg-slate-900 text-white text-[16px] font-bold">← 社長ホームへ戻る</button></div>}
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
           <input 
