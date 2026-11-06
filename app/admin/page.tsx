@@ -12144,106 +12144,93 @@ export default function AdminPage() {
                   const scraps = Array.isArray(r.scraps) ? r.scraps : [];
 
                   return (
-                    <div key={r.id || r._id || i} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="font-bold text-slate-700 text-sm md:text-base">📅 {r.date}</span>
-                        {r.client && <span className="font-bold text-blue-700 text-sm md:text-base">🏢 請負先: {r.client}</span>}
-                        {r.startDate && <span className="font-bold text-slate-600 text-sm md:text-base">⏱ 開始日: {r.startDate}</span>}
-                        <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
-
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
+                    <div key={r.id || r._id || i} className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 space-y-4 shadow-sm">
+                      {/* 日報詳細：保存内容や編集・削除処理は変えず、表示のみ整理する */}
+                      <div className="rounded-xl bg-slate-800 px-4 py-3 text-white">
+                        <div className="text-xs text-slate-300 mb-1">日報 {i + 1} / {calendarReportModal.reports.length}</div>
+                        <div className="font-bold text-base md:text-lg">{r.date || calendarReportModal.date}　{r.location || calendarReportModal.location}</div>
                       </div>
 
-                      <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
-                        (r.officeMessage || r.data?.officeMessage)
-                          ? 'bg-orange-50 border-orange-300'
-                          : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className={`text-xs md:text-sm mb-1 ${
-                          (r.officeMessage || r.data?.officeMessage)
-                            ? 'text-orange-700'
-                            : 'text-slate-400'
-                        }`}>
-                          📢 事務所への報告・相談
+                      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-slate-800 border-b pb-2">👷 基本情報</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div><span className="text-slate-500 block text-xs mb-1">報告者</span><span className="font-bold break-words">{r.reporter || r.data?.reporter || '未記録'}</span></div>
+                          <div><span className="text-slate-500 block text-xs mb-1">職長</span><span className="font-bold break-words">{r.manager || '未記録'}</span></div>
+                          {r.client && <div><span className="text-slate-500 block text-xs mb-1">請負先</span><span className="font-bold break-words">{r.client}</span></div>}
+                          {r.startDate && <div><span className="text-slate-500 block text-xs mb-1">開始日</span><span className="font-bold">{r.startDate}</span></div>}
                         </div>
-                        <div className={`text-sm md:text-base font-medium ${
-                          (r.officeMessage || r.data?.officeMessage)
-                            ? 'text-slate-900'
-                            : 'text-slate-400'
-                        }`}>
-                          {(r.officeMessage || r.data?.officeMessage) || 'なし'}
+                        <div><div className="text-xs text-slate-500 mb-1">作業者（{workers.length}名）</div>
+                          <div className="flex flex-wrap gap-1.5">{workers.length ? workers.map((w: any, wi: number) => <span key={wi} className="bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-sm font-medium break-all">{String(w)}</span>) : <span className="text-sm text-slate-400">なし</span>}</div>
                         </div>
-                      </div>
+                      </section>
 
-                      {r.jobTypes && Object.keys(r.jobTypes).length > 0 && (
-                        <div className="text-sm text-indigo-800 font-bold">
-                          🏷️ 職種人数: {Object.entries(r.jobTypes).map(([job, count]) => `${job}: ${count}人`).join(', ')}
-                        </div>
+                      <section className={`rounded-xl border p-4 ${r.officeMessage || r.data?.officeMessage ? 'border-orange-200 bg-orange-50' : 'border-slate-200 bg-white'}`}>
+                        <h4 className="font-bold text-sm text-slate-800 mb-2">📢 事務所への報告・相談</h4>
+                        <div className="text-sm md:text-base whitespace-pre-wrap break-words leading-relaxed">{r.officeMessage || r.data?.officeMessage || 'なし'}</div>
+                      </section>
+
+                      {(r.jobTypes && Object.keys(r.jobTypes).length > 0 || subcontractors.length > 0) && (
+                        <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                          <h4 className="text-sm font-bold border-b pb-2 text-slate-800">🏷️ 職種・外注</h4>
+                          {r.jobTypes && Object.keys(r.jobTypes).length > 0 && <div>
+                            <div className="text-xs text-slate-500 mb-2">職種人数</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{Object.entries(r.jobTypes).map(([job, count]: any) => <div key={job} className="bg-slate-50 rounded-lg p-2.5"><div className="text-xs text-slate-600 break-words">{job}</div><div className="font-bold text-indigo-800">{String(count)} 人</div></div>)}</div>
+                          </div>}
+                          {subcontractors.length > 0 && <div><div className="text-xs text-slate-500 mb-2">外注</div><div className="space-y-2">{subcontractors.map((sc: any, si: number) => <div key={si} className="rounded-lg bg-orange-50 p-3 text-sm break-words"><b>{sc.company || '会社名未入力'}</b><div className="mt-1">{sc.task || '作業内容未入力'}：{String(sc.count ?? 0)}人</div></div>)}</div></div>}
+                        </section>
                       )}
 
-                      {subcontractors.length > 0 && (
-                        <div className="text-sm text-orange-800 font-bold">
-                          外注: {subcontractors.map((s:any)=>`${s.company} (${s.task}: ${s.count}人)`).join(', ')}
-                        </div>
-                      )}
-
-                      <div className="text-sm text-slate-700 font-medium space-y-1 bg-white p-3 rounded-xl border">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🚜 重機・車両・リース内訳</div>
-                        {machines.length > 0 && <div>🔹 <b>MOKリース(旧):</b> {machines.join(', ')}</div>}
-                        {leaseHeavy.length > 0 && <div>🔸 <b>通常リース重機:</b> {leaseHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {leaseAttach.length > 0 && <div>🔸 <b>通常リースアタッチメント:</b> {leaseAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {leaseOther.length > 0 && <div>🔸 <b>通常リースその他機器:</b> {leaseOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {ishikawaHeavy.length > 0 && <div>🗾 <b>石川重機:</b> {ishikawaHeavy.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {ishikawaAttach.length > 0 && <div>🗾 <b>石川アタッチメント:</b> {ishikawaAttach.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {ishikawaOther.length > 0 && <div>🗾 <b>石川その他機器:</b> {ishikawaOther.map(formatLeaseSelectionLabel).join(', ')}</div>}
-                        {ishikawaCustomMachines.length > 0 && (
-                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
-                            📦 <b>石川県 リスト以外の機械（自由入力）:</b> {ishikawaCustomMachines.map((m:any)=>`${m?.name || '名称未入力'}(${m?.count || 0}個)`).join(', ')}
-                          </div>
-                        )}
-                        {mokCustomMachines.length > 0 && <div>📦 <b>その他機械(MOK):</b> {mokCustomMachines.map((m:any)=>`${m.name}(${m.count}個)`).join(', ')}</div>}
-                        {otherLeases.length > 0 && <div>📦 <b>その他リース:</b> {otherLeases.map((ol:any)=>`${ol.company}(${ol.name}:${ol.count}個)`).join(', ')}</div>}
-                        {r.otherMachines && <div>📦 <b>自由入力機械:</b> {r.otherMachines}</div>}
-                        {ownMachines.length > 0 && <div>🟩 <b>自社重機:</b> {ownMachines.join(', ')}</div>}
-                        {vehicles.length > 0 && <div>🚙 <b>自社車両:</b> {vehicles.join(', ')}</div>}
-                      </div>
-
-                      <div className="text-sm text-slate-700 font-medium grid grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border">
-                        <div>軽油: <b>{r.fuel || 0} L</b></div>
-                        <div>レギュラー: <b>{formatAmount(r.regularPrice || 0)}</b></div>
-                        {r.location?.includes('旧河北郡市クリーンセンター') && (
-                          <div className="col-span-2">
-                            宇野気石油 合計: <b>{(Number(r.unokeFuel || 0) + Number(r.unokeRegular || 0)).toLocaleString('ja-JP')} L</b>
-                          </div>
-                        )}
-                        <div>ETC: <b>{formatAmount(r.etcPrice || 0)}</b></div>
-                        <div>駐車場代: <b>{formatAmount(r.parkingPrice || 0)}</b></div>
-                        {r.otherItem && <div className="col-span-2">雑費({r.otherItem}): <b>{formatAmount(r.otherPrice || 0)}</b></div>}
-                      </div>
-
-                      {(disposals.length > 0 || scraps.length > 0) && (
-                        <div className="flex flex-col gap-1 pt-0.5">
-                          {disposals.length > 0 && (
-                            <div className="text-sm text-amber-800 font-bold">
-                              🗑️ 処分: {disposals.map((d: any) => `${d.location || 'その他'} (${d.item || '品目未指定'}: ${d.quantity || 0}${d.unit || 't'})`).join(', ')}
+                      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                        <h4 className="text-sm font-bold border-b pb-2 text-slate-800">🚜 重機・車両・リース品</h4>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
+                          {[
+                            ['MOKリース（旧）', machines.map(String)],
+                            ['通常リース重機', leaseHeavy.map(formatLeaseSelectionLabel)],
+                            ['通常リースアタッチメント', leaseAttach.map(formatLeaseSelectionLabel)],
+                            ['通常リースその他機器', leaseOther.map(formatLeaseSelectionLabel)],
+                            ['石川重機', ishikawaHeavy.map(formatLeaseSelectionLabel)],
+                            ['石川アタッチメント', ishikawaAttach.map(formatLeaseSelectionLabel)],
+                            ['石川その他機器', ishikawaOther.map(formatLeaseSelectionLabel)],
+                            ['石川県 リスト外の機械', ishikawaCustomMachines.map((m: any) => `${m?.name || '名称未入力'}（${m?.count ?? 0}個）`)],
+                            ['その他機械（MOK）', mokCustomMachines.map((m: any) => `${m?.name || '名称未入力'}（${m?.count ?? 0}個）`)],
+                            ['その他リース', otherLeases.map((ol: any) => `${ol?.company || '会社未入力'}：${ol?.name || '名称未入力'}（${ol?.count ?? 0}個）`)],
+                            ['自由入力機械', r.otherMachines ? [String(r.otherMachines)] : []],
+                            ['自社重機', ownMachines.map(String)],
+                            ['自社車両', vehicles.map(String)]
+                          ].filter((entry: any) => entry[1].length > 0).map(([label, values]: any, gi: number) => (
+                            <div key={gi} className="bg-slate-50 rounded-lg p-3 min-w-0">
+                              <div className="text-xs font-bold text-slate-600 mb-2">{label}</div>
+                              <div className="space-y-1.5">{values.map((v: string, vi: number) => <div key={vi} className="text-sm leading-relaxed break-words whitespace-pre-wrap pl-3 relative"><span className="absolute left-0 text-slate-400">•</span>{v}</div>)}</div>
                             </div>
-                          )}
-                          {scraps.length > 0 && (
-                            <div className="text-sm text-emerald-700 font-bold">
-                              ♻️ スクラップ: {scraps.map((sc: any) => `${sc.location || 'その他'} (${sc.item || '品目未指定'}: ${sc.quantity || 0}${sc.unit || 'kg'})`).join(', ')}
-                            </div>
-                          )}
+                          ))}
+                          {![machines, leaseHeavy, leaseAttach, leaseOther, ishikawaHeavy, ishikawaAttach, ishikawaOther, ishikawaCustomMachines, mokCustomMachines, otherLeases, ownMachines, vehicles].some((arr) => arr.length > 0) && !r.otherMachines && <div className="text-slate-400">なし</div>}
                         </div>
-                      )}
+                      </section>
 
-                      {r.workDescription && (
-                        <div className="text-sm md:text-base text-slate-700 font-medium bg-white p-3.5 rounded-xl border border-slate-200 whitespace-pre-wrap">
-                          <div className="text-xs text-slate-500 mb-1">📝 本日の作業内容</div>
-                          {r.workDescription}
+                      <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                        <h4 className="text-sm font-bold border-b pb-2 text-slate-800">💴 燃料・経費</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                          {[
+                            ['軽油', `${r.fuel || 0} L`],
+                            ['レギュラー', (Number(r.regularPrice || 0)).toLocaleString('ja-JP') + ' 円'],
+                            ['ETC', (Number(r.etcPrice || 0)).toLocaleString('ja-JP') + ' 円'],
+                            ['駐車場代', (Number(r.parkingPrice || 0)).toLocaleString('ja-JP') + ' 円']
+                          ].map(([label, value]) => <div key={label} className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500 mb-1">{label}</div><div className="font-bold text-slate-900 break-words">{value}</div></div>)}
+                          {r.location?.includes('旧河北郡市クリーンセンター') && <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500 mb-1">宇野気石油 合計</div><div className="font-bold">{(Number(r.unokeFuel || 0) + Number(r.unokeRegular || 0)).toLocaleString('ja-JP')} L</div></div>}
+                          {r.otherItem && <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500 mb-1 break-words">雑費：{r.otherItem}</div><div className="font-bold">{formatAmount(r.otherPrice || 0)}</div></div>}
                         </div>
-                      )}
+                      </section>
 
+                      {(disposals.length > 0 || scraps.length > 0) && <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                        <h4 className="text-sm font-bold border-b pb-2 text-slate-800">🗑️ 処分・スクラップ</h4>
+                        {disposals.length > 0 && <div className="space-y-2"><div className="text-xs text-slate-500">処分</div>{disposals.map((d: any, di: number) => <div key={di} className="bg-amber-50 rounded-lg p-3 text-sm break-words">{d.location || 'その他'} ／ {d.item || '品目未指定'}：{d.quantity || 0}{d.unit || 't'}</div>)}</div>}
+                        {scraps.length > 0 && <div className="space-y-2"><div className="text-xs text-slate-500">スクラップ</div>{scraps.map((sc: any, si: number) => <div key={si} className="bg-emerald-50 rounded-lg p-3 text-sm break-words">{sc.location || 'その他'} ／ {sc.item || '品目未指定'}：{sc.quantity || 0}{sc.unit || 'kg'}</div>)}</div>}
+                      </section>}
 
+                      <section className="rounded-xl border border-slate-200 bg-white p-4">
+                        <h4 className="text-sm font-bold border-b pb-2 text-slate-800 mb-3">📝 本日の作業内容</h4>
+                        <div className="text-sm md:text-base text-slate-800 whitespace-pre-wrap break-words leading-relaxed">{r.workDescription || 'なし'}</div>
+                      </section>
 
                       {authRole === 'admin' && (
                         <div className="flex gap-2 pt-2">
