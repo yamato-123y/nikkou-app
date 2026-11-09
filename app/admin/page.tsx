@@ -9172,33 +9172,29 @@ export default function AdminPage() {
 
       {/* 出勤確認表：社長モードのみ表示 */}
       {authRole === 'viewer' && (
-      <div className={`${viewerSection !== 'attendance' ? 'hidden' : ''} bg-blue-50/40 rounded-2xl md:rounded-3xl shadow-sm border-2 border-blue-200 overflow-hidden`}>
+      <div className={`${viewerSection !== 'attendance' ? 'hidden' : ''} min-w-0 rounded-2xl md:rounded-3xl bg-white shadow-sm border border-slate-200 overflow-hidden`}>
         <div id="viewer-mobile-attendance" className="scroll-mt-4">
-          <div className="flex items-center justify-between gap-3 bg-blue-100 px-4 py-4 md:px-8 md:py-5">
-            <div className="min-w-0">
-              <h2 className="text-[21px] md:text-2xl font-bold text-blue-900">📅 出勤確認表</h2>
-              <p className="text-[14px] leading-relaxed text-blue-800 mt-1">日付または作業員を選ぶと、すぐ下に結果が表示されます</p>
-            </div>
+          <div className="bg-slate-50 px-4 py-4 md:px-8 md:py-5 border-b border-slate-200">
+            <h2 className="text-[20px] md:text-2xl font-bold text-slate-900">📅 出勤確認表</h2>
+            <p className="text-[13px] leading-relaxed text-slate-600 mt-1">日付または作業員を選んで確認できます</p>
           </div>
-          <div className="px-4 pt-3 md:px-8 flex flex-wrap items-end gap-3">
-            <button type="button" onClick={() => setViewerSection('home')} className="min-h-[48px] flex-1 rounded-xl bg-slate-900 px-4 py-2 text-[15px] font-bold text-white">
-              ← 社長ホームへ戻る
-            </button>
-            <label className="flex-1 min-w-[130px] space-y-1">
-              <span className="block text-[13px] font-bold text-slate-700">表示月</span>
-              <input type="month" value={calendarYearMonth} onChange={e => { setCalendarYearMonth(e.target.value); setViewerAttendanceDate(`${e.target.value}-01`); }} className="w-full min-h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-[16px] font-bold" />
+          {/* 社長モードの戻るボタンは上部ナビにあるため、ここでは重複表示しない。 */}
+          <div className="px-4 pt-4 md:px-8 min-w-0">
+            <label className="block min-w-0 w-full space-y-1.5">
+              <span className="block text-[13px] font-bold text-slate-600">表示する月</span>
+              <input type="month" value={calendarYearMonth} onChange={e => { setCalendarYearMonth(e.target.value); setViewerAttendanceDate(`${e.target.value}-01`); }} className="block box-border w-full min-w-0 max-w-full h-[48px] rounded-xl border border-slate-300 bg-white px-3 text-[16px] font-bold text-slate-900" style={{ minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }} />
             </label>
           </div>
-          <div className="p-4 pt-4 md:p-8">
+          <div className="min-w-0 p-4 pt-3 md:p-8">
             {allStaffNames.length === 0 ? (
               <p className="text-base text-slate-500 text-center py-6">登録されているスタッフがいません</p>
             ) : (
               <>
               {/* 社長モード：スマホでは横長の31日表を使わず、日付別・作業員別に確認 */}
-              <div className="md:hidden space-y-4">
-                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5" role="group" aria-label="出勤確認表の表示切替">
-                  <button type="button" onClick={() => setViewerAttendanceMode('day')} aria-pressed={viewerAttendanceMode === 'day'} className={`min-h-[48px] rounded-xl text-[16px] font-bold ${viewerAttendanceMode === 'day' ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-700'}`}>📅 日付から探す</button>
-                  <button type="button" onClick={() => setViewerAttendanceMode('staff')} aria-pressed={viewerAttendanceMode === 'staff'} className={`min-h-[48px] rounded-xl text-[16px] font-bold ${viewerAttendanceMode === 'staff' ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-700'}`}>👤 作業員から探す</button>
+              <div className="md:hidden min-w-0 space-y-3">
+                <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1" role="group" aria-label="出勤確認表の表示切替">
+                  <button type="button" onClick={() => setViewerAttendanceMode('day')} aria-pressed={viewerAttendanceMode === 'day'} className={`min-h-[46px] min-w-0 rounded-lg px-1 text-[14px] sm:text-[16px] font-bold ${viewerAttendanceMode === 'day' ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-700'}`}>📅 日付から探す</button>
+                  <button type="button" onClick={() => setViewerAttendanceMode('staff')} aria-pressed={viewerAttendanceMode === 'staff'} className={`min-h-[46px] min-w-0 rounded-lg px-1 text-[14px] sm:text-[16px] font-bold ${viewerAttendanceMode === 'staff' ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-700'}`}>👤 作業員から探す</button>
                 </div>
                 {viewerAttendanceMode === 'day' ? (() => {
                   const chosen = calendarDays.includes(viewerAttendanceDate) ? viewerAttendanceDate : calendarDays[0];
@@ -9211,18 +9207,18 @@ export default function AdminPage() {
                   const weekday = ['日','月','火','水','木','金','土'][new Date(`${chosen}T12:00:00`).getDay()];
                   return (
                     <div className="space-y-3">
-                      <div className="rounded-2xl border border-blue-200 bg-white p-3 space-y-2">
-                        <label htmlFor="viewer-attendance-date" className="block text-[14px] font-bold text-slate-600">確認する日付</label>
-                        <input id="viewer-attendance-date" type="date" min={calendarDays[0]} max={calendarDays[calendarDays.length-1]} value={chosen} onChange={e => setViewerAttendanceDate(e.target.value)} className="w-full min-h-[50px] rounded-xl border border-slate-300 bg-white px-3 text-[18px] font-bold text-slate-900"/>
-                        <p className="text-[14px] text-slate-600">{chosen}（{weekday}）の日報登録状況</p>
+                      <div className="min-w-0 max-w-full rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 overflow-hidden">
+                        <label htmlFor="viewer-attendance-date" className="block text-[14px] font-bold text-slate-700">確認する日付</label>
+                        <input id="viewer-attendance-date" type="date" min={calendarDays[0]} max={calendarDays[calendarDays.length-1]} value={chosen} onChange={e => setViewerAttendanceDate(e.target.value)} className="block box-border w-full min-w-0 max-w-full h-[48px] rounded-lg border border-slate-300 bg-white px-2 text-[16px] font-bold text-slate-900" style={{ minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}/>
+                        <p className="text-[13px] text-slate-600">{Number(chosen.slice(5,7))}月{Number(chosen.slice(8,10))}日（{weekday}）の確認結果</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3"><div className="text-[13px] text-emerald-800">日報に記載あり</div><div className="text-[25px] font-bold text-emerald-900">{attended.length}<span className="text-[14px] ml-1">人</span></div></div>
-                        <div className="rounded-xl bg-slate-100 border border-slate-200 p-3"><div className="text-[13px] text-slate-600">日報に記載なし</div><div className="text-[25px] font-bold text-slate-800">{notRecorded.length}<span className="text-[14px] ml-1">人</span></div></div>
+                      <div className="grid grid-cols-2 gap-2 min-w-0">
+                        <div className="min-w-0 rounded-xl bg-emerald-50 border border-emerald-200 p-3"><div className="text-[13px] text-emerald-800">日報に記載あり</div><div className="text-[25px] font-bold text-emerald-900">{attended.length}<span className="text-[14px] ml-1">人</span></div></div>
+                        <div className="min-w-0 rounded-xl bg-slate-50 border border-slate-200 p-3"><div className="text-[13px] text-slate-600">日報に記載なし</div><div className="text-[25px] font-bold text-slate-800">{notRecorded.length}<span className="text-[14px] ml-1">人</span></div></div>
                       </div>
                       <p className="text-[12px] leading-relaxed text-slate-500">※ 日報に名前があるかの確認です。「記載なし」は欠勤を意味しません。</p>
                       <div className="space-y-2">
-                        <h3 className="text-[17px] font-bold text-slate-900">出勤記録のある作業員</h3>
+                        <h3 className="text-[16px] font-bold text-slate-900">日報に記載のある作業員</h3>
                         {attended.length === 0 && <div className="rounded-xl bg-white border border-slate-200 p-4 text-slate-600">この日に名前が記載された日報はありません。</div>}
                         {attended.map(row => (
                           <div key={row.staff} className="rounded-2xl bg-white border border-emerald-200 p-4 space-y-2">
@@ -9245,9 +9241,9 @@ export default function AdminPage() {
                   const worked = days.filter(d => d.entries.length);
                   return (
                     <div className="space-y-3">
-                      <div className="rounded-2xl border border-blue-200 bg-white p-3 space-y-2">
-                        <label htmlFor="viewer-attendance-staff" className="block text-[14px] font-bold text-slate-600">確認する作業員</label>
-                        <select id="viewer-attendance-staff" value={staff} onChange={e => setViewerAttendanceStaff(e.target.value)} className="w-full min-h-[50px] rounded-xl border border-slate-300 bg-white px-3 text-[17px] font-bold text-slate-900">{allStaffNames.map(name => <option key={name} value={name}>{name}</option>)}</select>
+                      <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <label htmlFor="viewer-attendance-staff" className="block text-[14px] font-bold text-slate-700">確認する作業員</label>
+                        <select id="viewer-attendance-staff" value={staff} onChange={e => setViewerAttendanceStaff(e.target.value)} className="block box-border w-full min-w-0 max-w-full h-[48px] rounded-lg border border-slate-300 bg-white px-2 text-[16px] font-bold text-slate-900">{allStaffNames.map(name => <option key={name} value={name}>{name}</option>)}</select>
                       </div>
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><div className="text-[13px] text-emerald-900">この月の日報に名前がある日</div><div className="text-[26px] font-bold text-emerald-950">{worked.length}<span className="ml-1 text-[14px]">日</span></div></div>
                       <p className="text-[12px] text-slate-500">※ 日報登録のある日を表示しています。勤怠の確定日数とは異なる場合があります。</p>
