@@ -7213,7 +7213,14 @@ export default function AdminPage() {
     });
   });
 
-  const dashboardMissingYesterday = (settings.workers || [])
+  // 日曜日は全員休日として扱い、会社カレンダーの登録有無に関係なく
+  // 「前日未入力候補」を表示しない。日報・勤怠の保存内容は変更しない。
+  const dashboardYesterdayIsSunday = (() => {
+    const [year, month, day] = dashboardYesterday.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 0;
+  })();
+
+  const dashboardMissingYesterday = dashboardYesterdayIsSunday ? [] : (settings.workers || [])
     .filter((worker: any) => {
       const name = String(typeof worker === 'string' ? worker : worker?.name || '').trim();
       if (!name) return false;
