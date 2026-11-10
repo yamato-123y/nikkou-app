@@ -446,6 +446,9 @@ export default function AdminPage() {
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
   // 宇野気石油の請求書は月別に入力する。日報のリットル数は変更しない。
   const [unokeInvoiceYearMonth, setUnokeInvoiceYearMonth] = useState(() => getCurrentYearMonth());
+  // 宇野気石油・以前の合計金額の編集欄（保存まではデータを変更しない）。
+  const [unokeLegacyEditLocation, setUnokeLegacyEditLocation] = useState<string | null>(null);
+  const [unokeLegacyDraft, setUnokeLegacyDraft] = useState('');
   // 大阪の軽油単価は全現場共通。既存の現場別データは互換用に残し、
   // 共通単価が登録済みの月は共通単価を最優先で使用する。
   const OSAKA_FUEL_GLOBAL_KEY = '__osaka_all__';
@@ -2958,6 +2961,38 @@ export default function AdminPage() {
       }
     }));
     setFinancialDirty(true);
+  };
+
+  // 旧合計金額の修正・削除。変更前の額を履歴として保存し、月別請求書と日報は変更しない。
+  const updateUnokeLegacyAmount = (locName: string, newAmount: string, action: 'edit' | 'delete') => {
+    if (authRole !== 'admin') return;
+    const oldRaw = costOverrides[locName]?.unokeTotal;
+    const oldValue = oldRaw === undefined || oldRaw === null ? '' : String(oldRaw);
+    const nextValue = action === 'delete' ? '' : newAmount.trim();
+    if (action === 'edit' && (nextValue === '' || !/^\d+(?:\.\d{1,2})?$/.test(nextValue) || !Number.isFinite(Number(nextValue)))) {
+      alert('金額は0以上の数字で入力してください。');
+      return;
+    }
+    if (oldValue === nextValue) {
+      setUnokeLegacyEditLocation(null);
+      return;
+    }
+    const previousHistory = Array.isArray(costOverrides[locName]?.unokeLegacyHistory)
+      ? costOverrides[locName].unokeLegacyHistory : [];
+    setCostOverrides((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev[locName] || {}),
+        unokeTotal: nextValue,
+        unokeLegacyHistory: [
+          ...previousHistory,
+          { previousAmount: oldValue, newAmount: nextValue, action, changedAt: new Date().toISOString() }
+        ]
+      }
+    }));
+    setFinancialDirty(true);
+    setUnokeLegacyEditLocation(null);
+    alert('画面に反映しました。最後に「変更を保存」を押すと確定します。');
   };
 
   const handleCostOverrideChange = (locName: string, field: string, val: string) => {
@@ -16108,13 +16143,63 @@ export default function AdminPage() {
                             <div className="text-sm text-slate-500">月別の請求書はまだ入力されていません。</div>
                           )}
                       </div>
-                      {costOverrides[modalLocation]?.unokeTotal !== '' &&
+                      {(costOverrides[modalLocation]?.unokeTotal !== '' &&
                         costOverrides[modalLocation]?.unokeTotal !== undefined &&
-                        costOverrides[modalLocation]?.unokeTotal !== null && (
-                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                          <div className="text-xs text-amber-900 font-bold">以前の合計金額（引継ぎ分）</div>
-                          <div className="text-base font-bold text-amber-900">{formatAmount(Number(costOverrides[modalLocation].unokeTotal) || 0)}</div>
-                          <p className="mt-1 text-xs text-amber-800">この金額は削除せず利益計算に含めています。以前の合計に含まれる月を再入力すると二重計上になるため、ご注意ください。</p>
+                        costOverrides[modalLocation]?.unokeTotal !== null ||
+                        (Array.isArray(costOverrides[modalLocation]?.unokeLegacyHistory) && costOverrides[modalLocation].unokeLegacyHistory.length > 0)) && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="text-xs text-amber-900 font-bold">以前の合計金額（引継ぎ分）</div>
+                              <div className="text-base font-bold text-amber-900">
+                                {costOverrides[modalLocation]?.unokeTotal === '' || costOverrides[modalLocation]?.unokeTotal === undefined || costOverrides[modalLocation]?.unokeTotal === null
+                                  ? '削除済み（計算対象外）'
+                                  : formatAmount(Number(costOverrides[modalLocation].unokeTotal) || 0)}
+                              </div>
+                            </div>
+                            {authRole === 'admin' && (
+                              <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={() => {
+                                  setUnokeLegacyDraft(String(costOverrides[modalLocation]?.unokeTotal ?? ''));
+                                  setUnokeLegacyEditLocation(modalLocation);
+                                }} className="rounded-lg border border-amber-500 bg-white px-3 py-2 text-sm font-bold text-amber-900">編集</button>
+                                {costOverrides[modalLocation]?.unokeTotal !== '' && costOverrides[modalLocation]?.unokeTotal !== undefined && costOverrides[modalLocation]?.unokeTotal !== null && (
+                                  <button type="button" onClick={() => {
+                                    if (!window.confirm('以前の合計金額を計算から除外しますか？\n元の金額は変更履歴に残ります。月別請求書や日報は削除されません。')) return;
+                                    updateUnokeLegacyAmount(modalLocation, '', 'delete');
+                                  }} className="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-bold text-rose-700">削除</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {unokeLegacyEditLocation === modalLocation && authRole === 'admin' && (
+                            <div className="rounded-lg border border-amber-300 bg-white p-3 space-y-2">
+                              <label className="block text-sm font-bold text-slate-700">修正後の引継ぎ金額（円）</label>
+                              <input type="number" min="0" step="1" value={unokeLegacyDraft} onChange={e => setUnokeLegacyDraft(e.target.value)}
+                                className="w-full min-w-0 rounded-lg border border-slate-300 p-2.5 text-right font-bold" />
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => updateUnokeLegacyAmount(modalLocation, unokeLegacyDraft, 'edit')}
+                                  className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white">金額を反映</button>
+                                <button type="button" onClick={() => setUnokeLegacyEditLocation(null)}
+                                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold">キャンセル</button>
+                              </div>
+                            </div>
+                          )}
+                          <p className="text-xs text-amber-800">変更・削除後は画面の「変更を保存」を押してください。以前の金額は履歴で確認できます。</p>
+                          {Array.isArray(costOverrides[modalLocation]?.unokeLegacyHistory) && costOverrides[modalLocation].unokeLegacyHistory.length > 0 && (
+                            <details className="rounded-lg border border-amber-200 bg-white p-2">
+                              <summary className="cursor-pointer text-xs font-bold text-slate-700">以前の金額・変更履歴を見る</summary>
+                              <div className="mt-2 space-y-1 text-xs text-slate-600">
+                                {[...costOverrides[modalLocation].unokeLegacyHistory].reverse().map((row: any, index: number) => (
+                                  <div key={index} className="border-b border-slate-100 py-1 break-words">
+                                    {String(row.changedAt || '').replace('T', ' ').slice(0, 16)}：
+                                    {row.previousAmount === '' ? '未設定' : formatAmount(Number(row.previousAmount) || 0)} →
+                                    {row.newAmount === '' ? '削除（計算対象外）' : formatAmount(Number(row.newAmount) || 0)}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       )}
                       <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
