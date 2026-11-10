@@ -268,6 +268,8 @@ export default function AdminPage() {
   const [modalLocation, setModalLocation] = useState<string | null>(null);
   // PCの詳細分析：表示する作業分類だけを切り替える（保存データ・計算には影響しない）。
   const [detailAnalysisView, setDetailAnalysisView] = useState('disposal');
+  // PC現場一覧の検索（表示のみ。マスタ・保存データには影響しない）。
+  const [activeSiteSearch, setActiveSiteSearch] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
   const [form, setForm] = useState<any>({});
   // 詳細分析上部の「請負先・開始日」は入力中に日報全件へ即保存せず、
@@ -2850,8 +2852,18 @@ export default function AdminPage() {
   const toggleLocationFinished = async (locName: string) => {
     if (authRole === 'viewer') {
       alert('閲覧専用モードのため変更できません。');
-      return;
+      return false;
     }
+    const existingLocation = (settings.locations || []).find((l: any) =>
+      (typeof l === 'string' ? l : l?.name) === locName
+    );
+    const willFinish = !(typeof existingLocation === 'object' && !!existingLocation?.isFinished);
+    if (willFinish && !window.confirm(
+      `【${locName}】を完了扱いにしますか？\n\n` +
+      '稼働中の一覧から「完了済み現場」に移動します。\n' +
+      '過去の日報・経費は削除されません。'
+    )) return false;
+
     const currentLocs = (settings.locations || []).map((l: any) => {
       const name = typeof l === 'string' ? l : l.name;
       if (name === locName) {
@@ -2871,8 +2883,11 @@ export default function AdminPage() {
       });
       if (!res.ok) throw new Error('現場状態の保存に失敗しました。');
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
+      return true;
     } catch (e) {
       console.error(e);
+      alert('現場の状態を保存できませんでした。時間をおいて再度お試しください。');
+      return false;
     }
   };
 
@@ -9202,42 +9217,61 @@ export default function AdminPage() {
           )}
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse table-fixed">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-500 text-base font-bold uppercase tracking-wider">
-                <th className="py-4 px-3 w-[23%]">現場名</th>
-                <th className="py-4 px-3 w-[13%]">請負先</th>
-                <th className="py-4 px-3 w-[8%] text-center">締め日</th>
-                <th className="py-4 px-3 w-[11%]">請負金額</th>
-                <th className="py-4 px-3 w-[7%]">稼働日数</th>
-                <th className="py-4 px-3 w-[11%]">合計経費</th>
-                <th className="py-4 px-3 w-[14%]">粗利（売却益込）</th>
-                <th className="py-4 px-3 w-[13%] text-center">ステータス / アクション</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-lg font-medium">
-              {activeLocList.map((loc:any) => {
-                const c = calculateCosts(loc.name);
-                return (
-                  <tr key={loc.name} className="hover:bg-slate-50/80 transition">
-                    <td className="py-5 px-3 align-middle">
-                      <span className="font-bold text-lg break-all leading-snug text-blue-600">{loc.name}</span>
-                    </td>
-
-                    <td className="py-5 px-3 align-middle">
-                      <span className="text-sm font-bold text-slate-700 break-words">
-                        {c.clientStr || '－'}
-                      </span>
-                    </td>
-
-                    <td className="py-5 px-2 text-center align-middle">
-                      {authRole === 'viewer' ? (
-                        <span className="text-sm font-bold text-slate-700">
-                          {loc.closingDay ? `${loc.closingDay}日` : '－'}
-                        </span>
-                      ) : (
+        {/* PC管理モード：横長テーブルをやめ、読みやすい2列カード表示にする。 */}
+        <div className="hidden md:block space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-bold text-slate-600">稼働中の現場：{activeLocList.length}件</p>
+            <label className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="shrink-0 text-sm font-bold text-slate-600">🔍 現場検索</span>
+              <input
+                type="search"
+                value={activeSiteSearch}
+                onChange={(e) => setActiveSiteSearch(e.target.value)}
+                placeholder="現場名・請負先で探す"
+                className="w-full sm:w-72 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {activeLocList.filter((loc: any) => {
+              const query = activeSiteSearch.trim().toLowerCase();
+              if (!query) return true;
+              const c = calculateCosts(loc.name);
+              return `${loc.name} ${c.clientStr || ''}`.toLowerCase().includes(query);
+            }).map((loc: any) => {
+              const c = calculateCosts(loc.name);
+              return (
+                <div key={loc.name} className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:border-blue-200 transition">
+                  <div className="px-5 pt-4 pb-3 border-b border-slate-100">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-[16px] leading-relaxed text-blue-700 break-words">{loc.name}</div>
+                        <div className="mt-1 text-sm text-slate-600 break-words">請負先：<span className="font-semibold text-slate-800">{c.clientStr || '－'}</span></div>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-bold text-emerald-800">稼働中</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-5 py-4">
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-500 mb-1">請負金額（税抜）</div>
+                      <div className="text-[15px] font-extrabold text-slate-900 break-all">{formatAmount(c.contractPrice)}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-500 mb-1">合計経費</div>
+                      <div className="text-[15px] font-extrabold text-slate-900 break-all">{formatAmount(c.total)}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-500 mb-1">粗利（売却益込）</div>
+                      <div className={`text-[15px] font-extrabold break-all ${c.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatAmount(c.profit)}</div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50/70 border-t border-slate-100 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-700">稼働：<span className="font-extrabold">{c.days}日</span></span>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        締め日
                         <select
+                          disabled={authRole === 'viewer'}
                           value={loc.closingDay || ''}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -9256,7 +9290,7 @@ export default function AdminPage() {
                             }));
                             saveLocationBillingField(loc.name, 'closingDay', value);
                           }}
-                          className="w-full rounded-lg border border-slate-300 bg-white px-1 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm font-bold text-slate-800"
                         >
                           <option value="">未設定</option>
                           {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
@@ -9264,44 +9298,31 @@ export default function AdminPage() {
                           ))}
                           <option value="末日">末日</option>
                         </select>
-                      )}
-                    </td>
-
-                    <td className="py-5 px-3 text-slate-800 font-bold align-middle">{formatAmount(c.contractPrice)} <span className="text-xs font-normal text-slate-500">税抜</span></td>
-                    <td className="py-5 px-3 text-slate-800 font-bold align-middle">{c.days} 日</td>
-                    <td className="py-5 px-3 text-slate-900 font-bold align-middle">{formatAmount(c.total)}</td>
-                    <td className={`py-5 px-3 font-bold text-xl align-middle ${c.profit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                      {formatAmount(c.profit)}
-                    </td>
-                    <td className="py-5 px-3 text-center align-middle">
-                      <div className="flex items-center justify-center gap-2 flex-nowrap">
-                        {authRole !== 'viewer' && (
-                          <button onClick={() => toggleLocationFinished(loc.name)} className="bg-white hover:bg-slate-100 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold border border-slate-300 shadow-2xs transition">
-                            現場完了
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setModalLocation(loc.name)}
-                          className={`px-4 py-2.5 rounded-xl font-bold transition shadow-sm text-sm whitespace-nowrap text-white ${
-                            isStorageYardLocation(loc)
-                              ? 'bg-amber-600 hover:bg-amber-500'
-                              : 'bg-blue-600 hover:bg-blue-500'
-                          }`}
-                        >
-                          {isStorageYardLocation(loc) ? '置場管理 →' : '詳細分析 →'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {activeLocList.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center py-6 text-slate-400 text-base">稼働中の現場はありません</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalLocation(loc.name)}
+                      className={`shrink-0 rounded-xl px-5 py-2.5 text-sm font-extrabold text-white shadow-sm transition ${
+                        isStorageYardLocation(loc) ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'
+                      }`}
+                    >{isStorageYardLocation(loc) ? '置場管理 →' : '詳細分析 →'}</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {activeLocList.length === 0 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">稼働中の現場はありません</div>
+          )}
+          {activeLocList.length > 0 && !activeLocList.some((loc: any) => {
+            const query = activeSiteSearch.trim().toLowerCase();
+            const c = calculateCosts(loc.name);
+            return `${loc.name} ${c.clientStr || ''}`.toLowerCase().includes(query);
+          }) && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">検索に合う現場はありません</div>
+          )}
+          {authRole === 'admin' && <p className="text-xs text-slate-500">※ 現場完了は誤操作防止のため、この一覧には置いていません。詳細分析の「現場情報・設定」から操作できます。</p>}
         </div>
       </div>
 
@@ -15402,6 +15423,17 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              <details className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <summary className="cursor-pointer font-bold text-sm text-slate-700">⚙️ 置場の管理設定</summary>
+                <div className="mt-3 space-y-3">
+                  <p className="text-sm text-slate-600">使用を終了した置場は、完了済みの一覧へ移せます。過去の記録は残ります。</p>
+                  <button type="button" onClick={async () => {
+                    const completed = await toggleLocationFinished(modalLocation);
+                    if (completed) setModalLocation(null);
+                  }} className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-900">置場を完了扱いにする</button>
+                </div>
+              </details>
+
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="text-xs font-bold text-slate-500">日報件数</div>
@@ -15712,6 +15744,7 @@ export default function AdminPage() {
                   ['invoice', '🧾 請求書照合'],
                   ['summary', '📊 集計・利益'],
                   ['photos', '📷 現場写真'],
+                  ['site', '⚙️ 現場情報・設定'],
                   ['all', '📋 すべて表示（従来）'],
                 ].map(([key, label]) => (
                   <button key={key} type="button"
@@ -15726,6 +15759,25 @@ export default function AdminPage() {
               </aside>
               <div className="min-w-0 space-y-5" data-detail-content="true">
                 <style>{`[data-detail-content] [hidden] { display: none !important; }`}</style>
+                {detailAnalysisView === 'site' && (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                    <div>
+                      <h3 className="text-xl font-extrabold text-slate-900">⚙️ 現場情報・設定</h3>
+                      <p className="mt-1 text-sm text-slate-600">請負先・開始日は画面上部で今までどおり編集できます。</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                      <div className="font-extrabold text-slate-900">現場完了の設定</div>
+                      <p className="text-sm text-slate-700">工事が終わった現場だけを「完了済み現場」に移動します。過去の日報・経費は消えません。</p>
+                      <button type="button" onClick={async () => {
+                        if (!confirmUnsavedBeforeAction('現場を完了扱いに変更')) return;
+                        const completed = await toggleLocationFinished(modalLocation);
+                        if (completed) setModalLocation(null);
+                      }} className="rounded-xl border border-amber-400 bg-white px-5 py-2.5 text-sm font-extrabold text-amber-900 hover:bg-amber-50">
+                        この現場を完了扱いにする
+                      </button>
+                    </div>
+                  </section>
+                )}
                 {detailAnalysisView === 'invoice' && (
                   <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-3">
                     <h3 className="text-xl font-extrabold text-indigo-950">🧾 請求書照合</h3>
