@@ -3830,7 +3830,7 @@ export default function AdminPage() {
       ? '請求書金額を確定すると、その業者・期間の利益計算に反映'
       : mode === 'disposal'
         ? '各明細の確定額が利益計算に反映。処分場請求書の金額欄は照合用メモ'
-        : '請求書金額は比較用。明細を修正した金額が利益計算に反映';
+        : '外注は照合済みの請求書金額を利益計算に反映。未照合は明細金額を使用';
     return (
       <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3.5 md:p-4">
         <div className="text-sm font-black text-indigo-950">🧭 請求書照合の流れ</div>
@@ -5392,6 +5392,55 @@ export default function AdminPage() {
     return { bySite, reportTotal, confirmedTotal };
   };
 
+  // 外注請求書の確定金額を現場・業者・期間に限定して原価へ反映する。
+  // 元の日報・明細単価・保存済み照合履歴には手を加えない。
+  // 同じ明細を複数の請求書で二重計上しないよう、新しい照合を優先する。
+  const getAppliedSubcontractorInvoices = (locName: string, sourceReports: any[]) => {
+    const lines = sourceReports.flatMap((r: any) =>
+      (Array.isArray(r?.subcontractors) ? r.subcontractors : []).map((sub: any, index: number) =>
+        getEffectiveSubcontractorInvoiceLine(locName, r, sub, index)
+      )
+    ).filter((line: any) => !!line.date);
+    const history = getInvoiceReconcileHistory(locName, 'sub')
+      .filter((item: any) => item && item.company && item.startDate && item.endDate
+        && item.startDate <= item.endDate
+        && item.invoiceAmount !== null && item.invoiceAmount !== undefined && item.invoiceAmount !== ''
+        && Number.isFinite(Number(item.invoiceAmount)) && Number(item.invoiceAmount) >= 0)
+      .slice()
+      .sort((a: any, b: any) => String(b.checkedAt || '').localeCompare(String(a.checkedAt || '')));
+    const assigned = new Set<string>();
+    const adjustmentByLine: Record<string, number> = {};
+    const appliedHistoryIds: string[] = [];
+    let adjustment = 0;
+
+    history.forEach((entry: any) => {
+      const matching = lines.filter((line: any) =>
+        String(line.company).trim() === String(entry.company).trim()
+        && line.date >= entry.startDate && line.date <= entry.endDate
+      );
+      // 明細がない期間や、一部でも他の確定請求書と重なる履歴は適用しない。
+      if (!matching.length || matching.some((line: any) => assigned.has(line.lineKey))) return;
+      const base = matching.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
+      const invoice = Number(entry.invoiceAmount);
+      const delta = invoice - base;
+      matching.forEach((line: any, index: number) => {
+        assigned.add(line.lineKey);
+        const share = base !== 0
+          ? Number(line.amount || 0) / base
+          : 1 / matching.length;
+        // 小数点以下の端数も合計で一致させる。
+        const assignedSoFar = matching.slice(0, index).reduce((sum: number, prev: any) =>
+          sum + Number(adjustmentByLine[prev.lineKey] || 0), 0);
+        adjustmentByLine[line.lineKey] = index === matching.length - 1
+          ? delta - assignedSoFar : delta * share;
+      });
+      adjustment += delta;
+      appliedHistoryIds.push(String(entry.id || entry.checkedAt || ''));
+    });
+
+    return { adjustment, adjustmentByLine, appliedHistoryIds, appliedLineKeys: assigned };
+  };
+
   const calculateCosts = (locName: string) => {
     const targetNames = getTargetLocationNames(locName);
     const locMapped = reports.filter(r => targetNames.includes(r.location));
@@ -5699,7 +5748,11 @@ export default function AdminPage() {
 
     const ov = costOverrides[locName] || {};
     const laborCost = ov.labor !== '' && ov.labor !== undefined ? Number(ov.labor) : calcLabor;
-    const subCostTotal = ov.sub !== '' && ov.sub !== undefined ? Number(ov.sub) : calcSub;
+    // 照合・確定した請求書があれば、対象明細の概算との差額だけ加減する。
+    // これにより元の明細を二重計上せず、請求書金額を利益計算へ反映する。
+    const subcontractorInvoiceApplication = getAppliedSubcontractorInvoices(locName, locMapped);
+    const subCostBeforeInvoices = ov.sub !== '' && ov.sub !== undefined ? Number(ov.sub) : calcSub;
+    const subCostTotal = subCostBeforeInvoices + subcontractorInvoiceApplication.adjustment;
 
     const isIshikawaLeaseSplit = locName === '旧河北郡市クリーンセンター等解体工事(石川県)';
     const ishikawaLeaseCost =
@@ -7326,14 +7379,23 @@ export default function AdminPage() {
           .filter((h:any) => String(h?.company || '').trim() === company && String(h?.startDate || '') <= firstDate && String(h?.endDate || '') >= lastDate)
           .sort((a:any,b:any) => String(b?.checkedAt || '').localeCompare(String(a?.checkedAt || '')));
         const latest = histories[0] || null;
+        // 利益計算と同じ請求書適用結果を表示する。月をまたぐ請求書も
+        // その月に含まれる明細分だけを配分し、請求額全体を二重に載せない。
+        const invoiceApplication = getAppliedSubcontractorInvoices(locName,
+          dashboardReports.filter((r:any) => targetNames.includes(String(r?.location || ''))));
+        const currentAmount = companyLines.reduce((sum:number, line:any) => sum + Number(line?.amount || 0), 0);
+        const appliedAdjustment = companyLines.reduce((sum:number, line:any) =>
+          sum + Number(invoiceApplication.adjustmentByLine[line.lineKey] || 0), 0);
         rows.push({
           key: `${locName}__${company}`,
           location: locName,
           company,
           lineCount: companyLines.length,
-          currentAmount: companyLines.reduce((sum:number, line:any) => sum + Number(line?.amount || 0), 0),
+          currentAmount,
+          profitAmount: currentAmount + appliedAdjustment,
           invoiceAmount: latest?.invoiceAmount === null || latest?.invoiceAmount === undefined ? null : Number(latest.invoiceAmount),
-          isReconciled: !!latest,
+          isReconciled: companyLines.length > 0 && companyLines.every((line:any) => invoiceApplication.appliedLineKeys.has(line.lineKey)) || !!latest,
+          isAppliedToCost: appliedAdjustment !== 0 || (!!latest && invoiceApplication.appliedHistoryIds.includes(String(latest.id || latest.checkedAt || ''))),
           latest
         });
       });
@@ -8308,7 +8370,7 @@ export default function AdminPage() {
               <div className="mt-1 text-slate-600">日報で選ぶ業者・機械・単価などの基礎情報を登録します。</div>
             </div>
             <div className="md:col-span-2 xl:col-span-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-950">
-              <span className="font-black">💡 用語：</span> 「日報由来の概算」は日報から自動計算した金額、「利益計算に反映する金額」は、詳細分析の利益計算に実際に使う金額です。請求書金額の扱いは種類ごとに異なり、リースは請求書金額を利益計算へ反映、外注・燃料は請求書金額は比較用、処分費は各明細の確定額を利益計算へ反映します。
+              <span className="font-black">💡 用語：</span> 「日報由来の概算」は日報から自動計算した金額、「利益計算に反映する金額」は、詳細分析の利益計算に実際に使う金額です。請求書金額の扱いは種類ごとに異なり、リースは請求書金額を利益計算へ反映、外注は照合済み請求書金額を反映、燃料は比較用、処分費は各明細の確定額を利益計算へ反映します。
             </div>
           </div>
         </details>
@@ -12510,7 +12572,7 @@ export default function AdminPage() {
                   <div className="rounded-2xl bg-white border border-emerald-200 p-3"><div className="font-black text-emerald-800">③ 利益計算に反映する金額</div><div className="text-xs text-slate-500 mt-1">詳細分析・利益計算に実際に使う金額</div></div>
                 </div>
                 <div className="mt-3 rounded-xl bg-white/80 border border-indigo-100 px-3 py-2 text-xs md:text-sm font-bold text-indigo-800">
-                  ※「請求書金額」の扱いは種類ごとに異なります。リースは請求書金額そのものを利益計算に反映。外注・燃料は請求書金額は比較用で、修正した明細が利益計算に反映。処分費は各明細の確定額が利益計算に反映します。
+                  ※「請求書金額」の扱いは種類ごとに異なります。リースは請求書金額そのものを利益計算に反映。外注は照合済み請求書金額を反映、燃料は比較用で、修正した明細が利益計算に反映。処分費は各明細の確定額が利益計算に反映します。
                 </div>
               </div>
 
@@ -12523,7 +12585,7 @@ export default function AdminPage() {
 
               <section className="rounded-3xl border border-violet-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-violet-50 border-b border-violet-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4><p className="mt-0.5 text-xs text-violet-700">詳細分析 → 外注人件費 → 請求書照合 と連動。請求書金額は比較用、明細修正後の金額が利益計算に反映されます。<span className="ml-1 font-black text-emerald-700">行をクリックすると事務所確認済みとして緑色になります。</span></p></div>
+                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4><p className="mt-0.5 text-xs text-violet-700">詳細分析 → 外注人件費 → 請求書照合 と連動。照合済みの請求書金額が利益計算に反映されます。未照合は明細金額を使用します。<span className="ml-1 font-black text-emerald-700">行をクリックすると事務所確認済みとして緑色になります。</span></p></div>
                   <div className="flex gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {subcontractorInvoiceProgressDoneCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {subcontractorInvoiceProgressPendingCount}</span></div>
                 </div>
                 {subcontractorInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の外注日報データはありません。</div> : (
@@ -12542,7 +12604,7 @@ export default function AdminPage() {
                         className={`grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 cursor-pointer transition ${manuallyChecked ? 'bg-emerald-100/80 hover:bg-emerald-100' : 'bg-white hover:bg-violet-50/50'}`}
                       >
                         <div className="font-extrabold text-slate-900">{row.location}{manuallyChecked && <div className="mt-0.5 text-[10px] font-black text-emerald-700">✓ 事務所確認済み</div>}</div><div className="font-bold text-slate-700">{row.company}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
-                        <div className="text-right font-black text-slate-900">{formatAmount(row.currentAmount)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right"><div className="font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-[10px] text-slate-400">明細修正後</div></div>
+                        <div className="text-right font-black text-slate-900">{formatAmount(row.currentAmount)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right"><div className="font-black text-emerald-700">{formatAmount(row.profitAmount)}</div><div className="text-[10px] text-slate-400">{row.isAppliedToCost ? '確定請求書を反映' : '明細修正後'}</div></div>
                         <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
                         <div className="text-right"><button type="button" onClick={(e)=>{ e.stopPropagation(); openInvoiceProgressSubcontractor(row); }} className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
                       </div>
@@ -15542,7 +15604,7 @@ export default function AdminPage() {
                         </div>
                         <div className="bg-white rounded-xl border border-blue-200 p-3.5">
                           <div className="font-extrabold text-blue-700">請求書金額・確定額</div>
-                          <div className="text-slate-600 mt-1">請求書と照合するための実額です。リースは請求書金額を利益計算に反映し、外注・燃料は比較用、処分費は明細の確定額を利益計算に反映します。</div>
+                          <div className="text-slate-600 mt-1">請求書と照合するための実額です。リースは請求書金額を利益計算に反映し、外注は確定請求額を反映、燃料は比較用、処分費は明細の確定額を利益計算に反映します。</div>
                         </div>
                         <div className="bg-white rounded-xl border border-emerald-200 p-3.5">
                           <div className="font-extrabold text-emerald-700">利益計算に反映する金額</div>
@@ -16073,7 +16135,9 @@ export default function AdminPage() {
                           ? '請求書金額を確定すると、この項目の利益計算に反映されます。'
                           : item.key === 'disposal'
                             ? '月別処分一覧で確定した明細金額が、この項目の利益計算に反映されます。'
-                            : '請求書金額は比較用で、照合画面で修正した明細金額がこの項目の利益計算に反映されます。'}
+                            : item.key === 'sub'
+                              ? '請求書を照合・確定するとその金額を利益計算に反映します。未照合の間は明細金額を使います。'
+                              : '請求書金額は比較用で、照合画面で修正した明細金額がこの項目の利益計算に反映されます。'}
                         <span className="block mt-1 font-bold text-indigo-700">照合結果は上部の「🧾 請求書照合センター」にも表示されます。</span>
                       </div>
                     )}
@@ -17244,7 +17308,7 @@ export default function AdminPage() {
                     {!isLeaseInvoice && (
                       <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
-                          <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、利益計算に反映する金額との差額を確認できます。請求書金額は比較用で、利益計算には上の明細修正後の金額を使います。</div></div>
+                          <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、利益計算に反映する金額との差額を確認できます。燃料の請求書金額は比較用で、明細修正後の金額を利益計算に使います。</div></div>
                           <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
                           <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 利益計算に反映する金額）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
                         </div>
