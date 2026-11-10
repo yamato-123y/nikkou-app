@@ -444,6 +444,8 @@ export default function AdminPage() {
   const [disposalOverrides, setDisposalOverrides] = useState<any>({});
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
   const [fuelUnitPrices, setFuelUnitPrices] = useState<any>({});
+  // 宇野気石油の請求書は月別に入力する。日報のリットル数は変更しない。
+  const [unokeInvoiceYearMonth, setUnokeInvoiceYearMonth] = useState(() => getCurrentYearMonth());
   // 大阪の軽油単価は全現場共通。既存の現場別データは互換用に残し、
   // 共通単価が登録済みの月は共通単価を最優先で使用する。
   const OSAKA_FUEL_GLOBAL_KEY = '__osaka_all__';
@@ -2939,6 +2941,23 @@ export default function AdminPage() {
     } finally {
       setDeletingCompletedSite(null);
     }
+  };
+
+  // 宇野気石油の月別請求金額。従来の unokeTotal は消さず、過去の引継ぎ額として保持する。
+  const handleUnokeMonthlyInvoiceChange = (locName: string, yearMonth: string, val: string) => {
+    if (authRole === 'viewer') return;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) return;
+    setCostOverrides((prev: any) => ({
+      ...prev,
+      [locName]: {
+        ...(prev[locName] || {}),
+        unokeMonthly: {
+          ...(prev[locName]?.unokeMonthly || {}),
+          [yearMonth]: val
+        }
+      }
+    }));
+    setFinancialDirty(true);
   };
 
   const handleCostOverrideChange = (locName: string, field: string, val: string) => {
@@ -5857,13 +5876,22 @@ export default function AdminPage() {
       });
     }
 
-    // 旧河北郡市クリーンセンター等解体工事(石川県)では、
-    // 宇野気石油の軽油・レギュラー金額を分けず、合計金額で原価反映する。
-    const unokeTotalOverride = costOverrides[locName]?.unokeTotal;
-    const ishikawaFuelCombinedCost =
-      isIshikawaFuelSplit && unokeTotalOverride !== '' && unokeTotalOverride !== undefined
-        ? Number(unokeTotalOverride)
-        : fuelCost + regularCost;
+    // 宇野気石油の請求額は月別で管理し、利益計算にはその月別合計を反映する。
+    // 旧仕様の unokeTotal は引継ぎ分として保持し、既存の入力金額を消さない。
+    // 月別データに空欄があっても、その月は金額未入力として集計しない。
+    const unokeSaved = costOverrides[locName] || {};
+    const unokeLegacyRaw = unokeSaved.unokeTotal;
+    const unokeLegacyCost = unokeLegacyRaw !== '' && unokeLegacyRaw !== undefined && unokeLegacyRaw !== null
+      ? Number(unokeLegacyRaw) || 0 : 0;
+    const unokeMonthlyEntries = unokeSaved.unokeMonthly && typeof unokeSaved.unokeMonthly === 'object'
+      ? Object.values(unokeSaved.unokeMonthly) : [];
+    const unokeMonthlyInvoiceCost = unokeMonthlyEntries.reduce((sum: number, value: any) =>
+      sum + (value === '' || value === undefined || value === null ? 0 : Number(value) || 0), 0);
+    const hasUnokeInvoice = (unokeLegacyRaw !== '' && unokeLegacyRaw !== undefined && unokeLegacyRaw !== null)
+      || unokeMonthlyEntries.some((value: any) => value !== '' && value !== undefined && value !== null);
+    const ishikawaFuelCombinedCost = isIshikawaFuelSplit && hasUnokeInvoice
+      ? unokeLegacyCost + unokeMonthlyInvoiceCost
+      : fuelCost + regularCost;
 
     const sumOverrideCost =
       laborCost +
@@ -16037,33 +16065,68 @@ export default function AdminPage() {
                     </div>
 
                     <div>
-                      <label className="text-sm font-bold text-slate-600 block mb-1">宇野気石油 合計金額</label>
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-500 font-bold">¥</span>
-                        <input
-                          type="number"
-                          value={
-                            costOverrides[modalLocation]?.unokeTotal ??
-                            (
-                              (costOverrides[modalLocation]?.fuel !== '' && costOverrides[modalLocation]?.fuel !== undefined
-                                ? Number(costOverrides[modalLocation]?.fuel)
-                                : 0) +
-                              (costOverrides[modalLocation]?.regular !== '' && costOverrides[modalLocation]?.regular !== undefined
-                                ? Number(costOverrides[modalLocation]?.regular)
-                                : 0)
-                            )
-                          }
-                          onChange={(e) => handleCostOverrideChange(modalLocation, 'unokeTotal', e.target.value)}
-                          placeholder="合計金額を入力"
-                          readOnly={authRole === 'viewer'}
-                          className={`w-full p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                        />
+                      <label className="text-sm font-bold text-slate-700 block mb-2">宇野気石油 月別請求書金額（手入力）</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-[170px_minmax(0,1fr)] gap-3 items-end">
+                        <div>
+                          <label className="text-xs text-slate-600 font-bold block mb-1">対象月</label>
+                          <input
+                            type="month"
+                            value={unokeInvoiceYearMonth}
+                            onChange={(e) => setUnokeInvoiceYearMonth(e.target.value)}
+                            className="w-full min-w-0 p-2.5 border border-slate-300 rounded-xl bg-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-600 font-bold block mb-1">その月の請求書金額</label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500 font-bold">¥</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={costOverrides[modalLocation]?.unokeMonthly?.[unokeInvoiceYearMonth] ?? ''}
+                              onChange={(e) => handleUnokeMonthlyInvoiceChange(modalLocation, unokeInvoiceYearMonth, e.target.value)}
+                              placeholder="請求書金額を入力"
+                              readOnly={authRole === 'viewer'}
+                              className={`w-full min-w-0 p-2.5 border border-orange-400 rounded-xl font-bold text-right bg-orange-50/50 text-base ${authRole === 'viewer' ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                            />
+                          </div>
+                        </div>
                       </div>
+                      <div className="mt-4 space-y-2">
+                        <div className="text-xs font-bold text-slate-600">入力済みの月別請求書</div>
+                        {Object.entries(costOverrides[modalLocation]?.unokeMonthly || {})
+                          .filter(([ym, value]) => /^\d{4}-(0[1-9]|1[0-2])$/.test(ym) && value !== '' && value !== null && value !== undefined)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([ym, value]) => (
+                            <div key={ym} className="flex justify-between gap-3 rounded-lg bg-slate-50 border border-slate-200 p-2.5 text-sm">
+                              <span className="font-bold text-slate-600">{ym.replace('-', '年')}月</span>
+                              <span className="font-bold text-slate-900">{formatAmount(Number(value) || 0)}</span>
+                            </div>
+                          ))}
+                        {Object.entries(costOverrides[modalLocation]?.unokeMonthly || {}).filter(([ym, value]) =>
+                          /^\d{4}-(0[1-9]|1[0-2])$/.test(ym) && value !== '' && value !== null && value !== undefined).length === 0 && (
+                            <div className="text-sm text-slate-500">月別の請求書はまだ入力されていません。</div>
+                          )}
+                      </div>
+                      {costOverrides[modalLocation]?.unokeTotal !== '' &&
+                        costOverrides[modalLocation]?.unokeTotal !== undefined &&
+                        costOverrides[modalLocation]?.unokeTotal !== null && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <div className="text-xs text-amber-900 font-bold">以前の合計金額（引継ぎ分）</div>
+                          <div className="text-base font-bold text-amber-900">{formatAmount(Number(costOverrides[modalLocation].unokeTotal) || 0)}</div>
+                          <p className="mt-1 text-xs text-amber-800">この金額は削除せず利益計算に含めています。以前の合計に含まれる月を再入力すると二重計上になるため、ご注意ください。</p>
+                        </div>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
+                        <span className="text-sm font-bold text-slate-700">利益計算に反映する宇野気石油合計</span>
+                        <span className="text-lg font-extrabold text-slate-900">{formatAmount(
+                          (Number(costOverrides[modalLocation]?.unokeTotal) || 0) +
+                          Object.values(costOverrides[modalLocation]?.unokeMonthly || {}).reduce((sum: number, value: any) =>
+                            sum + (value === '' || value === undefined || value === null ? 0 : Number(value) || 0), 0)
+                        )}</span>
+                      </div>
+                      <p className="text-xs md:text-sm text-slate-500 mt-3">※日報のリットル数は従来どおり合算します。請求書は対象月ごとに入力し、画面の「変更を保存」で確定してください。</p>
                     </div>
-
-                    <p className="text-xs md:text-sm text-slate-500">
-                      ※リットル数・金額ともに、軽油とレギュラーを分けず宇野気石油の合計のみ表示します。
-                    </p>
                   </div>
                 </div>
               </div>
