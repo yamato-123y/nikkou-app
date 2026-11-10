@@ -266,6 +266,8 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [modalLocation, setModalLocation] = useState<string | null>(null);
+  // PCの詳細分析：表示する作業分類だけを切り替える（保存データ・計算には影響しない）。
+  const [detailAnalysisView, setDetailAnalysisView] = useState('disposal');
   const [filterLocation, setFilterLocation] = useState('');
   const [form, setForm] = useState<any>({});
   // 詳細分析上部の「請負先・開始日」は入力中に日報全件へ即保存せず、
@@ -828,6 +830,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (modalLocation) {
+      setDetailAnalysisView('disposal');
       loadSitePhotos(modalLocation);
 
       const targetNames = getTargetLocationNames(modalLocation);
@@ -15576,7 +15579,7 @@ export default function AdminPage() {
             className={`bg-white rounded-3xl w-full max-h-[94vh] md:max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 ${
               authRole === 'viewer'
                 ? 'max-w-6xl p-4 md:p-10 space-y-5 md:space-y-8'
-                : 'max-w-[1400px] p-6 md:p-9 space-y-7 md:space-y-9'
+                : 'max-w-[96vw] p-5 md:p-7 space-y-5 md:space-y-6'
             } !pb-0`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -15695,39 +15698,43 @@ export default function AdminPage() {
             </div>
 
 
-            {authRole === 'admin' && (
-              <div className="sticky top-0 z-40 !mt-0 -mx-6 md:-mx-9 bg-white px-6 md:px-9 py-3.5 border-b border-slate-200 shadow-sm">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="shrink-0 text-sm font-extrabold text-slate-600 mr-1">項目へ移動</span>
-                  {[
-                    ['detail-summary', '📊 集計結果'],
-                    ['detail-expense-labor', '👷 社員'],
-                    ['detail-expense-sub', '👥 外注'],
-                    ['detail-expense-lease', '🧾 リース'],
-                    ['detail-expense-ownMachine', '🚜 自社重機'],
-                    ['detail-expense-vehicle', '🚚 自社車両'],
-                    ['detail-expense-disposal', '🗑️ 処分費'],
-                    ...(modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' ? [['detail-expense-fuel', '⛽ 燃料']] : []),
-                    ['detail-expense-etc', '🛣️ ETC'],
-                    ['detail-expense-parking', '🅿️ 駐車場'],
-                    ['detail-expense-other', '🧮 その他'],
-                    ['detail-scrap-card', '♻️ スクラップ'],
-                  ].map(([targetId, label]) => (
-                    <button
-                      key={targetId}
-                      type="button"
-                      onClick={() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-extrabold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                    >
-                      {label}
-                    </button>
-                  ))}
+            {/* PC専用：項目を選ぶと右側に既存の入力・照合欄を表示。全表示にも戻せる。 */}
+            <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-4 lg:gap-6 items-start !mt-3">
+              <aside className="lg:sticky lg:top-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-1 z-20">
+                <div className="text-xs font-extrabold text-slate-500 px-3 py-2">確認・入力する項目を選ぶ</div>
+                {[
+                  ['disposal', '🗑️ 処分費'],
+                  ['labor', '👥 社員・外注'],
+                  ['lease', '🚜 リース・重機・車両'],
+                  ['other', '🧮 その他経費'],
+                  ['fuel', '⛽ 燃料'],
+                  ['scrap', '♻️ スクラップ'],
+                  ['invoice', '🧾 請求書照合'],
+                  ['summary', '📊 集計・利益'],
+                  ['photos', '📷 現場写真'],
+                  ['all', '📋 すべて表示（従来）'],
+                ].map(([key, label]) => (
+                  <button key={key} type="button"
+                    onClick={() => setDetailAnalysisView(key)}
+                    className={`w-full text-left px-3 py-3 rounded-xl text-sm font-extrabold transition ${detailAnalysisView === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white hover:text-blue-700'}`}
+                  >{label}</button>
+                ))}
+                <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
+                  <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="w-full rounded-xl border border-indigo-200 bg-white text-indigo-800 px-3 py-2.5 text-xs font-extrabold hover:bg-indigo-50">🧾 請求書照合センターを開く</button>
+                  <button type="button" onClick={() => downloadLocationExcel(modalLocation)} className="w-full rounded-xl border border-emerald-200 bg-white text-emerald-800 px-3 py-2.5 text-xs font-extrabold hover:bg-emerald-50">📊 Excel出力</button>
                 </div>
-              </div>
-            )}
-
+              </aside>
+              <div className="min-w-0 space-y-5" data-detail-content="true">
+                <style>{`[data-detail-content] [hidden] { display: none !important; }`}</style>
+                {detailAnalysisView === 'invoice' && (
+                  <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-3">
+                    <h3 className="text-xl font-extrabold text-indigo-950">🧾 請求書照合</h3>
+                    <p className="text-sm text-slate-700">請求書照合センターは、今までの画面と操作方法をそのまま利用します。外注・リース・燃料などの個別照合は左メニューで対象経費を選んでも開けます。</p>
+                    <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 font-extrabold">🧾 請求書照合センターを開く</button>
+                  </div>
+                )}
             {/* 現場写真（着工前・完了後） */}
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
+            <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'photos'} className="rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden">
               <div className="px-5 md:px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                 <div>
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">📷 現場写真</h3>
@@ -15803,7 +15810,7 @@ export default function AdminPage() {
             </div>
 
             {authRole === 'admin' && (
-              <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+              <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'summary'} className="flex items-center gap-3 border-b border-slate-200 pb-3">
                 <span className="bg-slate-900 text-white text-sm font-extrabold px-3 py-1.5 rounded-lg">STEP 1</span>
                 <div>
                   <div className="text-xl md:text-2xl font-extrabold text-slate-900">まず、現場全体の収支を確認</div>
@@ -15812,7 +15819,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+            <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'summary'} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <div className="bg-slate-50 p-5 md:p-6 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
                 <div>
                   <div className="text-base md:text-lg font-extrabold text-slate-700">
@@ -15843,7 +15850,7 @@ export default function AdminPage() {
             </div>
 
             {authRole === 'admin' ? (
-              <div id="detail-summary" className="w-full max-w-4xl mx-auto space-y-3 scroll-mt-24">
+              <div id="detail-summary" hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'summary'} className="w-full space-y-3 scroll-mt-24">
                 <div>
                   <div className="text-lg md:text-xl font-extrabold text-slate-800">📊 現在の集計結果</div>
                 </div>
@@ -15903,7 +15910,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            <div hidden={!['all', 'summary', 'disposal', 'scrap', 'labor'].includes(detailAnalysisView)} className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
               <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4">
                 <div>
                   <div className="font-extrabold text-orange-900 text-lg">🗑️ 処分費</div>
@@ -16042,7 +16049,7 @@ export default function AdminPage() {
             </div>
 
             {modalLocation === '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+              <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'fuel'} className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
                 <div className="flex justify-between items-center flex-wrap gap-3">
                   <h3 className="font-bold text-lg md:text-xl text-slate-900">⛽ 燃料内訳（大阪・石川県）</h3>
                 </div>
@@ -16218,7 +16225,7 @@ export default function AdminPage() {
             )}
 
             {authRole === 'admin' && (
-              <div className="flex items-center gap-3 border-b border-slate-200 pb-3 pt-2">
+              <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'summary'} className="flex items-center gap-3 border-b border-slate-200 pb-3 pt-2">
                 <span className="bg-blue-500 text-white text-sm font-extrabold px-3 py-1.5 rounded-lg">STEP 2</span>
                 <div>
                   <div className="text-xl md:text-2xl font-extrabold text-slate-900">請求書が届いたら、各経費を確認・確定</div>
@@ -16228,7 +16235,7 @@ export default function AdminPage() {
             )}
 
             {modalLocation !== '旧河北郡市クリーンセンター等解体工事(石川県)' && (
-              <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
+              <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'fuel'} className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 space-y-4 md:space-y-6">
                 <div className="flex justify-between items-center flex-wrap gap-3">
                   <h3 className="font-extrabold text-xl md:text-2xl text-slate-900">📋 経費の確認・確定</h3>
                 </div>
@@ -16240,7 +16247,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:gap-5 max-w-5xl w-full mx-auto">
+            <div hidden={!['all', 'labor', 'lease', 'disposal', 'fuel', 'other'].includes(detailAnalysisView)} className="grid grid-cols-1 gap-4 md:gap-5 w-full">
               {[
                 { key: 'labor', label: '社員人件費', estimate: modalData.reportEstimateLabor, val: modalData.laborCost, isLabor: true },
                 { key: 'sub', label: '外注人件費', estimate: modalData.reportEstimateSubWithCustom, val: modalData.subCostTotal, isSubcontractor: true },
@@ -16257,7 +16264,15 @@ export default function AdminPage() {
                 { key: 'other', label: 'その他雑費', estimate: modalData.reportEstimateOther, val: modalData.otherCost },
               ].map((item) => {
                 return (
-                  <div id={`detail-expense-${item.key}`} key={item.key} className={`bg-white p-5 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-4 scroll-mt-24 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
+                  <div id={`detail-expense-${item.key}`} key={item.key}
+                    hidden={detailAnalysisView !== 'all' && !(
+                      (detailAnalysisView === 'labor' && ['labor', 'sub'].includes(item.key)) ||
+                      (detailAnalysisView === 'lease' && ['lease', 'ownMachine', 'vehicle'].includes(item.key)) ||
+                      (detailAnalysisView === 'disposal' && item.key === 'disposal') ||
+                      (detailAnalysisView === 'fuel' && ['fuel', 'regular'].includes(item.key)) ||
+                      (detailAnalysisView === 'other' && ['etc', 'parking', 'other'].includes(item.key))
+                    )}
+                    className={`bg-white p-5 md:p-6 rounded-2xl border border-slate-300 shadow-2xs flex flex-col justify-between gap-4 scroll-mt-24 ${item.isDisposal ? 'col-span-full md:col-span-1' : ''}`}>
                     <div className="flex justify-between items-center">
                       <span className={`text-lg md:text-xl font-extrabold ${item.isDisposal ? 'text-orange-700' : 'text-slate-800'}`}>{item.label}</span>
                       <div className="flex items-center gap-2">
@@ -16831,7 +16846,7 @@ export default function AdminPage() {
             </div>
 
             {/* この現場だけの突発的な追加経費 */}
-            <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 overflow-hidden">
+            <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'other'} className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 overflow-hidden">
               <div className="px-5 md:px-6 py-4 md:py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-amber-200">
                 <div>
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🧾 この現場だけの追加経費</h3>
@@ -16942,6 +16957,9 @@ export default function AdminPage() {
                     ※入力内容は日報そのものには追加されません。この現場の管理用経費として保存されます。変更後は画面下の「💾 保存」を押してください。
                   </p>
                 )}
+              </div>
+            </div>
+
               </div>
             </div>
 
