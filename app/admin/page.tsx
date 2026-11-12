@@ -531,6 +531,8 @@ export default function AdminPage() {
   // 現場ごとの突発的な追加経費（管理画面から自由追加）
   const [customExtraExpenses, setCustomExtraExpenses] = useState<any>({});
   const [customSubForm, setCustomSubForm] = useState<{ [key: string]: { company: string; task: string; price: string } }>({});
+  // 出来高請求の入力メモ。請求額は既存の外注費・利益計算には加算しない。
+  const [customSubBillingDrafts, setCustomSubBillingDrafts] = useState<any>({});
 
   const [subcontractorSectionOpen, setSubcontractorSectionOpen] = useState(false);
   const [subcontractorEstimateOpen, setSubcontractorEstimateOpen] = useState(false);
@@ -4156,7 +4158,8 @@ export default function AdminPage() {
     const newItem = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       label: '',
-      amount: ''
+      amount: '',
+      category: 'その他'
     };
     setCustomExtraExpenses({
       ...customExtraExpenses,
@@ -4168,7 +4171,7 @@ export default function AdminPage() {
   const handleCustomExtraExpenseChange = (
     locName: string,
     id: string,
-    field: 'label' | 'amount',
+    field: 'label' | 'amount' | 'category',
     value: string
   ) => {
     if (authRole === 'viewer') return;
@@ -4251,6 +4254,50 @@ export default function AdminPage() {
     } finally {
       setIsFinancialSaving(false);
     }
+  };
+
+  // 手動追加の外注工事に紐づく請求履歴だけを更新する。登録工事金額（price）は触らない。
+  const updateCustomSubBilling = (locName: string, index: number, nextRecords: any[]) => {
+    if (authRole !== 'admin') return;
+    setCustomSubcontractors((prev: any) => ({
+      ...prev,
+      [locName]: (prev?.[locName] || []).map((row: any, i: number) =>
+        i === index ? { ...row, billingRecords: nextRecords } : row
+      )
+    }));
+    setFinancialDirty(true);
+  };
+
+  const addCustomSubBilling = (locName: string, index: number) => {
+    if (authRole !== 'admin') return;
+    const draftKey = `${locName}__${index}`;
+    const draft = customSubBillingDrafts[draftKey] || {};
+    const month = String(draft.month || '');
+    const amount = String(draft.amount ?? '').trim();
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
+      alert('請求月と0円以上の請求金額を入力してください。');
+      return;
+    }
+    const record = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, month, amount, memo: String(draft.memo || '') };
+    const row = (customSubcontractors[locName] || [])[index];
+    if (!row) return;
+    updateCustomSubBilling(locName, index, [...(Array.isArray(row.billingRecords) ? row.billingRecords : []), record]);
+    setCustomSubBillingDrafts((prev: any) => ({ ...prev, [draftKey]: { month, amount: '', memo: '' } }));
+  };
+
+  const editCustomSubBilling = (locName: string, index: number, id: string, field: 'month' | 'amount' | 'memo', value: string) => {
+    const row = (customSubcontractors[locName] || [])[index];
+    if (!row) return;
+    updateCustomSubBilling(locName, index, (row.billingRecords || []).map((record: any) =>
+      record.id === id ? { ...record, [field]: value } : record
+    ));
+  };
+
+  const deleteCustomSubBilling = (locName: string, index: number, id: string) => {
+    if (!window.confirm('この請求記録だけを削除しますか？ 工事の登録金額は変更されません。')) return;
+    const row = (customSubcontractors[locName] || [])[index];
+    if (!row) return;
+    updateCustomSubBilling(locName, index, (row.billingRecords || []).filter((record: any) => record.id !== id));
   };
 
   const handleAddCustomSubcontractor = async (locName: string) => {
@@ -16049,14 +16096,51 @@ export default function AdminPage() {
                   {(customSubcontractors[modalLocation] || []).length > 0 && (
                     <div className="space-y-2">
                       <div className="text-xs font-bold text-orange-800">【手動追加・一括外注分】</div>
-                      {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => (
-                        <div key={csIdx} className="bg-white p-3.5 rounded-xl border border-orange-300 flex justify-between items-center text-sm font-medium text-slate-800 shadow-2xs">
-                          <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">{formatAmount(Number(cs.price))}</span></span>
-                          {authRole === 'admin' && (
-                            <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold transition">削除</button>
-                          )}
-                        </div>
-                      ))}
+                      {(customSubcontractors[modalLocation] || []).map((cs: any, csIdx: number) => {
+                        const records = Array.isArray(cs.billingRecords) ? cs.billingRecords : [];
+                        const billed = records.reduce((sum: number, record: any) => sum + (Number(record.amount) || 0), 0);
+                        const draftKey = `${modalLocation}__${csIdx}`;
+                        const draft = customSubBillingDrafts[draftKey] || {};
+                        return (
+                          <div key={csIdx} className="bg-white p-3 rounded-xl border border-orange-200 space-y-3">
+                            <div className="flex flex-wrap justify-between items-center gap-2 text-sm text-slate-800">
+                              <span>🏢 <b>{cs.company}</b> ({cs.task}) : <span className="text-orange-700 font-bold">{formatAmount(Number(cs.price))}</span></span>
+                              {authRole === 'admin' && (
+                                <button type="button" onClick={() => handleDeleteCustomSubcontractor(modalLocation, csIdx)} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1 rounded-lg text-xs font-bold">工事を削除</button>
+                              )}
+                            </div>
+                            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-xs font-extrabold text-slate-700">出来高請求メモ（利益計算には加算しません）</span>
+                                <span className="text-xs font-bold text-slate-700">請求済 {formatAmount(billed)} ／ 残額 {formatAmount(Number(cs.price || 0) - billed)}</span>
+                              </div>
+                              {records.length > 0 && (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs min-w-[580px]">
+                                    <thead><tr className="text-slate-600 border-b"><th className="text-left p-1.5 w-36">請求月</th><th className="text-right p-1.5 w-40">請求額（円）</th><th className="text-left p-1.5">メモ</th><th className="w-14"></th></tr></thead>
+                                    <tbody>{records.map((record: any) => (
+                                      <tr key={record.id} className="border-b border-slate-200">
+                                        <td className="p-1"><input type="month" value={record.month || ''} onChange={e => editCustomSubBilling(modalLocation, csIdx, record.id, 'month', e.target.value)} readOnly={authRole !== 'admin'} className="w-full min-w-0 p-1.5 border rounded-md bg-white" /></td>
+                                        <td className="p-1"><input type="number" min="0" value={record.amount ?? ''} onChange={e => editCustomSubBilling(modalLocation, csIdx, record.id, 'amount', e.target.value)} readOnly={authRole !== 'admin'} className="w-full min-w-0 p-1.5 border rounded-md text-right bg-white" /></td>
+                                        <td className="p-1"><input type="text" value={record.memo || ''} onChange={e => editCustomSubBilling(modalLocation, csIdx, record.id, 'memo', e.target.value)} readOnly={authRole !== 'admin'} className="w-full min-w-0 p-1.5 border rounded-md bg-white" placeholder="請求書番号など" /></td>
+                                        <td className="p-1 text-center">{authRole === 'admin' && <button type="button" onClick={() => deleteCustomSubBilling(modalLocation, csIdx, record.id)} className="text-rose-600 hover:underline">削除</button>}</td>
+                                      </tr>
+                                    ))}</tbody>
+                                  </table>
+                                </div>
+                              )}
+                              {authRole === 'admin' && (
+                                <div className="grid grid-cols-1 md:grid-cols-[160px_160px_minmax(0,1fr)_100px] gap-2">
+                                  <input type="month" value={draft.month ?? getCurrentYearMonth()} onChange={e => setCustomSubBillingDrafts((prev: any) => ({ ...prev, [draftKey]: { ...prev[draftKey], month: e.target.value } }))} className="p-2 border border-slate-300 rounded-lg text-xs" aria-label="請求月" />
+                                  <input type="number" min="0" placeholder="請求額（円）" value={draft.amount ?? ''} onChange={e => setCustomSubBillingDrafts((prev: any) => ({ ...prev, [draftKey]: { ...prev[draftKey], amount: e.target.value } }))} className="p-2 border border-slate-300 rounded-lg text-xs" />
+                                  <input type="text" placeholder="メモ（任意）" value={draft.memo ?? ''} onChange={e => setCustomSubBillingDrafts((prev: any) => ({ ...prev, [draftKey]: { ...prev[draftKey], memo: e.target.value } }))} className="p-2 border border-slate-300 rounded-lg text-xs" />
+                                  <button type="button" onClick={() => addCustomSubBilling(modalLocation, csIdx)} className="bg-slate-800 text-white rounded-lg text-xs font-bold p-2">＋ 請求記録</button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -16902,8 +16986,8 @@ export default function AdminPage() {
               <div className="px-5 md:px-6 py-4 md:py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-amber-200">
                 <div>
                   <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🧾 この現場だけの追加経費</h3>
-                  <p className="text-sm md:text-base text-slate-600 mt-1">
-                    日報にない突発的な経費があった場合に追加します。入力した金額は合計経費・利益・粗利に反映されます。
+                  <p className="text-xs text-slate-500 mt-1">
+                    追加経費は利益計算に反映されます。
                   </p>
                 </div>
 
@@ -16920,77 +17004,37 @@ export default function AdminPage() {
 
               <div className="p-4 md:p-5 space-y-3">
                 {(modalData.customExtraExpenseList || []).length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-amber-300 bg-white/70 px-4 py-5 text-center text-slate-500 text-sm md:text-base">
-                    追加経費はありません。
-                    {authRole === 'admin' && <span> 必要な場合は「＋ 追加」から入力してください。</span>}
-                  </div>
+                  <div className="bg-white rounded-xl border border-dashed border-amber-300 px-4 py-4 text-slate-500 text-sm">追加経費はありません。</div>
                 ) : (
-                  (modalData.customExtraExpenseList || []).map((item: any) => (
-                    <div
-                      key={item.id}
-                      className="bg-white rounded-2xl border border-amber-200 p-3 md:p-4"
-                    >
-                      {authRole === 'admin' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3 items-end">
-                          <div>
-                            <label className="text-sm font-bold text-slate-700 block mb-1.5">内容</label>
-                            <input
-                              type="text"
-                              value={item.label ?? ''}
-                              onChange={(e) =>
-                                handleCustomExtraExpenseChange(
-                                  modalLocation,
-                                  item.id,
-                                  'label',
-                                  e.target.value
-                                )
-                              }
-                              placeholder="例：近隣対策費、緊急修理費、追加運搬費"
-                              className="w-full p-3 border border-slate-300 rounded-xl bg-white text-base font-bold"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-sm font-bold text-slate-700 block mb-1.5">金額</label>
-                            <div className="flex items-center gap-1">
-                              <span className="font-bold text-slate-500">¥</span>
-                              <input
-                                type="number"
-                                value={item.amount ?? ''}
-                                onChange={(e) =>
-                                  handleCustomExtraExpenseChange(
-                                    modalLocation,
-                                    item.id,
-                                    'amount',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="0"
-                                className="w-full p-3 border-2 border-amber-300 focus:border-amber-500 outline-none rounded-xl bg-amber-50/30 text-right text-lg font-extrabold"
-                              />
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomExtraExpense(modalLocation, item.id)}
-                            className="h-[50px] px-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold"
-                          >
-                            削除
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="font-bold text-slate-800">
-                            {item.label || '内容未入力'}
-                          </div>
-                          <div className="font-extrabold text-lg text-amber-800">
-                            {formatAmount(item.amount || 0)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
+                  <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white">
+                    <table className="w-full min-w-[700px] text-xs md:text-sm">
+                      <thead className="bg-slate-100 text-slate-700">
+                        <tr><th className="text-left px-2 py-2 w-32">分類</th><th className="text-left px-2 py-2">内容</th><th className="text-right px-2 py-2 w-40">金額（円）</th><th className="w-16 px-2 py-2">操作</th></tr>
+                      </thead>
+                      <tbody>
+                        {[...(modalData.customExtraExpenseList || [])].sort((a: any, b: any) => String(a.category || '未分類').localeCompare(String(b.category || '未分類'), 'ja')).map((item: any) => (
+                          <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50">
+                            <td className="p-1.5">
+                              {authRole === 'admin' ? (
+                                <select value={item.category || '未分類'} onChange={e => handleCustomExtraExpenseChange(modalLocation, item.id, 'category', e.target.value)} className="w-full p-1.5 border border-slate-300 rounded-md bg-white text-xs">
+                                  {['未分類','レンタル','運搬費','電気・水道','修理・整備','交通費','その他'].map(category => <option key={category} value={category}>{category}</option>)}
+                                </select>
+                              ) : <span>{item.category || '未分類'}</span>}
+                            </td>
+                            <td className="p-1.5">
+                              {authRole === 'admin' ? <input type="text" value={item.label ?? ''} onChange={e => handleCustomExtraExpenseChange(modalLocation, item.id, 'label', e.target.value)} placeholder="経費の内容" className="w-full p-1.5 border border-slate-300 rounded-md bg-white text-xs md:text-sm" /> : <span>{item.label || '内容未入力'}</span>}
+                            </td>
+                            <td className="p-1.5">
+                              {authRole === 'admin' ? <input type="number" value={item.amount ?? ''} onChange={e => handleCustomExtraExpenseChange(modalLocation, item.id, 'amount', e.target.value)} className="w-full p-1.5 border border-amber-300 rounded-md bg-white text-xs md:text-sm text-right font-bold" /> : <div className="text-right font-bold">{formatAmount(item.amount || 0)}</div>}
+                            </td>
+                            <td className="p-1.5 text-center">
+                              {authRole === 'admin' && <button type="button" onClick={() => { if (window.confirm('この追加経費を削除しますか？')) handleDeleteCustomExtraExpense(modalLocation, item.id); }} className="text-rose-600 text-xs hover:underline">削除</button>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
                 {(modalData.customExtraExpenseList || []).length > 0 && (
