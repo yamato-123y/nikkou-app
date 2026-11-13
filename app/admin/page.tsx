@@ -497,6 +497,9 @@ export default function AdminPage() {
   const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState<any>({});
   // 請求書照合進捗。ボタンからポップアップを開き、月ごとにリース・処分場を確認する。
   const [showInvoiceProgressModal, setShowInvoiceProgressModal] = useState(false);
+  // 請求書照合センターのPC表示切替と説明の開閉（画面表示だけ。保存・計算には影響しない）。
+  const [invoiceCenterView, setInvoiceCenterView] = useState<'sub' | 'lease' | 'fuel' | 'disposal' | 'all'>('sub');
+  const [invoiceCenterHelpOpen, setInvoiceCenterHelpOpen] = useState(false);
   const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
   // 決算・期跨ぎ集計。既存データは変更せず、指定した決算日を境に日報由来の現場経費を集計する。
   const [showFiscalClosingModal, setShowFiscalClosingModal] = useState(false);
@@ -8403,7 +8406,6 @@ export default function AdminPage() {
                 <h2 className="mt-1 text-xl md:text-2xl font-black text-slate-950">何をしたいですか？</h2>
                 <p className="mt-1 text-sm md:text-base text-slate-600">操作する順番は決まっていません。今やりたい仕事を選んでください。</p>
               </div>
-              <div className="text-xs md:text-sm font-bold text-slate-500">迷ったときは下の「？ 困ったときのヘルプ」を開けます。</div>
             </div>
           </div>
           <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -8511,37 +8513,6 @@ export default function AdminPage() {
             <div className="bg-white px-4 md:px-6 py-4 text-sm font-bold text-slate-600">現在表示する通知はありません。必要なら右上の「確認済みを再表示」から戻せます。</div>
           )}
         </section>
-      )}
-
-      {authRole === 'admin' && (
-        <details className={`${adminViewClass('home')} rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden`}>
-          <summary className="cursor-pointer select-none px-4 md:px-6 py-3.5 font-black text-slate-800 hover:bg-slate-50 transition flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm">？</span>
-            困ったときのヘルプ
-            <span className="ml-auto text-xs font-bold text-slate-400">分からない言葉や機能を確認</span>
-          </summary>
-          <div className="border-t border-slate-200 p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm md:text-base">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-              <div className="font-black text-slate-900">🔔 新着・要確認</div>
-              <div className="mt-1 text-slate-600">直近の日報や報告事項など、確認が必要な内容を見る場所です。</div>
-            </div>
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5">
-              <div className="font-black text-indigo-950">🧾 請求書照合センター</div>
-              <div className="mt-1 text-slate-600">詳細分析の照合結果を月ごとに集約します。日報由来・請求書・利益計算に反映する金額を並べて確認できます。</div>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5">
-              <div className="font-black text-blue-950">🔍 詳細分析</div>
-              <div className="mt-1 text-slate-600">現場ごとの原価・売上・利益と、その内訳を確認する画面です。</div>
-            </div>
-            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3.5">
-              <div className="font-black text-violet-950">⚙️ マスタ登録</div>
-              <div className="mt-1 text-slate-600">日報で選ぶ業者・機械・単価などの基礎情報を登録します。</div>
-            </div>
-            <div className="md:col-span-2 xl:col-span-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-950">
-              <span className="font-black">💡 用語：</span> 「日報由来の概算」は日報から自動計算した金額、「利益計算に反映する金額」は、詳細分析の利益計算に実際に使う金額です。請求書金額の扱いは種類ごとに異なり、リースは請求書金額を利益計算へ反映、外注は照合済み請求書金額を反映、燃料は比較用、処分費は各明細の確定額を利益計算へ反映します。
-            </div>
-          </div>
-        </details>
       )}
 
       {authRole === 'admin' && (
@@ -12734,9 +12705,10 @@ export default function AdminPage() {
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-slate-900">🧾 請求書照合センター</h3>
-                  <p className="mt-1 text-sm text-slate-500">詳細分析で行った照合結果と同じデータを、月ごと・種類ごとにまとめて確認します。</p>
+
                 </div>
-                <div className="flex items-end gap-3">
+                <div className="flex items-end gap-3 flex-wrap">
+                  <button type="button" onClick={() => setInvoiceCenterHelpOpen(v => !v)} aria-expanded={invoiceCenterHelpOpen} className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${invoiceCenterHelpOpen ? 'border-indigo-400 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>ⓘ 使い方</button>
                   <label className="text-xs font-black text-slate-600">対象月
                     <input type="month" value={invoiceProgressMonth} onChange={(e)=>setInvoiceProgressMonth(e.target.value)} className="mt-1 block rounded-xl border-2 border-indigo-200 bg-white px-3 py-2 text-sm font-black text-slate-900" />
                   </label>
@@ -12751,7 +12723,7 @@ export default function AdminPage() {
                   ⚠️ まだ保存されていない照合・金額変更があります。照合画面で「💾 変更を保存」を押すまでSupabaseには確定保存されません。
                 </div>
               )}
-              <div className="rounded-3xl border-2 border-indigo-200 bg-indigo-50/70 p-4 md:p-5">
+              {invoiceCenterHelpOpen && <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 md:p-5">
                 <div className="font-black text-indigo-950">この画面の見方</div>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-2 md:items-center text-sm">
                   <div className="rounded-2xl bg-white border border-slate-200 p-3"><div className="font-black text-slate-800">① 日報由来の概算</div><div className="text-xs text-slate-500 mt-1">日報から自動で集計した元の金額</div></div>
@@ -12763,18 +12735,29 @@ export default function AdminPage() {
                 <div className="mt-3 rounded-xl bg-white/80 border border-indigo-100 px-3 py-2 text-xs md:text-sm font-bold text-indigo-800">
                   ※「請求書金額」の扱いは種類ごとに異なります。リースは請求書金額そのものを利益計算に反映。外注は照合済み請求書金額を反映、燃料は比較用で、修正した明細が利益計算に反映。処分費は各明細の確定額が利益計算に反映します。
                 </div>
-              </div>
+                <div className="mt-3 space-y-1 text-xs text-slate-700 leading-relaxed">
+                  <p>外注：照合済みの請求書金額を反映し、未照合は明細金額を使います。行をクリックすると事務所確認済みの目印が付きます。</p>
+                  <p>リース：確定した請求書金額を利益計算に反映します。</p>
+                  <p>燃料：請求書金額は比較用で、修正した明細が利益計算に反映されます。</p>
+                  <p>処分費：月別処分一覧の明細確定額が利益計算に反映されます。請求書欄は照合用メモです。</p>
+                </div>
+              </div>}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="rounded-2xl border border-violet-200 bg-white p-4"><div className="text-xs font-black text-violet-700">👷 外注人件費</div><div className="mt-1 text-lg font-black text-slate-900">済 {subcontractorInvoiceProgressDoneCount} / 未 {subcontractorInvoiceProgressPendingCount}</div></div>
-                <div className="rounded-2xl border border-indigo-200 bg-white p-4"><div className="text-xs font-black text-indigo-700">🚜 リース</div><div className="mt-1 text-lg font-black text-slate-900">済 {invoiceProgressDoneCount} / 未 {invoiceProgressPendingCount}</div></div>
-                <div className="rounded-2xl border border-blue-200 bg-white p-4"><div className="text-xs font-black text-blue-700">⛽ 燃料</div><div className="mt-1 text-lg font-black text-slate-900">済 {fuelInvoiceProgressDoneCount} / 未 {fuelInvoiceProgressPendingCount}</div></div>
-                <div className="rounded-2xl border border-amber-200 bg-white p-4"><div className="text-xs font-black text-amber-700">🗑️ 処分費</div><div className="mt-1 text-lg font-black text-slate-900">済 {disposalInvoiceProgressDoneCount} / 確認中 {disposalInvoiceProgressProgressCount} / 未 {disposalInvoiceProgressPendingCount}</div></div>
+                <button type="button" onClick={() => setInvoiceCenterView('sub')} aria-pressed={invoiceCenterView === 'sub'} className={`rounded-xl border p-4 text-left transition hover:border-violet-400 ${invoiceCenterView === 'sub' ? 'border-violet-500 ring-2 ring-violet-100 bg-violet-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-violet-700">👷 外注人件費</div><div className="mt-1 text-lg font-black text-slate-900">済 {subcontractorInvoiceProgressDoneCount} / 未 {subcontractorInvoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('lease')} aria-pressed={invoiceCenterView === 'lease'} className={`rounded-xl border p-4 text-left transition hover:border-indigo-400 ${invoiceCenterView === 'lease' ? 'border-indigo-500 ring-2 ring-indigo-100 bg-indigo-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-indigo-700">🚜 リース</div><div className="mt-1 text-lg font-black text-slate-900">済 {invoiceProgressDoneCount} / 未 {invoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('fuel')} aria-pressed={invoiceCenterView === 'fuel'} className={`rounded-xl border p-4 text-left transition hover:border-blue-400 ${invoiceCenterView === 'fuel' ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-blue-700">⛽ 燃料</div><div className="mt-1 text-lg font-black text-slate-900">済 {fuelInvoiceProgressDoneCount} / 未 {fuelInvoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('disposal')} aria-pressed={invoiceCenterView === 'disposal'} className={`rounded-xl border p-4 text-left transition hover:border-amber-400 ${invoiceCenterView === 'disposal' ? 'border-amber-500 ring-2 ring-amber-100 bg-amber-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-amber-700">🗑️ 処分費</div><div className="mt-1 text-lg font-black text-slate-900">済 {disposalInvoiceProgressDoneCount} / 確認中 {disposalInvoiceProgressProgressCount} / 未 {disposalInvoiceProgressPendingCount}</div></button>
               </div>
 
-              <section className="rounded-3xl border border-violet-200 bg-white overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm font-bold text-slate-600">確認する種類を選んでください</div>
+                <button type="button" onClick={() => setInvoiceCenterView('all')} aria-pressed={invoiceCenterView === 'all'} className={`rounded-lg border px-3 py-2 text-xs font-bold ${invoiceCenterView === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>すべて表示（従来）</button>
+              </div>
+
+              {(invoiceCenterView === 'sub' || invoiceCenterView === 'all') && <section className="rounded-2xl border border-violet-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-violet-50 border-b border-violet-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4><p className="mt-0.5 text-xs text-violet-700">詳細分析 → 外注人件費 → 請求書照合 と連動。照合済みの請求書金額が利益計算に反映されます。未照合は明細金額を使用します。<span className="ml-1 font-black text-emerald-700">行をクリックすると事務所確認済みとして緑色になります。</span></p></div>
+                  <div><h4 className="text-lg font-black text-violet-950">👷 外注人件費</h4></div>
                   <div className="flex gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {subcontractorInvoiceProgressDoneCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {subcontractorInvoiceProgressPendingCount}</span></div>
                 </div>
                 {subcontractorInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の外注日報データはありません。</div> : (
@@ -12801,11 +12784,11 @@ export default function AdminPage() {
                     })}</div>
                   </div></div>
                 )}
-              </section>
+              </section>}
 
-              <section className="rounded-3xl border border-indigo-200 bg-white overflow-hidden shadow-sm">
+              {(invoiceCenterView === 'lease' || invoiceCenterView === 'all') && <section className="rounded-2xl border border-indigo-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-indigo-50 border-b border-indigo-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-indigo-950">🚜 リース</h4><p className="mt-0.5 text-xs text-indigo-700">詳細分析 → リース合計 → 請求書照合 と連動。確定した請求書金額が、その業者・期間の利益計算に反映されます。</p></div>
+                  <div><h4 className="text-lg font-black text-indigo-950">🚜 リース</h4></div>
                   <div className="flex gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {invoiceProgressDoneCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {invoiceProgressPendingCount}</span></div>
                 </div>
                 {invoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月のリース日報データはありません。</div> : (
@@ -12821,11 +12804,11 @@ export default function AdminPage() {
                       </div>))}</div>
                   </div></div>
                 )}
-              </section>
+              </section>}
 
-              <section className="rounded-3xl border border-blue-200 bg-white overflow-hidden shadow-sm">
+              {(invoiceCenterView === 'fuel' || invoiceCenterView === 'all') && <section className="rounded-2xl border border-blue-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-blue-50 border-b border-blue-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-blue-950">⛽ 燃料</h4><p className="mt-0.5 text-xs text-blue-700">詳細分析 → 燃料代 → 請求書照合 と連動。請求書金額は比較用、修正した明細だけ利益計算に反映されます。</p></div>
+                  <div><h4 className="text-lg font-black text-blue-950">⛽ 燃料</h4></div>
                   <div className="flex gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {fuelInvoiceProgressDoneCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {fuelInvoiceProgressPendingCount}</span></div>
                 </div>
                 {fuelInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の燃料日報データはありません。</div> : (
@@ -12835,11 +12818,11 @@ export default function AdminPage() {
                       <div key={row.key} className="grid grid-cols-[1.5fr_150px_150px_150px_120px_110px] gap-3 items-center px-4 py-3 bg-white"><div><div className="font-extrabold text-slate-900">{row.location}</div><div className="text-[11px] font-bold text-slate-400">{row.lineCount}明細</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.estimate)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div><div className="text-right"><button type="button" onClick={()=>openInvoiceProgressFuel(row)} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div></div>))}</div>
                   </div></div>
                 )}
-              </section>
+              </section>}
 
-              <section className="rounded-3xl border border-amber-200 bg-white overflow-hidden shadow-sm">
+              {(invoiceCenterView === 'disposal' || invoiceCenterView === 'all') && <section className="rounded-2xl border border-amber-200 bg-white overflow-hidden shadow-sm">
                 <div className="px-5 py-4 bg-amber-50 border-b border-amber-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div><h4 className="text-lg font-black text-amber-950">🗑️ 処分費</h4><p className="mt-0.5 text-xs text-amber-800">月別処分一覧と連動。各明細の「確定額」が利益計算に反映され、処分場請求書欄は照合用の金額メモです。</p></div>
+                  <div><h4 className="text-lg font-black text-amber-950">🗑️ 処分費</h4></div>
                   <div className="flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">✅ 済 {disposalInvoiceProgressDoneCount}</span><span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">🟡 確認中 {disposalInvoiceProgressProgressCount}</span><span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">○ 未 {disposalInvoiceProgressPendingCount}</span></div>
                 </div>
                 {disposalInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の処分データはありません。</div> : (
@@ -12849,7 +12832,7 @@ export default function AdminPage() {
                       <div key={row.key} className="grid grid-cols-[1.2fr_140px_140px_150px_130px_120px] gap-3 items-center px-4 py-3 bg-white"><div><div className="font-extrabold text-slate-900">{row.disposalSite}</div><div className="mt-0.5 text-[11px] font-bold text-slate-400">{row.checkedCount}/{row.itemCount}明細 確認</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.reportTotal)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.confirmedTotal)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.status === 'done' ? 'bg-emerald-100 text-emerald-800' : row.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{row.status === 'done' ? '✅ 照合済み' : row.status === 'progress' ? '🟡 確認中' : '○ 未照合'}</span></div><div className="text-right"><button type="button" onClick={() => openInvoiceProgressDisposal(row)} className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-xs font-black">月別一覧へ</button></div></div>))}</div>
                   </div></div>
                 )}
-              </section>
+              </section>}
             </div>
           </div>
         </div>
