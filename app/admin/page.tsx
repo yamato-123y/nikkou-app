@@ -17036,6 +17036,60 @@ export default function AdminPage() {
               })}
             </div>
 
+            {/* 日報から入力されたその他雑費の明細。集計済み金額を表示するだけで、原価へ二重加算しない。 */}
+            <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'other'} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              {(() => {
+                const dailyOtherRows = (modalData.reportsWithIndex || [])
+                  .map((r: any, index: number) => ({
+                    key: `${r.id || r._id || index}_${r.date || ''}`,
+                    date: String(r.date || ''),
+                    label: String(r.otherItem || 'その他雑費'),
+                    amount: Number(r.otherPrice || 0)
+                  }))
+                  .filter((r: any) => r.amount !== 0)
+                  .sort((a: any, b: any) => a.date.localeCompare(b.date));
+                const dailyOtherTotal = dailyOtherRows.reduce((sum: number, row: any) => sum + row.amount, 0);
+                return (
+                  <>
+                    <div className="px-4 md:px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-extrabold text-base md:text-lg text-slate-900">📋 日報由来のその他経費</h3>
+                        <div className="text-xs text-slate-500 mt-1">昼食代など、日報で入力された内容と金額</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500">日報入力合計（{dailyOtherRows.length}件）</div>
+                        <div className="font-extrabold text-lg text-slate-900">{formatAmount(dailyOtherTotal)}</div>
+                      </div>
+                    </div>
+                    {dailyOtherRows.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[520px] text-xs md:text-sm">
+                          <thead className="bg-slate-100 text-slate-700">
+                            <tr>
+                              <th className="text-left px-3 py-2 w-36">日付</th>
+                              <th className="text-left px-3 py-2">内容</th>
+                              <th className="text-right px-3 py-2 w-44">金額</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dailyOtherRows.map((row: any) => (
+                              <tr key={row.key} className="border-t border-slate-100 hover:bg-slate-50">
+                                <td className="px-3 py-2 whitespace-nowrap">{row.date || '日付不明'}</td>
+                                <td className="px-3 py-2 break-words">{row.label}</td>
+                                <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{formatAmount(row.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-5 text-sm text-slate-500">日報で入力されたその他経費はありません。</div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
             {/* この現場だけの突発的な追加経費 */}
             <div hidden={detailAnalysisView !== 'all' && detailAnalysisView !== 'other'} className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 overflow-hidden">
               <div className="px-5 md:px-6 py-4 md:py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-amber-200">
