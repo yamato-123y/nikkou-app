@@ -2817,7 +2817,19 @@ export default function AdminPage() {
 
   const addMaster = (key: string, newItem: any, formKeys: string[]) => {
     if (authRole === 'viewer') return;
-    const updatedList = [...(settings[key] || []), newItem];
+    const updatedList = [...(settings[key] || [])];
+    // 処分場は同じ処分場名の品目をまとめる。既存項目の相対的な順序は変えない。
+    if (key === 'disposalLocations' && String(newItem?.location || '').trim()) {
+      const locationName = String(newItem.location).trim();
+      let lastMatch = -1;
+      updatedList.forEach((existing: any, index: number) => {
+        if (String(existing?.location || '').trim() === locationName) lastMatch = index;
+      });
+      if (lastMatch >= 0) updatedList.splice(lastMatch + 1, 0, newItem);
+      else updatedList.push(newItem);
+    } else {
+      updatedList.push(newItem);
+    }
     setSettings({ ...settings, [key]: updatedList });
     const cleared = { ...form };
     formKeys.forEach(k => cleared[k] = '');
@@ -2839,6 +2851,34 @@ export default function AdminPage() {
     list[idx] = list[targetIdx];
     list[targetIdx] = temp;
     setSettings({ ...settings, [key]: list });
+  };
+
+  // 選択した行を指定位置へ一度に移動。データの内容・単価は一切変更しない。
+  const moveMasterItemToIndex = (key: string, fromIndex: number, toIndex: number) => {
+    if (authRole === 'viewer') return;
+    const list = [...(settings[key] || [])];
+    if (!Number.isInteger(toIndex) || fromIndex < 0 || fromIndex >= list.length || toIndex < 0 || toIndex >= list.length || fromIndex === toIndex) return;
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
+    setSettings({ ...settings, [key]: list });
+  };
+
+  // 同じ処分場の品目が最後にある場所へまとめる。
+  const moveDisposalItemToGroup = (fromIndex: number) => {
+    if (authRole === 'viewer') return;
+    const list = [...(settings.disposalLocations || [])];
+    const moved = list[fromIndex];
+    if (!moved) return;
+    const locationName = String(moved.location || '').trim();
+    if (!locationName) return;
+    list.splice(fromIndex, 1);
+    let lastMatch = -1;
+    list.forEach((item: any, i: number) => {
+      if (String(item?.location || '').trim() === locationName) lastMatch = i;
+    });
+    if (lastMatch < 0) return;
+    list.splice(lastMatch + 1, 0, moved);
+    setSettings({ ...settings, disposalLocations: list });
   };
 
   const updateItemField = (key: string, idx: number, field: string, value: any) => {
@@ -11354,6 +11394,21 @@ export default function AdminPage() {
                                         <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'up')} disabled={idx === 0} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="上へ">▲</button>
                                         <button type="button" onClick={() => moveMasterItem(sec.key, idx, 'down')} disabled={idx === (settings[sec.key] || []).length - 1} className="w-7 h-7 bg-slate-200 hover:bg-slate-300 disabled:opacity-30 rounded-lg text-xs font-bold flex items-center justify-center transition" title="下へ">▼</button>
                                         </div>
+                                        {sec.isDisp && (
+                                          <>
+                                            <button type="button" onClick={() => moveDisposalItemToGroup(idx)} className="text-xs whitespace-nowrap px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold" title="同じ処分場の品目の最後にまとめます">同じ処分場へ</button>
+                                            <select
+                                              aria-label={`${item.location || '処分場'}・${item.item || '品目'}の移動先`}
+                                              value={idx}
+                                              onChange={(e) => moveMasterItemToIndex(sec.key, idx, Number(e.target.value))}
+                                              className="max-w-[150px] p-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700"
+                                            >
+                                              {(settings[sec.key] || []).map((target: any, targetIndex: number) => (
+                                                <option key={targetIndex} value={targetIndex}>{targetIndex + 1}番目：{String(target?.location || '未入力').slice(0, 12)} / {String(target?.item || '').slice(0, 10)}</option>
+                                              ))}
+                                            </select>
+                                          </>
+                                        )}
                                         {sec.key === 'locations' && (
                                           <button 
                                             type="button" 
