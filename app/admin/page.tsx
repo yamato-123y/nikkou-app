@@ -9998,9 +9998,10 @@ export default function AdminPage() {
                 </table>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs md:text-sm text-amber-900 leading-relaxed">
-                <b>見方：</b>作業員マスタで建退共「加入」に設定した作業員だけ表示します。各日には、その作業員が入った現場名と「あり／なし／未」を表示します。「証紙あり」は現場・置場側から受け取る日数、「証紙なし」は大和で購入する必要がある日数です。「未設定」がある場合は、現場マスタでその現場・置場の建退共を設定してください。
-              </div>
+              <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs md:text-sm text-slate-700">
+                <summary className="cursor-pointer font-bold">ⓘ 使い方・表示の見方</summary>
+                <div className="mt-3 leading-relaxed">作業員マスタで建退共「加入」に設定した作業員だけ表示します。各日には、その作業員が入った現場名と「あり／なし／未」を表示します。「証紙あり」は現場・置場側から受け取る日数、「証紙なし」は大和で購入する必要がある日数です。「未設定」がある場合は、現場マスタでその現場・置場の建退共を設定してください。</div>
+              </details>
             </div>
           )}
         </div>
@@ -10936,7 +10937,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="text-xs text-slate-500 leading-relaxed space-y-1">
+              <details className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <summary className="cursor-pointer text-sm font-bold text-slate-700">ⓘ 使い方・勤怠の見方</summary>
+                <div className="mt-3 text-xs text-slate-600 leading-relaxed space-y-1">
                 <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
                 <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
                 <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
@@ -10950,7 +10953,8 @@ export default function AdminPage() {
                 <div>※ 個別休日変更・有給・管理・サンセイ・欠勤・休業は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
                 <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
                 <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
-              </div>
+                </div>
+              </details>
             </div>
           )}
         </div>
@@ -12913,11 +12917,10 @@ export default function AdminPage() {
             </div>
 
             <div className="p-5 md:p-7 space-y-5 bg-slate-50/60">
-              <div className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950 leading-relaxed">
-                <span className="font-black">今回の初回版：</span>
-                日報の作業日を基準に「決算日まで」と「翌期分」を分けます。請求日・請求額・支払日は後日Excelで入力できるよう空欄で書き出します。
-                金額はまず日報由来の概算です。既存の日報・請求書照合・マスタデータは変更しません。
-              </div>
+              <details className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <summary className="cursor-pointer font-bold">ⓘ 使い方</summary>
+                <div className="mt-3 leading-relaxed">日報の作業日を基準に「決算日まで」と「翌期分」を分けます。請求日・請求額・支払日は、Excel出力後に入力できるよう空欄にしています。金額は日報由来の概算です。日報・請求書照合・マスタデータは変更しません。</div>
+              </details>
 
               <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm font-black">
                 <span className="rounded-full bg-cyan-100 text-cyan-800 px-3 py-1.5">期跨ぎ現場 {fiscalClosingRows.length}件</span>
@@ -15885,13 +15888,10 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 md:p-5">
-                <div className="font-bold text-amber-900 text-lg">この画面について</div>
-                <div className="text-sm md:text-base text-amber-800 mt-1 leading-relaxed">
-                  置場は工事現場ではないため、請負金額・粗利・原価率ではなく、
-                  日報・出勤者・作業内容・報告事項を中心に確認します。
-                </div>
-              </div>
+              <details className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <summary className="cursor-pointer text-sm font-bold text-slate-700">ⓘ 使い方・置場について</summary>
+                <p className="mt-3 text-sm text-slate-700 leading-relaxed">置場は工事現場ではないため、請負金額・粗利・原価率ではなく、日報・出勤者・作業内容・報告事項を中心に確認します。</p>
+              </details>
 
               <details className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <summary className="cursor-pointer font-bold text-sm text-slate-700">⚙️ 置場の管理設定</summary>
@@ -17689,17 +17689,17 @@ export default function AdminPage() {
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900">🗑️ 処分費の内訳明細</h3>
-                <p className="text-sm md:text-base text-slate-600 mt-1.5">
-                  処分場ごとに、各月の「品目・総数量・単価・日報由来・請求確定額」を確認します。
-                </p>
                 <div className="text-sm md:text-base font-bold text-slate-800 mt-2">現場：{modalLocation}</div>
                 {authRole === 'admin' && (
-                  <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm md:text-base text-blue-900 font-bold leading-relaxed">
-                    金額を修正すると、📦 月別処分一覧にも同じ内容が反映されます。<br />
-                    「請求確定額」は、この現場の処分費・合計経費・利益の計算にも使われます。
-                  </div>
+                  <details className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                    <summary className="cursor-pointer font-bold text-slate-700">ⓘ 使い方</summary>
+                    <div className="mt-3 space-y-2 leading-relaxed">
+                      <p>処分場ごとに各月の品目・数量・単価・日報由来・請求確定額を確認できます。</p>
+                      <p>金額の修正は「📦 月別処分一覧」にも反映されます。「請求確定額」は、この現場の経費や利益計算にも使われます。</p>
+                      {renderInvoiceFlowGuide('disposal')}
+                    </div>
+                  </details>
                 )}
-                {authRole === 'admin' && <div className="mt-3">{renderInvoiceFlowGuide('disposal')}</div>}
               </div>
               <button onClick={() => { if (confirmUnsavedBeforeAction('処分費画面を閉じる')) setShowDisposalModal(false); }} className="shrink-0 w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xl transition">✕</button>
             </div>
@@ -17848,10 +17848,6 @@ export default function AdminPage() {
                   </section>
                 ))
               )}
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm md:text-base text-blue-900 font-bold leading-relaxed">
-              📌 この画面と「📦 月別処分一覧」は同じ処分データを見ています。どちらで金額を直しても、もう一方にも反映されます。
             </div>
 
             <div className="sticky bottom-0 z-20 -mx-4 md:-mx-8 px-4 md:px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 flex items-center justify-end gap-3">
