@@ -294,6 +294,8 @@ export default function AdminPage() {
   const [showSaveToast, setShowSaveToast] = useState(false);
   // PC管理画面は左ナビから目的の機能を切り替えて表示し、長い1ページを探してスクロールしない。
   const [adminNavView, setAdminNavView] = useState<'home' | 'new' | 'sites' | 'reports' | 'kentaikyo' | 'attendance' | 'fuel' | 'custom-machines' | 'announcements' | 'master' | 'completed'>('home');
+  // スマホ管理モードのメニュー。普段は閉じて画面を広く使う。
+  const [mobileAdminMenuOpen, setMobileAdminMenuOpen] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [showScrapModal, setShowScrapModal] = useState(false);
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
@@ -8469,56 +8471,28 @@ export default function AdminPage() {
       <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 gap-3">
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
-            <h1 className="text-xl md:text-3xl font-bold text-slate-950 tracking-tight">📊 現場日報・原価管理</h1>
-            <span className={`text-xs md:text-sm px-3 py-1 rounded-full font-bold ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-orange-100 text-orange-700'}`}>
+            <h1 className="text-xl md:text-3xl font-medium text-slate-950 tracking-tight">📊 現場日報・原価管理</h1>
+            <span className={`text-xs md:text-sm px-3 py-1 rounded-full font-normal ${authRole === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-orange-100 text-orange-700'}`}>
               {authRole === 'admin' ? '👑 管理者モード' : '👑 社長モード'}
             </span>
           </div>
           <p className="text-sm md:text-base text-slate-500 font-medium">株式会社大和 音声日報システム</p>
         </div>
-        <div className="flex w-full md:w-auto gap-2 flex-wrap items-center">
+        <div className="flex w-full md:w-auto gap-2 flex-nowrap items-center">
           {authRole === 'admin' && (
-            <a
-              href="/admin/workers"
-              className="flex-1 md:flex-none lg:hidden bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              👷 作業員台帳・資格管理
-            </a>
-          )}
-          {authRole === 'admin' && (
-            <>
-              <button onClick={() => setShowAllMonthlyDisposalModal(true)} className="flex-1 md:flex-none lg:hidden bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                🗑️ 処分費を確認
-              </button>
-              <button onClick={() => setShowInvoiceProgressModal(true)} className="flex-1 md:flex-none lg:hidden bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                🧾 請求書照合センター
-              </button>
-              <button onClick={() => setShowFiscalClosingModal(true)} className="flex-1 md:flex-none lg:hidden bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                📊 決算・期跨ぎ集計
-              </button>
-              <button onClick={openScrapReconcileModal} className="flex-1 md:flex-none lg:hidden bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm">
-                ♻️ スクラップを確認
-              </button>
-            </>
-          )}
-          {authRole === 'viewer' && (
             <button
-              onClick={() => {
-                const firstActive = (settings.locations || []).find((loc: any) =>
-                  typeof loc === 'string' ? true : !loc?.isFinished
-                );
-                const firstName = typeof firstActive === 'string' ? firstActive : firstActive?.name;
-                if (!trialScheduleLocation && firstName) setTrialScheduleLocation(firstName);
-                setShowTrialSchedule(true);
-              }}
-              className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5 shadow-sm"
+              type="button"
+              aria-expanded={mobileAdminMenuOpen}
+              aria-controls="mobile-admin-menu"
+              onClick={() => setMobileAdminMenuOpen((open) => !open)}
+              className="lg:hidden min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-900 px-3 py-2.5 text-sm font-normal text-white hover:bg-slate-800"
             >
-              📅 工程表
+              {mobileAdminMenuOpen ? '✕ 閉じる' : '☰ メニュー'}
             </button>
           )}
 
-          <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition flex items-center justify-center gap-1.5">
-            🔄 最新の状態にする
+          <button onClick={fetchData} className="min-w-0 flex-1 md:flex-none bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 md:px-4 py-2.5 rounded-xl font-normal text-xs md:text-base transition flex items-center justify-center gap-1.5">
+            🔄 <span className="hidden sm:inline">最新の状態にする</span><span className="sm:hidden">更新</span>
           </button>
           <button
             onClick={() => {
@@ -8529,12 +8503,76 @@ export default function AdminPage() {
                 sessionStorage.removeItem('yamato-admin-token');
               }
             }}
-            className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm md:text-base transition"
+            className="min-w-0 flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 md:px-4 py-2.5 rounded-xl font-normal text-xs md:text-base transition"
           >
             ログアウト
           </button>
         </div>
       </div>
+
+      {/* 管理モードのスマホ用メニュー：縦長ボタンをなくし、押しやすい2列の一覧にする。 */}
+      {authRole === 'admin' && mobileAdminMenuOpen && (
+        <div id="mobile-admin-menu" className="lg:hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <span className="text-sm font-medium text-slate-800">管理メニュー</span>
+            <button type="button" onClick={() => setMobileAdminMenuOpen(false)} className="rounded-lg px-3 py-1.5 text-sm font-normal text-slate-500 hover:bg-slate-100">閉じる ✕</button>
+          </div>
+          {[
+            { heading: '日々の確認', items: [
+              { key: 'home', icon: '🏠', label: '管理トップ' },
+              { key: 'new', icon: '🔔', label: '新着・要確認' },
+              { key: 'sites', icon: '🏢', label: '現場・詳細分析' },
+              { key: 'reports', icon: '📥', label: '日報一覧' }
+            ]},
+            { heading: '作業員・勤怠', items: [
+              { key: 'attendance', icon: '👷', label: '月次勤怠' },
+              { key: 'kentaikyo', icon: '🎫', label: '建退共' },
+              { key: 'workers', icon: '🪪', label: '作業員台帳・資格' }
+            ]},
+            { heading: '経費・請求書', items: [
+              { key: 'invoice', icon: '🧾', label: '請求書照合' },
+              { key: 'fuel', icon: '⛽', label: '大阪軽油単価' },
+              { key: 'disposal', icon: '🗑️', label: '処分費' },
+              { key: 'scrap', icon: '♻️', label: 'スクラップ' },
+              { key: 'fiscal', icon: '📊', label: '決算・期跨ぎ' }
+            ]},
+            { heading: '登録・その他', items: [
+              { key: 'custom-machines', icon: '⚠️', label: '自由入力機械' },
+              { key: 'announcements', icon: '📢', label: 'お知らせ' },
+              { key: 'master', icon: '⚙️', label: 'マスタ登録' },
+              { key: 'completed', icon: '📁', label: '完了済現場' }
+            ]}
+          ].map((group) => (
+            <div key={group.heading} className="mb-4 last:mb-0">
+              <div className="mb-2 px-1 text-xs font-normal text-slate-500">{group.heading}</div>
+              <div className="grid grid-cols-2 gap-2">
+                {group.items.map((item) => {
+                  const isCurrent = item.key === adminNavView;
+                  const btnClass = `flex min-h-[52px] w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[13px] leading-snug font-normal transition ${isCurrent ? 'border-slate-600 bg-slate-100 text-slate-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`;
+                  if (item.key === 'workers') return <a key={item.key} href="/admin/workers" className={btnClass}><span className="shrink-0 text-lg">{item.icon}</span><span>{item.label}</span></a>;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={btnClass}
+                      onClick={() => {
+                        if (item.key === 'invoice') setShowInvoiceProgressModal(true);
+                        else if (item.key === 'disposal') setShowAllMonthlyDisposalModal(true);
+                        else if (item.key === 'scrap') openScrapReconcileModal();
+                        else if (item.key === 'fiscal') setShowFiscalClosingModal(true);
+                        else openAdminNavView(item.key as typeof adminNavView);
+                        setMobileAdminMenuOpen(false);
+                      }}
+                    >
+                      <span className="shrink-0 text-lg">{item.icon}</span><span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {authRole === 'admin' && (
         <div className="hidden lg:flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
@@ -13711,7 +13749,7 @@ export default function AdminPage() {
 
 
       {/* 社長モード専用：工程表優先UI（試験版・保存なし） */}
-      {showTrialSchedule && authRole === 'viewer' && (
+      {false && showTrialSchedule && authRole === 'viewer' && (
         <div
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-1 md:p-2 z-[85]"
           onClick={() => setShowTrialSchedule(false)}
