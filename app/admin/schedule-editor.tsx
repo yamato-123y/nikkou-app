@@ -194,43 +194,83 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
 
   const exportExcel=()=>{
     if(!plan)return;
-    // 1列=1週間。画面では日単位で編集し、印刷ではA3横に収めやすい週単位へ変換する。
-    const from=plan.start;const to=plan.end>=from?plan.end:lastMonthDay(from,6);
-    const span=Math.min(730,Math.max(1,diff(from,to)+1));
-    const weeks=Math.ceil(span/7);
-    const lines:any[][]=[['工事管理工程表'],['工事名',plan.location,'現場責任者',plan.manager],['工期',`${from} ～ ${to}`],[],['工程名','業者',...Array.from({length:weeks},(_,i)=>{
-      const d=plus(from,i*7);return d.slice(0,7)} )]];
-    for(const task of plan.tasks){
-      lines.push([task.name,task.vendor,...Array.from({length:weeks},(_,i)=>{
-        const a=plus(from,i*7),b=plus(a,6);
-        return task.start<=b&&task.end>=a?'━':'';
-      })]);
+    // 画面の「月・週・日」とExcelの目盛りを合わせる。長い工期はA3横の複数シートに分ける。
+    const from=plan.start;
+    const to=plan.end>=from?plan.end:lastMonthDay(from,6);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)){
+      window.alert('工事開始日・終了日を確認してください。');return;
     }
-    if(plan.tasks.length===0)lines.push(['工程なし','']);
-    const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(lines);
-    const endCol=XLSX.utils.encode_col(weeks+1);
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:weeks+1}}];
-    ws['!cols']=[{wch:24},{wch:19},...Array.from({length:weeks},()=>({wch:4.2}))];
-    ws['!rows']=[{hpt:30},{hpt:22},{hpt:20},{hpt:7},...Array.from({length:lines.length-4},()=>({hpt:20}))];
-    const thin={style:'thin',color:{rgb:'CBD5E1'}};
-    for(let row=0;row<lines.length;row++){
-      for(let c=0;c<weeks+2;c++){
-        const addr=XLSX.utils.encode_cell({r:row,c});
-        const cell=(ws as any)[addr]||((ws as any)[addr]={t:'s',v:''});
-        const marked=row>=5 && c>=2 && cell.v==='━';
-        cell.s={font:{name:'Yu Gothic',sz:7,bold:row===0,color:{rgb:'000000'}},
-          alignment:{vertical:'center',horizontal:c>=2?'center':'left',wrapText:true},
-          border:row>=4?{top:thin,bottom:thin,left:thin,right:thin}:undefined,
-          fill:row===4?{fgColor:{rgb:'E2E8F0'}}:marked?{fgColor:{rgb:'475569'}}:undefined};
-        if(marked)cell.v='';
+    const allPeriods:TimeCell[]=[];
+    let cursor=from;
+    // 工期が極端に長い場合は誤操作防止のため上限を設ける（5年間）。
+    const maxDate=plus(from,1825);
+    if(to>maxDate){window.alert('Excel出力は工期5年以内にしてください。');return;}
+    while(cursor<=to){
+      let end=cursor;
+      let label='';
+      if(scale==='month'){
+        const d=parse(cursor);
+        end=lastMonthDay(cursor,1);
+        label=`${d.getUTCFullYear()}/${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+      }else if(scale==='week'){
+        end=plus(cursor,6);
+        const d=parse(cursor);
+        label=`${d.getUTCMonth()+1}/${d.getUTCDate()}`;
+      }else{
+        const d=parse(cursor);
+        label=`${d.getUTCMonth()+1}/${d.getUTCDate()}`;
       }
+      if(end>to)end=to;
+      allPeriods.push({start:cursor,end,label,major:true});
+      cursor=plus(end,1);
     }
-    (ws as any)['!pageSetup']={paperSize:8,orientation:'landscape',fitToWidth:1,fitToHeight:1};
-    (ws as any)['!printOptions']={horizontalCentered:true};
-    (ws as any)['!margins']={left:0.2,right:0.2,top:0.35,bottom:0.35,header:0.1,footer:0.1};
-    (ws as any)['!printArea']=`A1:${endCol}${lines.length}`;
-    XLSX.utils.book_append_sheet(wb,ws,'現場工程表');
-    XLSX.writeFile(wb,`現場工程表_${plan.location.replace(/[\\/:*?"<>|]/g,'_').slice(0,50)}.xlsx`);
+    const wb=XLSX.utils.book_new();
+    const pageSize=scale==='day'?31:scale==='week'?26:24;
+    const unitLabel=scale==='month'?'月ごと':scale==='week'?'週ごと':'日ごと';
+    const totalSheets=Math.ceil(allPeriods.length/pageSize);
+    const thin={style:'thin',color:{rgb:'CBD5E1'}};
+    for(let page=0;page<totalSheets;page++){
+      const periods=allPeriods.slice(page*pageSize,(page+1)*pageSize);
+      const columns=periods.length+2;
+      const lines:any[][]=[
+        ['工事管理工程表'],
+        ['工事名',plan.location,'現場責任者',plan.manager],
+        ['工期',`${from} ～ ${to}`],
+        ['表示単位',unitLabel,'対象期間',`${periods[0].start} ～ ${periods[periods.length-1].end}`],
+        ['工程名','業者',...periods.map(p=>p.label)]
+      ];
+      for(const task of plan.tasks){
+        lines.push([task.name,task.vendor,...periods.map(period=>task.start<=period.end&&task.end>=period.start?'━':'')]);
+      }
+      if(!plan.tasks.length)lines.push(['工程なし','']);
+      const ws=XLSX.utils.aoa_to_sheet(lines);
+      const endCol=XLSX.utils.encode_col(columns-1);
+      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:columns-1}}];
+      ws['!cols']=[{wch:26},{wch:19},...periods.map(()=>({wch:scale==='month'?10:scale==='week'?6.5:4.5}))];
+      ws['!rows']=[{hpt:27},{hpt:21},{hpt:20},{hpt:20},{hpt:29},...Array.from({length:lines.length-5},()=>({hpt:22}))];
+      for(let row=0;row<lines.length;row++){
+        for(let c=0;c<columns;c++){
+          const addr=XLSX.utils.encode_cell({r:row,c});
+          const cell=(ws as any)[addr]||((ws as any)[addr]={t:'s',v:''});
+          const marked=row>=5 && c>=2 && cell.v==='━';
+          cell.s={
+            font:{name:'Yu Gothic',sz:7,bold:false,color:{rgb:'000000'}},
+            alignment:{vertical:'center',horizontal:c>=2?'center':'left',wrapText:true},
+            border:row>=4?{top:thin,bottom:thin,left:thin,right:thin}:undefined,
+            fill:row===4?{patternType:'solid',fgColor:{rgb:'E2E8F0'}}:marked?{patternType:'solid',fgColor:{rgb:'475569'}}:undefined
+          };
+          if(marked)cell.v='';
+        }
+      }
+      (ws as any)['!pageSetup']={paperSize:8,orientation:'landscape',fitToWidth:1,fitToHeight:1};
+      (ws as any)['!sheetPr']={pageSetUpPr:{fitToPage:true}};
+      (ws as any)['!printOptions']={horizontalCentered:true};
+      (ws as any)['!margins']={left:0.2,right:0.2,top:0.35,bottom:0.35,header:0.1,footer:0.1};
+      (ws as any)['!printArea']=`A1:${endCol}${lines.length}`;
+      const sheetName=totalSheets===1?'現場工程表':`工程表${page+1}`;
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+    }
+    XLSX.writeFile(wb,`現場工程表_${unitLabel}_${plan.location.replace(/[\\/:*?"<>|]/g,'_').slice(0,45)}.xlsx`);
   };
 
   return (
@@ -305,7 +345,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
               <label>開始日<input type="date" value={plan.tasks.find(x=>x.id===selected)?.start||''} onChange={e=>modifyTask(selected,{start:e.target.value})} className="ml-2 rounded-lg border border-slate-300 p-2"/></label>
               <label>終了日<input type="date" value={plan.tasks.find(x=>x.id===selected)?.end||''} onChange={e=>modifyTask(selected,{end:e.target.value})} className="ml-2 rounded-lg border border-slate-300 p-2"/></label>
             </div>}
-            <p className="mt-3 text-xs text-black">※ 工程表は日報・勤怠・原価計算と別に保存します。Excelは週ごとの目盛りでA3横印刷を想定した初期版です。印刷時はExcelの印刷設定もご確認ください。</p>
+            <p className="mt-3 text-xs text-black">※ 工程表は日報・勤怠・原価計算と別に保存します。Excelは画面で選んだ「月ごと・週ごと・日ごと」で出力します。長い工期はA3横の複数シートに分けます。</p>
           </>}
           {!loading&&!plan&&<p className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-black">最初に現場を選んでください。工程表が保存されていれば読み込まれます。</p>}
         </div>
