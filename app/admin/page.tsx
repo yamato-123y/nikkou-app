@@ -444,6 +444,10 @@ export default function AdminPage() {
   const [disposalDetailsOpen, setDisposalDetailsOpen] = useState<any>({});
   const [scrapDetailsOpen, setScrapDetailsOpen] = useState<any>({});
   const [reportSectionOpen, setReportSectionOpen] = useState<any>({});
+  // 日報の確認状況だけを別保存。日報本文、勤怠・経費・利益計算には影響しない。
+  const [reportReviewRecords, setReportReviewRecords] = useState<Record<string, any>>({});
+  const [reportReviewSavingId, setReportReviewSavingId] = useState('');
+  const [reportReviewFilter, setReportReviewFilter] = useState<'all' | 'unchecked' | 'checked' | 'review'>('all');
   const [costOverrides, setCostOverrides] = useState<any>({});
   const [disposalOverrides, setDisposalOverrides] = useState<any>({});
   const [scrapOverrides, setScrapOverrides] = useState<any>({});
@@ -716,6 +720,7 @@ export default function AdminPage() {
       if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
       if (sData.invoiceReconcileStatus) setInvoiceReconcileStatus(sData.invoiceReconcileStatus);
       if (sData.invoiceReconcileHistory) setInvoiceReconcileHistory(sData.invoiceReconcileHistory);
+      setReportReviewRecords(sData.reportReviewRecords && typeof sData.reportReviewRecords === 'object' && !Array.isArray(sData.reportReviewRecords) ? sData.reportReviewRecords : {});
       setInvoiceCenterRowMemos(sData.invoiceCenterRowMemos && typeof sData.invoiceCenterRowMemos === 'object' ? sData.invoiceCenterRowMemos : {});
       if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
       if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
@@ -4545,6 +4550,84 @@ export default function AdminPage() {
     });
     fetchData();
   };
+
+  // 対象の日報ID。旧APIの {id,data} 形式にも対応する。
+  const reportReviewId = (report: any): string => String(report?.id || report?._id || report?.reportId || report?.data?.id || '');
+  // 「確認済み」後に日報が編集されたかを、作業内容の保存値で判定する。
+  // 管理者の返信や請負先の一括更新では、日報の再確認を要求しない。
+  const reportReviewSignature = (report: any): string => {
+    const content = report?.data && typeof report.data === 'object' && !Array.isArray(report.data)
+      ? report.data : report;
+    const ignore = new Set([
+      'id', '_id', 'reportId', 'data', '_rawReport', 'createdAt', 'updatedAt', 'submittedAt',
+      'client', 'startDate', 'adminReply', 'adminReplyAt', 'adminReplyReadAt',
+      'reviewStatus', 'reviewedAt', 'reviewedBy'
+    ]);
+    const normalize = (value: any): any => {
+      if (Array.isArray(value)) return value.map(normalize);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).filter(k => !ignore.has(k)).sort()
+          .map(k => [k, normalize(value[k])]));
+      }
+      return value === undefined ? null : value;
+    };
+    try { return JSON.stringify(normalize(content)); } catch { return ''; }
+  };
+  const getReportReviewState = (report: any): 'unchecked' | 'checked' | 'review' => {
+    const id = reportReviewId(report);
+    const record = id ? reportReviewRecords[id] : null;
+    if (!record?.checkedAt || !record?.signature) return 'unchecked';
+    return record.signature === reportReviewSignature(report) ? 'checked' : 'review';
+  };
+  // 最新設定を取り直し、この日報の確認記録だけを更新して保存する。
+  // 他の管理者が保存した確認記録を古い画面から上書きしない。
+  const changeReportReviewState = async (report: any) => {
+    if (authRole !== 'admin' || reportReviewSavingId) return;
+    const id = reportReviewId(report);
+    if (!id) { alert('日報IDが確認できないため、保存できません。'); return; }
+    const current = getReportReviewState(report);
+    try {
+      setReportReviewSavingId(id);
+      const latestRes = await fetch('/api/settings', { cache: 'no-store' });
+      if (!latestRes.ok) throw new Error('最新の確認状況を読み込めませんでした');
+      const latest = await latestRes.json();
+      if (!latest || typeof latest !== 'object' || Array.isArray(latest)) throw new Error('設定データを確認できませんでした');
+      const records = latest.reportReviewRecords && typeof latest.reportReviewRecords === 'object'
+        && !Array.isArray(latest.reportReviewRecords) ? { ...latest.reportReviewRecords } : {};
+      if (current === 'checked') {
+        delete records[id];
+      } else {
+        records[id] = { checkedAt: new Date().toISOString(), signature: reportReviewSignature(report) };
+      }
+      const saveRes = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...latest, reportReviewRecords: records })
+      });
+      if (!saveRes.ok) throw new Error('確認状況の保存に失敗しました');
+      setReportReviewRecords(records);
+    } catch (error) {
+      console.error(error);
+      alert('確認状況を保存できませんでした。もう一度お試しください。');
+    } finally {
+      setReportReviewSavingId('');
+    }
+  };
+  const reportReviewBadge = (report: any) => {
+    const state = getReportReviewState(report);
+    const styles = state === 'checked' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : state === 'review' ? 'border-amber-200 bg-amber-50 text-amber-800'
+      : 'border-slate-200 bg-slate-50 text-slate-600';
+    const label = state === 'checked' ? '✓ 確認済み' : state === 'review' ? '↻ 再確認' : '○ 未確認';
+    return <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-bold ${styles}`}>{label}</span>;
+  };
+  const reportReviewButton = (report: any) => authRole === 'admin' && (
+    <button type="button" disabled={!!reportReviewSavingId || !reportReviewId(report)}
+      onClick={() => changeReportReviewState(report)}
+      className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs md:text-sm font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50 whitespace-nowrap">
+      {reportReviewSavingId === reportReviewId(report) ? '保存中…'
+        : getReportReviewState(report) === 'checked' ? '確認を戻す' : '確認済みにする'}
+    </button>
+  );
 
   const getEditingLeaseQuantity = (field: string, item: string) => {
     const list = Array.isArray(editingReport?.[field]) ? editingReport[field] : [];
@@ -8830,6 +8913,7 @@ export default function AdminPage() {
                             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700">新着日報</span>
                             {officeMessage && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">報告事項あり</span>}
                             <span className="text-[11px] font-bold text-slate-400">{formatDashboardReportTime(report)}</span>
+                            {authRole === 'admin' && reportReviewBadge(report)}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm md:text-base">
                             <span className="font-black text-slate-900">{report?.location || '現場未記録'}</span>
@@ -8860,6 +8944,7 @@ export default function AdminPage() {
                               💬 {(report?.adminReply || report?.data?.adminReply) ? '返信を編集' : '返信する'}
                             </button>
                           )}
+                          {reportReviewButton(report)}
                           <button
                             onClick={() => setEditingReport({ ...report })}
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs md:text-sm font-black text-slate-700 hover:bg-slate-100 transition"
@@ -11956,6 +12041,16 @@ export default function AdminPage() {
         {authRole === 'viewer' && <div id="viewer-mobile-reports" className="scroll-mt-4"><button type="button" onClick={() => setViewerSection('home')} className="w-full min-h-[48px] rounded-xl bg-slate-900 text-white text-[16px] font-bold">← 社長ホームへ戻る</button></div>}
         <div className="flex justify-between items-center flex-wrap gap-3">
           <h2 className="text-xl md:text-2xl font-bold text-slate-900">📥 送信された日報一覧（現場別リスト）</h2>
+          {authRole === 'admin' && (
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="text-sm font-bold text-slate-600">確認状況</span>
+              <select value={reportReviewFilter} onChange={e => setReportReviewFilter(e.target.value as any)}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800">
+                <option value="all">すべて</option><option value="unchecked">未確認</option>
+                <option value="review">再確認</option><option value="checked">確認済み</option>
+              </select>
+            </div>
+          )}
           <input 
             type="text" 
             placeholder="🔍 現場名で絞り込み..." 
@@ -12065,7 +12160,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             {activeLocList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
               const targetNames = getTargetLocationNames(loc.name);
-              const locReports = filteredReports.filter(r => targetNames.includes(r.location));
+              const locReports = filteredReports.filter(r => targetNames.includes(r.location) && (authRole !== 'admin' || reportReviewFilter === 'all' || getReportReviewState(r) === reportReviewFilter));
               if (locReports.length === 0) return null;
 
               const sortedLocReports = [...locReports].sort((a, b) => {
@@ -12082,6 +12177,7 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <span className="font-bold text-lg md:text-2xl text-blue-700 break-words min-w-0">🏢 {loc.name}</span>
                       <span className="bg-slate-200 text-slate-700 text-xs md:text-sm px-3 py-1 rounded-full font-bold">{locReports.length}件の日報</span>
+                      {authRole === 'admin' && <span className="text-xs text-slate-500">確認後に修正された日報は「再確認」になります</span>}
                     </div>
                     <button
                       type="button"
@@ -12122,6 +12218,7 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
 
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
+                                {authRole === 'admin' && reportReviewBadge(r)}
                               </div>
 
                               <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
@@ -12217,6 +12314,7 @@ export default function AdminPage() {
 
                             {authRole === 'admin' && (
                               <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                                {reportReviewButton(r)}
                                 <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
                                 <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
                               </div>
@@ -12242,7 +12340,7 @@ export default function AdminPage() {
         <div className="p-4 md:p-8 space-y-5">
           {finishedLocList.filter(loc => !filterLocation || loc.name.includes(filterLocation)).map(loc => {
               const targetNames = getTargetLocationNames(loc.name);
-              const locReports = filteredReports.filter(r => targetNames.includes(r.location));
+              const locReports = filteredReports.filter(r => targetNames.includes(r.location) && (authRole !== 'admin' || reportReviewFilter === 'all' || getReportReviewState(r) === reportReviewFilter));
               const c = calculateCosts(loc.name);
 
               const sortedLocReports = [...locReports].sort((a, b) => {
@@ -12359,6 +12457,7 @@ export default function AdminPage() {
                                 <span className="font-bold text-slate-900 text-sm md:text-base">👤 職長: {r.manager || '-'} / 作業者: {workers.join(', ') || '-'}</span>
 
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs md:text-sm font-extrabold text-violet-700">📨 報告者: {r.reporter || r.data?.reporter || '未記録'}</span>
+                                {authRole === 'admin' && reportReviewBadge(r)}
                               </div>
 
                               <div className={`p-3.5 rounded-xl border whitespace-pre-wrap ${
@@ -12454,6 +12553,7 @@ export default function AdminPage() {
 
                             {authRole === 'admin' && (
                               <div className="flex md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                                {reportReviewButton(r)}
                                 <button onClick={() => setEditingReport({ ...r })} className="flex-1 md:flex-none bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
                                 <button onClick={() => handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i)} className="flex-1 md:flex-none bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2.5 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
                               </div>
@@ -12522,6 +12622,7 @@ export default function AdminPage() {
                       <div className="rounded-xl bg-slate-800 px-4 py-3 text-white">
                         <div className="text-xs text-slate-300 mb-1">日報 {i + 1} / {calendarReportModal.reports.length}</div>
                         <div className="font-bold text-base md:text-lg">{r.date || calendarReportModal.date}　{r.location || calendarReportModal.location}</div>
+                        {authRole === 'admin' && reportReviewBadge(r)}
                       </div>
 
                       <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
@@ -12607,6 +12708,7 @@ export default function AdminPage() {
 
                       {authRole === 'admin' && (
                         <div className="flex gap-2 pt-2">
+                          {reportReviewButton(r)}
                           <button onClick={() => { setCalendarReportModal(null); setEditingReport({ ...r }); }} className="bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-600 px-4 py-2 rounded-xl font-bold transition text-sm shadow-2xs">編集</button>
                           <button onClick={() => { handleDeleteReport(r, originalIndex !== -1 ? originalIndex : i); setCalendarReportModal(null); }} className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 px-4 py-2 rounded-xl font-bold transition text-sm shadow-2xs">削除</button>
                         </div>
