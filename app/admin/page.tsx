@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
 import { readCompanyCalendarHolidayPdf } from './company-calendar-pdf';
+import ScheduleEditor from './schedule-editor';
 
 // リース品の互換識別：
 // 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
@@ -648,6 +649,7 @@ export default function AdminPage() {
   // 社長モード専用・簡易工程表（試験版）
   // ※ この試験版はSupabaseへ保存しません。画面を再読み込みするとリセットされます。
   const [showTrialSchedule, setShowTrialSchedule] = useState(false);
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
   const [trialScheduleLocation, setTrialScheduleLocation] = useState('');
   const [trialScheduleMonth, setTrialScheduleMonth] = useState(() => getCurrentYearMonth());
   const [trialScheduleTasks, setTrialScheduleTasks] = useState<any[]>([]);
@@ -8509,6 +8511,14 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {/* 社長モードPC：工程表の作成（スマホからは編集しない） */}
+      {authRole === 'viewer' && (
+        <div className="hidden lg:flex justify-end">
+          <button type="button" onClick={() => setShowScheduleEditor(true)} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-normal text-slate-800 hover:bg-slate-50 shadow-sm">📅 現場工程表を作る・編集する</button>
+        </div>
+      )}
+      {showScheduleEditor && authRole === 'viewer' && <ScheduleEditor locations={settings.locations || []} workers={settings.workers || []} onClose={() => setShowScheduleEditor(false)} />}
 
       {/* 管理モードのスマホ用メニュー：縦長ボタンをなくし、押しやすい2列の一覧にする。 */}
       {authRole === 'admin' && mobileAdminMenuOpen && (
