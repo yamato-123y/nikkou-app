@@ -486,6 +486,9 @@ export default function AdminPage() {
   const [showExpenseInvoiceDetails, setShowExpenseInvoiceDetails] = useState(false);
   // リース照合の説明は必要なときだけ表示。照合・保存処理には影響させない。
   const [leaseInvoiceHelpOpen, setLeaseInvoiceHelpOpen] = useState(false);
+  // 外注・燃料の請求書照合：説明は必要な時だけ表示する（計算・保存には影響しない）。
+  const [subInvoiceHelpOpen, setSubInvoiceHelpOpen] = useState(false);
+  const [otherExpenseInvoiceHelpOpen, setOtherExpenseInvoiceHelpOpen] = useState(false);
   const [expenseInvoiceCategory, setExpenseInvoiceCategory] = useState<{ key: string; label: string } | null>(null);
   const [expenseInvoiceFilter, setExpenseInvoiceFilter] = useState({ startDate: '', endDate: '', vendor: '' });
   const [expenseInvoiceEditingKey, setExpenseInvoiceEditingKey] = useState<string | null>(null);
@@ -17613,14 +17616,10 @@ export default function AdminPage() {
               <div className="px-4 md:px-6 py-4 border-b border-indigo-200 bg-indigo-50 flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 {expenseInvoiceCategory.label}・請求書照合</h3>
-                  {!isLeaseInvoice && (
-                    <p className="text-sm text-slate-600 mt-1">この現場だけを対象に、期間内の明細を請求書と照らし合わせます。マスタ・他現場・元の日報は変更しません。</p>
-                  )}
+
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {isLeaseInvoice && (
-                    <button type="button" onClick={() => setLeaseInvoiceHelpOpen((prev) => !prev)} aria-expanded={leaseInvoiceHelpOpen} className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-sm font-bold">ⓘ 使い方</button>
-                  )}
+                  <button type="button" onClick={() => isLeaseInvoice ? setLeaseInvoiceHelpOpen((prev) => !prev) : setOtherExpenseInvoiceHelpOpen((prev) => !prev)} aria-expanded={isLeaseInvoice ? leaseInvoiceHelpOpen : otherExpenseInvoiceHelpOpen} className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-sm font-bold">ⓘ 使い方</button>
                   <button type="button" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合画面を閉じる')) setShowExpenseInvoiceModal(false); }} className="w-10 h-10 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold">✕</button>
                 </div>
               </div>
@@ -17635,7 +17634,13 @@ export default function AdminPage() {
                     <div>④ 「請求書金額を確定」を押し、続けて「変更を保存」で確定します。</div>
                     <div className="pt-2 border-t border-slate-200 text-xs text-slate-600">確定した請求書金額は該当業者・期間の利益計算に反映され、請求書照合センターと詳細分析に連動します。</div>
                   </div>
-                ) : renderInvoiceFlowGuide('line')}
+                ) : (otherExpenseInvoiceHelpOpen && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm text-slate-700">
+                  <div className="font-extrabold text-slate-900">{expenseInvoiceCategory.label}の請求書照合</div>
+                  <div>① 開始日と終了日を選び、日報の明細を確認します。</div>
+                  <div>② 必要な明細だけ修正し、請求書の税別金額を入力して差額を確認します。</div>
+                  <div>③ 「照合済みにする」を押した後、「変更を保存」で確定します。</div>
+                  <div className="pt-2 border-t border-slate-200 text-xs">この画面の請求額は比較用です。利益計算には明細を修正した後の金額が反映されます。元の日報・マスタ・他現場は変更しません。</div>
+                </div>)}
                 {isLeaseInvoice ? (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
                     <label className="text-sm font-extrabold text-slate-700">リース業者
@@ -17652,12 +17657,12 @@ export default function AdminPage() {
                     </label>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-3 md:p-4">
                     <label className="text-sm font-extrabold text-slate-700">開始日
-                      <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                      <input type="date" value={startDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))} className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-white font-bold" />
                     </label>
                     <label className="text-sm font-extrabold text-slate-700">終了日
-                      <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border-2 border-blue-300 rounded-xl bg-white font-bold" />
+                      <input type="date" value={endDate} onChange={(e) => setExpenseInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))} className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-white font-bold" />
                     </label>
                   </div>
                 )}
@@ -17772,9 +17777,8 @@ export default function AdminPage() {
                     )}
 
                     {!isLeaseInvoice && (
-                      <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
-                          <div><div className="font-extrabold text-blue-900">請求書と照合</div><div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、利益計算に反映する金額との差額を確認できます。燃料の請求書金額は比較用で、明細修正後の金額を利益計算に使います。</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3 md:p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:items-end">
                           <label className="text-sm font-extrabold text-slate-700">請求書金額（税別）<div className="mt-1 flex items-center gap-1"><span className="font-bold text-blue-600">¥</span><input type="number" value={expenseInvoiceAmount} onChange={(e) => setExpenseInvoiceAmount(e.target.value)} placeholder="請求書の合計" className="w-full p-2.5 border-2 border-blue-300 rounded-xl text-right font-extrabold bg-white" /></div></label>
                           <div className="rounded-xl bg-white border border-blue-200 p-3 text-right"><div className="text-xs text-slate-500 font-bold">差額（請求書 − 利益計算に反映する金額）</div><div className={`text-xl font-extrabold mt-1 ${diff === null ? 'text-slate-400' : diff === 0 ? 'text-emerald-600' : 'text-red-600'}`}>{diff === null ? '—' : formatAmount(diff)}</div></div>
                         </div>
@@ -17861,20 +17865,27 @@ export default function AdminPage() {
                 <div>
                   <div className="text-xl md:text-2xl font-extrabold text-slate-900">🧾 外注人件費・請求書照合</div>
                   <div className="text-sm text-slate-600 mt-1">{modalLocation}</div>
-                  <div className="text-xs md:text-sm text-violet-700 font-bold mt-1">日報そのもの・マスタ・他現場は変更せず、この現場の該当明細だけ原価を補正します。</div>
+
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { if (confirmUnsavedBeforeAction('外注請求書照合画面を閉じる')) setShowSubcontractorInvoiceModal(false); }}
-                  className="shrink-0 w-10 h-10 rounded-full bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-extrabold"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => setSubInvoiceHelpOpen(v => !v)} aria-expanded={subInvoiceHelpOpen} className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-sm font-bold">ⓘ 使い方</button>
+                  <button
+                    type="button"
+                    onClick={() => { if (confirmUnsavedBeforeAction('外注請求書照合画面を閉じる')) setShowSubcontractorInvoiceModal(false); }}
+                    className="w-10 h-10 rounded-full bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 font-extrabold"
+                  >✕</button>
+                </div>
               </div>
 
               <div className="p-4 md:p-6 overflow-y-auto space-y-4">
-                {renderInvoiceFlowGuide('line')}
-                <div className="rounded-2xl border-2 border-violet-200 bg-violet-50/50 p-4">
+                {subInvoiceHelpOpen && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm text-slate-700">
+                  <div className="font-extrabold text-slate-900">外注人件費の請求書照合</div>
+                  <div>① 外注業者・開始日・終了日を選び、人工数・単価・金額を確認します。</div>
+                  <div>② 請求書と違う明細があれば、各行の「修正」から変更します。</div>
+                  <div>③ 請求書金額を入力して差額を確認し、「照合済みにする」「変更を保存」の順で確定します。</div>
+                  <div className="pt-2 border-t border-slate-200 text-xs">請求書金額は比較用です。利益計算には明細修正後の金額を使います。日報・マスタ・他現場は変更しません。</div>
+                </div>}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 md:p-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <label className="text-sm font-extrabold text-slate-700">
                       開始日
@@ -17882,7 +17893,7 @@ export default function AdminPage() {
                         type="date"
                         value={startDate}
                         onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, startDate: e.target.value }))}
-                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                        className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-white font-bold"
                       />
                     </label>
                     <label className="text-sm font-extrabold text-slate-700">
@@ -17891,7 +17902,7 @@ export default function AdminPage() {
                         type="date"
                         value={endDate}
                         onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, endDate: e.target.value }))}
-                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                        className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-white font-bold"
                       />
                     </label>
                     <label className="text-sm font-extrabold text-slate-700">
@@ -17899,7 +17910,7 @@ export default function AdminPage() {
                       <select
                         value={company}
                         onChange={(e) => setSubcontractorInvoiceFilter((prev) => ({ ...prev, company: e.target.value }))}
-                        className="mt-1 w-full p-2.5 border-2 border-violet-300 rounded-xl bg-white font-bold"
+                        className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-white font-bold"
                       >
                         <option value="">選択してください</option>
                         {companyOptions.map((name: any) => (
@@ -17931,17 +17942,17 @@ export default function AdminPage() {
                 ) : (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div className="rounded-2xl bg-slate-900 text-white p-4">
-                        <div className="text-xs text-slate-300 font-bold">使用日数</div>
-                        <div className="text-2xl font-extrabold mt-1">{new Set(visibleLines.map((x: any) => x.date)).size}日</div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-xs text-slate-500 font-bold">使用日数</div>
+                        <div className="text-2xl font-extrabold text-slate-900 mt-1">{new Set(visibleLines.map((x: any) => x.date)).size}日</div>
                       </div>
-                      <div className="rounded-2xl bg-violet-600 text-white p-4">
-                        <div className="text-xs text-violet-100 font-bold">人工合計</div>
-                        <div className="text-2xl font-extrabold mt-1">{Number(totalCount || 0).toLocaleString('ja-JP')}人工</div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-xs text-slate-500 font-bold">人工合計</div>
+                        <div className="text-2xl font-extrabold text-slate-900 mt-1">{Number(totalCount || 0).toLocaleString('ja-JP')}人工</div>
                       </div>
-                      <div className="rounded-2xl bg-emerald-600 text-white p-4">
-                        <div className="text-xs text-emerald-100 font-bold">利益計算に反映する金額（明細修正後）</div>
-                        <div className="text-2xl font-extrabold mt-1">{formatAmount(totalAmount)}</div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="text-xs text-slate-500 font-bold">明細修正後の金額（利益計算に反映）</div>
+                        <div className="text-2xl font-extrabold text-slate-900 mt-1">{formatAmount(totalAmount)}</div>
                       </div>
                     </div>
 
@@ -18062,12 +18073,8 @@ export default function AdminPage() {
                       </table>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_220px] gap-3 md:items-end">
-                        <div>
-                          <div className="font-extrabold text-blue-900">請求書と照合</div>
-                          <div className="text-xs md:text-sm text-blue-700 mt-1">請求書の税別金額を入力すると、利益計算に反映する金額との差額を確認できます。ここへの入力は比較用で、利益計算には上の明細修正後の金額を使います。</div>
-                        </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 md:p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:items-end">
                         <label className="text-sm font-extrabold text-slate-700">
                           請求書金額（税別）
                           <div className="mt-1 flex items-center gap-1">
