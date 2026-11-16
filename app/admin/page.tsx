@@ -500,6 +500,10 @@ export default function AdminPage() {
   // 請求書照合センターのPC表示切替と説明の開閉（画面表示だけ。保存・計算には影響しない）。
   const [invoiceCenterView, setInvoiceCenterView] = useState<'sub' | 'lease' | 'fuel' | 'disposal' | 'all'>('sub');
   const [invoiceCenterHelpOpen, setInvoiceCenterHelpOpen] = useState(false);
+  // 照合センターと現場詳細分析から共有する確認メモ（原価計算には影響しない）。
+  const [invoiceCenterRowMemos, setInvoiceCenterRowMemos] = useState<Record<string, any>>({});
+  const [invoiceCenterMemoEdit, setInvoiceCenterMemoEdit] = useState<any | null>(null);
+  const [invoiceCenterMemoDraft, setInvoiceCenterMemoDraft] = useState('');
   const [invoiceProgressMonth, setInvoiceProgressMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7));
   // 決算・期跨ぎ集計。既存データは変更せず、指定した決算日を境に日報由来の現場経費を集計する。
   const [showFiscalClosingModal, setShowFiscalClosingModal] = useState(false);
@@ -705,6 +709,7 @@ export default function AdminPage() {
       if (sData.expenseInvoiceLineOverrides) setExpenseInvoiceLineOverrides(sData.expenseInvoiceLineOverrides);
       if (sData.invoiceReconcileStatus) setInvoiceReconcileStatus(sData.invoiceReconcileStatus);
       if (sData.invoiceReconcileHistory) setInvoiceReconcileHistory(sData.invoiceReconcileHistory);
+      setInvoiceCenterRowMemos(sData.invoiceCenterRowMemos && typeof sData.invoiceCenterRowMemos === 'object' ? sData.invoiceCenterRowMemos : {});
       if (sData.customExtraExpenses) setCustomExtraExpenses(sData.customExtraExpenses);
       if (sData.monthlyDisposalInvoices) setMonthlyDisposalInvoices(sData.monthlyDisposalInvoices);
       if (sData.disposalRowMemos) setDisposalRowMemos(sData.disposalRowMemos);
@@ -4060,6 +4065,38 @@ export default function AdminPage() {
     }
   };
 
+  // 同じキーを全体一覧・現場詳細の両方で使用する。メモは確認補助で、照合済みの判定には使わない。
+  const getInvoiceCenterMemoKey = (category: string, month: string, location: string, entity = '') =>
+    JSON.stringify([category, month, location, entity]);
+
+  const openInvoiceCenterMemo = (info: any) => {
+    if (authRole !== 'admin') return;
+    setInvoiceCenterMemoEdit(info);
+    setInvoiceCenterMemoDraft(String(invoiceCenterRowMemos?.[info.key]?.text || ''));
+  };
+
+  const saveInvoiceCenterMemo = () => {
+    if (!invoiceCenterMemoEdit || authRole !== 'admin') return;
+    const info = invoiceCenterMemoEdit;
+    const text = invoiceCenterMemoDraft.trim();
+    setInvoiceCenterRowMemos((prev: any) => {
+      const next = { ...prev };
+      if (text) next[info.key] = { ...info, text, updatedAt: new Date().toISOString() };
+      else delete next[info.key];
+      return next;
+    });
+    setFinancialDirty(true);
+    setInvoiceCenterMemoEdit(null);
+  };
+
+  const invoiceMemoButton = (info: any) => (
+    <button type="button" onClick={(e) => { e.stopPropagation(); openInvoiceCenterMemo(info); }}
+      title={invoiceCenterRowMemos?.[info.key]?.text || 'メモを入力・確認'}
+      className={`shrink-0 rounded-full border w-9 h-9 text-base transition hover:bg-amber-100 hover:border-amber-400 ${invoiceCenterRowMemos?.[info.key]?.text ? 'bg-amber-50 border-amber-400 text-amber-800' : 'border-slate-200 bg-white text-slate-500'}`}>
+      {invoiceCenterRowMemos?.[info.key]?.text ? '📝' : '✎'}
+    </button>
+  );
+
   const openExpenseInvoiceModal = (key: string, label: string) => {
     if (!modalLocation) return;
     setExpenseInvoiceCategory({ key, label });
@@ -4272,6 +4309,7 @@ export default function AdminPage() {
         expenseInvoiceLineOverrides,
         invoiceReconcileStatus,
         invoiceReconcileHistory,
+        invoiceCenterRowMemos,
         customExtraExpenses
       };
 
@@ -7638,6 +7676,7 @@ export default function AdminPage() {
         invoiceAmount: hasInvoiceAmount ? Number(invoiceRaw || 0) : null,
         itemCount: items.length,
         checkedCount,
+        locations: Array.from(new Set(items.map((item:any) => String(item.locationName || '').trim()).filter(Boolean))),
         status
       });
     });
@@ -12697,6 +12736,18 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* 共通照合メモ：全体一覧と詳細分析で同じ保存情報を編集 */}
+      {invoiceCenterMemoEdit && authRole === 'admin' && (
+        <div className="fixed inset-0 z-[90] bg-slate-900/50 flex items-center justify-center p-4" onClick={() => setInvoiceCenterMemoEdit(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start gap-3"><div><h3 className="text-lg font-extrabold text-slate-900">照合メモ</h3><p className="text-xs text-slate-500 mt-1">{invoiceCenterMemoEdit.label}　{invoiceCenterMemoEdit.month}</p></div><button type="button" onClick={() => setInvoiceCenterMemoEdit(null)} className="rounded-lg bg-slate-100 px-3 py-1.5">閉じる</button></div>
+            <textarea value={invoiceCenterMemoDraft} onChange={(e) => setInvoiceCenterMemoDraft(e.target.value)} rows={5} placeholder="確認したこと、請求書との差額の理由などを入力" className="w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-blue-500" />
+            <p className="text-xs text-slate-500">このメモは原価・利益計算や照合済み判定を変えません。最後に「変更を保存」で確定してください。</p>
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setInvoiceCenterMemoEdit(null)} className="rounded-lg border px-4 py-2 text-sm font-bold">キャンセル</button><button type="button" onClick={saveInvoiceCenterMemo} className="rounded-lg bg-blue-600 text-white px-5 py-2 text-sm font-bold">メモを反映</button></div>
+          </div>
+        </div>
+      )}
+
       {/* 請求書照合センター：詳細分析の照合結果と同じデータを一か所で確認 */}
       {showInvoiceProgressModal && authRole === 'admin' && (
         <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => { if (confirmUnsavedBeforeAction('請求書照合センターを閉じる')) setShowInvoiceProgressModal(false); }}>
@@ -12762,7 +12813,7 @@ export default function AdminPage() {
                 </div>
                 {subcontractorInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の外注日報データはありません。</div> : (
                   <div className="overflow-x-auto"><div className="min-w-[1040px]">
-                    <div className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>外注業者</div><div className="text-right">現在明細合計</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
+                    <div className="grid grid-cols-[1.3fr_1fr_130px_130px_150px_120px_150px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>外注業者</div><div className="text-right">現在明細合計</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
                     <div className="divide-y divide-slate-100">{subcontractorInvoiceProgressRows.map((row:any) => {
                       const manuallyChecked = isInvoiceCenterSubChecked(row);
                       return (
@@ -12773,12 +12824,12 @@ export default function AdminPage() {
                         onClick={() => toggleInvoiceCenterSubChecked(row)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleInvoiceCenterSubChecked(row); } }}
                         title="行をクリックすると事務所確認済みとして緑色になります。もう一度クリックすると解除します。"
-                        className={`grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 cursor-pointer transition ${manuallyChecked ? 'bg-emerald-100/80 hover:bg-emerald-100' : 'bg-white hover:bg-violet-50/50'}`}
+                        className={`grid grid-cols-[1.3fr_1fr_130px_130px_150px_120px_150px] gap-3 items-center px-4 py-3 cursor-pointer transition ${manuallyChecked || row.isReconciled ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'bg-white hover:bg-amber-50'}`}
                       >
                         <div className="font-extrabold text-slate-900">{row.location}{manuallyChecked && <div className="mt-0.5 text-[10px] font-black text-emerald-700">✓ 事務所確認済み</div>}</div><div className="font-bold text-slate-700">{row.company}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div>
                         <div className="text-right font-black text-slate-900">{formatAmount(row.currentAmount)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right"><div className="font-black text-emerald-700">{formatAmount(row.profitAmount)}</div><div className="text-[10px] text-slate-400">{row.isAppliedToCost ? '確定請求書を反映' : '明細修正後'}</div></div>
                         <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div>
-                        <div className="text-right"><button type="button" onClick={(e)=>{ e.stopPropagation(); openInvoiceProgressSubcontractor(row); }} className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
+                        <div className="flex items-center justify-end gap-2"><button type="button" onClick={(e)=>{ e.stopPropagation(); openInvoiceProgressSubcontractor(row); }} className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button>{invoiceMemoButton({ key: getInvoiceCenterMemoKey('sub', invoiceProgressMonth, row.location, row.company), category: 'sub', month: invoiceProgressMonth, location: row.location, entity: row.company, label: `${row.location} / ${row.company}` })}</div>
                       </div>
                       );
                     })}</div>
@@ -12793,14 +12844,14 @@ export default function AdminPage() {
                 </div>
                 {invoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月のリース日報データはありません。</div> : (
                   <div className="overflow-x-auto"><div className="min-w-[1040px]">
-                    <div className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>リース業者</div><div className="text-right">日報由来の概算</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映</div><div className="text-center">状態</div><div></div></div>
+                    <div className="grid grid-cols-[1.3fr_1fr_130px_130px_150px_120px_150px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div>リース業者</div><div className="text-right">日報由来の概算</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映</div><div className="text-center">状態</div><div></div></div>
                     <div className="divide-y divide-slate-100">{invoiceProgressRows.map((row:any) => (
-                      <div key={row.key} className="grid grid-cols-[1.3fr_1fr_140px_140px_150px_120px_110px] gap-3 items-center px-4 py-3 bg-white">
+                      <div key={row.key} className={`grid grid-cols-[1.3fr_1fr_130px_130px_150px_120px_150px] gap-3 items-center px-4 py-3 transition ${row.isReconciled ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'bg-white hover:bg-amber-50'}`} >
                         <div className="font-extrabold text-slate-900">{row.location}</div><div className="font-bold text-slate-700">{row.vendor}<span className="ml-2 text-[11px] text-slate-400">{row.lineCount}明細</span></div><div className="text-right font-black text-slate-900">{formatAmount(row.estimate)}</div>
                         <div className="text-right font-black text-blue-700">{row.isReconciled ? (row.hasCrossMonthConfirmed ? '期間跨ぎ' : formatAmount(row.invoiceAmount || 0)) : '未確定'}</div>
                         <div className="text-right"><div className="font-black text-emerald-700">{row.isReconciled ? (row.hasCrossMonthConfirmed ? '確定済' : formatAmount(row.invoiceAmount || 0)) : formatAmount(row.estimate)}</div><div className="text-[10px] text-slate-400">{row.isReconciled ? (row.hasCrossMonthConfirmed ? '請求期間全体で反映' : '請求書金額') : '概算を使用中'}</div></div>
                         <div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 利益計算に反映済み' : '○ 未照合'}</span></div>
-                        <div className="text-right"><button type="button" onClick={()=>openInvoiceProgressLease(row)} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div>
+                        <div className="flex items-center justify-end gap-2"><button type="button" onClick={()=>openInvoiceProgressLease(row)} className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button>{invoiceMemoButton({ key: getInvoiceCenterMemoKey('lease', invoiceProgressMonth, row.location, row.vendor), category: 'lease', month: invoiceProgressMonth, location: row.location, entity: row.vendor, label: `${row.location} / ${row.vendor}` })}</div>
                       </div>))}</div>
                   </div></div>
                 )}
@@ -12813,9 +12864,9 @@ export default function AdminPage() {
                 </div>
                 {fuelInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の燃料日報データはありません。</div> : (
                   <div className="overflow-x-auto"><div className="min-w-[930px]">
-                    <div className="grid grid-cols-[1.5fr_150px_150px_150px_120px_110px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div className="text-right">日報由来の概算</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
+                    <div className="grid grid-cols-[1.5fr_150px_150px_150px_120px_150px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>現場</div><div className="text-right">日報由来の概算</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
                     <div className="divide-y divide-slate-100">{fuelInvoiceProgressRows.map((row:any) => (
-                      <div key={row.key} className="grid grid-cols-[1.5fr_150px_150px_150px_120px_110px] gap-3 items-center px-4 py-3 bg-white"><div><div className="font-extrabold text-slate-900">{row.location}</div><div className="text-[11px] font-bold text-slate-400">{row.lineCount}明細</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.estimate)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div><div className="text-right"><button type="button" onClick={()=>openInvoiceProgressFuel(row)} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button></div></div>))}</div>
+                      <div key={row.key} className={`grid grid-cols-[1.5fr_150px_150px_150px_120px_150px] gap-3 items-center px-4 py-3 transition ${row.isReconciled ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'bg-white hover:bg-amber-50'}`} ><div><div className="font-extrabold text-slate-900">{row.location}</div><div className="text-[11px] font-bold text-slate-400">{row.lineCount}明細</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.estimate)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.currentAmount)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.isReconciled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{row.isReconciled ? '✅ 照合済み' : '○ 未照合'}</span></div><div className="flex items-center justify-end gap-2"><button type="button" onClick={()=>openInvoiceProgressFuel(row)} className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 px-3 py-2 text-xs font-black">{row.isReconciled ? '確認・編集' : '照合へ'}</button>{invoiceMemoButton({ key: getInvoiceCenterMemoKey('fuel', invoiceProgressMonth, row.location), category: 'fuel', month: invoiceProgressMonth, location: row.location, entity: '', label: `${row.location} / 燃料` })}</div></div>))}</div>
                   </div></div>
                 )}
               </section>}
@@ -12827,12 +12878,16 @@ export default function AdminPage() {
                 </div>
                 {disposalInvoiceProgressRows.length === 0 ? <div className="py-8 text-center text-sm font-bold text-slate-400">この月の処分データはありません。</div> : (
                   <div className="overflow-x-auto"><div className="min-w-[980px]">
-                    <div className="grid grid-cols-[1.2fr_140px_140px_150px_130px_120px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>処分場</div><div className="text-right">日報由来</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
+                    <div className="grid grid-cols-[1.2fr_140px_140px_150px_130px_160px] gap-3 bg-slate-100 px-4 py-2.5 text-xs font-black text-slate-600"><div>処分場</div><div className="text-right">日報由来</div><div className="text-right">請求書金額</div><div className="text-right">利益計算に反映する金額</div><div className="text-center">状態</div><div></div></div>
                     <div className="divide-y divide-slate-100">{disposalInvoiceProgressRows.map((row:any) => (
-                      <div key={row.key} className="grid grid-cols-[1.2fr_140px_140px_150px_130px_120px] gap-3 items-center px-4 py-3 bg-white"><div><div className="font-extrabold text-slate-900">{row.disposalSite}</div><div className="mt-0.5 text-[11px] font-bold text-slate-400">{row.checkedCount}/{row.itemCount}明細 確認</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.reportTotal)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.confirmedTotal)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.status === 'done' ? 'bg-emerald-100 text-emerald-800' : row.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{row.status === 'done' ? '✅ 照合済み' : row.status === 'progress' ? '🟡 確認中' : '○ 未照合'}</span></div><div className="text-right"><button type="button" onClick={() => openInvoiceProgressDisposal(row)} className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-xs font-black">月別一覧へ</button></div></div>))}</div>
+                      <div key={row.key} className={`grid grid-cols-[1.2fr_140px_140px_150px_130px_160px] gap-3 items-center px-4 py-3 transition ${row.status === 'done' ? 'bg-emerald-50 hover:bg-emerald-100/70' : 'bg-white hover:bg-amber-50'}`} ><div><div className="font-extrabold text-slate-900">{row.disposalSite}</div><div className="mt-0.5 text-[11px] font-bold text-slate-400">{row.checkedCount}/{row.itemCount}明細 確認</div></div><div className="text-right font-black text-slate-900">{formatAmount(row.reportTotal)}</div><div className="text-right font-black text-blue-700">{row.invoiceAmount === null ? '未入力' : formatAmount(row.invoiceAmount)}</div><div className="text-right font-black text-emerald-700">{formatAmount(row.confirmedTotal)}</div><div className="text-center"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${row.status === 'done' ? 'bg-emerald-100 text-emerald-800' : row.status === 'progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{row.status === 'done' ? '✅ 照合済み' : row.status === 'progress' ? '🟡 確認中' : '○ 未照合'}</span></div><div className="flex items-center justify-end gap-2"><button type="button" onClick={() => openInvoiceProgressDisposal(row)} className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 px-3 py-2 text-xs font-black">月別一覧へ</button>{invoiceMemoButton({ key: getInvoiceCenterMemoKey('disposal', invoiceProgressMonth, '', row.disposalSite), category: 'disposal', month: invoiceProgressMonth, location: '', locations: row.locations, entity: row.disposalSite, label: `処分場 ${row.disposalSite}` })}</div></div>))}</div>
                   </div></div>
                 )}
               </section>}
+              <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
+                <span className={`text-xs font-bold ${financialDirty ? 'text-amber-700' : 'text-emerald-700'}`}>{financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</span>
+                <button type="button" disabled={!financialDirty || isFinancialSaving} onClick={saveFinancialEdits} className={`rounded-lg px-4 py-2 text-sm font-bold ${financialDirty && !isFinancialSaving ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-400'}`}> {isFinancialSaving ? '保存中…' : '💾 変更を保存'} </button>
+              </div>
             </div>
           </div>
         </div>
@@ -15868,6 +15923,21 @@ export default function AdminPage() {
                     <h3 className="text-xl font-extrabold text-indigo-950">🧾 請求書照合</h3>
                     <p className="text-sm text-slate-700">請求書照合センターは、今までの画面と操作方法をそのまま利用します。外注・リース・燃料などの個別照合は左メニューで対象経費を選んでも開けます。</p>
                     <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 font-extrabold">🧾 請求書照合センターを開く</button>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                      <h4 className="font-extrabold text-slate-800">この現場の照合メモ（全体一覧と共通）</h4>
+                      {(() => {
+                        const memoItems = Object.entries(invoiceCenterRowMemos || {})
+                          .filter(([, value]: any) => value?.text && (value?.location === modalLocation || (Array.isArray(value?.locations) && value.locations.includes(modalLocation))))
+                          .sort((a: any, b: any) => String(b[1]?.month || '').localeCompare(String(a[1]?.month || '')));
+                        return memoItems.length ? <div className="divide-y divide-slate-100">
+                          {memoItems.map(([key, item]: any) => <div key={key} className="flex items-center justify-between gap-3 py-2.5">
+                            <div className="min-w-0"><div className="text-xs font-bold text-slate-500">{item.month}・{item.category === 'sub' ? '外注' : item.category === 'lease' ? 'リース' : item.category === 'fuel' ? '燃料' : '処分費'}・{item.entity}</div><div className="text-sm text-slate-800 whitespace-pre-wrap break-words">{item.text}</div></div>
+                            <button type="button" onClick={() => openInvoiceCenterMemo({ ...item, key })} className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold hover:bg-slate-50">編集</button>
+                          </div>)}
+                        </div> : <p className="text-sm text-slate-400">この現場の照合メモはまだありません。</p>;
+                      })()}
+                    </div>
+
                   </div>
                 )}
             {/* 現場写真（着工前・完了後） */}
