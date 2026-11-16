@@ -12760,15 +12760,47 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-end gap-3 flex-wrap">
                   <button type="button" onClick={() => setInvoiceCenterHelpOpen(v => !v)} aria-expanded={invoiceCenterHelpOpen} className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${invoiceCenterHelpOpen ? 'border-indigo-400 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>ⓘ 使い方</button>
-                  <label className="text-xs font-black text-slate-600">対象月
-                    <input type="month" value={invoiceProgressMonth} onChange={(e)=>setInvoiceProgressMonth(e.target.value)} className="mt-1 block rounded-xl border-2 border-indigo-200 bg-white px-3 py-2 text-sm font-black text-slate-900" />
+                  <label className="flex items-center gap-2 text-sm font-extrabold text-slate-700">対象年
+                    <select
+                      aria-label="請求書照合の対象年"
+                      value={Number(invoiceProgressMonth.slice(0, 4))}
+                      onChange={(e) => setInvoiceProgressMonth(`${e.target.value}-${invoiceProgressMonth.slice(5, 7)}`)}
+                      className="rounded-xl border-2 border-indigo-200 bg-white px-3 py-2.5 text-base font-black text-slate-900 cursor-pointer"
+                    >
+                      {Array.from({ length: 21 }, (_, index) => new Date().getFullYear() - 10 + index).map((year) => (
+                        <option key={year} value={year}>{year}年</option>
+                      ))}
+                    </select>
                   </label>
                   <button onClick={() => { if (confirmUnsavedBeforeAction('請求書照合センターを閉じる')) setShowInvoiceProgressModal(false); }} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
                 </div>
               </div>
             </div>
 
-            <div className="p-5 md:p-7 space-y-7 bg-slate-50/60">
+            <div className="p-5 md:p-7 space-y-6 bg-slate-50/60">
+              {/* 対象年は上部のプルダウン、対象月は大きなボタンで切り替える。保存データの形式は従来どおり YYYY-MM。 */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="text-base md:text-lg font-black text-slate-800">対象月を選択</div>
+                  <div className="text-sm font-extrabold text-indigo-700">{invoiceProgressMonth.slice(0, 4)}年{Number(invoiceProgressMonth.slice(5, 7))}月の請求書</div>
+                </div>
+                <div className="grid grid-cols-4 md:grid-cols-6 xl:grid-cols-12 gap-2">
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => {
+                    const selected = Number(invoiceProgressMonth.slice(5, 7)) === month;
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setInvoiceProgressMonth(`${invoiceProgressMonth.slice(0, 4)}-${String(month).padStart(2, '0')}`)}
+                        className={`min-h-[48px] rounded-xl border-2 px-2 py-2 text-base md:text-lg font-black transition ${selected ? 'border-blue-600 bg-blue-600 text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50 hover:border-blue-300'}`}
+                      >
+                        {month}月
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {financialDirty && (
                 <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 px-4 py-3 text-sm font-black text-orange-900">
                   ⚠️ まだ保存されていない照合・金額変更があります。照合画面で「💾 変更を保存」を押すまでSupabaseには確定保存されません。
@@ -12794,11 +12826,11 @@ export default function AdminPage() {
                 </div>
               </div>}
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <button type="button" onClick={() => setInvoiceCenterView('sub')} aria-pressed={invoiceCenterView === 'sub'} className={`rounded-xl border p-4 text-left transition hover:border-violet-400 ${invoiceCenterView === 'sub' ? 'border-violet-500 ring-2 ring-violet-100 bg-violet-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-violet-700">👷 外注人件費</div><div className="mt-1 text-lg font-black text-slate-900">済 {subcontractorInvoiceProgressDoneCount} / 未 {subcontractorInvoiceProgressPendingCount}</div></button>
-                <button type="button" onClick={() => setInvoiceCenterView('lease')} aria-pressed={invoiceCenterView === 'lease'} className={`rounded-xl border p-4 text-left transition hover:border-indigo-400 ${invoiceCenterView === 'lease' ? 'border-indigo-500 ring-2 ring-indigo-100 bg-indigo-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-indigo-700">🚜 リース</div><div className="mt-1 text-lg font-black text-slate-900">済 {invoiceProgressDoneCount} / 未 {invoiceProgressPendingCount}</div></button>
-                <button type="button" onClick={() => setInvoiceCenterView('fuel')} aria-pressed={invoiceCenterView === 'fuel'} className={`rounded-xl border p-4 text-left transition hover:border-blue-400 ${invoiceCenterView === 'fuel' ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-blue-700">⛽ 燃料</div><div className="mt-1 text-lg font-black text-slate-900">済 {fuelInvoiceProgressDoneCount} / 未 {fuelInvoiceProgressPendingCount}</div></button>
-                <button type="button" onClick={() => setInvoiceCenterView('disposal')} aria-pressed={invoiceCenterView === 'disposal'} className={`rounded-xl border p-4 text-left transition hover:border-amber-400 ${invoiceCenterView === 'disposal' ? 'border-amber-500 ring-2 ring-amber-100 bg-amber-50/70' : 'border-slate-200 bg-white'}`}><div className="text-xs font-black text-amber-700">🗑️ 処分費</div><div className="mt-1 text-lg font-black text-slate-900">済 {disposalInvoiceProgressDoneCount} / 確認中 {disposalInvoiceProgressProgressCount} / 未 {disposalInvoiceProgressPendingCount}</div></button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+                <button type="button" onClick={() => setInvoiceCenterView('sub')} aria-pressed={invoiceCenterView === 'sub'} className={`rounded-2xl border-2 p-4 md:p-5 text-left min-h-[106px] transition hover:border-violet-400 ${invoiceCenterView === 'sub' ? 'border-violet-500 ring-2 ring-violet-100 bg-violet-50/70' : 'border-slate-200 bg-white'}`}><div className="text-lg md:text-xl font-black text-slate-900 leading-snug">👷 外注人件費</div><div className="mt-2 text-base md:text-lg font-extrabold text-slate-700">済 {subcontractorInvoiceProgressDoneCount} / 未 {subcontractorInvoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('lease')} aria-pressed={invoiceCenterView === 'lease'} className={`rounded-2xl border-2 p-4 md:p-5 text-left min-h-[106px] transition hover:border-indigo-400 ${invoiceCenterView === 'lease' ? 'border-indigo-500 ring-2 ring-indigo-100 bg-indigo-50/70' : 'border-slate-200 bg-white'}`}><div className="text-lg md:text-xl font-black text-slate-900 leading-snug">🚜 リース</div><div className="mt-2 text-base md:text-lg font-extrabold text-slate-700">済 {invoiceProgressDoneCount} / 未 {invoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('fuel')} aria-pressed={invoiceCenterView === 'fuel'} className={`rounded-2xl border-2 p-4 md:p-5 text-left min-h-[106px] transition hover:border-blue-400 ${invoiceCenterView === 'fuel' ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/70' : 'border-slate-200 bg-white'}`}><div className="text-lg md:text-xl font-black text-slate-900 leading-snug">⛽ 燃料</div><div className="mt-2 text-base md:text-lg font-extrabold text-slate-700">済 {fuelInvoiceProgressDoneCount} / 未 {fuelInvoiceProgressPendingCount}</div></button>
+                <button type="button" onClick={() => setInvoiceCenterView('disposal')} aria-pressed={invoiceCenterView === 'disposal'} className={`rounded-2xl border-2 p-4 md:p-5 text-left min-h-[106px] transition hover:border-amber-400 ${invoiceCenterView === 'disposal' ? 'border-amber-500 ring-2 ring-amber-100 bg-amber-50/70' : 'border-slate-200 bg-white'}`}><div className="text-lg md:text-xl font-black text-slate-900 leading-snug">🗑️ 処分費</div><div className="mt-2 text-base md:text-lg font-extrabold text-slate-700">済 {disposalInvoiceProgressDoneCount} / 確認中 {disposalInvoiceProgressProgressCount} / 未 {disposalInvoiceProgressPendingCount}</div></button>
               </div>
 
               <div className="flex items-center justify-between gap-3 flex-wrap">
