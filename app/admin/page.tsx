@@ -271,6 +271,11 @@ export default function AdminPage() {
   // PC現場一覧の検索（表示のみ。マスタ・保存データには影響しない）。
   const [activeSiteSearch, setActiveSiteSearch] = useState('');
   const [filterLocation, setFilterLocation] = useState('');
+  // 日報検索は画面表示のみ。日報本体・保存データ・計算には影響しない。
+  const [reportSearchWord, setReportSearchWord] = useState('');
+  const [reportSearchField, setReportSearchField] = useState<'all' | 'site' | 'worker' | 'vendor'>('all');
+  const [reportSearchFrom, setReportSearchFrom] = useState('');
+  const [reportSearchTo, setReportSearchTo] = useState('');
   const [form, setForm] = useState<any>({});
   // 詳細分析上部の「請負先・開始日」は入力中に日報全件へ即保存せず、
   // 画面内で編集してからまとめて保存する。
@@ -7005,6 +7010,49 @@ export default function AdminPage() {
     return cleaned;
   };
 
+  // 日報の中から、現場・人・業者の名前だけを探す。金額や内部の保存情報は検索しない。
+  const getReportSearchFields = (report: any) => {
+    const valueNames = (items: any, keys: string[]) =>
+      (Array.isArray(items) ? items : []).flatMap((item: any) => {
+        if (typeof item === 'string') return [item];
+        if (!item || typeof item !== 'object') return [];
+        return keys.map(key => String(item[key] || '')).filter(Boolean);
+      });
+    const site = [report.location, report.client].filter(Boolean).join(' ');
+    const worker = [report.manager, report.reporter, report.data?.reporter,
+      ...valueNames(report.workers, ['name']),
+      ...valueNames(report.subcontractors, ['worker', 'workerName'])].filter(Boolean).join(' ');
+    const vendor = [
+      ...valueNames(report.subcontractors, ['company']),
+      ...valueNames(report.otherLeases, ['company', 'vendor']),
+      ...valueNames(report.leaseHeavy, ['vendor', 'name']),
+      ...valueNames(report.leaseAttach, ['vendor', 'name']),
+      ...valueNames(report.leaseOther, ['vendor', 'name']),
+      ...valueNames(report.ishikawaHeavy, ['vendor', 'name']),
+      ...valueNames(report.ishikawaAttach, ['vendor', 'name']),
+      ...valueNames(report.ishikawaOther, ['vendor', 'name']),
+      ...valueNames(report.disposals, ['location']),
+      ...valueNames(report.scraps, ['location'])
+    ].filter(Boolean).join(' ');
+    return { site, worker, vendor };
+  };
+  const isReportSearchActive = !!(reportSearchWord.trim() || reportSearchFrom || reportSearchTo);
+  const reportSearchResults = isReportSearchActive && authRole === 'admin'
+    ? reports.filter((report: any) => {
+        const date = normalizeDateStr(String(report.date || ''));
+        if (reportSearchFrom && (!date || date < reportSearchFrom)) return false;
+        if (reportSearchTo && (!date || date > reportSearchTo)) return false;
+        const word = reportSearchWord.trim().toLocaleLowerCase('ja-JP');
+        if (!word) return true;
+        const fields = getReportSearchFields(report);
+        const pool = reportSearchField === 'site' ? fields.site
+          : reportSearchField === 'worker' ? fields.worker
+          : reportSearchField === 'vendor' ? fields.vendor
+          : `${fields.site} ${fields.worker} ${fields.vendor}`;
+        return pool.toLocaleLowerCase('ja-JP').includes(word);
+      }).sort((a: any, b: any) => normalizeDateStr(String(b.date || '')).localeCompare(normalizeDateStr(String(a.date || ''))))
+    : [];
+
   const getDisposalRowKey = (report: any, disposal: any, disposalIndex: number) => {
     const reportId = report?.id || report?._id || report?.reportId || '';
     const dateKey = normalizeDateStr(report?.date || '') || String(report?.date || '');
@@ -12053,12 +12101,48 @@ export default function AdminPage() {
           )}
           <input 
             type="text" 
-            placeholder="🔍 現場名で絞り込み..." 
+            placeholder="現場別リストを絞り込む" 
             value={filterLocation} 
             onChange={e => setFilterLocation(e.target.value)} 
             className="p-3.5 border border-slate-300 rounded-xl text-base bg-slate-50 focus:bg-white focus:ring-2 focus:ring-orange-500/20 focus:outline-none w-full md:w-80 transition font-bold" 
           />
         </div>
+
+        {authRole === 'admin' && (
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-extrabold text-slate-900 text-lg">🔍 過去の日報を探す</h3>
+              {isReportSearchActive && <button type="button" onClick={() => { setReportSearchWord(''); setReportSearchField('all'); setReportSearchFrom(''); setReportSearchTo(''); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">検索を消す</button>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_170px_155px_155px] gap-2">
+              <input type="search" value={reportSearchWord} onChange={e => setReportSearchWord(e.target.value)} placeholder="現場名・作業員名・業者名を入力" aria-label="日報検索の言葉" className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold" />
+              <select value={reportSearchField} onChange={e => setReportSearchField(e.target.value as any)} aria-label="検索する項目" className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold">
+                <option value="all">すべての名前</option><option value="site">現場名</option><option value="worker">作業員・職長</option><option value="vendor">業者名</option>
+              </select>
+              <label className="min-w-0 text-xs font-bold text-slate-600">開始日<input type="date" value={reportSearchFrom} max={reportSearchTo || undefined} onChange={e => setReportSearchFrom(e.target.value)} className="mt-1 block min-w-0 w-full rounded-xl border border-slate-300 bg-white px-2 py-2.5 text-sm text-slate-900" /></label>
+              <label className="min-w-0 text-xs font-bold text-slate-600">終了日<input type="date" value={reportSearchTo} min={reportSearchFrom || undefined} onChange={e => setReportSearchTo(e.target.value)} className="mt-1 block min-w-0 w-full rounded-xl border border-slate-300 bg-white px-2 py-2.5 text-sm text-slate-900" /></label>
+            </div>
+            {isReportSearchActive ? (
+              <div className="rounded-xl bg-white border border-slate-200 overflow-hidden">
+                <div className="flex justify-between gap-2 items-center px-3 py-2 border-b border-slate-200 text-sm"><span className="font-bold text-slate-700">検索結果</span><span className="font-extrabold text-slate-900">{reportSearchResults.length}件</span></div>
+                {reportSearchResults.length ? (
+                  <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100">
+                    {reportSearchResults.slice(0, 100).map((report: any, index: number) => (
+                      <div key={`${report.id || report._id || index}-${index}`} className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-3">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex gap-2 items-center flex-wrap"><span className="font-extrabold text-slate-900 text-sm">{normalizeDateStr(String(report.date || ''))}</span><span className="font-bold text-blue-800 text-sm break-words">{report.location || '現場名なし'}</span>{reportReviewBadge(report)}</div>
+                          <div className="text-xs text-slate-600 break-words">職長：{report.manager || '―'} ／ 作業員：{(Array.isArray(report.workers) ? report.workers.map((w: any) => typeof w === 'string' ? w : w?.name || '').filter(Boolean).join('、') : '') || '―'} ／ 報告者：{report.reporter || report.data?.reporter || '―'}</div>
+                        </div>
+                        <button type="button" onClick={() => setEditingReport({ ...report })} className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-bold">日報を開く</button>
+                      </div>
+                    ))}
+                    {reportSearchResults.length > 100 && <div className="px-3 py-3 text-xs text-slate-500">件数が多いため先頭100件を表示しています。日付を指定すると絞り込めます。</div>}
+                  </div>
+                ) : <div className="px-4 py-6 text-center text-sm text-slate-500">見つかりませんでした。名前や期間を変えてください。</div>}
+              </div>
+            ) : <p className="text-xs text-slate-500">名前を入力するか、期間を選ぶと日報が表示されます。完了済みの現場も探せます。</p>}
+          </section>
+        )}
 
         {/* 現場日報カレンダー表示セクション */}
         <div className="bg-slate-50 p-4 md:p-6 rounded-3xl border border-slate-200 space-y-4">
@@ -16003,11 +16087,9 @@ export default function AdminPage() {
                   </div>
 
                                     {authRole === 'admin' && (
-                    <details className="mt-5 rounded-2xl border border-blue-200 bg-blue-50/40 overflow-hidden">
-                      <summary className="cursor-pointer select-none px-4 md:px-5 py-3.5 font-extrabold text-blue-900 flex items-center gap-2">
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm">？</span>
-                        詳細分析の見方
-                        <span className="ml-auto text-xs font-bold text-blue-500">必要なときだけ開く</span>
+                    <details className="mt-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                      <summary className="cursor-pointer select-none px-4 py-2.5 font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <span>ⓘ 使い方</span>
                       </summary>
                       <div className="border-t border-blue-100 p-4 md:p-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-base leading-relaxed">
                         <div className="bg-white rounded-xl border border-slate-200 p-3.5">
@@ -16046,33 +16128,37 @@ export default function AdminPage() {
 
             {/* PC専用：項目を選ぶと右側に既存の入力・照合欄を表示。全表示にも戻せる。 */}
             <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-4 lg:gap-6 items-start !mt-3">
-              <aside className="lg:sticky lg:top-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-1 z-20">
-                <div className="text-xs font-extrabold text-slate-500 px-3 py-2">確認・入力する項目を選ぶ</div>
+              <aside className="lg:sticky lg:top-3 rounded-2xl border border-slate-200 bg-white p-3 space-y-1 z-20">
+                <div className="px-3 pt-2 pb-2 text-sm font-extrabold text-slate-900">表示する内容</div>
                 {[
-                  ['disposal', '🗑️ 処分費'],
-                  ['labor', '👥 社員・外注'],
-                  ['lease', '🚜 リース・重機・車両'],
-                  ['other', '🧮 その他経費'],
-                  ['fuel', '⛽ 燃料'],
-                  ['scrap', '♻️ スクラップ'],
-                  ['invoice', '🧾 請求書照合'],
-                  ['summary', '📊 集計・利益'],
-                  ['photos', '📷 現場写真'],
-                  ['site', '⚙️ 現場情報・設定'],
-                  ['all', '📋 すべて表示（従来）'],
-                ].map(([key, label]) => (
-                  <button key={key} type="button"
-                    onClick={() => setDetailAnalysisView(key)}
-                    className={`w-full text-left px-3 py-3 rounded-xl text-sm font-extrabold transition ${detailAnalysisView === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white hover:text-blue-700'}`}
-                  >{label}</button>
+                  { title: '費用・収入', entries: [
+                    ['disposal', '🗑️ 処分費'], ['labor', '👥 社員・外注'],
+                    ['lease', '🚜 リース・車両'], ['fuel', '⛽ 燃料'],
+                    ['other', '🧮 その他経費'], ['scrap', '♻️ スクラップ']
+                  ] },
+                  { title: '確認・出力', entries: [
+                    ['summary', '📊 集計・利益'], ['invoice', '🧾 請求書照合'],
+                    ['photos', '📷 現場写真'], ['site', '⚙️ 現場情報・設定'],
+                    ['all', '📋 すべて表示']
+                  ] }
+                ].map((group, index) => (
+                  <div key={group.title} className={index ? 'border-t border-slate-200 pt-2 mt-2' : ''}>
+                    <div className="px-3 py-1 text-xs font-bold text-slate-500">{group.title}</div>
+                    {group.entries.map(([key, label]) => (
+                      <button key={key} type="button" onClick={() => setDetailAnalysisView(key)} aria-current={detailAnalysisView === key ? 'page' : undefined}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold transition ${detailAnalysisView === key ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 ))}
-                <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
-                  <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="w-full rounded-xl border border-indigo-200 bg-white text-indigo-800 px-3 py-2.5 text-xs font-extrabold hover:bg-indigo-50">🧾 請求書照合センターを開く</button>
-                  <button type="button" onClick={() => downloadLocationExcel(modalLocation)} className="w-full rounded-xl border border-emerald-200 bg-white text-emerald-800 px-3 py-2.5 text-xs font-extrabold hover:bg-emerald-50">📊 Excel出力</button>
-                </div>
               </aside>
               <div className="min-w-0 space-y-5" data-detail-content="true">
                 <style>{`[data-detail-content] [hidden] { display: none !important; }`}</style>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-extrabold text-slate-900">{({ disposal: '🗑️ 処分費', labor: '👥 社員・外注', lease: '🚜 リース・車両', fuel: '⛽ 燃料', other: '🧮 その他経費', scrap: '♻️ スクラップ', summary: '📊 集計・利益', invoice: '🧾 請求書照合', photos: '📷 現場写真', site: '⚙️ 現場情報・設定', all: '📋 すべて表示' } as Record<string, string>)[detailAnalysisView] || '詳細分析'}</div>
+                  {authRole === 'admin' && (financialDirty || isFinancialSaving) && renderSaveStatus(financialDirty, isFinancialSaving)}
+                </div>
                 {detailAnalysisView === 'site' && (
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
                     <div>
@@ -16095,7 +16181,7 @@ export default function AdminPage() {
                 {detailAnalysisView === 'invoice' && (
                   <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 space-y-3">
                     <h3 className="text-xl font-extrabold text-indigo-950">🧾 請求書照合</h3>
-                    <p className="text-sm text-slate-700">請求書照合センターは、今までの画面と操作方法をそのまま利用します。外注・リース・燃料などの個別照合は左メニューで対象経費を選んでも開けます。</p>
+                    <p className="text-sm text-slate-700">全体の請求書は「請求書照合センター」で確認できます。</p>
                     <button type="button" onClick={() => setShowInvoiceProgressModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 font-extrabold">🧾 請求書照合センターを開く</button>
                     <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                       <h4 className="font-extrabold text-slate-800">この現場の照合メモ（全体一覧と共通）</h4>
