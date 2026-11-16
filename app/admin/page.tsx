@@ -299,6 +299,8 @@ export default function AdminPage() {
   const [showIshikawaLeaseModal, setShowIshikawaLeaseModal] = useState(false);
 
   const [showAllMonthlyDisposalModal, setShowAllMonthlyDisposalModal] = useState(false);
+  // 月別処分一覧の説明は必要なときだけ開く（表示だけの変更）。
+  const [disposalListHelpOpen, setDisposalListHelpOpen] = useState(false);
   const [showAllMonthlyScrapModal, setShowAllMonthlyScrapModal] = useState(false);
   const [scrapReconcileStartDate, setScrapReconcileStartDate] = useState('');
   const [scrapReconcileEndDate, setScrapReconcileEndDate] = useState('');
@@ -13214,20 +13216,26 @@ export default function AdminPage() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center p-2 md:p-6 z-50 animate-fadeIn" onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }}>
           <div className="bg-white rounded-[28px] w-full max-w-7xl p-4 md:p-7 !pb-0 max-h-[94vh] overflow-y-auto space-y-5 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-xl md:text-2xl font-bold text-slate-900">📦 月別処分一覧（全現場・処分場別）</h3>
-                <p className="text-sm md:text-base text-slate-600 mt-1.5 leading-relaxed">
-                  各現場の「詳細分析 → 処分費」の内容を、処分場・月ごとにまとめて表示します。
-                </p>
-                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm md:text-base text-amber-900 font-bold leading-relaxed">
-                  📄 請求書と見比べるための一覧です。<br />
-                  日報由来と確定額が違う行には「❕」が表示されます。押すと理由を入力・確認できます。<br />
-                  <span className="text-emerald-700">金額・理由・照合済みの色を変更したら、最後に「💾 保存」を押してください。</span>
-                </div>
-                <div className="mt-3">{renderInvoiceFlowGuide('disposal')}</div>
+                <p className="text-sm text-slate-500 mt-1">処分場・月ごとの金額を確認できます。</p>
               </div>
-              <button onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }} className="shrink-0 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button type="button" onClick={() => setDisposalListHelpOpen(v => !v)} aria-expanded={disposalListHelpOpen}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                  ⓘ 使い方 {disposalListHelpOpen ? '▲' : '▼'}
+                </button>
+                <button onClick={() => { if (confirmUnsavedBeforeAction('月別処分一覧を閉じる')) setShowAllMonthlyDisposalModal(false); }} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg transition">✕</button>
+              </div>
             </div>
+            {disposalListHelpOpen && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 space-y-2 leading-relaxed">
+                <p>📄 請求書と見比べるための一覧です。</p>
+                <p>日報由来と確定額が違う行には「❕」が表示されます。押すと理由を入力・確認できます。</p>
+                <p className="font-bold text-emerald-700">金額・理由・照合済みの色を変更したら、最後に「💾 保存」を押してください。</p>
+                {renderInvoiceFlowGuide('disposal')}
+              </div>
+            )}
 
             <div className="space-y-8">
               {(() => {
@@ -13501,7 +13509,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[190px_190px_minmax(260px,1fr)] gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:max-w-[450px]">
                     <label className="text-sm font-extrabold text-slate-700">
                       開始日
                       <input
@@ -13520,19 +13528,25 @@ export default function AdminPage() {
                         className="mt-1 w-full p-2.5 border-2 border-emerald-200 rounded-xl bg-white font-bold"
                       />
                     </label>
-                    <label className="text-sm font-extrabold text-slate-700">
-                      スクラップ業者
-                      <select
-                        value={scrapReconcileVendor}
-                        onChange={(e) => setScrapReconcileVendor(e.target.value)}
-                        className="mt-1 w-full p-2.5 border-2 border-emerald-200 rounded-xl bg-white font-bold"
-                      >
-                        <option value="">業者を選択</option>
-                        {vendorOptions.map((vendor: any) => (
-                          <option key={String(vendor)} value={String(vendor)}>{String(vendor)}</option>
-                        ))}
-                      </select>
-                    </label>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-sm font-extrabold text-slate-700 mb-2">スクラップ業者を選択</div>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="スクラップ業者">
+                      {vendorOptions.length === 0 ? (
+                        <span className="text-sm text-slate-500">選べる業者がありません。</span>
+                      ) : vendorOptions.map((vendor: any) => {
+                        const selected = scrapReconcileVendor === String(vendor);
+                        return (
+                          <button key={String(vendor)} type="button" aria-pressed={selected}
+                            onClick={() => setScrapReconcileVendor(String(vendor))}
+                            className={`min-w-[170px] px-5 py-3 rounded-xl border-2 text-base font-extrabold text-left transition ${selected
+                              ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
+                              : 'bg-white text-slate-800 border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50'}`}>
+                            {selected ? '✓ ' : ''}{String(vendor)}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
