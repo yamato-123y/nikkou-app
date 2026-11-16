@@ -8551,6 +8551,21 @@ export default function AdminPage() {
         const selectedMonth = String(form.osakaFuelYearMonth || getCurrentYearMonth());
         const savedPrice = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[selectedMonth] ?? '';
         const inputPrice = form.osakaFuelUnitPrice !== undefined ? form.osakaFuelUnitPrice : savedPrice;
+        // 年間表示は保存済みの全現場共通単価のみを表示。現場別の旧単価は混ぜない。
+        const globalFuelPrices = fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY] || {};
+        const selectedYear = Number(selectedMonth.slice(0, 4)) || new Date().getFullYear();
+        const currentYear = new Date().getFullYear();
+        const yearOptions = Array.from(new Set([
+          currentYear - 1, currentYear, currentYear + 1, selectedYear,
+          ...Object.keys(globalFuelPrices).map((ym) => Number(ym.slice(0, 4))).filter((y) => Number.isInteger(y) && y >= 2000 && y <= 2100)
+        ])).sort((a, b) => b - a);
+        const chooseFuelMonth = (ym: string) => {
+          setForm((prev: any) => ({
+            ...prev,
+            osakaFuelYearMonth: ym,
+            osakaFuelUnitPrice: globalFuelPrices[ym] ?? ''
+          }));
+        };
         return (
           <section id="admin-fuel-price" className={`${adminViewClass('fuel')} scroll-mt-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 md:px-5 md:py-4 shadow-sm`}>
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
@@ -8565,7 +8580,7 @@ export default function AdminPage() {
                     value={selectedMonth}
                     onChange={(e) => {
                       const ym = e.target.value;
-                      setForm((prev: any) => ({ ...prev, osakaFuelYearMonth: ym, osakaFuelUnitPrice: fuelUnitPrices?.[OSAKA_FUEL_GLOBAL_KEY]?.[ym] ?? '' }));
+                      chooseFuelMonth(ym);
                     }}
                     className="mt-1 block rounded-xl border-2 border-orange-200 bg-white px-3 py-2 text-sm font-black text-slate-900"
                   />
@@ -8593,6 +8608,49 @@ export default function AdminPage() {
                 </button>
                 <div className="pb-2 text-xs font-bold text-slate-500">保存済み：{savedPrice === '' ? '未設定' : `¥${Number(savedPrice).toLocaleString('ja-JP')}/L`}</div>
               </div>
+            </div>
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-slate-900">登録済みの月別単価（1月〜12月）</div>
+                  <div className="mt-0.5 text-xs text-slate-500">月を押すと、上の入力欄でその月の単価を確認・変更できます。</div>
+                </div>
+                <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                  表示する年
+                  <select
+                    aria-label="大阪軽油単価の表示年"
+                    value={selectedYear}
+                    onChange={(e) => chooseFuelMonth(`${e.target.value}-${selectedMonth.slice(5, 7)}`)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900"
+                  >
+                    {yearOptions.map((y) => <option key={y} value={y}>{y}年</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                {Array.from({ length: 12 }, (_, i) => {
+                  const ym = `${selectedYear}-${String(i + 1).padStart(2, '0')}`;
+                  const price = globalFuelPrices[ym];
+                  const registered = price !== undefined && price !== null && String(price).trim() !== '';
+                  const selected = ym === selectedMonth;
+                  return (
+                    <button
+                      key={ym}
+                      type="button"
+                      onClick={() => chooseFuelMonth(ym)}
+                      aria-pressed={selected}
+                      className={`rounded-xl border px-3 py-3 text-left transition ${selected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}
+                    >
+                      <div className="text-xs font-bold text-slate-600">{i + 1}月{selected ? '（選択中）' : ''}</div>
+                      <div className={`mt-1 text-base font-black ${registered ? 'text-slate-900' : 'text-slate-400'}`}>
+                        {registered ? `¥${Number(price).toLocaleString('ja-JP', { maximumFractionDigits: 2 })}` : '未設定'}
+                      </div>
+                      {registered && <div className="text-xs text-slate-500">円／L</div>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">※ ここには「全現場共通」で保存した単価だけを表示します。以前の現場別単価は変更しません。</p>
             </div>
           </section>
         );
