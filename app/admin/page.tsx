@@ -554,6 +554,8 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   // マスタ画面の表示選択のみ。登録済みデータや保存形式には影響させない。
   const [selectedMasterPanel, setSelectedMasterPanel] = useState<string>('');
+  // マスタ保存の表示状態。保存内容・保存方法は従来どおり。
+  const [masterSavingKey, setMasterSavingKey] = useState('');
   // 作業員の区分変更入力欄（保存ボタンで確定するまではマスタに追加しない）。
   const [workerChangeDrafts, setWorkerChangeDrafts] = useState<Record<string, { type: string; date: string }>>({});
   // マスタ一覧の表示検索のみ。設定データの保存形式は変えない。
@@ -756,6 +758,21 @@ export default function AdminPage() {
       return false;
     }
   };
+
+  // 管理モードの保存状態を同じ言葉・同じ色で表示する（表示のみ）。
+  const renderSaveStatus = (dirty: boolean, saving = false) => (
+    <span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 text-sm font-extrabold ${saving ? 'text-blue-700' : dirty ? 'text-amber-700' : 'text-emerald-700'}`}>
+      {saving ? '◌ 保存中…' : dirty ? '● 未保存' : '✓ 保存済み'}
+    </span>
+  );
+  const getMasterPanelKeys = (key: string): string[] =>
+    key === 'leaseMasterUnified' || key === 'leaseVendors'
+      ? ['leaseVendors', 'leaseHeavy', 'leaseAttach', 'leaseOther']
+      : key === 'ishikawa-group'
+        ? ['ishikawaLeaseVendors', 'ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther']
+        : key ? [key] : [];
+  const isMasterPanelDirty = (key: string) =>
+    getMasterPanelKeys(key).some(k => !isSameSavedValue(settings?.[k] || [], originalSettings?.[k] || []));
 
   const getUnsavedItemLabels = () => {
     if (authRole !== 'admin' || isLoading || !originalSettings || Object.keys(originalSettings).length === 0) return [] as string[];
@@ -2582,6 +2599,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavingKey(key);
     try {
       // 現場一覧以外のマスタ単価を保存する前に、
       // まだ固定されていない過去日報へ「その時点の単価」を保存する。
@@ -2738,6 +2756,8 @@ export default function AdminPage() {
     } catch (e) {
       console.error(e);
       alert('通信エラーが発生しました。');
+    } finally {
+      setMasterSavingKey('');
     }
   };
 
@@ -2747,6 +2767,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavingKey('leaseMasterUnified');
     try {
       await freezeExistingReportsIfNeeded();
       const keys = ['leaseHeavy', 'leaseAttach', 'leaseOther'];
@@ -2781,6 +2802,8 @@ export default function AdminPage() {
     } catch (e) {
       console.error(e);
       alert('通信エラーが発生しました。');
+    } finally {
+      setMasterSavingKey('');
     }
   };
 
@@ -2790,6 +2813,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavingKey('ishikawa-group');
     try {
       await freezeExistingReportsIfNeeded();
       const keys = ['ishikawaHeavy', 'ishikawaAttach', 'ishikawaOther'];
@@ -2824,6 +2848,8 @@ export default function AdminPage() {
     } catch (e) {
       console.error(e);
       alert('通信エラーが発生しました。');
+    } finally {
+      setMasterSavingKey('');
     }
   };
 
@@ -10013,7 +10039,7 @@ export default function AdminPage() {
                     : 'border-emerald-200 bg-emerald-50'
                 }`}>
                   <div className={`text-sm font-bold ${attendanceChangesDirty ? 'text-amber-800' : 'text-emerald-700'}`}>
-                    {attendanceChangesDirty ? '● 未保存の勤怠変更があります' : '✓ 勤怠変更は保存済みです'}
+                    {renderSaveStatus(attendanceChangesDirty, attendanceChangesSaving)}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -10774,9 +10800,10 @@ export default function AdminPage() {
             <div className="p-5 lg:p-6 animate-fadeIn">
               <div className="max-w-[1360px] mx-auto">
               <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-4">
-                  <h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
-                  <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。選んだ登録画面だけを下に表示します。</p>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div><h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
+                  <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。</p></div>
+                  {renderSaveStatus(!!getMasterPanelKeys(selectedMasterPanel).length && isMasterPanelDirty(selectedMasterPanel), !!masterSavingKey)}
                 </div>
                 <div className="space-y-5">
                   {[
@@ -10815,7 +10842,7 @@ export default function AdminPage() {
                             }}
                             className={`w-full min-h-[88px] px-4 py-4 rounded-xl text-sm md:text-base font-bold transition-colors border flex items-center justify-center text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400'}`}
                           >
-                            {label}
+                            <span className="flex flex-col items-center gap-1"><span>{label}</span>{selectedMasterPanel === key && <span className="text-[11px] font-medium opacity-90">{(masterSavingKey && getMasterPanelKeys(key).includes(masterSavingKey)) || (masterSavingKey === 'leaseMasterUnified' && getMasterPanelKeys(key).includes('leaseVendors')) || (masterSavingKey === 'ishikawa-group' && key === 'ishikawa-group') ? '保存中…' : isMasterPanelDirty(key) ? '● 未保存' : '✓ 保存済み'}</span>}</span>
                           </button>
                         ))}
                       </div>
@@ -10841,12 +10868,14 @@ export default function AdminPage() {
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">リース業者 → カテゴリー → 名称 → 日額単価の順で、通常リースをまとめて登録します。</p>
                     <p className="text-xs text-slate-500 mt-1.5">※既存の重機・アタッチメント・その他機器データはそのまま使用します。業者未設定の既存データは南大阪建機として扱います。</p>
                   </div>
+                  {renderSaveStatus(isMasterPanelDirty('leaseMasterUnified'), masterSavingKey === 'leaseMasterUnified')}
                   <button
                     type="button"
                     onClick={saveUnifiedLeaseMaster}
+                    disabled={!!masterSavingKey}
                     className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                   >
-                    💾 保存
+                    {masterSavingKey === 'leaseMasterUnified' ? '保存中…' : '💾 保存'}
                   </button>
                 </div>
 
@@ -11015,12 +11044,16 @@ export default function AdminPage() {
                                   <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
                                   <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                                 </div>
-                                <button 
-                                  onClick={() => saveMaster(sec.key)} 
+                                <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
+                                  {renderSaveStatus(isMasterPanelDirty(sec.key), masterSavingKey === sec.key)}
+                                <button
+                                  type="button"
+                                  onClick={() => saveMaster(sec.key)}
+                                  disabled={!!masterSavingKey}
                                   className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                                 >
-                                  💾 保存
-                                </button>
+                                  {masterSavingKey === sec.key ? '保存中…' : '💾 保存'}
+                                </button></div>
                               </div>
 
                               <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
@@ -11761,12 +11794,14 @@ export default function AdminPage() {
                           <p className="text-xs md:text-sm text-indigo-700 mt-1">リース業者 → カテゴリー → 名称 → 日額単価の順で、徳本の石川県出張用リースをまとめて登録します。</p>
                           <p className="text-xs text-slate-500 mt-1.5">※保存先は従来どおり「石川県用 重機・アタッチメント・その他機械」のままです。既存データもそのまま使用します。</p>
                         </div>
-                        <button
+                        {renderSaveStatus(isMasterPanelDirty('ishikawa-group'), masterSavingKey === 'ishikawa-group')}
+                  <button
                           type="button"
                           onClick={saveUnifiedIshikawaLeaseMaster}
+                          disabled={!!masterSavingKey}
                           className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
                         >
-                          💾 保存
+                          {masterSavingKey === 'ishikawa-group' ? '保存中…' : '💾 保存'}
                         </button>
                       </div>
 
@@ -12922,7 +12957,7 @@ export default function AdminPage() {
                 )}
               </section>}
               <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
-                <span className={`text-xs font-bold ${financialDirty ? 'text-amber-700' : 'text-emerald-700'}`}>{financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</span>
+                <span className={`text-xs font-bold ${financialDirty ? 'text-amber-700' : 'text-emerald-700'}`}>{renderSaveStatus(financialDirty, isFinancialSaving)}</span>
                 <button type="button" disabled={!financialDirty || isFinancialSaving} onClick={saveFinancialEdits} className={`rounded-lg px-4 py-2 text-sm font-bold ${financialDirty && !isFinancialSaving ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-400'}`}> {isFinancialSaving ? '保存中…' : '💾 変更を保存'} </button>
               </div>
             </div>
@@ -13154,7 +13189,7 @@ export default function AdminPage() {
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                    {renderSaveStatus(financialDirty, isFinancialSaving)}
                   </span>
                   <button
                     type="button"
@@ -13388,7 +13423,7 @@ export default function AdminPage() {
 
               <div className="px-5 md:px-7 py-4 border-t border-slate-200 bg-white shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                  {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  {renderSaveStatus(financialDirty, isFinancialSaving)}
                 </div>
                 <div className="flex gap-2 justify-end">
                   <button
@@ -15846,7 +15881,7 @@ export default function AdminPage() {
                         </div>
                         <div className="md:col-span-2 flex items-center justify-end gap-3 pt-1">
                           <span className={`text-sm font-bold ${projectMetaDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                            {projectMetaDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                            {renderSaveStatus(projectMetaDirty, projectMetaSaving)}
                           </span>
                           <button
                             type="button"
@@ -16154,8 +16189,8 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div hidden={!['all', 'summary', 'disposal', 'scrap', 'labor'].includes(detailAnalysisView)} className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-              <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4">
+            <div hidden={!['all', 'summary', 'disposal', 'scrap', 'labor'].includes(detailAnalysisView)} className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+              <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 shadow-2xs min-h-[220px] h-full flex flex-col justify-between gap-4">
                 <div>
                   <div className="font-extrabold text-orange-900 text-lg">🗑️ 処分費</div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -16172,7 +16207,7 @@ export default function AdminPage() {
                 <button onClick={() => setShowDisposalModal(true)} className="w-full bg-orange-600 hover:bg-orange-700 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 内訳を確認</button>
               </div>
 
-              <div id="detail-scrap-card" className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-2xs min-h-[168px] flex flex-col justify-between gap-4 scroll-mt-24">
+              <div id="detail-scrap-card" className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-2xs min-h-[220px] h-full flex flex-col justify-between gap-4 scroll-mt-24">
                 <div>
                   <div className="font-extrabold text-emerald-900 text-lg">♻️ スクラップ売却計</div>
                   <div className="mt-3 rounded-xl bg-white border border-emerald-100 px-4 py-3">
@@ -16183,9 +16218,9 @@ export default function AdminPage() {
                 <button onClick={() => setShowScrapModal(true)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2.5 rounded-xl font-bold shadow-xs transition">🔍 内訳・金額入力</button>
               </div>
 
-              <div className={`${subcontractorSectionOpen ? 'lg:col-span-3' : ''} bg-amber-50/70 p-5 rounded-2xl border border-amber-200 space-y-4 shadow-2xs min-h-[168px]`}>
+              <div className={`${subcontractorSectionOpen ? 'lg:col-span-3' : ''} bg-amber-50/70 p-5 rounded-2xl border border-amber-200 space-y-4 shadow-2xs min-h-[220px] flex flex-col`}>
               <div 
-                className="flex flex-col h-full justify-between gap-4 cursor-pointer select-none"
+                className="flex flex-col flex-1 justify-between gap-4 cursor-pointer select-none"
                 onClick={() => setSubcontractorSectionOpen(!subcontractorSectionOpen)}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -17268,7 +17303,7 @@ export default function AdminPage() {
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                    {renderSaveStatus(financialDirty, isFinancialSaving)}
                   </span>
                   <button
                     type="button"
@@ -17563,7 +17598,7 @@ export default function AdminPage() {
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto flex-wrap">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                    {renderSaveStatus(financialDirty, isFinancialSaving)}
                   </span>
                   <button
                     type="button"
@@ -17789,7 +17824,7 @@ export default function AdminPage() {
               </div>
 
               <div className="px-4 md:px-6 py-3.5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>{financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}</div>
+                <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>{renderSaveStatus(financialDirty, isFinancialSaving)}</div>
                 <div className="flex gap-2 justify-end flex-wrap">
                   <button
                     type="button"
@@ -18102,7 +18137,7 @@ export default function AdminPage() {
 
               <div className="px-4 md:px-6 py-3.5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                  {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                  {renderSaveStatus(financialDirty, isFinancialSaving)}
                 </div>
                 <div className="flex gap-2 justify-end flex-wrap">
                   <button
@@ -18322,7 +18357,7 @@ export default function AdminPage() {
               {authRole === 'admin' && (
                 <div className="flex items-center gap-3 mr-auto">
                   <span className={`text-sm font-bold ${financialDirty ? 'text-orange-600' : 'text-emerald-600'}`}>
-                    {financialDirty ? '● 未保存の変更があります' : '✓ 保存済み'}
+                    {renderSaveStatus(financialDirty, isFinancialSaving)}
                   </span>
                   <button
                     type="button"
