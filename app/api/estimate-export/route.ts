@@ -119,6 +119,65 @@ export async function POST(req:Request){
     }
     detail=setCells(detail,changes);
     s2.content=Buffer.from(detail,'utf8');
+    // 雛型には「共有数式」の印が残っているが、各行に異なる完成済みの式が入っている。
+    // Excelはこの組合せを壊れた共有数式と判定し、J13/J14等の数式を削除する。
+    // 数式の中身を変えず、共有の印だけ外して独立した式として保存する。
+    // 内訳シートだけでなく詳細明細シートにも同様の印があるため全シートに適用。
+    for (const entry of entries) {
+      if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.name)) continue;
+      let xml = entry.content.toString('utf8');
+      xml = xml.replace(/<(x:)?f\b([^>]*)>([\s\S]*?)<\/(?:x:)?f>/g, (whole, prefix, attributes, formula) => {
+        if (!/\bt="shared"/.test(attributes)) return whole;
+        if (!formula.trim()) return whole; // 空の共有式は独立式に変換しない
+        const cleanAttrs = attributes
+          .replace(/\s+t="shared"/g, '')
+          .replace(/\s+si="[^"]*"/g, '')
+          .replace(/\s+ref="[^"]*"/g, '');
+        const tag = `${prefix || ''}f`;
+        return `<${tag}${cleanAttrs}>${formula}</${tag}>`;
+      });
+      entry.content = Buffer.from(xml, 'utf8');
+    }
+    // 見積書の説明用の2行は印刷・画面ともに不要。数式は一切触らない。
+    const breakdown=sheets.get('xl/worksheets/sheet3.xml');
+    if(breakdown){
+      let xml=breakdown.content.toString('utf8');
+      xml=cell(xml,'O4',null);
+      xml=cell(xml,'O5',null);
+      breakdown.content=Buffer.from(xml,'utf8');
+    }
+    // すべてのシートを「A4横、1ページに収める、水平・垂直中央」に設定。
+    // 元の図面・社印・書式・数式は維持し、印刷用の設定タグだけを更新する。
+    for (const entry of entries) {
+      if(!/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.name)) continue;
+      let xml=entry.content.toString('utf8');
+      // 用紙に合わせて縮小（Excel ページ設定の「次のページ数に合わせて印刷」）。
+      if(/<x:sheetPr\b/.test(xml)){
+        xml=xml.replace(/<x:sheetPr\b[^>]*\/>/, '<x:sheetPr><x:pageSetUpPr fitToPage="1"/></x:sheetPr>');
+        if(!/<x:pageSetUpPr\b/.test(xml))
+          xml=xml.replace(/<x:sheetPr\b([^>]*)>/, '<x:sheetPr$1><x:pageSetUpPr fitToPage="1"/>');
+      }else{
+        xml=xml.replace(/(<x:worksheet\b[^>]*>)/, '$1<x:sheetPr><x:pageSetUpPr fitToPage="1"/></x:sheetPr>');
+      }
+      // pageMargins と pageSetup の順序はExcelの決まりに従う。
+      const pageMargins='<x:pageMargins left="0.25" right="0.25" top="0.35" bottom="0.35" header="0.15" footer="0.15" />';
+      if(/<x:pageMargins\b[^>]*\/>/.test(xml))
+        xml=xml.replace(/<x:pageMargins\b[^>]*\/>/,pageMargins);
+      else
+        xml=xml.replace(/<\/x:mergeCells>/, '</x:mergeCells>'+pageMargins);
+      const pageSetup='<x:pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="1" />';
+      if(/<x:pageSetup\b[^>]*\/>/.test(xml))
+        xml=xml.replace(/<x:pageSetup\b[^>]*\/>/,pageSetup);
+      else
+        xml=xml.replace(/(<x:pageMargins\b[^>]*\/>)/,'$1'+pageSetup);
+      // 縦横どちらもページの中央に配置。printOptions は pageMargins より前。
+      const printOptions='<x:printOptions horizontalCentered="1" verticalCentered="1" />';
+      if(/<x:printOptions\b[^>]*\/>/.test(xml))
+        xml=xml.replace(/<x:printOptions\b[^>]*\/>/,printOptions);
+      else
+        xml=xml.replace(/(<x:pageMargins\b)/,printOptions+'$1');
+      entry.content=Buffer.from(xml,'utf8');
+    }
     // Excelを開いたとき数式を再計算。画像やレイアウトは元ファイルを保持。
     const wb=sheets.get('xl/workbook.xml');
     if(wb){
