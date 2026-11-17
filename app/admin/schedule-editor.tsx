@@ -223,8 +223,8 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
     const unitSpan=scale==='day'?1:scale==='week'?3:4;
     const periodsPerSheet=scale==='day'?31:scale==='week'?10:8;
     const sheetCount=Math.ceil(allPeriods.length/periodsPerSheet);
-    const thin={style:'thin',color:{rgb:'BBC2CA'}};
-    const thick={style:'medium',color:{rgb:'717B87'}};
+    // Excelの罫線は全て黒色の細線で統一する。
+    const thin={style:'thin',color:{rgb:'000000'}};
     const colForPeriod=(index:number)=>3+index*unitSpan; // D列=3（0始まり）
     const shortDate=(date:string)=>{
       const d=parse(date);
@@ -316,7 +316,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
           cell.s={
             font:{name:'Yu Gothic',sz:7,bold:false,color:{rgb:'000000'}},
             alignment:{vertical:'center',horizontal:r>=5&&c===0?'center':c===1||c===2&&r>=5||r<2?'left':'center',wrapText:false},
-            border:r>=2?{top:thin,bottom:thin,left:boundary?thick:thin,right:thin}:undefined,
+            border:r>=2?{top:thin,bottom:thin,left:thin,right:thin}:undefined,
             ...(bg?{fill:{patternType:'solid',fgColor:{rgb:bg}}}:{})
           };
           if(covered){cell.t='s';cell.v='';}
