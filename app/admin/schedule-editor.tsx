@@ -3,12 +3,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx-js-style';
 
-type Task = { id: string; name: string; start: string; end: string; vendor: string };
+type BarColor = 'gray' | 'blue' | 'green' | 'yellow' | 'red';
+type BarStyle = 'solid' | 'dotted' | 'dashed' | 'arrow';
+type Task = { id: string; name: string; start: string; end: string; vendor: string; barColor?: BarColor; barStyle?: BarStyle };
 type Plan = { location: string; manager: string; start: string; end: string; tasks: Task[]; updatedAt?: string };
 type Drag = { id: string; type: 'new' | 'move' | 'left' | 'right'; startX: number; startIndex: number; initialStart: string; initialEnd: string };
 type Scale = 'month' | 'week' | 'day';
 type TimeCell = { start: string; end: string; label: string; major: boolean };
 
+const BAR_COLORS: { value: BarColor; label: string; hex: string }[] = [
+  {value:'gray',label:'黒・グレー',hex:'#586474'},
+  {value:'blue',label:'青',hex:'#60a5fa'},
+  {value:'green',label:'緑',hex:'#4ade80'},
+  {value:'yellow',label:'黄',hex:'#facc15'},
+  {value:'red',label:'赤',hex:'#f87171'}
+];
+const BAR_STYLES: { value: BarStyle; label: string }[] = [
+  {value:'solid',label:'通常'},
+  {value:'dotted',label:'点線'},
+  {value:'dashed',label:'破線'},
+  {value:'arrow',label:'矢印'}
+];
+const getBarColor = (color?: BarColor) => BAR_COLORS.find(c=>c.value===color)?.hex || BAR_COLORS[0].hex;
+const getBarStyle = (style?: BarStyle): BarStyle => BAR_STYLES.some(x=>x.value===style) ? style! : 'solid';
+const rgb = (hex:string) => hex.replace('#','').toUpperCase();
 const DAY = 86400000;
 const CELL_WIDTH: Record<Scale,number> = { month: 96, week: 48, day: 32 };
 const fmt = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
@@ -28,7 +46,7 @@ const diff = (a: string, b: string) => Math.round((parse(b).getTime() - parse(a)
 const firstOfMonth = (d = new Date()) => fmt(new Date(Date.UTC(d.getFullYear(),d.getMonth(),1)));
 const lastMonthDay = (start: string, count: number) => fmt(new Date(Date.UTC(parse(start).getUTCFullYear(),parse(start).getUTCMonth()+count,0)));
 const uid = () => `sch_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-const safeTasks = (v: any): Task[] => Array.isArray(v) ? v.filter((x: any) => x && typeof x === 'object').map((x: any) => ({id: String(x.id || uid()),name: String(x.name || ''),start:String(x.start || ''),end:String(x.end || ''),vendor:String(x.vendor || '')})).filter((x: Task) => /^\d{4}-\d{2}-\d{2}$/.test(x.start)&&/^\d{4}-\d{2}-\d{2}$/.test(x.end)) : [];
+const safeTasks = (v: any): Task[] => Array.isArray(v) ? v.filter((x: any) => x && typeof x === 'object').map((x: any) => ({id: String(x.id || uid()),name: String(x.name || ''),start:String(x.start || ''),end:String(x.end || ''),vendor:String(x.vendor || ''),barColor:BAR_COLORS.some(c=>c.value===x.barColor)?x.barColor:'gray',barStyle:BAR_STYLES.some(t=>t.value===x.barStyle)?x.barStyle:'solid'})).filter((x: Task) => /^\d{4}-\d{2}-\d{2}$/.test(x.start)&&/^\d{4}-\d{2}-\d{2}$/.test(x.end)) : [];
 const btn = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-black hover:bg-slate-50 disabled:opacity-40';
 
 export default function ScheduleEditor({ locations, workers, onClose }: { locations: any[]; workers: any[]; onClose: () => void }) {
@@ -44,6 +62,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
   const [months, setMonths] = useState(6);
   const [scale, setScale] = useState<Scale>('week');
   const [selected, setSelected] = useState<string | null>(null);
+  const [menuTaskId, setMenuTaskId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -68,7 +87,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
     setLocation(loc);
     setPlan({location:loc,manager:String(record?.manager||''),start,end,tasks:safeTasks(record?.tasks)});
     setViewStart(start.slice(0,7)+'-01');
-    setSelected(null);
+    setSelected(null);setMenuTaskId(null);
     setDirty(false);setMessage('');
   };
   const patch = (change: Partial<Plan>) => {setPlan(old=>old?{...old,...change}:old);setDirty(true);setMessage('')};
@@ -80,7 +99,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
   const addTask = (start?: string, end?: string) => {
     if(!plan)return;
     const id=uid(); const s=start||viewStart;
-    patch({tasks:[...plan.tasks,{id,name:'新しい工程',vendor:'',start:s,end:end||plus(s,6)}]});setSelected(id);
+    patch({tasks:[...plan.tasks,{id,name:'新しい工程',vendor:'',start:s,end:end||plus(s,6),barColor:'gray',barStyle:'solid'}]});setSelected(id);
   };
   const reorder = (fromId: string, toId: string) => {
     if(fromId===toId||!plan)return;
@@ -88,6 +107,29 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
     if(from<0||to<0)return;
     const [item]=next.splice(from,1);next.splice(to,0,item);
     patch({tasks:next});
+  };
+
+  const copyTask = (id: string) => {
+    if(!plan)return;
+    const index=plan.tasks.findIndex(t=>t.id===id);
+    if(index<0)return;
+    const copy={...plan.tasks[index],id:uid(),name:`${plan.tasks[index].name}（コピー）`};
+    const next=[...plan.tasks];next.splice(index+1,0,copy);
+    patch({tasks:next});setSelected(copy.id);setMenuTaskId(copy.id);
+  };
+  const removeTask = (id: string) => {
+    if(!plan||!window.confirm('この工程を削除しますか？'))return;
+    patch({tasks:plan.tasks.filter(t=>t.id!==id)});
+    if(selected===id)setSelected(null);
+    setMenuTaskId(null);
+  };
+  const barAppearance = (task: Task): React.CSSProperties => {
+    const color=getBarColor(task.barColor);
+    const style=getBarStyle(task.barStyle);
+    if(style==='dotted')return {backgroundColor:'#fff',border:`3px dotted ${color}`,borderRadius:5};
+    if(style==='dashed')return {backgroundColor:'#fff',border:`3px dashed ${color}`,borderRadius:5};
+    if(style==='arrow')return {backgroundColor:color,clipPath:'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)',paddingRight:12};
+    return {backgroundColor:color,borderRadius:5};
   };
 
   // 表示単位を切り替えても、工程の日付・保存データは変更しない。
@@ -166,7 +208,7 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
     if(e.button!==0||!plan)return;
     const rect=e.currentTarget.getBoundingClientRect();const index=cellIndex(e.clientX-rect.left);
     const id=uid();const date=cells[index].start;
-    patch({tasks:[...plan.tasks,{id,name:'新しい工程',vendor:'',start:date,end:cells[index].end}]});setSelected(id);
+    patch({tasks:[...plan.tasks,{id,name:'新しい工程',vendor:'',start:date,end:cells[index].end,barColor:'gray',barStyle:'solid'}]});setSelected(id);
     e.preventDefault();
     const d:Drag={id,type:'new',startX:e.clientX,startIndex:index,initialStart:date,initialEnd:date};
     dragRef.current=d;setDragging(d);
@@ -308,7 +350,10 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
           const sunday=Boolean(period&&scale==='day'&&dayOfWeek(period.start)===0);
           const saturday=Boolean(period&&scale==='day'&&dayOfWeek(period.start)===6);
           const boundary=Boolean(inTimeline&&(c-3)%unitSpan===0);
-          const bg=covered?'586474'
+          const taskStyle=getBarStyle(task?.barStyle);
+          const taskColor=rgb(getBarColor(task?.barColor));
+          const lastBarCell=Boolean(task&&period&&task.end>=period.start&&task.end<=period.end&&c===colForPeriod(periodIndex)+unitSpan-1);
+          const bg=covered&&(taskStyle==='solid'||taskStyle==='arrow')?taskColor
             :r===2?'E3E8EF'
             :r===3||r===4?(sunday?'F8EAEA':saturday?'E9F1FA':'F4F6F8')
             :r>=5&&inTimeline?(sunday?'FAF1F1':saturday?'F2F7FC':undefined)
@@ -319,7 +364,17 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
             border:r>=2?{top:thin,bottom:thin,left:thin,right:thin}:undefined,
             ...(bg?{fill:{patternType:'solid',fgColor:{rgb:bg}}}:{})
           };
-          if(covered){cell.t='s';cell.v='';}
+          if(covered){
+            cell.t='s';
+            // 黒い細罫線は維持したまま、工程バーの線種と色だけをExcelに反映。
+            if(taskStyle==='dotted')cell.v=c===colForPeriod(periodIndex)?'・':'';
+            else if(taskStyle==='dashed')cell.v=c===colForPeriod(periodIndex)?'━':'';
+            else if(taskStyle==='arrow'&&lastBarCell)cell.v='▶';
+            else cell.v='';
+            if(taskStyle==='dotted'||taskStyle==='dashed'||taskStyle==='arrow'&&lastBarCell){
+              cell.s.font={name:'Yu Gothic',sz:7,bold:false,color:{rgb:taskColor}};
+            }
+          }
         }
       }
       const lastCol=XLSX.utils.encode_col(numCols-1);
@@ -383,13 +438,14 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
                       <span className="cursor-grab select-none text-black" title="上下に移動">⠿</span>
                       <input title="作業名" value={task.name} onFocus={()=>setSelected(task.id)} onChange={e=>modifyTask(task.id,{name:e.target.value})} className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-1 outline-none focus:border-slate-300"/>
                       <input title="業者名" placeholder="業者" value={task.vendor} onFocus={()=>setSelected(task.id)} onChange={e=>modifyTask(task.id,{vendor:e.target.value})} className="w-[76px] rounded border border-transparent bg-transparent px-1 py-1 outline-none focus:border-slate-300"/>
-                      <button type="button" title="削除" onClick={()=>{if(window.confirm('この工程を削除しますか？'))patch({tasks:plan.tasks.filter(x=>x.id!==task.id)})}} className="px-1 text-black hover:text-red-600">×</button>
+                      <button type="button" title="工程バーの設定" aria-label={`${task.name} の設定`} onClick={()=>{setSelected(task.id);setMenuTaskId(menuTaskId===task.id?null:task.id)}} className="rounded px-1.5 py-1 text-black hover:bg-slate-100">･･･</button>
                     </div>
                     <div className="relative" style={{width,height:48,backgroundSize:`${cellWidth}px 100%`,backgroundImage:'linear-gradient(to right, #e2e8f0 1px, transparent 1px)'}}>
-                      {visible&&<div className="absolute top-[14px] flex h-[20px] touch-none rounded bg-slate-300 text-black shadow-sm" style={{left,width:Math.max(2,right-left)}}>
-                        <div title="左端を伸縮" className="w-[9px] shrink-0 cursor-ew-resize rounded-l bg-slate-400 hover:bg-slate-500" onPointerDown={e=>openDrag(e,task.id,'left')}/>
+                      {visible&&<div className="absolute top-[12px] flex h-[24px] touch-none text-black shadow-sm" style={{left,width:Math.max(2,right-left),...barAppearance(task)}}>
+                        <div title="左端を伸縮" className="w-[8px] shrink-0 cursor-ew-resize" onPointerDown={e=>openDrag(e,task.id,'left')}/>
                         <div title="左右へ移動" className="min-w-0 flex-1 cursor-grab select-none" onPointerDown={e=>openDrag(e,task.id,'move')}/>
-                        <div title="右端を伸縮" className="w-[9px] shrink-0 cursor-ew-resize rounded-r bg-slate-400 hover:bg-slate-500" onPointerDown={e=>openDrag(e,task.id,'right')}/>
+                        {right-left>=65&&<button type="button" title="工程バーの設定" aria-label={`${task.name} の色と線を変更`} className="relative z-10 mr-1 flex h-[20px] w-[25px] shrink-0 items-center justify-center rounded bg-white/90 text-xs text-black hover:bg-white" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setSelected(task.id);setMenuTaskId(menuTaskId===task.id?null:task.id)}}>･･･</button>}
+                        <div title="右端を伸縮" className="w-[8px] shrink-0 cursor-ew-resize" onPointerDown={e=>openDrag(e,task.id,'right')}/>
                       </div>}
                     </div>
                   </div>;
@@ -400,6 +456,12 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
                 </div>
               </div>
             </div>
+            {menuTaskId&&plan.tasks.some(x=>x.id===menuTaskId)&&<div className="mt-3 rounded-xl border border-slate-300 bg-white p-3 text-black">
+              <div className="mb-3 flex items-center justify-between gap-3"><span>工程バーの設定：{plan.tasks.find(t=>t.id===menuTaskId)?.name}</span><button type="button" className={btn} onClick={()=>setMenuTaskId(null)}>閉じる ✕</button></div>
+              <div className="flex flex-wrap items-center gap-2"><span className="w-16 shrink-0">色</span>{BAR_COLORS.map(color=><button key={color.value} type="button" title={color.label} aria-label={`${color.label}に変更`} aria-pressed={(plan.tasks.find(t=>t.id===menuTaskId)?.barColor||'gray')===color.value} onClick={()=>modifyTask(menuTaskId,{barColor:color.value})} className={`h-9 min-w-[49px] rounded-lg border-2 px-2 text-xs text-black ${(plan.tasks.find(t=>t.id===menuTaskId)?.barColor||'gray')===color.value?'border-black':'border-slate-200'}`} style={{backgroundColor:color.hex}}>{(plan.tasks.find(t=>t.id===menuTaskId)?.barColor||'gray')===color.value?'✓':''}</button>)}</div>
+              <div className="mt-3 flex flex-wrap items-center gap-2"><span className="w-16 shrink-0">線の種類</span>{BAR_STYLES.map(item=><button key={item.value} type="button" onClick={()=>modifyTask(menuTaskId,{barStyle:item.value})} className={`${btn} ${getBarStyle(plan.tasks.find(t=>t.id===menuTaskId)?.barStyle)===item.value?'border-black bg-slate-100':''}`}>{item.label}</button>)}</div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3"><button type="button" className={btn} onClick={()=>copyTask(menuTaskId)}>工程をコピー</button><button type="button" className={`${btn} text-red-700`} onClick={()=>removeTask(menuTaskId)}>工程を削除</button></div>
+            </div>}
             {selected&&plan.tasks.some(x=>x.id===selected)&&<div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 p-3">
               <span className="text-black">選択中の工程</span>
               <label>開始日<input type="date" value={plan.tasks.find(x=>x.id===selected)?.start||''} onChange={e=>modifyTask(selected,{start:e.target.value})} className="ml-2 rounded-lg border border-slate-300 p-2"/></label>
