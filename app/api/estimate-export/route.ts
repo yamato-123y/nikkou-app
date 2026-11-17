@@ -146,6 +146,38 @@ export async function POST(req:Request){
       xml=cell(xml,'O5',null);
       breakdown.content=Buffer.from(xml,'utf8');
     }
+    // 3枚目「①」のO4:S5だけ枠線を消す。ほかのセルと共通の書式は変更しない。
+    // 元のセル書式を複製して罫線だけ無くし、対象の10セルにだけ設定する。
+    const stylesEntry=sheets.get('xl/styles.xml');
+    if(breakdown && stylesEntry){
+      let stylesXml=stylesEntry.content.toString('utf8');
+      let sheetXml=breakdown.content.toString('utf8');
+      const xfMatch=stylesXml.match(/<x:cellXfs\b([^>]*)>([\s\S]*?)<\/x:cellXfs>/);
+      if(!xfMatch)throw new Error('Excelの書式情報を取得できませんでした。');
+      const xfs=xfMatch[2].match(/<x:xf\b[^>]*\/>|<x:xf\b[^>]*>[\s\S]*?<\/x:xf>/g)||[];
+      const copies=new Map<number,number>();
+      let extra='';
+      for(const row of [4,5])for(const col of ['O','P','Q','R','S']){
+        const address=`${col}${row}`;
+        const expr=new RegExp(`(<x:c\\b[^>]*\\br="${address}"[^>]*\\bs=")(\\d+)(")`);
+        const hit=sheetXml.match(expr);
+        if(!hit)throw new Error(`ひな形の${address}欄が見つかりません。`);
+        const original=Number(hit[2]);
+        if(!copies.has(original)){
+          const source=xfs[original];
+          if(!source)throw new Error(`Excelの書式${original}がありません。`);
+          let clone=source.replace(/\bborderId="[^"]*"/,'borderId="0"');
+          if(!/\bborderId=/.test(clone))clone=clone.replace(/^<x:xf\b/,'<x:xf borderId="0"');
+          copies.set(original,xfs.length+copies.size);
+          extra+=clone;
+        }
+        sheetXml=sheetXml.replace(expr,(_whole,start,_id,end)=>`${start}${copies.get(original)}${end}`);
+      }
+      const count=xfs.length+copies.size;
+      stylesXml=stylesXml.replace(xfMatch[0],`<x:cellXfs${xfMatch[1].replace(/\bcount="[^"]*"/,`count="${count}"`)}>${xfMatch[2]}${extra}</x:cellXfs>`);
+      stylesEntry.content=Buffer.from(stylesXml,'utf8');
+      breakdown.content=Buffer.from(sheetXml,'utf8');
+    }
     // すべてのシートを「A4横、1ページに収める、水平・垂直中央」に設定。
     // 元の図面・社印・書式・数式は維持し、印刷用の設定タグだけを更新する。
     for (const entry of entries) {
