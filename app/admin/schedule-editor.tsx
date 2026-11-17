@@ -13,6 +13,8 @@ const DAY = 86400000;
 const CELL_WIDTH: Record<Scale,number> = { month: 96, week: 48, day: 32 };
 const fmt = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
 const parse = (s: string) => new Date(`${s}T00:00:00Z`);
+const weekday = (date: string) => ['日','月','火','水','木','金','土'][parse(date).getUTCDay()];
+const dateWithWeekday = (date: string) => `${date}（${weekday(date)}）`;
 const plus = (s: string, n: number) => fmt(new Date(parse(s).getTime() + n*DAY));
 // 月単位で動かす時は、31日など存在しない日付を月末に収める。
 const plusMonths = (s: string, n: number) => {
@@ -193,84 +195,142 @@ export default function ScheduleEditor({ locations, workers, onClose }: { locati
   },[dirty]);
 
   const exportExcel=()=>{
-    if(!plan)return;
-    // 画面の「月・週・日」とExcelの目盛りを合わせる。長い工期はA3横の複数シートに分ける。
+    if (!plan) return;
+    // 大和・現場工程表の標準書式（ユーザー指定 2026-11-17）。
+    // 全行18pt、A/D以降3.29、B28.00、C19.14。工事名・工期はC:J結合。
+    // 月・週・日の違いは、D列以降の細いセルを必要数だけ横に結合して表現する。
     const from=plan.start;
     const to=plan.end>=from?plan.end:lastMonthDay(from,6);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)){
       window.alert('工事開始日・終了日を確認してください。');return;
     }
-    const allPeriods:TimeCell[]=[];
+    if(to>plus(from,1825)){window.alert('Excel出力は工期5年以内にしてください。');return;}
+
+    const allPeriods: TimeCell[]=[];
     let cursor=from;
-    // 工期が極端に長い場合は誤操作防止のため上限を設ける（5年間）。
-    const maxDate=plus(from,1825);
-    if(to>maxDate){window.alert('Excel出力は工期5年以内にしてください。');return;}
     while(cursor<=to){
       let end=cursor;
-      let label='';
-      if(scale==='month'){
-        const d=parse(cursor);
-        end=lastMonthDay(cursor,1);
-        label=`${d.getUTCFullYear()}/${String(d.getUTCMonth()+1).padStart(2,'0')}`;
-      }else if(scale==='week'){
-        end=plus(cursor,6);
-        const d=parse(cursor);
-        label=`${d.getUTCMonth()+1}/${d.getUTCDate()}`;
-      }else{
-        const d=parse(cursor);
-        label=`${d.getUTCMonth()+1}/${d.getUTCDate()}`;
-      }
+      if(scale==='month')end=lastMonthDay(cursor,1);
+      else if(scale==='week')end=plus(cursor,6);
       if(end>to)end=to;
-      allPeriods.push({start:cursor,end,label,major:true});
+      allPeriods.push({start:cursor,end,label:'',major:true});
       cursor=plus(end,1);
     }
-    const wb=XLSX.utils.book_new();
-    const pageSize=scale==='day'?31:scale==='week'?26:24;
+
+    const book=XLSX.utils.book_new();
     const unitLabel=scale==='month'?'月ごと':scale==='week'?'週ごと':'日ごと';
-    const totalSheets=Math.ceil(allPeriods.length/pageSize);
-    const thin={style:'thin',color:{rgb:'CBD5E1'}};
-    for(let page=0;page<totalSheets;page++){
-      const periods=allPeriods.slice(page*pageSize,(page+1)*pageSize);
-      const columns=periods.length+2;
-      const lines:any[][]=[
-        ['工事管理工程表'],
-        ['工事名',plan.location,'現場責任者',plan.manager],
-        ['工期',`${from} ～ ${to}`],
-        ['表示単位',unitLabel,'対象期間',`${periods[0].start} ～ ${periods[periods.length-1].end}`],
-        ['工程名','業者',...periods.map(p=>p.label)]
+    // 狭い列幅を統一しながら、週・月のラベルは複数セルにまたがって読みやすくする。
+    const unitSpan=scale==='day'?1:scale==='week'?3:4;
+    const periodsPerSheet=scale==='day'?31:scale==='week'?10:8;
+    const sheetCount=Math.ceil(allPeriods.length/periodsPerSheet);
+    const thin={style:'thin',color:{rgb:'BBC2CA'}};
+    const thick={style:'medium',color:{rgb:'717B87'}};
+    const colForPeriod=(index:number)=>3+index*unitSpan; // D列=3（0始まり）
+    const shortDate=(date:string)=>{
+      const d=parse(date);
+      return `${d.getUTCMonth()+1}/${d.getUTCDate()}`;
+    };
+    for(let page=0;page<sheetCount;page++){
+      const periods=allPeriods.slice(page*periodsPerSheet,(page+1)*periodsPerSheet);
+      const numCols=Math.max(14,3+periods.length*unitSpan); // M:Nまで必ず用意
+      const taskRows=Math.max(5,plan.tasks.length);
+      const data:any[][]=Array.from({length:5+taskRows},()=>Array.from({length:numCols},()=>''));
+      data[0][1]='工事名';
+      data[0][2]=plan.location;
+      data[1][1]='工期';
+      data[1][2]=`${dateWithWeekday(from)} ～ ${dateWithWeekday(to)}`;
+      data[1][10]='現場責任者'; // K2:L2
+      data[1][12]=plan.manager||''; // M2:N2
+      data[2][0]='No.';
+      data[2][1]='工程名';
+      data[2][2]='業者';
+
+      const merges:any[]=[
+        {s:{r:0,c:2},e:{r:0,c:9}}, // C1:J1
+        {s:{r:1,c:2},e:{r:1,c:9}}, // C2:J2
+        {s:{r:1,c:10},e:{r:1,c:11}}, // K2:L2
+        {s:{r:1,c:12},e:{r:1,c:13}}, // M2:N2
+        {s:{r:2,c:0},e:{r:4,c:0}}, // A3:A5
+        {s:{r:2,c:1},e:{r:4,c:1}}, // B3:B5
+        {s:{r:2,c:2},e:{r:4,c:2}}  // C3:C5
       ];
-      for(const task of plan.tasks){
-        lines.push([task.name,task.vendor,...periods.map(period=>task.start<=period.end&&task.end>=period.start?'━':'')]);
-      }
-      if(!plan.tasks.length)lines.push(['工程なし','']);
-      const ws=XLSX.utils.aoa_to_sheet(lines);
-      const endCol=XLSX.utils.encode_col(columns-1);
-      ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:columns-1}}];
-      ws['!cols']=[{wch:26},{wch:19},...periods.map(()=>({wch:scale==='month'?10:scale==='week'?6.5:4.5}))];
-      ws['!rows']=[{hpt:27},{hpt:21},{hpt:20},{hpt:20},{hpt:29},...Array.from({length:lines.length-5},()=>({hpt:22}))];
-      for(let row=0;row<lines.length;row++){
-        for(let c=0;c<columns;c++){
-          const addr=XLSX.utils.encode_cell({r:row,c});
-          const cell=(ws as any)[addr]||((ws as any)[addr]={t:'s',v:''});
-          const marked=row>=5 && c>=2 && cell.v==='━';
+      let groupLabel='';
+      let groupStart=0;
+      const finishGroup=(lastIndex:number)=>{
+        if(lastIndex<groupStart) return;
+        const startCol=colForPeriod(groupStart);
+        const endCol=colForPeriod(lastIndex)+unitSpan-1;
+        merges.push({s:{r:2,c:startCol},e:{r:2,c:endCol}});
+        data[2][startCol]=groupLabel;
+      };
+      periods.forEach((period,index)=>{
+        const d=parse(period.start);
+        const label=`${d.getUTCFullYear()}年${d.getUTCMonth()+1}月`;
+        if(index===0){groupLabel=label;groupStart=index;}
+        else if(label!==groupLabel){finishGroup(index-1);groupLabel=label;groupStart=index;}
+        const startCol=colForPeriod(index);
+        const endCol=startCol+unitSpan-1;
+        if(unitSpan>1){
+          merges.push({s:{r:3,c:startCol},e:{r:3,c:endCol}});
+          merges.push({s:{r:4,c:startCol},e:{r:4,c:endCol}});
+        }
+        if(scale==='day'){
+          data[3][startCol]=String(d.getUTCDate());
+          data[4][startCol]=weekday(period.start);
+        }else if(scale==='week'){
+          data[3][startCol]=`${shortDate(period.start)}〜${shortDate(period.end)}`;
+          data[4][startCol]=`${weekday(period.start)}〜${weekday(period.end)}`;
+        }else{
+          data[3][startCol]=`${d.getUTCMonth()+1}月`;
+        }
+      });
+      finishGroup(periods.length-1);
+      plan.tasks.forEach((task,index)=>{
+        data[index+5][0]=index+1;
+        data[index+5][1]=task.name;
+        data[index+5][2]=task.vendor;
+      });
+
+      const sheet=XLSX.utils.aoa_to_sheet(data);
+      sheet['!merges']=merges;
+      sheet['!cols']=Array.from({length:numCols},(_,c)=>({width:c===1?28:c===2?19.14:3.29}));
+      sheet['!rows']=Array.from({length:data.length},()=>({hpt:18}));
+      const dayOfWeek=(date:string)=>parse(date).getUTCDay();
+      for(let r=0;r<data.length;r++){
+        for(let c=0;c<numCols;c++){
+          const addr=XLSX.utils.encode_cell({r,c});
+          const cell=(sheet as any)[addr]||((sheet as any)[addr]={t:'s',v:''});
+          const inTimeline=c>=3&&c<3+periods.length*unitSpan;
+          const periodIndex=inTimeline?Math.floor((c-3)/unitSpan):-1;
+          const period=periodIndex>=0?periods[periodIndex]:null;
+          const task=r>=5&&r-5<plan.tasks.length?plan.tasks[r-5]:null;
+          const covered=Boolean(task&&period&&task.start<=period.end&&task.end>=period.start);
+          const sunday=Boolean(period&&scale==='day'&&dayOfWeek(period.start)===0);
+          const saturday=Boolean(period&&scale==='day'&&dayOfWeek(period.start)===6);
+          const boundary=Boolean(inTimeline&&(c-3)%unitSpan===0);
+          const bg=covered?'586474'
+            :r===2?'E3E8EF'
+            :r===3||r===4?(sunday?'F8EAEA':saturday?'E9F1FA':'F4F6F8')
+            :r>=5&&inTimeline?(sunday?'FAF1F1':saturday?'F2F7FC':undefined)
+            :undefined;
           cell.s={
             font:{name:'Yu Gothic',sz:7,bold:false,color:{rgb:'000000'}},
-            alignment:{vertical:'center',horizontal:c>=2?'center':'left',wrapText:true},
-            border:row>=4?{top:thin,bottom:thin,left:thin,right:thin}:undefined,
-            fill:row===4?{patternType:'solid',fgColor:{rgb:'E2E8F0'}}:marked?{patternType:'solid',fgColor:{rgb:'475569'}}:undefined
+            alignment:{vertical:'center',horizontal:r>=5&&c===0?'center':c===1||c===2&&r>=5||r<2?'left':'center',wrapText:false},
+            border:r>=2?{top:thin,bottom:thin,left:boundary?thick:thin,right:thin}:undefined,
+            ...(bg?{fill:{patternType:'solid',fgColor:{rgb:bg}}}:{})
           };
-          if(marked)cell.v='';
+          if(covered){cell.t='s';cell.v='';}
         }
       }
-      (ws as any)['!pageSetup']={paperSize:8,orientation:'landscape',fitToWidth:1,fitToHeight:1};
-      (ws as any)['!sheetPr']={pageSetUpPr:{fitToPage:true}};
-      (ws as any)['!printOptions']={horizontalCentered:true};
-      (ws as any)['!margins']={left:0.2,right:0.2,top:0.35,bottom:0.35,header:0.1,footer:0.1};
-      (ws as any)['!printArea']=`A1:${endCol}${lines.length}`;
-      const sheetName=totalSheets===1?'現場工程表':`工程表${page+1}`;
-      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+      const lastCol=XLSX.utils.encode_col(numCols-1);
+      (sheet as any)['!pageSetup']={paperSize:8,orientation:'landscape',fitToWidth:1,fitToHeight:1};
+      (sheet as any)['!sheetPr']={pageSetUpPr:{fitToPage:true}};
+      (sheet as any)['!printOptions']={horizontalCentered:true};
+      (sheet as any)['!margins']={left:0.2,right:0.2,top:0.35,bottom:0.35,header:0.1,footer:0.1};
+      (sheet as any)['!printArea']=`A1:${lastCol}${data.length}`;
+      XLSX.utils.book_append_sheet(book,sheet,sheetCount===1?'現場工程表':`工程表${page+1}`);
     }
-    XLSX.writeFile(wb,`現場工程表_${unitLabel}_${plan.location.replace(/[\\/:*?"<>|]/g,'_').slice(0,45)}.xlsx`);
+    XLSX.writeFile(book,`現場工程表_${unitLabel}_${plan.location.replace(/[\\/:*?"<>|]/g,'_').slice(0,45)}.xlsx`);
   };
 
   return (
