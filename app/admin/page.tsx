@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment, useRef } from 'react';
 import * as XLSX from 'xlsx-js-style';
 import { readCompanyCalendarHolidayPdf } from './company-calendar-pdf';
 import ScheduleEditor from './schedule-editor';
+import EstimateEditor from './estimate-editor';
 
 // リース品の互換識別：
 // 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
@@ -650,6 +651,7 @@ export default function AdminPage() {
   // ※ この試験版はSupabaseへ保存しません。画面を再読み込みするとリセットされます。
   const [showTrialSchedule, setShowTrialSchedule] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [showEstimateEditor, setShowEstimateEditor] = useState(false);
   const [trialScheduleLocation, setTrialScheduleLocation] = useState('');
   const [trialScheduleMonth, setTrialScheduleMonth] = useState(() => getCurrentYearMonth());
   const [trialScheduleTasks, setTrialScheduleTasks] = useState<any[]>([]);
@@ -8515,10 +8517,14 @@ export default function AdminPage() {
       {/* 社長モードPC：工程表の作成（スマホからは編集しない） */}
       {authRole === 'viewer' && (
         <div className="hidden lg:flex justify-end">
-          <button type="button" onClick={() => setShowScheduleEditor(true)} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-normal text-slate-800 hover:bg-slate-50 shadow-sm">📅 現場工程表を作る・編集する</button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => setShowEstimateEditor(true)} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-normal text-slate-800 hover:bg-slate-50 shadow-sm">🧾 見積書を作る・編集する</button>
+            <button type="button" onClick={() => setShowScheduleEditor(true)} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-normal text-slate-800 hover:bg-slate-50 shadow-sm">📅 現場工程表を作る・編集する</button>
+          </div>
         </div>
       )}
       {showScheduleEditor && authRole === 'viewer' && <ScheduleEditor locations={settings.locations || []} workers={settings.workers || []} onClose={() => setShowScheduleEditor(false)} />}
+      {showEstimateEditor && authRole === 'viewer' && <EstimateEditor onClose={() => setShowEstimateEditor(false)} />}
 
       {/* 管理モードのスマホ用メニュー：縦長ボタンをなくし、押しやすい2列の一覧にする。 */}
       {authRole === 'admin' && mobileAdminMenuOpen && (
