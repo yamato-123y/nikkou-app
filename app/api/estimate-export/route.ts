@@ -61,15 +61,18 @@ const makeZip=(entries:Entry[]):Buffer=>{
 };
 const xmlEscape=(s:any)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 const cell=(xml:string,addr:string,value:string|number|null)=>{
-  const expr=new RegExp(`<(x:)?c\\b([^>]*\\br="${addr}"[^>]*)(?:\\s*/>|(?<!/)>([\\s\\S]*?)<\\/(?:x:)?c>)`);
+  // 空欄セルは <x:c ... /> の形になっている。隣のセルまで
+  // 取り込まないよう、セルの開始タグと終了タグを厳密に区別する。
+  const expr=new RegExp(`<(x:)?c\\b(?=[^>]*\\br="${addr}")[^>]*?(?:\\s*/>|>(?:[\\s\\S]*?)<\\/(?:x:)?c>)`);
   const m=xml.match(expr);
   if(!m)throw new Error(`ひな形の${addr}欄が見つかりません。`);
-  // 元の書式番号は保持。入力欄の既存の数式は上書きしない。
-  let attrs=m[2].replace(/\s+t="[^"]*"/g,'');
+  // 対象セル自身の属性だけを引き継ぎ、書式番号を保持する。
+  const start=m[0].slice(0,m[0].indexOf('>')+1);
+  let attrs=start.replace(/^<(?:x:)?c\b/,'').replace(/\s*\/?>$/,'').replace(/\s+t="[^"]*"/g,'');
   const ns=m[1]||'';
   const inner=value===null?'':typeof value==='number'?`<${ns}v>${value}</${ns}v>`:`<${ns}is><${ns}t xml:space="preserve">${xmlEscape(value)}</${ns}t></${ns}is>`;
   if(typeof value==='string')attrs+=' t="inlineStr"';
-  return xml.replace(expr,`<${m[1]||''}c${attrs}>${inner}</${m[1]||''}c>`);
+  return xml.replace(expr,`<${ns}c${attrs}>${inner}</${ns}c>`);
 };
 const setCells=(source:string,items:[string,string|number|null][])=>items.reduce((s,[address,v])=>cell(s,address,v),source);
 const asText=(x:any,max=250)=>String(x??'').slice(0,max);
@@ -131,4 +134,3 @@ export async function POST(req:Request){
     return NextResponse.json({error:String(err?.message||'Excel出力に失敗しました。')},{status:500});
   }
 }
-
