@@ -9,11 +9,26 @@ export default function PushOptIn({ reporter }: { reporter: string }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [registeredReporter, setRegisteredReporter] = useState('');
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   useEffect(() => {
-    setStatus(''); setSubscribed(false);
+    setStatus(''); setSubscribed(false); setExpanded(true); setRegisteredReporter('');
     if (!reporter || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    navigator.serviceWorker.getRegistration('/').then(r => r?.pushManager.getSubscription()).then(s => setSubscribed(Boolean(s))).catch(() => {});
+    let mounted = true;
+    let previousReporter = '';
+    try { previousReporter = localStorage.getItem('yamato-push-registered-reporter') || ''; } catch (_) {}
+    navigator.serviceWorker.getRegistration('/')
+      .then(r => r?.pushManager.getSubscription())
+      .then(subscription => {
+        if (!mounted) return;
+        const active = Boolean(subscription) && 'Notification' in window && Notification.permission === 'granted';
+        setSubscribed(active);
+        setRegisteredReporter(previousReporter);
+        // A different reporter must re-register this smartphone before showing as configured.
+        setExpanded(!active || Boolean(previousReporter && previousReporter !== reporter));
+      }).catch(() => {});
+    return () => { mounted = false; };
   }, [reporter]);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -54,21 +69,40 @@ export default function PushOptIn({ reporter }: { reporter: string }) {
       const saved = await fetch('/api/push/public', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reporter, subscription: subscription.toJSON() }) });
       const payload = await saved.json();
       if (!saved.ok) throw new Error(payload.error || '登録に失敗しました。');
-      setSubscribed(true); setStatus(`${reporter}さんへの通知を受け取る設定が完了しました。`);
+      setSubscribed(true); setRegisteredReporter(reporter); setExpanded(false);
+      try { localStorage.setItem('yamato-push-registered-reporter', reporter); } catch (_) {}
+      setStatus('');
       registration.active?.postMessage({ type: 'yamato-push-get-unread' });
     } catch (e: any) { setStatus(e.message || '登録できませんでした。'); }
     finally { setBusy(false); }
   };
-  return <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-2">
-    <div className="font-bold text-slate-900">🔔 会社からのスマホ通知</div>
-    <div className="text-sm text-slate-600">最初に1回だけ、通知を受け取る設定をしてください。通知先：{reporter}さん</div>
-    <button type="button" disabled={busy} onClick={enable} className="rounded-xl bg-blue-700 text-white px-4 py-2.5 font-bold disabled:opacity-50">{busy ? '設定中…' : subscribed ? '通知の登録を更新する' : 'スマホ通知を許可する'}</button>
-    {unreadCount !== null && <div className="flex items-center gap-3 flex-wrap text-sm text-slate-700">
-      <span>このスマホの未確認通知：<strong>{unreadCount}件</strong></span>
-      {unreadCount > 0 && <button type="button" onClick={markRead} className="rounded-lg border border-blue-400 bg-white px-3 py-1 font-bold text-blue-800">確認済みにする</button>}
-    </div>}
-    {status && <div role="status" className="text-sm text-slate-800">{status}</div>}
-    {!supports && <div className="text-xs text-amber-800">iPhoneはSafariでホーム画面に追加した後、ホーム画面のアイコンから開いてください。</div>}
-    <div className="text-xs text-slate-500">報告者を変更した場合は、このボタンで通知先を更新してください。バッジの件数はこのスマホに届いた通知の数です。スマホの種類・設定によってはホーム画面に数字が出ない場合があります。</div>
+  return <div className={subscribed && !expanded
+    ? "rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-2"
+    : "rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3"}>
+    {subscribed && !expanded ? <>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="font-bold text-emerald-900 text-sm">✅ {registeredReporter === reporter ? '通知設定済み' : '通知は許可済み'}</span>
+        <button type="button" onClick={() => setExpanded(true)} className="text-xs font-bold text-emerald-800 rounded-lg border border-emerald-300 bg-white px-3 py-1.5">設定を確認・変更</button>
+      </div>
+      {unreadCount !== null && <div className="flex items-center gap-3 flex-wrap text-xs text-slate-700">
+        <span>未確認の通知：<strong>{unreadCount}件</strong></span>
+        {unreadCount > 0 && <button type="button" onClick={markRead} className="rounded-lg border border-emerald-300 bg-white px-2 py-1 font-bold text-emerald-800">確認済みにする</button>}
+      </div>}
+      {registeredReporter !== reporter && <div className="text-xs text-amber-800">通知先の登録を確認してください。「設定を確認・変更」から登録できます。</div>}
+    </> : <>
+      <div className="font-bold text-slate-900">🔔 会社からの通知</div>
+      <div className="text-sm text-slate-700">このスマホで会社からのお知らせを受け取れます。</div>
+      <div className="flex gap-2 flex-wrap items-center">
+        <button type="button" disabled={busy} onClick={enable} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 font-bold disabled:opacity-50">{busy ? '設定中…' : subscribed ? '通知先を設定する' : '通知を受け取る'}</button>
+        {subscribed && <button type="button" onClick={() => setExpanded(false)} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-bold text-slate-600">閉じる</button>}
+      </div>
+      {unreadCount !== null && <div className="flex items-center gap-3 flex-wrap text-sm text-slate-700">
+        <span>未確認の通知：<strong>{unreadCount}件</strong></span>
+        {unreadCount > 0 && <button type="button" onClick={markRead} className="rounded-lg border border-emerald-300 bg-white px-3 py-1 font-bold text-emerald-800">確認済みにする</button>}
+      </div>}
+      {!supports && <div className="text-xs text-amber-800">iPhoneはSafariからホーム画面に追加して、ホーム画面のアイコンで開いてください。</div>}
+      <div className="text-xs text-slate-500">報告者を変更した場合は、通知先を設定し直してください。</div>
+    </>}
+    {status && <div role="status" className="text-sm text-red-700">{status}</div>}
   </div>;
 }
