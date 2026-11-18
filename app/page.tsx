@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import PushOptIn from './components/push-opt-in';
 
 // リース品の互換識別：
 // 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
@@ -1866,6 +1867,11 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* 日報担当者向け通知登録。日報入力・保存の処理には影響させない。 */}
+      {reporterOptions.includes(reporter) && !isReporterEditing && (
+        <PushOptIn reporter={reporter} />
+      )}
 
       {unreadAdminReplies.length > 0 && (
         <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 shadow-sm overflow-hidden">
