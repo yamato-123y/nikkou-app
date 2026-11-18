@@ -9,11 +9,33 @@ export default function PushOptIn({ reporter }: { reporter: string }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
   useEffect(() => {
     setStatus(''); setSubscribed(false);
     if (!reporter || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
     navigator.serviceWorker.getRegistration('/').then(r => r?.pushManager.getSubscription()).then(s => setSubscribed(Boolean(s))).catch(() => {});
   }, [reporter]);
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const receive = (event: MessageEvent) => {
+      if (event.data?.type === 'yamato-push-unread' && Number.isFinite(event.data.count)) {
+        setUnreadCount(event.data.count);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', receive);
+    const requestCount = async () => {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      reg?.active?.postMessage({ type: 'yamato-push-get-unread' });
+    };
+    requestCount().catch(() => {});
+    return () => navigator.serviceWorker.removeEventListener('message', receive);
+  }, [reporter]);
+  const markRead = async () => {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/');
+      reg?.active?.postMessage({ type: 'yamato-push-read-all' });
+    } catch (_) { setStatus('未確認件数の更新に失敗しました。'); }
+  };
   if (!reporter) return null;
   const supports = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const enable = async () => {
@@ -33,6 +55,7 @@ export default function PushOptIn({ reporter }: { reporter: string }) {
       const payload = await saved.json();
       if (!saved.ok) throw new Error(payload.error || '登録に失敗しました。');
       setSubscribed(true); setStatus(`${reporter}さんへの通知を受け取る設定が完了しました。`);
+      registration.active?.postMessage({ type: 'yamato-push-get-unread' });
     } catch (e: any) { setStatus(e.message || '登録できませんでした。'); }
     finally { setBusy(false); }
   };
@@ -40,8 +63,12 @@ export default function PushOptIn({ reporter }: { reporter: string }) {
     <div className="font-bold text-slate-900">🔔 会社からのスマホ通知</div>
     <div className="text-sm text-slate-600">最初に1回だけ、通知を受け取る設定をしてください。通知先：{reporter}さん</div>
     <button type="button" disabled={busy} onClick={enable} className="rounded-xl bg-blue-700 text-white px-4 py-2.5 font-bold disabled:opacity-50">{busy ? '設定中…' : subscribed ? '通知の登録を更新する' : 'スマホ通知を許可する'}</button>
+    {unreadCount !== null && <div className="flex items-center gap-3 flex-wrap text-sm text-slate-700">
+      <span>このスマホの未確認通知：<strong>{unreadCount}件</strong></span>
+      {unreadCount > 0 && <button type="button" onClick={markRead} className="rounded-lg border border-blue-400 bg-white px-3 py-1 font-bold text-blue-800">確認済みにする</button>}
+    </div>}
     {status && <div role="status" className="text-sm text-slate-800">{status}</div>}
     {!supports && <div className="text-xs text-amber-800">iPhoneはSafariでホーム画面に追加した後、ホーム画面のアイコンから開いてください。</div>}
-    <div className="text-xs text-slate-500">報告者を変更した場合は、このボタンで通知先を更新してください。</div>
+    <div className="text-xs text-slate-500">報告者を変更した場合は、このボタンで通知先を更新してください。バッジの件数はこのスマホに届いた通知の数です。スマホの種類・設定によってはホーム画面に数字が出ない場合があります。</div>
   </div>;
 }
