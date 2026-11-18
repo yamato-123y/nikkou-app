@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "現場日報",
   description: "株式会社大和の現場専用日報アプリ",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "大和日報", statusBarStyle: "default" },
   icons: {
     icon: "/nippo.jpg",
     apple: "/nippo.jpg",
