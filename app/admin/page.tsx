@@ -2489,14 +2489,15 @@ export default function AdminPage() {
   };
 
   const makeAutomaticMasterAnnouncements = (key: string, oldList: any[], newList: any[]) => {
-    // 自動お知らせは、日報入力者が手入力しやすいリース系6項目だけを対象にする。
+    // 新規登録時の自動お知らせ：リース系6項目に加え、処分場の新規項目も対象にする。
     const autoNoticeTargetKeys = new Set([
       'leaseHeavy',
       'leaseAttach',
       'leaseOther',
       'ishikawaHeavy',
       'ishikawaAttach',
-      'ishikawaOther'
+      'ishikawaOther',
+      'disposalLocations'
     ]);
     if (!autoNoticeTargetKeys.has(key)) return [];
     const oldSignatures = new Set((oldList || []).map((x: any) => getMasterAnnouncementSignature(key, x)));
