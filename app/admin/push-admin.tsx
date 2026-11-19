@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-const PEOPLE = ['岩橋','寺岡','塩澤','徳本','吉田','湯浅','島村','鳥羽','嶋田'];
+const BASE_PEOPLE = ['岩橋','寺岡','塩澤','徳本','吉田','湯浅','島村','鳥羽','嶋田'];
 const TEMPLATES = [
  '未入力の日報があります。確認して入力をお願いします。',
  '日報の内容を確認してください。',
@@ -8,7 +8,14 @@ const TEMPLATES = [
  '会社からのお知らせがあります。',
 ];
 type History = { id: number; created_at: string; recipients: string[]; message: string; success_count: number; failure_count: number };
-export default function PushAdmin({ onClose }: { onClose: () => void }) {
+export default function PushAdmin({ onClose, workers = [] }: { onClose: () => void; workers?: any[] }) {
+  const today = new Date().toLocaleDateString('sv-SE');
+  // 通知先の登録情報は削除せず、退職日を過ぎた人だけ送信画面から非表示にする。
+  const PEOPLE = BASE_PEOPLE.filter(name => {
+    const worker = workers.find((w: any) => String(w?.name || '').trim() === name);
+    const retirementDate = String(worker?.retirementDate || '');
+    return !(/^\d{4}-\d{2}-\d{2}$/.test(retirementDate) && retirementDate < today);
+  });
   const [key, setKey] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState(TEMPLATES[0]);
@@ -28,7 +35,7 @@ export default function PushAdmin({ onClose }: { onClose: () => void }) {
     } catch (e: any) { setInfo(e.message); } finally { setBusy(false); }
   };
   const send = async () => {
-    if (!selected.length || !message.trim() || !key) { setInfo('送信先・本文・通知管理キーを確認してください。'); return; }
+    if (!selected.length || selected.some(name => !PEOPLE.includes(name)) || !message.trim() || !key) { setInfo('送信先・本文・通知管理キーを確認してください。'); return; }
     if (!window.confirm(`${selected.join('・')} の ${selected.length}名に通知を送信しますか？\n\n${message}`)) return;
     setBusy(true);
     try {
