@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import PushOptIn from './components/push-opt-in';
 
 // リース品の互換識別：
 // 過去日報の「〈業者名〉品名」を読み取りつつ、現在のマスタは「業者 + 品名」で区別する。
@@ -1563,17 +1562,15 @@ export default function Home() {
 
   // 日報の報告者は、現場で日報を送信する対象者だけに限定する。
   // 並び順も固定して、不要な実習生名などが候補に出ないようにする。
+  const isRetiredWorkerForDate = (name: string, targetDate: string) => {
+    const person = (settings.workers || []).find((w: any) => String(w?.name || '').trim() === name);
+    const retiredAt = String(person?.retirementDate || '');
+    return /^\d{4}-\d{2}-\d{2}$/.test(retiredAt) && retiredAt < targetDate;
+  };
+  // 報告者は従来の対象者から退職済みを除く（未登録の対象者は従来どおり残す）。
   const reporterOptions = [
-    '岩橋',
-    '寺岡',
-    '塩澤',
-    '徳本',
-    '吉田',
-    '湯浅',
-    '島村',
-    '鳥羽',
-    '嶋田'
-  ];
+    '岩橋', '寺岡', '塩澤', '徳本', '吉田', '湯浅', '島村', '鳥羽', '嶋田'
+  ].filter(name => !isRetiredWorkerForDate(name, new Date().toLocaleDateString('sv-SE')));
 
   // 以前この端末に対象外の報告者が保存されていた場合は、
   // 一度だけ選び直してもらう。
@@ -1586,7 +1583,7 @@ export default function Home() {
     } catch (e) {
       console.error('対象外の報告者設定を解除できませんでした。', e);
     }
-  }, [reporter]);
+  }, [reporter, settings.workers]);
 
   const saveReporterToDevice = (name: string) => {
     setReporter(name);
@@ -1867,11 +1864,6 @@ export default function Home() {
           </div>
         ))}
       </div>
-
-      {/* 日報担当者向け通知登録。日報入力・保存の処理には影響させない。 */}
-      {reporterOptions.includes(reporter) && !isReporterEditing && (
-        <PushOptIn reporter={reporter} />
-      )}
 
       {unreadAdminReplies.length > 0 && (
         <section className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 shadow-sm overflow-hidden">
@@ -2371,7 +2363,7 @@ export default function Home() {
                    className="w-full p-4 border-2 rounded-2xl font-bold text-lg bg-white text-slate-950 box-border block"
                  >
                    <option value="">職長を選択してください</option>
-                   {(settings.managers || []).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
+                   {(settings.managers || []).filter((m:any) => !isRetiredWorkerForDate(String(m?.name || '').trim(), date)).map((m:any)=><option key={m.name} value={m.name}>{m.name}</option>)}
                  </select>
                </>
              )}
@@ -2476,7 +2468,7 @@ export default function Home() {
              <p className="text-xs md:text-sm font-bold text-slate-500">※職長も現場で作業した場合は、ここでも選択してください。</p>
            </div>
            <div className="grid grid-cols-2 gap-2 pt-1">
-             {(settings.workers || []).map((w:any) => {
+             {(settings.workers || []).filter((w: any) => !isRetiredWorkerForDate(String(w?.name || '').trim(), date)).map((w:any) => {
                const selected = selectedWorkers.includes(w.name);
                const overtime = Number(workerOvertimeHours[w.name] || 0);
                const isHalfDay = !!workerHalfDay[w.name];
