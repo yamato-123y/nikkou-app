@@ -570,6 +570,8 @@ export default function AdminPage() {
   const [showAdminSection, setShowAdminSection] = useState(false);
   // マスタ画面の表示選択のみ。登録済みデータや保存形式には影響させない。
   const [selectedMasterPanel, setSelectedMasterPanel] = useState<string>('');
+  // 退職者を削除・移動せず、作業員マスタの表示だけ切り替える。
+  const [workerMasterView, setWorkerMasterView] = useState<'active' | 'retired'>('active');
   // マスタ保存の表示状態。保存内容・保存方法は従来どおり。
   const [masterSavingKey, setMasterSavingKey] = useState('');
   // 作業員の区分変更入力欄（保存ボタンで確定するまではマスタに追加しない）。
@@ -8535,7 +8537,7 @@ export default function AdminPage() {
           <button type="button" onClick={() => setShowPushAdmin(true)} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-normal text-slate-800 hover:bg-slate-50 shadow-sm">🔔 スマホへ通知を送る</button>
         </div>
       )}
-      {showPushAdmin && authRole === 'admin' && <PushAdmin onClose={() => setShowPushAdmin(false)} />}
+      {showPushAdmin && authRole === 'admin' && <PushAdmin onClose={() => setShowPushAdmin(false)} workers={settings.workers || []} />}
 
       {/* 管理モードのスマホ用メニュー：縦長ボタンをなくし、押しやすい2列の一覧にする。 */}
       {authRole === 'admin' && mobileAdminMenuOpen && (
@@ -11649,12 +11651,27 @@ export default function AdminPage() {
                                 </div>
                                 <div className="text-xs font-bold text-blue-700 bg-white border border-blue-200 rounded-lg px-2.5 py-1.5">変更後は右上の「💾 保存」</div>
                               </div>
+                              {sec.key === 'workers' && (() => {
+                                const today = new Date().toLocaleDateString('sv-SE');
+                                const workers = Array.isArray(settings.workers) ? settings.workers : [];
+                                const retired = workers.filter((w: any) => /^\d{4}-\d{2}-\d{2}$/.test(String(w?.retirementDate || '')) && String(w.retirementDate) < today).length;
+                                return <div className="grid grid-cols-2 gap-2" role="group" aria-label="在籍者と退職者の切り替え">
+                                  <button type="button" aria-pressed={workerMasterView === 'active'} onClick={() => setWorkerMasterView('active')} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${workerMasterView === 'active' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-700'}`}>在籍者（{workers.length - retired}名）</button>
+                                  <button type="button" aria-pressed={workerMasterView === 'retired'} onClick={() => setWorkerMasterView('retired')} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${workerMasterView === 'retired' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-300 text-slate-700'}`}>退職者（{retired}名）</button>
+                                </div>;
+                              })()}
                               <input type="search" aria-label={`${sec.title}の登録済みマスタを検索`} placeholder="🔎 登録済みマスタを検索（名前・品目など）" value={masterListSearch[sec.key] || ''} onChange={(e) => setMasterListSearch(prev => ({ ...prev, [sec.key]: e.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
                               <div className="max-h-[480px] overflow-y-auto bg-slate-100/70 border border-slate-300 rounded-2xl p-2 space-y-1">
                               {(settings[sec.key] || []).length === 0 ? (
                                 <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                               ) : (
                                 (settings[sec.key] || []).map((item:any, idx:number) => ({item, idx})).filter(({item}:any) => {
+                                  // 元の配列と添字は維持。退職日当日までは在籍者として扱う。
+                                  if (sec.key === 'workers') {
+                                    const today = new Date().toLocaleDateString('sv-SE');
+                                    const retired = /^\d{4}-\d{2}-\d{2}$/.test(String(item?.retirementDate || '')) && String(item.retirementDate) < today;
+                                    if (retired !== (workerMasterView === 'retired')) return false;
+                                  }
                                   const term = String(masterListSearch[sec.key] || '').trim().toLocaleLowerCase();
                                   return !term || [item?.name, item?.company, item?.task, item?.location, item?.item, item?.vendor, item?.price, typeof item === 'string' ? item : ''].some(v => String(v ?? '').toLocaleLowerCase().includes(term));
                                 }).map(({item, idx}:any)=>(
