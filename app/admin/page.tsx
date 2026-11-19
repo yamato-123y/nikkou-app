@@ -4407,7 +4407,7 @@ export default function AdminPage() {
     if (authRole !== 'admin') return;
     const draftKey = `${locName}__${index}`;
     const draft = customSubBillingDrafts[draftKey] || {};
-    const month = String(draft.month || '');
+    const month = String(draft.month ?? getCurrentYearMonth());
     const amount = String(draft.amount ?? '').trim();
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
       alert('請求月と0円以上の請求金額を入力してください。');
