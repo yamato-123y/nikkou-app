@@ -581,6 +581,10 @@ export default function AdminPage() {
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(true);
   const [showKentaiKyoSection, setShowKentaiKyoSection] = useState(true);
+  // 建退共だけの手動証紙「その他／なし」。勤怠・日報の「サンセイ」は変更しない。
+  const [kentaiOtherNoDraft, setKentaiOtherNoDraft] = useState<Record<string, Record<string, boolean>>>({});
+  const [kentaiOtherNoEdits, setKentaiOtherNoEdits] = useState<Record<string, Record<string, boolean>>>({});
+  const [kentaiOtherNoSaving, setKentaiOtherNoSaving] = useState(false);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(true);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
@@ -721,6 +725,8 @@ export default function AdminPage() {
       const normalizedSettings = normalizeLeaseVendorSettings(sData);
       setSettings(normalizedSettings);
       setOriginalSettings(JSON.parse(JSON.stringify(normalizedSettings)));
+      setKentaiOtherNoDraft(sData.kentaiKyoOtherNoOverrides && typeof sData.kentaiKyoOtherNoOverrides === 'object' ? sData.kentaiKyoOtherNoOverrides : {});
+      setKentaiOtherNoEdits({});
       if (sData.costOverrides) setCostOverrides(sData.costOverrides);
       if (sData.disposalOverrides) setDisposalOverrides(sData.disposalOverrides);
       if (sData.scrapOverrides) setScrapOverrides(sData.scrapOverrides);
@@ -2016,6 +2022,59 @@ export default function AdminPage() {
     return worker?.kentaiKyoPurchase !== 'no';
   };
 
+  const setKentaiOtherNoForDay = (workerName: string, date: string, enabled: boolean) => {
+    if (authRole !== 'admin') return;
+    setKentaiOtherNoDraft(prev => {
+      const next = { ...prev };
+      const row = { ...(next[workerName] || {}) };
+      if (enabled) row[date] = true;
+      else delete row[date];
+      if (Object.keys(row).length) next[workerName] = row;
+      else delete next[workerName];
+      return next;
+    });
+    setKentaiOtherNoEdits(prev => ({ ...prev, [workerName]: { ...(prev[workerName] || {}), [date]: enabled } }));
+  };
+
+  const hasKentaiOtherNoEdits = Object.keys(kentaiOtherNoEdits).some(name => Object.keys(kentaiOtherNoEdits[name] || {}).length > 0);
+  const saveKentaiOtherNo = async () => {
+    if (authRole !== 'admin' || !hasKentaiOtherNoEdits || kentaiOtherNoSaving) return;
+    try {
+      setKentaiOtherNoSaving(true);
+      const resLatest = await fetch('/api/settings', { cache: 'no-store' });
+      if (!resLatest.ok) throw new Error('最新の設定が読み込めませんでした。');
+      const latest = await resLatest.json();
+      if (!latest || typeof latest !== 'object' || Array.isArray(latest) || !Object.keys(latest).length) {
+        throw new Error('最新の設定を確認できないため、保存を中止しました。');
+      }
+      // 変更した作業員・日付だけを最新設定へ反映し、ほかの設定を上書きしない。
+      const merged = JSON.parse(JSON.stringify(latest.kentaiKyoOtherNoOverrides || {}));
+      for (const [name, edits] of Object.entries(kentaiOtherNoEdits)) {
+        const row = { ...(merged[name] || {}) };
+        for (const [date, enabled] of Object.entries(edits)) {
+          if (enabled) row[date] = true;
+          else delete row[date];
+        }
+        if (Object.keys(row).length) merged[name] = row;
+        else delete merged[name];
+      }
+      const saved = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kentaiKyoOtherNoOverrides: merged })
+      });
+      if (!saved.ok) throw new Error('建退共の設定保存に失敗しました。');
+      setKentaiOtherNoDraft(merged);
+      setKentaiOtherNoEdits({});
+      setSettings(prev => ({ ...prev, kentaiKyoOtherNoOverrides: merged }));
+      setOriginalSettings(prev => ({ ...prev, kentaiKyoOtherNoOverrides: merged }));
+      alert('建退共「その他／なし」を保存しました。');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '保存できませんでした。もう一度お試しください。');
+    } finally {
+      setKentaiOtherNoSaving(false);
+    }
+  };
+
   const monthlyKentaiKyoRows = monthlyAttendanceRows
     .filter((row: any) => isKentaiKyoMember(row.name))
     .map((row: any) => {
@@ -2050,7 +2109,8 @@ export default function AdminPage() {
       // 手動の「管理」は、大和で購入する証紙「なし」1日として数える。
       // 現場の日報がある日は重複して加算しない。
       const manualKanriNo = buyByYamato && fraction <= 0 && detail.manualStatus === '管理' ? 1 : 0;
-      noDays += buyByYamato ? noFraction + manualKanriNo : 0;
+      const otherNo = buyByYamato && fraction <= 0 && !manualKanriNo && !!kentaiOtherNoDraft?.[row.name]?.[detail.date] ? 1 : 0;
+      noDays += buyByYamato ? noFraction + manualKanriNo + otherNo : 0;
       unsetDays += buyByYamato ? unsetFraction : 0;
 
       return {
@@ -2059,6 +2119,7 @@ export default function AdminPage() {
         kentaiKyoYesFraction: yesFraction,
         kentaiKyoNoFraction: noFraction,
         kentaiKyoManualKanriNo: manualKanriNo > 0,
+        kentaiKyoOtherNo: otherNo > 0,
         kentaiKyoUnsetFraction: unsetFraction
       };
     });
@@ -9964,8 +10025,21 @@ export default function AdminPage() {
                   <span className="inline-flex items-center gap-1.5 text-rose-800"><span className="w-4 h-4 rounded bg-rose-100 border border-rose-300"></span>未設定＝現場マスタを確認</span>
                 </div>
                 <div className="mt-2 text-xs text-slate-500 leading-relaxed">
-                  ※ 同じ日に「あり」「なし」の現場へ分かれて勤務した場合は、日報の半日設定を基準に日数を按分します。手動の「管理」は大和購入の「なし」1日として数えます。「サンセイ」は証紙日数に含めません。
+                  ※ 「サンセイ」は薄く表示するだけで集計しません。「その他＝なし」をドラッグした日だけ「その他／なし」と表示して証紙なしに1日加算します。「管理／なし」は従来どおりです。同じ日の重複加算はしません。
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div draggable onDragStart={event => { event.dataTransfer.setData('text/plain', 'kentai-other-no'); event.dataTransfer.effectAllowed = 'copy'; }}
+                    className="cursor-grab select-none rounded-lg border-2 border-amber-400 bg-white px-4 py-2 text-sm font-bold text-amber-900 active:cursor-grabbing"
+                    title="サンセイなどの対象日へドラッグしてください">その他＝なし</div>
+                  <span className="text-xs text-amber-900">日付にドラッグして設定。設定済みの日をクリックすると解除できます。</span>
+                </div>
+                <button type="button" disabled={!hasKentaiOtherNoEdits || kentaiOtherNoSaving} onClick={saveKentaiOtherNo}
+                  className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
+                  {kentaiOtherNoSaving ? '保存中…' : hasKentaiOtherNoEdits ? 'その他／なしを保存（未保存）' : 'その他／なしを保存済み'}
+                </button>
               </div>
 
               <div className="max-h-[72vh] overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-300 bg-white">
@@ -10019,6 +10093,8 @@ export default function AdminPage() {
                             {row.details.map((d: any) => {
                                const hasWork = Number(d.fraction || 0) > 0;
                               const isManualKanriNo = !!d.kentaiKyoManualKanriNo;
+                              const isOtherNo = !!d.kentaiKyoOtherNo;
+                              const isSansei = !hasWork && d.manualStatus === 'サンセイ';
                               const statuses = Array.isArray(d.kentaiKyoStatuses) ? d.kentaiKyoStatuses : [];
                               const hasYes = statuses.includes('yes');
                               const hasNo = row.kentaiKyoBuyByYamato && statuses.includes('no');
@@ -10026,7 +10102,7 @@ export default function AdminPage() {
                               let bg = 'bg-white';
                               let textColor = 'text-slate-400';
                               let label = '-';
-                              if (isManualKanriNo) {
+                              if (isManualKanriNo || isOtherNo) {
                                 bg = 'bg-amber-100'; textColor = 'text-amber-900'; label = 'なし';
                               } else if (hasWork && hasUnset) {
                                 bg = 'bg-rose-100'; textColor = 'text-rose-800'; label = '未';
@@ -10040,8 +10116,25 @@ export default function AdminPage() {
                               const daySites = Array.from(new Set((d.sites || []).map((site: string) => String(site || '')).filter(Boolean)));
                               const siteLabels = daySites.map((site: string) => `${getLocationShortName(site)}：${getKentaiKyoStatusForSite(site) === 'yes' ? 'あり' : getKentaiKyoStatusForSite(site) === 'no' ? 'なし' : '未設定'}`).join(' / ');
                               return (
-                                <td key={`kentai-${row.name}-${d.date}`} title={isManualKanriNo ? '管理：なし（大和で証紙購入）' : row.kentaiKyoBuyByYamato ? (siteLabels || d.date) : (hasYes ? siteLabels : d.date)} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
-                                  {isManualKanriNo ? (
+                                <td key={`kentai-${row.name}-${d.date}`}
+                                  title={isOtherNo ? 'その他／なし（大和で証紙購入）：クリックで解除' : isManualKanriNo ? '管理：なし（大和で証紙購入）' : isSansei ? 'サンセイ（まだ証紙日数には含まれません）' : row.kentaiKyoBuyByYamato ? (siteLabels || d.date) : (hasYes ? siteLabels : d.date)}
+                                  onDragOver={event => { if (!hasWork && !isManualKanriNo && row.kentaiKyoBuyByYamato) event.preventDefault(); }}
+                                  onDrop={event => {
+                                    if (event.dataTransfer.getData('text/plain') !== 'kentai-other-no') return;
+                                    event.preventDefault();
+                                    if (hasWork || isManualKanriNo || !row.kentaiKyoBuyByYamato) {
+                                      alert('日報のある日、管理の日、大和購入対象外の人には設定できません。'); return;
+                                    }
+                                    setKentaiOtherNoForDay(row.name, d.date, true);
+                                  }}
+                                  onClick={() => { if (isOtherNo) setKentaiOtherNoForDay(row.name, d.date, false); }}
+                                  className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${isOtherNo ? 'cursor-pointer' : ''} ${bg} ${textColor}`}>
+                                  {isOtherNo ? (
+                                    <div className="leading-tight">
+                                      <div className="text-[7px] font-black text-slate-800">その他</div>
+                                      <div className="text-[6px] font-black text-amber-900">なし</div>
+                                    </div>
+                                  ) : isManualKanriNo ? (
                                      <div className="leading-tight">
                                        <div className="text-[7px] font-black leading-tight text-slate-800">管理</div>
                                        <div className="text-[6px] font-black leading-tight text-amber-900">なし</div>
@@ -10060,6 +10153,8 @@ export default function AdminPage() {
                                         );
                                       })}
                                     </div>
+                                  ) : isSansei ? (
+                                    <div className="text-[7px] font-bold text-slate-300">サンセイ</div>
                                   ) : (
                                     <div className="text-[8px] font-bold text-slate-300">{row.kentaiKyoBuyByYamato ? '-' : ''}</div>
                                   )}
