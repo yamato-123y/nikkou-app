@@ -580,7 +580,7 @@ export default function AdminPage() {
   const [masterListSearch, setMasterListSearch] = useState<{ [key: string]: string }>({});
   const [showCalendarSection, setShowCalendarSection] = useState(false);
   const [showReportCalendarSection, setShowReportCalendarSection] = useState(true);
-  const [showKentaiKyoSection, setShowKentaiKyoSection] = useState(false);
+  const [showKentaiKyoSection, setShowKentaiKyoSection] = useState(true);
   const [showMonthlyAttendance, setShowMonthlyAttendance] = useState(true);
   const [attendanceYearMonth, setAttendanceYearMonth] = useState(() => getCurrentAttendanceYearMonth());
 
@@ -2047,7 +2047,10 @@ export default function AdminPage() {
       }
 
       yesDays += yesFraction;
-      noDays += buyByYamato ? noFraction : 0;
+      // 手動の「管理」は、大和で購入する証紙「なし」1日として数える。
+      // 現場の日報がある日は重複して加算しない。
+      const manualKanriNo = buyByYamato && fraction <= 0 && detail.manualStatus === '管理' ? 1 : 0;
+      noDays += buyByYamato ? noFraction + manualKanriNo : 0;
       unsetDays += buyByYamato ? unsetFraction : 0;
 
       return {
@@ -2055,6 +2058,7 @@ export default function AdminPage() {
         kentaiKyoStatuses: statuses,
         kentaiKyoYesFraction: yesFraction,
         kentaiKyoNoFraction: noFraction,
+        kentaiKyoManualKanriNo: manualKanriNo > 0,
         kentaiKyoUnsetFraction: unsetFraction
       };
     });
@@ -9960,7 +9964,7 @@ export default function AdminPage() {
                   <span className="inline-flex items-center gap-1.5 text-rose-800"><span className="w-4 h-4 rounded bg-rose-100 border border-rose-300"></span>未設定＝現場マスタを確認</span>
                 </div>
                 <div className="mt-2 text-xs text-slate-500 leading-relaxed">
-                  ※ 同じ日に「あり」「なし」の現場へ分かれて勤務した場合は、日報の半日設定を基準に日数を按分します。手動の「管理」「サンセイ」は証紙日数に含めません。
+                  ※ 同じ日に「あり」「なし」の現場へ分かれて勤務した場合は、日報の半日設定を基準に日数を按分します。手動の「管理」は大和購入の「なし」1日として数えます。「サンセイ」は証紙日数に含めません。
                 </div>
               </div>
 
@@ -10013,7 +10017,8 @@ export default function AdminPage() {
                           <tr>
                             <td className="sticky left-0 z-10 w-[64px] px-0.5 py-1 border border-slate-300 bg-white font-bold text-[8px] whitespace-nowrap overflow-hidden text-ellipsis">{row.name}</td>
                             {row.details.map((d: any) => {
-                              const hasWork = Number(d.fraction || 0) > 0;
+                               const hasWork = Number(d.fraction || 0) > 0;
+                              const isManualKanriNo = !!d.kentaiKyoManualKanriNo;
                               const statuses = Array.isArray(d.kentaiKyoStatuses) ? d.kentaiKyoStatuses : [];
                               const hasYes = statuses.includes('yes');
                               const hasNo = row.kentaiKyoBuyByYamato && statuses.includes('no');
@@ -10021,7 +10026,9 @@ export default function AdminPage() {
                               let bg = 'bg-white';
                               let textColor = 'text-slate-400';
                               let label = '-';
-                              if (hasWork && hasUnset) {
+                              if (isManualKanriNo) {
+                                bg = 'bg-amber-100'; textColor = 'text-amber-900'; label = 'なし';
+                              } else if (hasWork && hasUnset) {
                                 bg = 'bg-rose-100'; textColor = 'text-rose-800'; label = '未';
                               } else if (hasWork && hasYes && hasNo) {
                                 bg = 'bg-cyan-100'; textColor = 'text-cyan-900'; label = '混';
@@ -10033,8 +10040,13 @@ export default function AdminPage() {
                               const daySites = Array.from(new Set((d.sites || []).map((site: string) => String(site || '')).filter(Boolean)));
                               const siteLabels = daySites.map((site: string) => `${getLocationShortName(site)}：${getKentaiKyoStatusForSite(site) === 'yes' ? 'あり' : getKentaiKyoStatusForSite(site) === 'no' ? 'なし' : '未設定'}`).join(' / ');
                               return (
-                                <td key={`kentai-${row.name}-${d.date}`} title={row.kentaiKyoBuyByYamato ? (siteLabels || d.date) : (hasYes ? siteLabels : d.date)} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
-                                  {hasWork && daySites.length > 0 && (row.kentaiKyoBuyByYamato || hasYes) ? (
+                                <td key={`kentai-${row.name}-${d.date}`} title={isManualKanriNo ? '管理：なし（大和で証紙購入）' : row.kentaiKyoBuyByYamato ? (siteLabels || d.date) : (hasYes ? siteLabels : d.date)} className={`h-[50px] min-w-0 px-0.5 py-1 border border-slate-300 text-center align-middle overflow-hidden ${bg} ${textColor}`}>
+                                  {isManualKanriNo ? (
+                                     <div className="leading-tight">
+                                       <div className="text-[7px] font-black leading-tight text-slate-800">管理</div>
+                                       <div className="text-[6px] font-black leading-tight text-amber-900">なし</div>
+                                     </div>
+                                   ) : hasWork && daySites.length > 0 && (row.kentaiKyoBuyByYamato || hasYes) ? (
                                     <div className="space-y-0.5">
                                       {daySites.map((site: string) => {
                                         const status = getKentaiKyoStatusForSite(site);
