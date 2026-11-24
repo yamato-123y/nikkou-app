@@ -207,6 +207,38 @@ const getDayInfo = (dateStr: string) => {
   return { dayOfWeek, isHoliday };
 };
 
+// 前日未入力候補専用。現行の祝日制度（2022年以降）を年ごとに計算する。
+// 月次勤怠の既存休日判定・保存処理は変更しない。
+const isDashboardJapaneseHoliday = (dateStr: string): boolean => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return false;
+  const day = (month: number, date: number) => Date.UTC(y, month - 1, date) / 86400000;
+  const weekday = (n: number) => new Date(n * 86400000).getUTCDay();
+  const monday = (month: number, nth: number) => 1 + (8 - weekday(day(month, 1))) % 7 + (nth - 1) * 7;
+  // 1980〜2099年の春分・秋分の近似式（将来の法改正等は別途対応）。
+  const spring = Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  const autumn = Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  const national = new Set<number>([
+    day(1, 1), day(1, monday(1, 2)), day(2, 11), day(2, 23),
+    day(3, spring), day(4, 29), day(5, 3), day(5, 4), day(5, 5),
+    day(7, monday(7, 3)), day(8, 11), day(9, monday(9, 3)), day(9, autumn),
+    day(10, monday(10, 2)), day(11, 3), day(11, 23)
+  ]);
+  const holidays = new Set(national);
+  // 国民の休日：前後を国民の祝日に挟まれた日。
+  for (const n of national) {
+    if (!national.has(n + 1) && national.has(n + 2)) holidays.add(n + 1);
+  }
+  // 振替休日：日曜の祝日の後、最初の祝日でない日。
+  for (const n of Array.from(national).sort((a, b) => a - b)) {
+    if (weekday(n) !== 0) continue;
+    let substitute = n + 1;
+    while (national.has(substitute)) substitute++;
+    holidays.add(substitute);
+  }
+  return holidays.has(day(m, d));
+};
+
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [viewerPassword, setViewerPassword] = useState('');
@@ -7715,21 +7747,24 @@ export default function AdminPage() {
     });
   });
 
-  // 日曜日は全員休日として扱い、会社カレンダーの登録有無に関係なく
-  // 「前日未入力候補」を表示しない。日報・勤怠の保存内容は変更しない。
+  // 日曜日・日本の祝日はカレンダー区分「該当なし」の作業員だけ除外する。
+  // カレンダー設定済みの作業員は登録された休日・個別休日変更に従う。
   const dashboardYesterdayIsSunday = (() => {
     const [year, month, day] = dashboardYesterday.split('-').map(Number);
     return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 0;
   })();
 
-  const dashboardMissingYesterday = dashboardYesterdayIsSunday ? [] : (settings.workers || [])
+  const dashboardYesterdayIsHoliday = isDashboardJapaneseHoliday(dashboardYesterday);
+  const dashboardMissingYesterday = (settings.workers || [])
     .filter((worker: any) => {
       const name = String(typeof worker === 'string' ? worker : worker?.name || '').trim();
       if (!name) return false;
       if (typeof worker === 'object' && isWorkerRetiredOnDate(worker, dashboardYesterday)) return false;
 
       // 会社カレンダーが存在する人は、従来どおり休日を候補から除く。
-      // カレンダー未設定の人は休日判定で除外せず、記録の有無で判断する。
+      // 該当なしの人は日曜日・日本の祝日を除外する。
+      const workerCalendarType = getWorkerCalendarTypeOnDate(worker, dashboardYesterday);
+      if (workerCalendarType === 'none' && (dashboardYesterdayIsSunday || dashboardYesterdayIsHoliday)) return false;
       const calendarEntry = typeof worker === 'object' && worker !== null
         ? getCalendarEntryForWorker(worker, dashboardYesterday)
         : null;
