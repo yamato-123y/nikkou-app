@@ -96,6 +96,8 @@ export const readCompanyCalendarHolidayPdf = async (
   const pixels = context.getImageData(0, 0, width, height).data;
 
   // オレンジ色の囲み線を検出。黒い日付や赤系の周辺文字は対象外とする。
+  // 実習生用PDFではスキャン画像のにじみにより未丸囲みの文字が20〜24点になり、
+  // 20点では3日誤検出する。正しい丸囲みは最小47点なので30点を採用する。
   const circleScore = (cx: number, cy: number) => {
     let count = 0;
     const x0 = Math.round(cx);
@@ -134,7 +136,7 @@ export const readCompanyCalendarHolidayPdf = async (
         if (day < startOfPanel || day >= endOfPanel) continue;
         const x = centersX[panel % 3] + col * 29.3;
         const y = centersY[Math.floor(panel / 3)] + row * 25;
-        if (circleScore(x, y) >= 20) {
+        if (circleScore(x, y) >= 30) {
           holidays.push(dateKey(day));
           count++;
         }
@@ -152,13 +154,13 @@ export const readCompanyCalendarHolidayPdf = async (
     );
   }
 
-  // 大和社員2026～2027原本の月別休日数（11月～翌10月）とも照合。
-  // 合計だけ偶然一致した誤読が設定に保存されるのを防止します。
-  if (pattern === 'yamato') {
-    const expectedMonthlyCounts = [9, 12, 7, 8, 9, 10, 8, 8, 9, 9, 8, 8];
-    if (monthCounts.some((count, index) => count !== expectedMonthlyCounts[index])) {
-      throw new Error('月ごとの休日数が原本と一致しません。休日は保存していません。');
-    }
+  // 両方の原本の月別休日数（11月～翌10月）とも照合。
+  // 合計だけ偶然一致する誤読を保存しない。
+  const expectedMonthlyCounts = pattern === 'yamato'
+    ? [9, 12, 7, 8, 9, 10, 8, 8, 9, 9, 8, 8]
+    : [7, 12, 6, 7, 7, 8, 7, 6, 7, 6, 6, 6];
+  if (monthCounts.some((count, index) => count !== expectedMonthlyCounts[index])) {
+    throw new Error('月ごとの休日数が原本と一致しません。休日は保存していません。');
   }
   return { cycle: '2026-2027', startDate, endDate, holidays: unique };
 };
