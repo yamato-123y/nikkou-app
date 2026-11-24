@@ -165,7 +165,7 @@ const getCalendarCycleForDate = (dateStr: string) => {
   const [y, m] = String(dateStr || '').split('-').map(Number);
   if (!y || !m) return '';
   // 年間カレンダーは11月21日〜翌年11月20日。11月20日までは前年度扱い。
-  if (y === 2026 && m === 11 && Number(String(dateStr).slice(8, 10)) <= 20) return '2025-2026';
+  if (m === 11 && Number(String(dateStr).slice(8, 10)) <= 20) return `${y - 1}-${y}`;
   return m >= 11 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 };
 
@@ -610,7 +610,7 @@ export default function AdminPage() {
 
   const [showCompanyCalendarSection, setShowCompanyCalendarSection] = useState(true);
   const [companyCalendars, setCompanyCalendars] = useState<any>(() => mergeCompanyCalendars({}));
-  const [companyCalendarCycle, setCompanyCalendarCycle] = useState('2025-2026');
+  const [companyCalendarCycle, setCompanyCalendarCycle] = useState(() => getCalendarCycleForDate(`${getCurrentAttendanceYearMonth()}-20`));
   const [companyCalendarPattern, setCompanyCalendarPattern] = useState<'yamato' | 'trainee'>('yamato');
   const [companyCalendarEditMonth, setCompanyCalendarEditMonth] = useState('2026-09');
   const [companyCalendarUploading, setCompanyCalendarUploading] = useState(false);
@@ -10002,6 +10002,7 @@ export default function AdminPage() {
                     onChange={(e) => {
                       setAttendanceYearMonth(e.target.value);
                       setCompanyCalendarEditMonth(e.target.value);
+                      if (e.target.value) setCompanyCalendarCycle(getCalendarCycleForDate(`${e.target.value}-20`));
                     }}
                     className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
                   />
@@ -10209,6 +10210,7 @@ export default function AdminPage() {
                     onChange={(e) => {
                       setAttendanceYearMonth(e.target.value);
                       setCompanyCalendarEditMonth(e.target.value);
+                      if (e.target.value) setCompanyCalendarCycle(getCalendarCycleForDate(`${e.target.value}-20`));
                     }}
                     className="px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-base font-bold"
                   />
