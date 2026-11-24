@@ -1,6 +1,6 @@
-// スキャンされた「年間カレンダー」の画像にある赤色のマスから休日を判定します。
-// 対象様式：大和の年間カレンダー（11/21〜翌年11/20、12枠の月別表）。
-// 未対応のPDF・レイアウトの場合は保存せず、正しい休日を誤って上書きしない設計です。
+// 大和の年間勤務予定表（2026/11/21～2027/11/20）の赤・オレンジ色の丸を休日として読み取ります。
+// 12枚の月枠、月の区切りは21日～翌20日です。
+// 様式や検出結果が原本と合わない場合はエラーにして、既存データを上書きしません。
 
 export type ImportedCalendarHolidays = {
   cycle: string;
@@ -14,8 +14,8 @@ const dateKey = (d: Date) =>
 
 const dateUtc = (y: number, m: number, day: number) => new Date(Date.UTC(y, m - 1, day));
 
-// 大和から提供されたPDFは、1ページに埋め込まれた単一のJPEG画像です。
-// PDFの画像をそのまま抽出するため、サーバーや外部サイトにPDFの内容を送信しません。
+// 今回のPDFは「FlateDecode → DCTDecode」で圧縮したJPEG画像を1枚含みます。
+// ブラウザ内で取り出すだけで、PDFを外部へ送信しません。
 const extractLargestJpeg = async (bytes: Uint8Array): Promise<Blob> => {
   const raw = new TextDecoder('latin1').decode(bytes);
   const re = /\/Subtype\s*\/Image\b/g;
@@ -52,7 +52,7 @@ const extractLargestJpeg = async (bytes: Uint8Array): Promise<Blob> => {
     if (!best || jpeg.length > best.length) best = jpeg;
   }
   if (!best || best.length < 50000) {
-    throw new Error('このPDFの画像形式は自動読取に対応していません。登録内容は変更していません。');
+    throw new Error('このPDFの画像形式は自動読取に対応していません。休日は保存していません。');
   }
   return new Blob([best as unknown as BlobPart], { type: 'image/jpeg' });
 };
@@ -67,8 +67,6 @@ const loadImage = async (blob: Blob): Promise<HTMLImageElement> => {
       img.src = url;
     });
   } finally {
-    // 画像の読み込み後にURLを解放する。
-    // 画像自体は読み込み済みなので描画可能です。
     URL.revokeObjectURL(url);
   }
 };
@@ -84,51 +82,83 @@ export const readCompanyCalendarHolidayPdf = async (
   if (Math.abs(image.naturalWidth / image.naturalHeight - 1653 / 2338) > 0.025) {
     throw new Error('年間カレンダーの様式が異なるため、自動登録しませんでした。');
   }
+
+  // 実際に提供された2026～2027年版を827×1169に縮小したときの座標。
+  // 従来の座標は別の様式用で、休日が22日しか検出されませんでした。
+  const width = 827;
+  const height = 1169;
   const canvas = document.createElement('canvas');
-  canvas.width = 827;
-  canvas.height = 1169;
+  canvas.width = width;
+  canvas.height = height;
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('画像を解析できませんでした。');
-  context.drawImage(image, 0, 0, 827, 1169);
-  const pixels = context.getImageData(0, 0, 827, 1169).data;
-  const redScore = (x: number, y: number) => {
-    let reds = 0;
-    for (const dx of [4, 5, 6, 7]) for (const dy of [8, 11, 14, 17]) {
-      const offset = ((Math.floor(y + dy) * 827) + Math.floor(x + dx)) * 4;
-      const r = pixels[offset], g = pixels[offset + 1], b = pixels[offset + 2];
-      if (r > 175 && r > g * 1.45 && r > b * 1.35) reds++;
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height).data;
+
+  // オレンジ色の囲み線を検出。黒い日付や赤系の周辺文字は対象外とする。
+  const circleScore = (cx: number, cy: number) => {
+    let count = 0;
+    const x0 = Math.round(cx);
+    const y0 = Math.round(cy);
+    for (let dy = -11; dy <= 11; dy++) {
+      for (let dx = -12; dx <= 12; dx++) {
+        const x = x0 + dx;
+        const y = y0 + dy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const i = (y * width + x) * 4;
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (r > 150 && r > g * 1.28 && g > b * 1.03 && r - g > 38) count++;
+      }
     }
-    return reds;
+    return count;
   };
 
-  // 2025年11月21日から始まる大和様式。
-  // 他年度・別レイアウトのPDFを誤読しないため、今回はこの期間に限定します。
-  const startDate = '2025-11-21';
-  const endDate = '2026-11-20';
+  const startDate = '2026-11-21';
+  const endDate = '2027-11-20';
   const holidays: string[] = [];
+  const monthCounts: number[] = [];
+  // 3列×4段の月枠。上段は2026年11月、最下段は2027年10月。
+  const centersX = [94, 321, 546];
+  const centersY = [189, 396, 602, 808];
+
   for (let panel = 0; panel < 12; panel++) {
-    const startOfPanel = dateUtc(2025, 11 + panel, 21);
-    const endOfPanel = dateUtc(2025, 12 + panel, 21);
+    const startOfPanel = dateUtc(2026, 11 + panel, 21);
+    const endOfPanel = dateUtc(2026, 12 + panel, 21);
     const firstSunday = new Date(startOfPanel.getTime());
     firstSunday.setUTCDate(firstSunday.getUTCDate() - firstSunday.getUTCDay());
-    for (let row = 0; row < 6; row++) for (let col = 0; col < 7; col++) {
-      const day = new Date(firstSunday.getTime());
-      day.setUTCDate(day.getUTCDate() + row * 7 + col);
-      if (day < startOfPanel || day >= endOfPanel) continue;
-      const x = 90 + (panel % 3) * 238 + col * 28.55;
-      const y = 162 + Math.floor(panel / 3) * 198.2 + row * 27.75;
-      if (redScore(x, y) >= 3) holidays.push(dateKey(day));
+    let count = 0;
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 7; col++) {
+        const day = new Date(firstSunday.getTime());
+        day.setUTCDate(day.getUTCDate() + row * 7 + col);
+        if (day < startOfPanel || day >= endOfPanel) continue;
+        const x = centersX[panel % 3] + col * 29.3;
+        const y = centersY[Math.floor(panel / 3)] + row * 25;
+        if (circleScore(x, y) >= 20) {
+          holidays.push(dateKey(day));
+          count++;
+        }
+      }
     }
+    monthCounts.push(count);
   }
 
-  // 今回の原本に明記されている年間休日数と一致する場合のみ、自動登録します。
-  const expectedCount = pattern === 'yamato' ? 105 : 85;
   const unique = Array.from(new Set(holidays)).sort();
+  const expectedCount = pattern === 'yamato' ? 105 : 85;
   if (unique.length !== expectedCount) {
     throw new Error(
       `休日を${unique.length}日検出しましたが、原本の${expectedCount}日と一致しません。` +
       '休日は保存していません。対象の年間カレンダーPDFを確認してください。'
     );
   }
-  return { cycle: '2025-2026', startDate, endDate, holidays: unique };
+
+  // 大和社員2026～2027原本の月別休日数（11月～翌10月）とも照合。
+  // 合計だけ偶然一致した誤読が設定に保存されるのを防止します。
+  if (pattern === 'yamato') {
+    const expectedMonthlyCounts = [9, 12, 7, 8, 9, 10, 8, 8, 9, 9, 8, 8];
+    if (monthCounts.some((count, index) => count !== expectedMonthlyCounts[index])) {
+      throw new Error('月ごとの休日数が原本と一致しません。休日は保存していません。');
+    }
+  }
+  return { cycle: '2026-2027', startDate, endDate, holidays: unique };
 };
