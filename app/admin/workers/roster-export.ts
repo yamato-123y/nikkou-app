@@ -57,9 +57,15 @@ const makeFields = (names: string[], ledger: Ledger, today: Date) => {
     const meta=(...labels:string[])=>labels.map(l=>note(p?.notes,l)).find(Boolean)||'';
     put(`E${r}`,meta('ふりがな','フリガナ'));
     put(`E${r+2}`,p?.full_name||name);
-    put(`V${r}`,meta('職種'));
+    // 旧取込データでは職種欄の末尾に経験年数が連結されている場合がある。
+    const job = meta('職種');
+    const embedded = job.normalize('NFKC').match(/経験年数\s*[:：]?\s*(\d+(?:\.\d+)?)\s*年?/);
+    const occupation = job.replace(/[\s　/／、,，・]*(?:[（(]\s*)?経験年数\s*[:：]?\s*[0-9０-９]+(?:[.．][0-9０-９]+)?\s*年?\s*[）)]?/g, '').trim();
+    put(`V${r}`,occupation);
     date(p?.hire_date,['AL','AQ','AV']); date(p?.birth_date,['BA','BF','BK']);
-    const years=meta('経験年数').replace(/年$/,''); put(`AL${r+3}`,years);
+    const explicitYears = meta('経験年数').normalize('NFKC').match(/^\s*(\d+(?:\.\d+)?)\s*年?\s*$/);
+    const years = explicitYears?.[1] ?? embedded?.[1];
+    if (years !== undefined) put(`AL${r+3}`,Number(years));
     put(`BA${r+3}`,age(p?.birth_date,today));
     put(`BP${r}`,p?.address); put(`DK${r}`,meta('電話番号','本人電話番号','TEL'));
     put(`BP${r+3}`,p?.emergency_contact); put(`DK${r+3}`,meta('緊急連絡先電話番号','家族電話番号'));
