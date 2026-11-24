@@ -11115,20 +11115,112 @@ export default function AdminPage() {
 
               <details className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <summary className="cursor-pointer text-sm font-bold text-slate-700">ⓘ 使い方・勤怠の見方</summary>
-                <div className="mt-3 text-xs text-slate-600 leading-relaxed space-y-1">
-                <div>※ 「欠勤?」は会社カレンダー上の出勤日に日報の出勤記録がない日です。欠勤確定ではなく確認用です。</div>
-                <div>※ 日曜日に出勤した日は自動で「法出」、それ以外の会社休日に出勤した日は自動で「休出」として集計します。</div>
-                <div>※ 日報で休日出勤時間を入力した場合はその時間を使用し、入力がない場合は作業員マスタの所定勤務時間（8時間／7時間）を自動で使用します。</div>
-                <div>※ 現場名が入っているセルはどの現場でもクリックできます。クリックしたセルには 1・2・3… と順番を表示し、その現場の同じ月のセルをまとめて水色表示します。このチェックは一時機能で、Supabaseには保存されません。画面を再読み込みするとリセットされます。</div>
-                <div>※ 現場管理・安全パトロール等で日報を送信しない日は「管理」を、サンセイ勤務の日は「サンセイ」を、欠勤日は「欠勤」、会社都合で休みになった日は「休業」を対象セルへドラッグしてください。「管理」「サンセイ」は1日出勤として集計し、「欠勤」「休業」は出勤には加算しません。</div>
-                <div>※ 会社カレンダーの「休」は作業員ごとに別の日へ変更できます。「休」を右クリック→移動先を右クリック（ドラッグ／クリック操作も可）。その作業員だけの変更で、会社カレンダー・元の日報・現場情報は変更しません。</div>
-                <div>※ 「有給」「午前有給」「午後有給」はどの日付セルにもドラッグできます。日報が入力済みの日に付けても、現場名や日報データは消えず、有給表示だけを重ねます。</div>
-                <div>※ 出勤欄の下に有給換算を表示します。有給=1、午前有給=0.5、午後有給=0.5です。</div>
-                <div>※ 有給表示を解除する場合は、セル内の紫色の「有給／午前有給／午後有給」をクリックしてください。</div>
-                <div>※ 「管理」「サンセイ」「欠勤」「休業」を解除する場合は、それぞれの色付きセルをクリックしてください。</div>
-                <div>※ 個別休日変更・有給・管理・サンセイ・欠勤・休業は操作中は画面内だけに反映されます。最後に「勤怠変更を保存」を押すと、まとめて1回保存され、変更履歴にも追加されます。</div>
-                <div>※ 「該当なし」は会社カレンダーによる所定日数・欠勤候補の判定は行いませんが、日曜日と日本の祝日は「休」と表示します。</div>
-                <div>※ 同日に複数現場へ入っている場合、勤務換算日数は最大1日として集計します。</div>
+                <div className="mt-4 space-y-5 text-sm leading-relaxed text-slate-700">
+                  <section>
+                    <h3 className="mb-2 font-black text-slate-900">① 勤怠カレンダーの表示</h3>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {[
+                        ['休', '会社指定の休日', 'bg-slate-800 text-white'],
+                        ['現場名', '日報による出勤記録', 'bg-white text-slate-700'],
+                        ['法出', '日曜日の出勤', 'bg-orange-100 text-orange-900'],
+                        ['休出', '日曜日以外の会社休日の出勤', 'bg-orange-100 text-orange-900'],
+                        ['半日', '半日勤務', 'bg-amber-100 text-slate-700'],
+                        ['欠勤?', '出勤日に日報なし（要確認）', 'bg-rose-50 text-rose-700'],
+                        ['欠勤', '確定済みの欠勤', 'bg-rose-100 text-rose-800'],
+                        ['管理', '現場管理・安全パトロール等', 'bg-blue-100 text-blue-800'],
+                        ['サンセイ', 'サンセイ勤務', 'bg-emerald-100 text-emerald-800'],
+                        ['休業', '会社都合による休み', 'bg-indigo-100 text-indigo-800'],
+                        ['有給', '1日有給休暇', 'bg-violet-100 text-violet-800'],
+                        ['午前有給', '午前のみ有給休暇', 'bg-violet-100 text-violet-800'],
+                        ['午後有給', '午後のみ有給休暇', 'bg-violet-100 text-violet-800'],
+                      ].map(([label, description, color]) => (
+                        <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 p-2">
+                          <span className={`w-24 shrink-0 rounded border border-slate-200 px-1 py-1 text-center text-xs font-bold ${color}`}>{label}</span>
+                          <span className="text-xs">{description}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs font-bold text-rose-700">「欠勤?」は確認用です。欠勤が確定したわけではありません。</p>
+                  </section>
+                  <section className="border-t border-slate-200 pt-4">
+                    <h3 className="mb-2 font-black text-slate-900">② アイコン・マークの意味</h3>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {[
+                        ['・・・', 'メモ入力', 'クリックして勤怠の確認事項を入力（管理者）', 'bg-white text-slate-700'],
+                        ['💡', 'メモ登録済み', 'クリックして共有メモを確認・編集（管理者）', 'bg-white text-slate-700'],
+                        ['1・2・3', '現場チェック', 'クリック順に番号を表示し、同月の同じ現場を水色にする', 'bg-sky-200 text-sky-900'],
+                        ['個別休', '個別休日変更済み', 'クリックすると元の休日に戻せる', 'bg-slate-200 text-slate-700'],
+                        ['📊 Excel出力', 'Excel出力', '表示中の月次勤怠表を書き出す', 'bg-emerald-600 text-white'],
+                      ].map(([mark, title, description, color]) => (
+                        <div key={mark} className="flex items-center gap-3 rounded-lg border border-slate-200 p-2">
+                          <span className={`w-28 shrink-0 rounded border border-slate-200 px-1 py-2 text-center text-xs font-bold ${color}`}>{mark}</span>
+                          <div><div className="font-bold">{title}</div><div className="text-xs text-slate-600">{description}</div></div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">現場チェックは一時機能です。Supabaseには保存されず、画面の再読み込みで解除されます。</p>
+                  </section>
+                  <section className="border-t border-slate-200 pt-4">
+                    <h3 className="mb-2 font-black text-slate-900">③ 勤怠の変更方法</h3>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div className="font-bold">手動勤怠・有給の登録</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            ['管理', 'border-blue-400 text-blue-700'], ['サンセイ', 'border-emerald-400 text-emerald-700'], ['欠勤', 'border-rose-400 text-rose-700'], ['休業', 'border-indigo-400 text-indigo-700'], ['有給', 'border-violet-300 text-violet-700'], ['午前有給', 'border-violet-300 text-violet-700'], ['午後有給', 'border-violet-300 text-violet-700'],
+                          ].map(([label, color]) => <span key={label} className={`rounded-lg border-2 bg-white px-2 py-1 text-xs font-bold ${color}`}>{label}</span>)}
+                        </div>
+                        <div className="text-center text-xs font-bold">↓ 対象の日付セルへドラッグ</div>
+                        <div className="mx-auto w-24 rounded border border-blue-200 bg-blue-100 p-2 text-center font-bold text-blue-800">管理</div>
+                        <p className="text-xs">手動勤怠は日報のない対象セルへ。有給はどの日付にも登録できます（日報・現場名はそのまま）。</p>
+                        <p className="text-xs">解除：手動勤怠は色付きセル、有給は紫色の有給表示をクリック。</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                        <div className="font-bold">会社休日の振替（個別休日変更）</div>
+                        <div className="flex items-center justify-center gap-4 text-center text-xs">
+                          <div><div className="mb-1 rounded bg-slate-800 px-6 py-3 font-bold text-white">休</div>変更元を右クリック</div>
+                          <span className="text-lg">→</span>
+                          <div><div className="mb-1 rounded border border-slate-300 bg-white px-6 py-3">―</div>変更先を右クリック</div>
+                        </div>
+                        <p className="text-xs">ドラッグ、またはクリック→移動先クリックでも可能です（日曜日も可）。</p>
+                        <p className="text-xs">対象作業員だけの変更です。会社カレンダー・元の日報・現場情報は変更しません。</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 lg:col-span-2">
+                        <div className="font-bold">同じ現場を確認する</div>
+                        <div className="grid grid-cols-4 gap-1 text-center text-xs">
+                          {['A現場 ①', 'B現場', 'A現場', 'A現場 ②'].map((label, i) => <span key={label} className={`rounded border border-slate-200 p-2 ${i === 1 ? 'bg-white' : 'bg-sky-200 text-sky-900'}`}>{label}</span>)}
+                        </div>
+                        <p className="text-xs">現場名をクリックすると、クリック順に番号が付き、同月の同じ現場が水色になります。</p>
+                      </div>
+                    </div>
+                  </section>
+                  <section className="border-t border-slate-200 pt-4">
+                    <h3 className="mb-2 font-black text-slate-900">④ 勤怠の集計ルール</h3>
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100"><tr><th className="p-2">勤怠区分</th><th className="p-2">換算日数</th></tr></thead>
+                        <tbody>
+                          {[
+                            ['通常出勤・管理・サンセイ', '1日'], ['半日勤務', '0.5日'], ['欠勤・休業', '出勤に加算しない'], ['有給', '有給1日'], ['午前有給・午後有給', '有給0.5日'],
+                          ].map(([label, value]) => <tr key={label} className="border-t border-slate-200"><td className="p-2">{label}</td><td className="p-2 font-bold">{value}</td></tr>)}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <p>・有給換算は出勤欄の下に表示します。</p>
+                      <p>・同日に複数現場へ出勤しても勤務換算は最大1日です。</p>
+                      <p>・休日出勤時間は日報の入力時間を優先し、未入力時は作業員マスタの所定勤務時間（8時間／7時間）を使用します。</p>
+                      <p>・カレンダー区分「該当なし」は所定日数・欠勤候補を判定しません。日曜日と日本の祝日は「休」と表示します。</p>
+                    </div>
+                  </section>
+                  <section className="border-t border-slate-200 pt-4">
+                    <h3 className="mb-2 font-black text-slate-900">⑤ 変更内容の保存</h3>
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-2">
+                      <span className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-xs font-black text-white">勤怠変更を保存</span>
+                      <p className="font-bold text-blue-900">勤怠変更が終わったら、必ず保存してください。</p>
+                      <p className="text-xs">個別休日・有給・手動勤怠の変更は操作中は画面内だけに反映されます。保存ボタンでまとめて保存され、勤怠変更履歴に追加されます。</p>
+                    </div>
+                  </section>
                 </div>
               </details>
             </div>
