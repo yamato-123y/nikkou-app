@@ -1,15 +1,15 @@
 'use client';
-// 添付の大和 worker-roster.xlsx のOOXMLを直接編集します。
-// SheetJSなどでブックを再生成しないため、フォント・折返し・列幅・図形・A4横印刷設定を維持します。
+// 指定の作業員名簿_空白.xlsx のOOXMLを直接編集します。
+// SheetJSなどでブックを再生成しないため、フォント・折返し・列幅・図形・原本の印刷設定を維持します。
 // @ts-ignore ローカル同梱のJSZip（追加npmパッケージ不要）
 import JSZip from './roster-zip';
 
 type Profile = { worker_name?: string; full_name?: string | null; hire_date?: string | null; birth_date?: string | null; blood_type?: string | null; address?: string | null; emergency_contact?: string | null; notes?: string | null };
 type Qual = { worker_name?: string; category?: string | null; qualification_name?: string | null };
-type Health = { worker_name?: string; exam_date?: string | null; systolic?: number | string | null; diastolic?: number | string | null };
+type Health = { worker_name?: string; exam_date?: string | null; notes?: string | null; systolic?: number | string | null; diastolic?: number | string | null };
 type Ledger = { profiles?: Profile[]; qualifications?: Qual[]; healthChecks?: Health[] };
 const val = (x: unknown) => String(x ?? '').trim();
-const key = (x: unknown) => val(x).normalize('NFKC').replace(/[\s\u3000]+/g, '').toLowerCase();
+const key = (x: unknown) => val(x).normalize('NFKC').replace(/[\s\u3000]+/g, '').replace(/[・･]/g,'').toLowerCase();
 const note = (s: unknown, label: string) => val(s).split(/\r?\n/).find(x => x.startsWith(`${label}：`) || x.startsWith(`${label}:`))?.slice(label.length + 1).trim() || '';
 const parsed = (x: unknown) => { const m = val(x).match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/); return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null; };
 const serial = (x: unknown) => { const d = parsed(x); return d ? (Date.UTC(d[0],d[1]-1,d[2])-Date.UTC(1899,11,30))/86400000 : null; };
@@ -20,7 +20,7 @@ const PNS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 const CTNS = 'http://schemas.openxmlformats.org/package/2006/content-types';
 const parser = (text: string) => { const doc = new DOMParser().parseFromString(text,'application/xml'); if(doc.getElementsByTagName('parsererror').length) throw new Error('作業員名簿のExcel構造を読み取れません。'); return doc; };
 const xml = (doc: Document) => new XMLSerializer().serializeToString(doc);
-const nodes = (parent: Element, localName: string) => Array.from(parent.childNodes).filter((x): x is Element => x.nodeType === 1 && x.localName === localName);
+const nodes = (parent: Element, localName: string) => Array.from(parent.childNodes).filter((x): x is Element => x.nodeType === 1 && (x as Element).localName === localName);
 const only = (parent: Element, localName: string) => nodes(parent,localName)[0];
 const rowCells = (doc: Document) => {
   const entries = new Map<string, Element>();
@@ -29,21 +29,9 @@ const rowCells = (doc: Document) => {
 };
 const edit = (doc: Document, items: Map<string, string | number>) => {
   const cells=rowCells(doc);
-  for(let i=0;i<10;i++) {
-    const r=11+i*3;
-    // 行内の作業員データとExcel記入例のみ消去。固定見出し・注意書き・通し番号は保持。
-    const addrs=[...['C','F','G','H','J','K','N','P','Q','R','S','T','U','V'].map(c=>`${c}${r}`),
-      ...['C'].map(c=>`${c}${r+1}`),
-      ...['F','H','J','K','N','P','R','V'].map(c=>`${c}${r+2}`)];
-    for(const address of addrs) {
-      const cell=cells.get(address); if(!cell) continue;
-      for(const child of Array.from(cell.childNodes)) if(child.nodeType===1 && ['v','is','f'].includes(child.localName!)) cell.removeChild(child);
-      cell.removeAttribute('t');
-    }
-  }
   for(const [address,value] of items) {
-    const cell=cells.get(address); if(!cell || val(value)==='') continue;
-    for(const child of Array.from(cell.childNodes)) if(child.nodeType===1 && ['v','is','f'].includes(child.localName!)) cell.removeChild(child);
+    const cell=cells.get(address); if(val(value)==='') continue; if(!cell) throw new Error(`原本の入力セルが見つかりません: ${address}`);
+    if(only(cell,'v') || only(cell,'is') || only(cell,'f')) throw new Error(`原本の固定セルへの書き込みを停止しました: ${address}`);
     if(typeof value==='number') {
       cell.removeAttribute('t'); const v=doc.createElementNS(NS,'v'); v.textContent=String(value); cell.appendChild(v);
     } else {
@@ -56,25 +44,32 @@ const makeFields = (names: string[], ledger: Ledger, today: Date) => {
   const profiles=ledger.profiles||[], quals=ledger.qualifications||[], health=ledger.healthChecks||[];
   const put=(a:string,v:unknown) => { if(v!==null && v!==undefined && val(v)!=='')fields.set(a,v as string|number); };
   names.forEach((name,i)=>{
-    const r=11+i*3, k=key(name);
+    const r=20+i*6, k=key(name);
     const p=profiles.find(x=>key(x.worker_name)===k);
     const q=quals.filter(x=>key(x.worker_name)===k);
-    const h=health.filter(x=>key(x.worker_name)===k).sort((a,b)=>val(b.exam_date).localeCompare(val(a.exam_date)))[0];
-    const cat=(s:string)=>[...new Set(q.filter(x=>val(x.category).includes(s)).map(x=>val(x.qualification_name)).filter(Boolean))].join('\n');
-    const other=[...new Set(q.filter(x=>!val(x.category).includes('特別教育')&&!val(x.category).includes('技能講習')).map(x=>val(x.qualification_name)).filter(Boolean))].join('\n');
-    const job=note(p?.notes,'職種'); const years=note(p?.notes,'経験年数');
-    put(`C${r}`,note(p?.notes,'ふりがな'));
-    put(`C${r+1}`,p?.full_name||name);
-    put(`F${r}`,job);
-    put(`H${r}`,serial(p?.hire_date));
-    put(`H${r+2}`,years.replace(/年$/,''));
-    put(`J${r}`,serial(p?.birth_date));
-    const a=age(p?.birth_date,today); if(a!==null)put(`J${r+2}`,`${a} 歳`);
-    put(`K${r}`,p?.address); put(`K${r+2}`,p?.emergency_contact);
-    put(`P${r}`,serial(h?.exam_date));
-    if(h && val(h.systolic) && val(h.diastolic))put(`P${r+2}`,`${val(h.systolic)}～${val(h.diastolic)}`);
-    put(`Q${r}`,p?.blood_type);
-    put(`S${r}`,cat('特別教育')); put(`T${r}`,cat('技能講習')); put(`U${r}`,other);
+    const hs=health.filter(x=>key(x.worker_name)===k).sort((a,b)=>val(b.exam_date).localeCompare(val(a.exam_date)));
+    const special=(x:Health)=>/石綿|じん肺|特殊|有機溶剤|鉛|特定化学|電離放射線|騒音/.test(note(x.notes,'健診種類'));
+    const h=hs.find(x=>!special(x)); const sh=hs.find(special);
+    const cat=(test:(x:Qual)=>boolean)=>[...new Set(q.filter(test).map(x=>val(x.qualification_name)).filter(Boolean))].join('\n');
+    const education=(x:Qual)=>/特別教育|雇入|職長教育/.test(val(x.category)) || /職長.*教育/.test(val(x.qualification_name));
+    const skill=(x:Qual)=>!education(x)&&val(x.category).includes('技能講習');
+    const date=(v:unknown,cols:string[])=>{const d=parsed(v); if(d) cols.forEach((c,j)=>put(`${c}${r}`,d[j]));};
+    const meta=(...labels:string[])=>labels.map(l=>note(p?.notes,l)).find(Boolean)||'';
+    put(`E${r}`,meta('ふりがな','フリガナ'));
+    put(`E${r+2}`,p?.full_name||name);
+    put(`V${r}`,meta('職種'));
+    date(p?.hire_date,['AL','AQ','AV']); date(p?.birth_date,['BA','BF','BK']);
+    const years=meta('経験年数').replace(/年$/,''); put(`AL${r+3}`,years);
+    put(`BA${r+3}`,age(p?.birth_date,today));
+    put(`BP${r}`,p?.address); put(`DK${r}`,meta('電話番号','本人電話番号','TEL'));
+    put(`BP${r+3}`,p?.emergency_contact); put(`DK${r+3}`,meta('緊急連絡先電話番号','家族電話番号'));
+    date(h?.exam_date,['EA','EF','EK']); date(sh?.exam_date,['ET','EY','FD']);
+    put(`ET${r+3}`,note(sh?.notes,'健診種類'));
+    put(`EA${r+3}`,h?.systolic); put(`EJ${r+3}`,h?.diastolic);
+    put(`EP${r}`,p?.blood_type);
+    put(`GG${r}`,cat(education)); put(`GS${r}`,cat(skill)); put(`HE${r}`,cat(x=>!education(x)&&!skill(x)));
+    put(`FI${r}`,meta('健康保険')); put(`FI${r+2}`,meta('年金保険')); put(`FI${r+4}`,meta('雇用保険'));
+
   });
   return fields;
 };
@@ -88,11 +83,11 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
   const bytes=await response.arrayBuffer();
   const zip=await JSZip.loadAsync(bytes);
   const source=zip.file('xl/worksheets/sheet1.xml');
-  if(!source)throw new Error('添付の大和 worker-roster.xlsx と構造が異なります。');
+  if(!source)throw new Error('指定の作業員名簿_空白.xlsx と構造が異なります。');
   const original=await source.async('string');
   const originalDoc=parser(original);
   const dimension=originalDoc.getElementsByTagNameNS(NS,'dimension')[0]?.getAttribute('ref');
-  if(dimension!=='A1:V44')throw new Error('指定された大和の作業員名簿とは様式が異なります。');
+  if(dimension!=='A1:IE95')throw new Error('指定された大和の作業員名簿とは様式が異なります。');
   const pages=Math.ceil(selected.length/10);
   const today=new Date();
   const workbookFile=zip.file('xl/workbook.xml'); const relsFile=zip.file('xl/_rels/workbook.xml.rels');const typesFile=zip.file('[Content_Types].xml');
@@ -116,7 +111,7 @@ export async function exportWorkerRoster(names: string[], ledger: Ledger): Promi
       if(relsOriginal)zip.file(`xl/worksheets/_rels/sheet${page+1}.xml.rels`,relsOriginal);
       const relid=`rId${maxRelation+page}`;
       const sheet=wb.createElementNS(NS,'sheet');sheet.setAttribute('name',`作業員名簿${page+1}`);
-      sheet.setAttribute('sheetId',String(page+1));sheet.setAttributeNS(RNS,'r:id',relid);sheets.appendChild(sheet);
+      sheet.setAttribute('sheetId',String(Number(originalSheet.getAttribute('sheetId'))+page));sheet.setAttributeNS(RNS,'r:id',relid);sheets.appendChild(sheet);
       const rel=rels.createElementNS(PNS,'Relationship');rel.setAttribute('Id',relid);
       rel.setAttribute('Type',`${RNS}/worksheet`);rel.setAttribute('Target',`worksheets/sheet${page+1}.xml`);
       rels.documentElement.appendChild(rel);
