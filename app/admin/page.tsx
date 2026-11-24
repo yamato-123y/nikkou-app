@@ -2315,7 +2315,7 @@ export default function AdminPage() {
             return [siteText, marks].filter(Boolean).join('\n');
           }
 
-          if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ' || d.manualStatus === '休業') {
+          if (d.manualStatus === '管理' || d.manualStatus === 'サンセイ' || d.manualStatus === '欠勤' || d.manualStatus === '休業') {
             return [d.manualStatus, d.paidLeaveStatus || ''].filter(Boolean).join(' ');
           }
 
