@@ -1128,7 +1128,6 @@ export default function WorkerLedgerPage() {
                   {loading ? <div className="py-16 text-center font-black text-slate-400">🔄 読み込み中...</div> : null}
 
                   {!loading && tab==='profile' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><div className="font-black text-blue-950">基本情報の印刷・書き出し</div><p className="text-xs text-blue-700 mt-1">氏名・住所・生年月日・入社日など、この作業員の基本情報をここから出力します。</p></div><div className="flex gap-2"><button type="button" onClick={printBasicProfile} className="rounded-xl bg-white border border-blue-200 px-4 py-2.5 text-sm font-black text-blue-700">🖨️ A4印刷</button><button type="button" onClick={exportBasicProfileCsv} className="rounded-xl bg-blue-600 text-white px-4 py-2.5 text-sm font-black">⬇ CSV</button></div></div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5">
                       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                         <div>
