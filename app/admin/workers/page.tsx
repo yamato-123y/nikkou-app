@@ -386,6 +386,9 @@ export default function WorkerLedgerPage() {
   const [documents, setDocuments] = useState<WorkerDocument[]>([]);
   const [selectedWorker, setSelectedWorker] = useState('');
   const [tab, setTab] = useState<'profile' | 'qualification' | 'health' | 'documents'>('profile');
+  const [section, setSection] = useState<'dashboard' | 'ledger' | 'qualifications' | 'health' | 'output' | 'master'>('dashboard');
+  const [overviewFilter, setOverviewFilter] = useState('');
+  const [qualificationSearch, setQualificationSearch] = useState('');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -487,6 +490,37 @@ export default function WorkerLedgerPage() {
     const h = healthChecks.filter((x) => x.worker_name === name).sort((a, b) => String(b.exam_date || '').localeCompare(String(a.exam_date || '')))[0];
     const warning = q.some((x) => isExpired(x.expiry_date) || isWithinDays(x.expiry_date, 60));
     return { qCount: q.length, healthDate: h?.exam_date || '', warning };
+  };
+
+  const todayKey = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+  const activeNames = workerNames.filter(name => !workers.some(w => typeof w !== 'string' && w?.name === name && /^\d{4}-\d{2}-\d{2}$/.test(String(w.retirementDate || '')) && w.retirementDate < todayKey));
+  const qualificationNames = Array.from(new Set(qualifications.map(q => q.qualification_name.trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'ja'));
+  const suggestedNames = Array.from(new Set([...qualificationNames, '車両系建設機械（解体用）','車両系建設機械（整地等）','玉掛け','ガス溶接','石綿作業主任者','足場の組立て等作業主任者','小型移動式クレーン','高所作業車','フルハーネス','普通自動車免許']));
+  const status = (date?: string | null) => {
+    if (!date) return '期限未設定';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return '期限要確認';
+    if (date < todayKey) return '期限切れ';
+    return (Date.parse(date)-Date.parse(todayKey))/86400000 <= 60 ? '60日以内' : '有効';
+  };
+  const healthKinds = Array.from(new Set(['一般健康診断','石綿健診','じん肺健診', ...healthChecks.map(h=>healthMetaValue(h.notes,'健診種類') || '種類未設定') ]));
+  const latestHealth = (name: string, kind: string) => healthChecks.filter(h=>h.worker_name===name && (healthMetaValue(h.notes,'健診種類')||'種類未設定')===kind).sort((a,b)=>String(b.exam_date).localeCompare(String(a.exam_date)))[0];
+  const qFor = (name: string, qname: string) => qualifications.filter(q=>normalizeWorkerName(q.worker_name)===normalizeWorkerName(name) && q.qualification_name.trim()===qname);
+  const qStatus = (name: string, qname: string) => { const states=qFor(name,qname).map(q=>status(q.expiry_date)); return ['有効','60日以内','期限未設定','期限要確認','期限切れ'].find(x=>states.includes(x)) || '未登録'; };
+  const openWorker = (name: string, next: typeof tab) => { setSelectedWorker(name); setTab(next); setSection('ledger'); };
+  const badge = (value: string) => <span className={`inline-block rounded-lg px-2 py-1 text-xs font-bold whitespace-nowrap ${value==='期限切れ'?'bg-rose-100 text-rose-800':value==='60日以内'||value==='期限要確認'?'bg-amber-100 text-amber-800':value==='有効'?'bg-emerald-100 text-emerald-800':'bg-slate-100 text-slate-700'}`}>{value}</span>;
+  const dashboardItems = [
+    {label:'在籍作業員', rows:activeNames.map(name=>({name,detail:'基本情報',target:'profile' as const}))},
+    {label:'台帳未登録', rows:activeNames.filter(name=>!hasRegisteredProfile(name)).map(name=>({name,detail:'基本情報未登録',target:'profile' as const}))},
+    {label:'資格期限切れ', rows:qualifications.filter(q=>activeNames.some(n=>normalizeWorkerName(n)===normalizeWorkerName(q.worker_name))&&status(q.expiry_date)==='期限切れ').map(q=>({name:activeNames.find(n=>normalizeWorkerName(n)===normalizeWorkerName(q.worker_name))!,detail:q.qualification_name+' / '+q.expiry_date,target:'qualification' as const}))},
+    {label:'資格更新間近', rows:qualifications.filter(q=>activeNames.some(n=>normalizeWorkerName(n)===normalizeWorkerName(q.worker_name))&&status(q.expiry_date)==='60日以内').map(q=>({name:activeNames.find(n=>normalizeWorkerName(n)===normalizeWorkerName(q.worker_name))!,detail:q.qualification_name+' / '+q.expiry_date,target:'qualification' as const}))},
+    {label:'健診記録なし', rows:activeNames.filter(name=>!healthChecks.some(h=>h.worker_name===name)).map(name=>({name,detail:'受診記録未登録',target:'health' as const}))},
+    {label:'健診期限確認', rows:activeNames.flatMap(name=>healthKinds.flatMap(kind=>{const h=latestHealth(name,kind);return h&&['期限切れ','60日以内'].includes(status(h.next_due_date))?[{name,detail:kind+' / '+h.next_due_date,target:'health' as const}]:[]}))},
+  ];
+  const matrixNames = qualificationNames.filter(n=>n.includes(qualificationSearch.trim()));
+  const exportMatrix = () => {
+    const rows = [['作業員',...matrixNames],...activeNames.map(name=>[name,...matrixNames.map(q=>qStatus(name,q))])];
+    const csv = '\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='資格保有者一覧.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
 
   const login = () => {
@@ -1048,6 +1082,16 @@ export default function WorkerLedgerPage() {
 
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 p-4 font-bold">⚠️ {error}<div className="text-xs mt-1 font-medium">初回はSupabase用の追加SQLを実行してから使用してください。</div></div>}
 
+        <nav className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2" aria-label="作業員管理メニュー">
+          {([['dashboard','管理トップ'],['ledger','作業員台帳'],['qualifications','資格保有者一覧'],['health','健康診断一覧'],['output','安全書類出力'],['master','資格名称一覧']] as const).map(([key,label])=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setSection(key)} className={`rounded-xl border p-3 text-sm font-black ${section===key?'bg-slate-900 text-white':'bg-white text-slate-700'}`}>{label}</button>)}
+        </nav>
+        {loading && <div className="p-4 text-center font-bold">読み込み中…</div>}
+        {!loading && !error && section==='dashboard' && <section className="rounded-2xl border bg-white p-4 space-y-4"><h2 className="text-lg font-black">在籍者の登録状況・要確認</h2><div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">{dashboardItems.map(item=><button key={item.label} onClick={()=>setOverviewFilter(item.label)} className={`rounded-xl border p-4 text-left ${overviewFilter===item.label?'border-blue-600 bg-blue-50':'bg-slate-50'}`}><div className="text-xs font-bold">{item.label}</div><div className="text-2xl font-black mt-2">{item.rows.length}<span className="text-xs ml-1">{['在籍作業員','台帳未登録','健診記録なし'].includes(item.label)?'人':'件'}</span></div></button>)}</div><p className="text-xs text-slate-500">各項目をクリックすると対象者が表示されます。未登録は未取得・未受診を意味しません。</p>{overviewFilter&&<div className="divide-y border rounded-xl"><h3 className="p-3 font-black">{overviewFilter}</h3>{(dashboardItems.find(x=>x.label===overviewFilter)?.rows||[]).map((row,i)=><button key={i} onClick={()=>openWorker(row.name,row.target)} className="w-full p-3 flex flex-wrap justify-between gap-2 text-left hover:bg-blue-50"><strong>{row.name}</strong><span className="text-sm text-blue-700">{row.detail} →</span></button>)}{!dashboardItems.find(x=>x.label===overviewFilter)?.rows.length&&<p className="p-3 text-slate-500">対象なし</p>}</div>}</section>}
+        {!loading && !error && section==='qualifications' && <section className="rounded-2xl border bg-white p-4 space-y-3"><h2 className="text-lg font-black">資格保有者一覧</h2><div className="flex flex-wrap gap-2"><input value={qualificationSearch} onChange={e=>setQualificationSearch(e.target.value)} placeholder="資格名で絞り込み" className="border rounded-xl p-2"/><button onClick={exportMatrix} className="bg-blue-700 text-white rounded-xl px-4 py-2 font-bold">CSV出力（Excel対応）</button></div><p className="text-xs text-slate-500">在籍者のみ。登録された資格名称ごとに集計します。期限未設定は有効性の確認が必要です。セルを押すと個人の資格画面へ移動します。</p><div className="overflow-x-auto border rounded-xl"><table className="text-sm w-full"><thead className="bg-slate-100"><tr><th className="p-3 text-left whitespace-nowrap">作業員</th>{matrixNames.map(q=><th key={q} className="p-3 min-w-[140px]">{q}<div className="text-xs text-slate-500">登録 {activeNames.filter(n=>qFor(n,q).length>0).length}人</div></th>)}</tr></thead><tbody className="divide-y">{activeNames.map(n=><tr key={n}><th className="p-3 text-left whitespace-nowrap">{n}</th>{matrixNames.map(q=><td key={q} className="p-2 text-center"><button onClick={()=>openWorker(n,'qualification')}>{badge(qStatus(n,q))}</button></td>)}</tr>)}</tbody></table></div>{!matrixNames.length&&<p>該当する資格名がありません。</p>}</section>}
+        {!loading && !error && section==='health' && <section className="rounded-2xl border bg-white p-4 space-y-3"><h2 className="text-lg font-black">健康診断・種類別受診状況</h2><p className="text-xs text-slate-500">各種類の最新記録を表示します。未登録は対象外・未受診の判定ではありません。既存の登録名称をそのまま使用します。</p><div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">作業員</th>{healthKinds.map(k=><th key={k} className="p-3 min-w-[140px]">{k}</th>)}</tr></thead><tbody className="divide-y">{activeNames.map(n=><tr key={n}><th className="p-3 text-left whitespace-nowrap">{n}</th>{healthKinds.map(k=>{const h=latestHealth(n,k);return <td key={k} className="p-2 text-center"><button onClick={()=>openWorker(n,'health')}>{h?<><div>{fmtDate(h.exam_date)}</div>{badge(status(h.next_due_date))}<div className="text-xs">次回 {fmtDate(h.next_due_date)}</div></>:badge('未登録')}</button></td>})}</tr>)}</tbody></table></div></section>}
+        {!loading && !error && section==='output' && <section className="rounded-2xl border bg-white p-4 space-y-4"><h2 className="text-lg font-black">安全書類出力</h2><p className="text-sm">作業員を選択し、必要な書類を出力してください。提出前に内容・個人情報を確認してください。</p><div className="flex flex-wrap gap-2"><button onClick={()=>setPrintSelectedWorkers(activeNames)} className="border rounded-xl px-3 py-2">在籍者全員</button><button onClick={()=>setPrintSelectedWorkers([])} className="border rounded-xl px-3 py-2">解除</button><strong className="p-2">選択 {printSelectedWorkers.length}名</strong></div><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{workerNames.map(n=><label key={n} className="border rounded-xl p-3"><input type="checkbox" checked={printSelectedWorkers.includes(n)} onChange={()=>togglePrintWorker(n)} className="mr-2"/>{n}</label>)}</div><div className="flex flex-wrap gap-2">{([['作業員名簿Excel',downloadSelectedRoster],['資格証A4印刷',printSelectedQualificationDocuments],['健康診断書A4印刷',printSelectedHealthDocuments]] as const).map(([label,fn])=><button key={label} disabled={!printSelectedWorkers.length} onClick={()=>fn()} className="bg-blue-700 text-white rounded-xl px-4 py-3 font-bold disabled:opacity-40">{label}</button>)}</div></section>}
+        {!loading && !error && section==='master' && <section className="rounded-2xl border bg-white p-4 space-y-3"><h2 className="text-lg font-black">資格名称一覧・入力候補</h2><p className="text-sm text-slate-600">登録済み名称と標準入力候補です。個人の資格登録時に選択候補として表示します。既存名称は自動変更しません。</p><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">{suggestedNames.map(n=><div key={n} className="border rounded-xl p-3 text-sm">{n} <span className="text-xs text-slate-500">{qualificationNames.includes(n)?'登録済み名称':'入力候補'}</span></div>)}</div></section>}
+        <div hidden={section!=='ledger'}>
         <section className="rounded-3xl bg-white border border-blue-200 shadow-sm p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div><div className="font-black text-slate-900">📄 作業員名簿の書き出し（全建統一様式第2号）</div><p className="text-xs text-slate-600 mt-1">左側の作業員一覧で「印刷」にチェック → 名簿のExcelを作成します。保存済みデータは読み取り専用です。</p><p className="text-xs text-amber-700 mt-1">※登録のない項目（保険・現場情報など）は空欄です。元請へ提出する前に必ず内容を確認してください。</p></div>
           <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-blue-700">選択：{printSelectedWorkers.length}名</span><button type="button" onClick={downloadSelectedRoster} disabled={printSelectedWorkers.length===0} className="rounded-xl bg-blue-700 text-white px-5 py-3 font-black disabled:opacity-40">⬇ 作業員名簿Excelを作成</button></div>
@@ -1221,7 +1265,7 @@ export default function WorkerLedgerPage() {
 
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-black text-emerald-950">{qualificationDraft.id ? '資格・講習を編集' : '資格・講習を新規追加'}</div>{qualificationDraft.id && <button type="button" onClick={()=>setQualificationDraft(emptyQualification(selectedWorker))} className="rounded-lg bg-white border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">編集をキャンセル・新規追加へ</button>}</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                       <select value={qualificationDraft.category||''} onChange={(e)=>setQualificationDraft(q=>({...q,category:e.target.value}))} className="rounded-xl border p-3 font-bold"><option>技能講習</option><option>特別教育</option><option>資格</option><option>運転免許証</option><option>その他</option></select>
-                      <input value={qualificationDraft.qualification_name||''} onChange={(e)=>setQualificationDraft(q=>({...q,qualification_name:e.target.value}))} placeholder="資格・講習名" className="rounded-xl border p-3 font-bold" />
+                      <datalist id="ledger-qualification-names">{suggestedNames.map(n=><option key={n} value={n}/>)}</datalist><input list="ledger-qualification-names" value={qualificationDraft.qualification_name||''} onChange={(e)=>setQualificationDraft(q=>({...q,qualification_name:e.target.value}))} placeholder="資格・講習名" className="rounded-xl border p-3 font-bold" />
                       <input value={qualificationDraft.certificate_no||''} onChange={(e)=>setQualificationDraft(q=>({...q,certificate_no:e.target.value}))} placeholder="修了証番号" className="rounded-xl border p-3 font-bold" />
                       <input type="date" value={qualificationDraft.acquired_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,acquired_date:e.target.value}))} className="rounded-xl border p-3 font-bold" />
                       <label className="text-xs font-black text-slate-600">有効期限<input type="date" value={qualificationDraft.expiry_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,expiry_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
@@ -1236,7 +1280,7 @@ export default function WorkerLedgerPage() {
                   {!loading && tab==='health' && <div className="space-y-5">
                     <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4"><div className="font-black text-orange-950">健康診断結果を登録</div><p className="mt-1 text-xs font-bold text-orange-800">「いつ・どこの病院で・どの種類の健診を受けたか」を作業員ごとに記録します。</p><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
                       <label className="text-xs font-black">受診日<input type="date" value={healthDraft.exam_date||''} onChange={(e)=>setHealthDraft(h=>({...h,exam_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <input value={healthMetaValue(healthDraft.notes,'健診種類')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'健診種類',e.target.value)}))} placeholder="健診種類（一般・じん肺・石綿など）" className="rounded-xl border p-3 font-bold" />
+                      <datalist id="ledger-health-kinds">{healthKinds.filter(k=>k!=='種類未設定').map(k=><option key={k} value={k}/>)}</datalist><input list="ledger-health-kinds" value={healthMetaValue(healthDraft.notes,'健診種類')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'健診種類',e.target.value)}))} placeholder="健診種類（一般・じん肺・石綿など）" className="rounded-xl border p-3 font-bold" />
                       <input value={healthMetaValue(healthDraft.notes,'医療機関')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'医療機関',e.target.value)}))} placeholder="病院・クリニック名" className="rounded-xl border p-3 font-bold" />
                       <input value={healthDraft.judgement||''} onChange={(e)=>setHealthDraft(h=>({...h,judgement:e.target.value}))} placeholder="判定" className="rounded-xl border p-3 font-bold" />
                       <input type="number" value={healthDraft.systolic??''} onChange={(e)=>setHealthDraft(h=>({...h,systolic:e.target.value}))} placeholder="最高血圧（任意）" className="rounded-xl border p-3 font-bold" />
@@ -1307,6 +1351,7 @@ export default function WorkerLedgerPage() {
               </div>
             )}
           </main>
+        </div>
         </div>
       </div>
     </div>
