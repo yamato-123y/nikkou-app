@@ -606,6 +606,16 @@ export default function AdminPage() {
   const [workerMasterView, setWorkerMasterView] = useState<'active' | 'retired'>('active');
   // マスタ保存の表示状態。保存内容・保存方法は従来どおり。
   const [masterSavingKey, setMasterSavingKey] = useState('');
+  const [masterSavedNotice, setMasterSavedNotice] = useState('');
+  const masterSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (masterSavedTimer.current !== null) clearTimeout(masterSavedTimer.current);
+  }, []);
+  const showMasterSavedNotice = (key: string) => {
+    if (masterSavedTimer.current !== null) clearTimeout(masterSavedTimer.current);
+    setMasterSavedNotice(key);
+    masterSavedTimer.current = setTimeout(() => setMasterSavedNotice(''), 4000);
+  };
   // 作業員の区分変更入力欄（保存ボタンで確定するまではマスタに追加しない）。
   const [workerChangeDrafts, setWorkerChangeDrafts] = useState<Record<string, { type: string; date: string }>>({});
   // マスタ一覧の表示検索のみ。設定データの保存形式は変えない。
@@ -833,6 +843,17 @@ export default function AdminPage() {
         : key ? [key] : [];
   const isMasterPanelDirty = (key: string) =>
     getMasterPanelKeys(key).some(k => !isSameSavedValue(settings?.[k] || [], originalSettings?.[k] || []));
+
+  // マスタ専用：通常時は表示せず、編集・保存時のみ詳細欄に表示する。
+  const renderMasterSaveStatus = (key: string) => {
+    const saving = masterSavingKey === key;
+    const dirty = isMasterPanelDirty(key);
+    const saved = masterSavedNotice === key;
+    if (!saving && !dirty && !saved) return null;
+    return <span role="status" aria-live="polite" className={`inline-flex items-center text-sm font-bold ${saving ? 'text-blue-700' : dirty ? 'text-amber-700' : 'text-emerald-700'}`}>
+      {saving ? '保存中…' : dirty ? '未保存の変更があります' : '✓ 保存しました'}
+    </span>;
+  };
 
   const getUnsavedItemLabels = () => {
     if (authRole !== 'admin' || isLoading || !originalSettings || Object.keys(originalSettings).length === 0) return [] as string[];
@@ -2719,6 +2740,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavedNotice('');
     setMasterSavingKey(key);
     try {
       // 現場一覧以外のマスタ単価を保存する前に、
@@ -2871,7 +2893,7 @@ export default function AdminPage() {
 
       setSettings(newData);
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      alert('保存しました！過去の日報の名称も自動で更新されました。');
+      showMasterSavedNotice(key);
       fetchData();
     } catch (e) {
       console.error(e);
@@ -2887,6 +2909,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavedNotice('');
     setMasterSavingKey('leaseMasterUnified');
     try {
       await freezeExistingReportsIfNeeded();
@@ -2917,7 +2940,7 @@ export default function AdminPage() {
       }
       setSettings(newData);
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      alert('リースマスタを保存しました！');
+      showMasterSavedNotice('leaseMasterUnified');
       fetchData();
     } catch (e) {
       console.error(e);
@@ -2933,6 +2956,7 @@ export default function AdminPage() {
       alert('データを読み込み中です。しばらくお待ちください。');
       return;
     }
+    setMasterSavedNotice('');
     setMasterSavingKey('ishikawa-group');
     try {
       await freezeExistingReportsIfNeeded();
@@ -2963,7 +2987,7 @@ export default function AdminPage() {
       }
       setSettings(newData);
       setOriginalSettings(JSON.parse(JSON.stringify(newData)));
-      alert('石川県用リースマスタを保存しました！');
+      showMasterSavedNotice('ishikawa-group');
       fetchData();
     } catch (e) {
       console.error(e);
@@ -11303,7 +11327,6 @@ export default function AdminPage() {
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div><h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
                   <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。</p></div>
-                  {renderSaveStatus(!!getMasterPanelKeys(selectedMasterPanel).length && isMasterPanelDirty(selectedMasterPanel), !!masterSavingKey)}
                 </div>
                 <div className="space-y-5">
                   {[
@@ -11333,6 +11356,7 @@ export default function AdminPage() {
                             onClick={() => {
                               if (selectedMasterPanel !== key) {
                                 if (!confirmUnsavedBeforeAction('別のマスタへ切り替え')) return;
+                                setMasterSavedNotice('');
                                 setSelectedMasterPanel(key);
                               }
                               window.setTimeout(() => {
@@ -11342,7 +11366,7 @@ export default function AdminPage() {
                             }}
                             className={`w-full min-h-[88px] px-4 py-4 rounded-xl text-sm md:text-base font-bold transition-colors border flex items-center justify-center text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400'}`}
                           >
-                            <span className="flex flex-col items-center gap-1"><span>{label}</span>{selectedMasterPanel === key && <span className="text-[11px] font-medium opacity-90">{(masterSavingKey && getMasterPanelKeys(key).includes(masterSavingKey)) || (masterSavingKey === 'leaseMasterUnified' && getMasterPanelKeys(key).includes('leaseVendors')) || (masterSavingKey === 'ishikawa-group' && key === 'ishikawa-group') ? '保存中…' : isMasterPanelDirty(key) ? '● 未保存' : '✓ 保存済み'}</span>}</span>
+                            <span>{label}</span>
                           </button>
                         ))}
                       </div>
@@ -11368,7 +11392,7 @@ export default function AdminPage() {
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">リース業者 → カテゴリー → 名称 → 日額単価の順で、通常リースをまとめて登録します。</p>
                     <p className="text-xs text-slate-500 mt-1.5">※既存の重機・アタッチメント・その他機器データはそのまま使用します。業者未設定の既存データは南大阪建機として扱います。</p>
                   </div>
-                  {renderSaveStatus(isMasterPanelDirty('leaseMasterUnified'), masterSavingKey === 'leaseMasterUnified')}
+                  {renderMasterSaveStatus('leaseMasterUnified')}
                   <button
                     type="button"
                     onClick={saveUnifiedLeaseMaster}
@@ -11545,7 +11569,7 @@ export default function AdminPage() {
                                   <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                                 </div>
                                 <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
-                                  {renderSaveStatus(isMasterPanelDirty(sec.key), masterSavingKey === sec.key)}
+                                  {renderMasterSaveStatus(sec.key)}
                                 <button
                                   type="button"
                                   onClick={() => saveMaster(sec.key)}
@@ -12309,7 +12333,7 @@ export default function AdminPage() {
                           <p className="text-xs md:text-sm text-indigo-700 mt-1">リース業者 → カテゴリー → 名称 → 日額単価の順で、徳本の石川県出張用リースをまとめて登録します。</p>
                           <p className="text-xs text-slate-500 mt-1.5">※保存先は従来どおり「石川県用 重機・アタッチメント・その他機械」のままです。既存データもそのまま使用します。</p>
                         </div>
-                        {renderSaveStatus(isMasterPanelDirty('ishikawa-group'), masterSavingKey === 'ishikawa-group')}
+                        {renderMasterSaveStatus('ishikawa-group')}
                   <button
                           type="button"
                           onClick={saveUnifiedIshikawaLeaseMaster}
