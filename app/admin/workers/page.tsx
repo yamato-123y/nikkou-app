@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { exportWorkerRoster } from './roster-export';
 
 type WorkerProfile = {
@@ -377,6 +377,12 @@ const compressImage = async (file: File): Promise<File> => {
   }
 };
 
+function LedgerDialog({title, busy, close, children}: {title:string; busy:boolean; close:()=>void; children:import('react').ReactNode}) {
+  const ref=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{const el=ref.current;if(el&&!el.open)el.showModal();return()=>{if(el?.open)el.close();};},[]);
+  return <dialog ref={ref} onCancel={e=>{e.preventDefault();if(!busy)close();}} className="w-[calc(100%-2rem)] max-w-3xl max-h-[85vh] overflow-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/40"><div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center gap-3 z-10"><h3 className="font-bold">{title}</h3><button type="button" disabled={busy} onClick={close} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">閉じる</button></div><div className="p-4 space-y-3">{children}</div></dialog>;
+}
+
 export default function WorkerLedgerPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [password, setPassword] = useState('');
@@ -388,6 +394,7 @@ export default function WorkerLedgerPage() {
   const [selectedWorker, setSelectedWorker] = useState('');
   const [tab, setTab] = useState<'overview' | 'profile' | 'qualification' | 'health' | 'documents'>('overview');
   const [detailOpen, setDetailOpen] = useState(false);
+  const [editor, setEditor] = useState<''|'profile'|'qualification'|'health'|'qdoc'|'hdoc'|'other'>('');
   const [section, setSection] = useState<'dashboard' | 'ledger' | 'qualifications' | 'health' | 'output'>('dashboard');
   const [overviewFilter, setOverviewFilter] = useState('');
   const [qualificationSearch, setQualificationSearch] = useState('');
@@ -479,6 +486,7 @@ export default function WorkerLedgerPage() {
     setHealthDraft(emptyHealth(selectedWorker));
     setDocTitle('');
   }, [selectedWorker, profiles]);
+  useEffect(()=>{setEditor('');},[selectedWorker, tab, section, detailOpen]);
 
   const workerNames = useMemo(() => workers.map((w: any) => String(typeof w === 'string' ? w : w?.name || '')).filter(Boolean), [workers]);
   const selectedQualifications = qualifications.filter((x) => normalizeWorkerName(x.worker_name) === normalizeWorkerName(selectedWorker));
@@ -581,7 +589,8 @@ export default function WorkerLedgerPage() {
       }
 
       await loadAll();
-      alert('作業員台帳を保存しました。画面上部の「登録済み台帳」に保存内容を表示しています。');
+      setEditor('');
+      alert('作業員台帳を保存しました。');
     } catch (e: any) { alert(e?.message || '保存に失敗しました。'); }
     finally { setSaving(false); }
   };
@@ -627,6 +636,7 @@ export default function WorkerLedgerPage() {
         savedRow
       ]);
       setQualificationDraft(emptyQualification(workerName));
+      setEditor('');
       alert(editingId ? '資格・講習を更新しました。' : '資格・講習を新規登録しました。');
     } catch (e: any) {
       const message = e?.message || '資格・講習の登録に失敗しました。';
@@ -644,6 +654,7 @@ export default function WorkerLedgerPage() {
       await api('/api/worker-ledger', { method: 'POST', body: JSON.stringify({ action: 'saveHealth', data: healthDraft }) });
       setHealthDraft(emptyHealth(selectedWorker));
       await loadAll();
+      setEditor('');
     } catch (e: any) { alert(e?.message || '保存に失敗しました。'); }
     finally { setSaving(false); }
   };
@@ -1085,6 +1096,7 @@ export default function WorkerLedgerPage() {
       form.append('title', forcedTitle || docTitle || file.name);
       await api('/api/worker-ledger/upload', { method: 'POST', body: form });
       setDocTitle('');
+      setEditor('');
       await loadAll();
     } catch (e: any) { alert(e?.message || 'アップロードに失敗しました。'); }
     finally { setUploading(false); }
@@ -1141,11 +1153,11 @@ export default function WorkerLedgerPage() {
               <div className="rounded-2xl bg-white border border-slate-200">
                 <div className="sticky top-0 z-20 bg-white border-b border-slate-200 rounded-t-2xl">
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3"><button onClick={closeWorker} disabled={busy} className="text-blue-700 font-bold text-sm px-2 py-2 disabled:opacity-40">‹ 作業員一覧へ戻る</button><div className="flex items-center gap-2 text-sm"><button disabled={busy||navIndex<=0} onClick={()=>showWorker(navNames[navIndex-1])} className="border rounded-lg px-3 py-2 disabled:opacity-40">‹ 前の作業員</button><span className="text-slate-500">{navIndex+1} / {navNames.length}</span><button disabled={busy||navIndex<0||navIndex>=navNames.length-1} onClick={()=>showWorker(navNames[navIndex+1])} className="border rounded-lg px-3 py-2 disabled:opacity-40">次の作業員 ›</button></div></div>
-                  <div className="px-5 py-4 flex flex-wrap items-center gap-3"><div className="rounded-full bg-slate-100 w-12 h-12 grid place-items-center text-lg font-bold text-slate-600">{(selectedSavedProfile?.full_name||selectedWorker).slice(0,1)}</div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold text-slate-900">{selectedSavedProfile?.full_name||selectedWorker}</h2><span className="text-xs bg-slate-100 rounded-full px-2 py-1">{retiredNames.includes(selectedWorker)?'退職済み':'在籍中'}</span></div><p className="text-sm text-slate-500">{selectedSavedProfile?.employment_type||'雇用区分未登録'}{retiredNames.includes(selectedWorker)?` ・退職日 ${fmtDate(retirementDateFor(selectedWorker))}`:''}</p></div></div>
-                  <div className="flex flex-wrap gap-x-2 px-3">{([['overview','概要'],['profile','基本情報'],['qualification',`資格・講習 (${selectedQualifications.length})`],['health',`健康診断 (${selectedHealth.length})`],['documents',`その他書類 (${selectedDocuments.filter(x=>x.document_type==='safety'||x.document_type==='other').length})`]] as const).map(([key,label])=><button key={key} onClick={()=>setTab(key)} className={`px-3 py-3 text-sm font-bold border-b-4 ${tab===key?'border-blue-600 text-blue-700':'border-transparent text-slate-600'}`}>{label}</button>)}</div>
+                  <div className="px-4 py-2 flex flex-wrap items-center gap-3"><div className="rounded-full bg-slate-100 w-9 h-9 grid place-items-center text-lg font-bold text-slate-600">{(selectedSavedProfile?.full_name||selectedWorker).slice(0,1)}</div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold text-slate-900">{selectedSavedProfile?.full_name||selectedWorker}</h2><span className="text-xs bg-slate-100 rounded-full px-2 py-1">{retiredNames.includes(selectedWorker)?'退職済み':'在籍中'}</span></div><p className="text-sm text-slate-500">{selectedSavedProfile?.employment_type||'雇用区分未登録'}{retiredNames.includes(selectedWorker)?` ・退職日 ${fmtDate(retirementDateFor(selectedWorker))}`:''}</p></div></div>
+                  <div className="flex flex-wrap gap-x-2 px-3">{([['overview','概要'],['profile','基本情報'],['qualification',`資格・講習 (${selectedQualifications.length})`],['health',`健康診断 (${selectedHealth.length})`],['documents',`その他書類 (${selectedDocuments.filter(x=>x.document_type==='safety'||x.document_type==='other').length})`]] as const).map(([key,label])=><button key={key} onClick={()=>setTab(key)} className={`px-3 py-2 text-sm font-bold border-b-2 ${tab===key?'border-blue-600 text-blue-700':'border-transparent text-slate-600'}`}>{label}</button>)}</div>
                 </div>
 
-                <div className="p-5 md:p-7">
+                <div className="p-3 md:p-4">
                   {loading ? <div className="py-16 text-center font-black text-slate-400">🔄 読み込み中...</div> : null}
 
                   {!loading && tab==='overview' && <div className="space-y-5">
@@ -1155,67 +1167,16 @@ export default function WorkerLedgerPage() {
                     <div className="border rounded-xl p-4"><div className="flex justify-between items-center mb-3"><h3 className="font-bold">健康診断の最新記録</h3><button onClick={()=>setTab('health')} className="text-sm font-bold text-blue-700">履歴を見る ›</button></div><div className="overflow-x-auto"><table className="w-full min-w-[440px] text-sm text-left"><thead className="bg-slate-100"><tr><th className="p-3">種類</th><th className="p-3">受診日</th><th className="p-3">次回期限</th></tr></thead><tbody className="divide-y">{personalHealth.map(({kind,row})=><tr key={kind}><td className="p-3">{kind}</td><td className="p-3">{fmtDate(row?.exam_date)}</td><td className="p-3">{fmtDate(row?.next_due_date)} {row?.next_due_date&&badge(status(row.next_due_date))}</td></tr>)}</tbody></table></div>{!personalHealth.length&&<p className="text-sm text-slate-500 p-3">受診記録はまだありません。</p>}</div>
                   </div>}
 
-                  {!loading && tab==='profile' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5">
-                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-                        <div>
-                          <div className="font-black text-slate-900 text-base">📥 作業員名簿Excelから自動入力</div>
-                          <p className="mt-1 text-sm text-slate-700 font-medium">現在の「作業員名簿」Excel（.xls / .xlsx）から、氏名・入社日・生年月日・血液型・住所・緊急連絡先・健康診断・資格/講習を読み取ります。</p>
-                          <p className="mt-1 text-xs text-slate-600">※「退職者」「原本」シートは除外します。既に入力済みの台帳内容は上書きせず、空欄だけ補完します。まず確認画面を出し、登録ボタンを押すまでSupabaseへ保存しません。</p>
-                        </div>
-                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${rosterImportLoading?'bg-slate-300 text-slate-500':'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
-                          {rosterImportLoading ? '名簿確認中…' : '📄 作業員名簿を選択'}
-                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={rosterImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewRosterExcel(f); e.currentTarget.value='';}} />
-                        </label>
-                      </div>
-
-                      {rosterImportPreview && (
-                        <div className="mt-4 space-y-3">
-                          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 text-xs font-black">
-                            <div className="rounded-xl bg-white border border-indigo-100 p-3">対象<br/><span className="text-lg text-indigo-800">{rosterImportPreview.summary.workers}</span>名</div>
-                            <div className="rounded-xl bg-white border border-emerald-100 p-3">一致<br/><span className="text-lg text-emerald-700">{rosterImportPreview.summary.matched}</span>名</div>
-                            <div className="rounded-xl bg-white border border-blue-100 p-3">台帳新規<br/><span className="text-lg text-blue-700">{rosterImportPreview.summary.newProfiles}</span>名</div>
-                            <div className="rounded-xl bg-white border border-cyan-100 p-3">空欄補完<br/><span className="text-lg text-cyan-700">{rosterImportPreview.summary.fillProfiles}</span>名</div>
-                            <div className="rounded-xl bg-white border border-violet-100 p-3">健診追加<br/><span className="text-lg text-violet-700">{rosterImportPreview.summary.newHealth}</span>件</div>
-                            <div className="rounded-xl bg-white border border-amber-100 p-3">資格追加<br/><span className="text-lg text-amber-700">{rosterImportPreview.summary.newQualifications}</span>件</div>
-                            <div className="rounded-xl bg-white border border-rose-100 p-3">未一致<br/><span className="text-lg text-rose-700">{rosterImportPreview.summary.unmatched}</span>名</div>
-                          </div>
-                          <div className="max-h-80 overflow-auto rounded-xl border border-indigo-200 bg-white">
-                            <table className="w-full min-w-[1000px] text-xs">
-                              <thead className="sticky top-0 bg-slate-100 z-10"><tr><th className="p-2 text-left">状態</th><th className="p-2 text-left">作業員</th><th className="p-2 text-left">氏名</th><th className="p-2 text-left">入社日</th><th className="p-2 text-left">生年月日</th><th className="p-2 text-left">血液型</th><th className="p-2 text-left">健診</th><th className="p-2 text-left">資格</th><th className="p-2 text-left">職種/経験</th></tr></thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {rosterImportPreview.rows.map((row, idx) => (
-                                  <tr key={`${row.source_sheet}-${row.source_row}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':''}>
-                                    <td className="p-2 font-black">{row.status==='unmatched'?<span className="text-rose-700">未一致</span>:row.profileAction==='new'?<span className="text-blue-700">新規</span>:row.profileAction==='fill'?<span className="text-cyan-700">空欄補完</span>:<span className="text-slate-500">登録済み</span>}</td>
-                                    <td className="p-2 font-black">{row.worker_name || '－'}</td>
-                                    <td className="p-2">{row.source_full_name || '－'}</td>
-                                    <td className="p-2">{row.hire_date || '－'}</td>
-                                    <td className="p-2">{row.birth_date || '－'}</td>
-                                    <td className="p-2">{row.blood_type || '－'}</td>
-                                    <td className="p-2">{row.newHealth ? `追加 ${row.health_exam_date}` : (row.health_exam_date || '－')}</td>
-                                    <td className="p-2">{row.newQualifications ? `新規 ${row.newQualifications}件` : `${row.qualifications.length}件`}</td>
-                                    <td className="p-2">{[row.job_type, row.experience_years ? `${row.experience_years}年` : ''].filter(Boolean).join(' / ') || '－'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          {rosterImportPreview.summary.unmatched > 0 && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-800">⚠️ 「未一致」は作業員マスタの名前と自動一致できなかったため登録しません。作業員マスタ名を確認してください。</div>}
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <button type="button" onClick={()=>setRosterImportPreview(null)} disabled={rosterImportLoading} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-black text-slate-700 disabled:opacity-50">キャンセル</button>
-                            <button type="button" onClick={commitRosterExcel} disabled={rosterImportLoading || rosterImportPreview.summary.matched===0} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 font-black disabled:opacity-50">{rosterImportLoading?'登録中…':'✓ 確認した内容を登録'}</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  {!loading && tab==='profile' && <div className="space-y-4">
+<div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">基本情報</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>setEditor('profile')} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">編集・登録</button></div></div>
                     {selectedSavedProfile ? (
-                      <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-emerald-200 pb-3">
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-slate-200 pb-3">
                           <div>
-                            <div className="text-xs font-black text-emerald-700">✓ 保存済み</div>
-                            <div className="text-lg font-black text-emerald-950">登録済み台帳</div>
+                            <div className="text-xs font-semibold text-slate-700">✓ 保存済み</div>
+                            <div className="text-lg font-semibold text-slate-700">登録済み台帳</div>
                           </div>
-                          <div className="text-xs font-bold text-emerald-800">最終更新：{selectedSavedProfile.updated_at ? new Date(selectedSavedProfile.updated_at).toLocaleString('ja-JP') : '-'}</div>
+                          <div className="text-xs font-bold text-slate-700">最終更新：{selectedSavedProfile.updated_at ? new Date(selectedSavedProfile.updated_at).toLocaleString('ja-JP') : '-'}</div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-5 gap-y-3 mt-4 text-sm">
                           {[
@@ -1228,153 +1189,207 @@ export default function WorkerLedgerPage() {
                             ['住所', selectedSavedProfile.address],
                             ['緊急連絡先', selectedSavedProfile.emergency_contact]
                           ].map(([label, value]) => (
-                            <div key={String(label)} className="rounded-xl bg-white border border-emerald-100 px-3 py-2.5">
-                              <div className="text-[11px] font-black text-slate-400">{label}</div>
-                              <div className="mt-0.5 font-black text-slate-900 break-words">{value || '－'}</div>
+                            <div key={String(label)} className="rounded-lg bg-white border border-slate-200 px-3 py-2.5">
+                              <div className="text-[11px] font-semibold text-slate-400">{label}</div>
+                              <div className="mt-0.5 font-semibold text-slate-900 break-words">{value || '－'}</div>
                             </div>
                           ))}
                         </div>
                         {selectedSavedProfile.notes && (
-                          <div className="mt-3 rounded-xl bg-white border border-emerald-100 px-3 py-2.5">
-                            <div className="text-[11px] font-black text-slate-400">管理メモ</div>
+                          <div className="mt-3 rounded-lg bg-white border border-slate-200 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold text-slate-400">管理メモ</div>
                             <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-slate-800">{selectedSavedProfile.notes}</div>
                           </div>
                         )}
-                        <div className="mt-3 text-xs font-bold text-emerald-800">下の入力欄は編集用です。変更後は「💾 台帳を保存」を押してください。</div>
+                        <div className="mt-3 text-xs font-bold text-slate-700">変更するときは「編集」を押してください。</div>
                       </div>
                     ) : (
-                      <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-bold text-slate-500">この作業員の台帳はまだ登録されていません。下の入力欄へ入力して保存してください。</div>
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-bold text-slate-500">この作業員の台帳はまだ登録されていません。「編集・登録」を押して入力してください。</div>
                     )}
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 font-bold">既存の日報用作業員名「{selectedWorker}」に紐づく追加台帳です。日報・勤怠の作業員マスタ自体は変更しません。</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {[['full_name','氏名（フルネーム）','text'],['employee_no','社員番号','text'],['employment_type','雇用区分','text'],['hire_date','入社日','date'],['birth_date','生年月日','date'],['blood_type','血液型','text']].map(([key,label,type])=><label key={key} className="text-sm font-black text-slate-700">{label}<input type={type} value={(profileDraft as any)[key]||''} onChange={(e)=>setProfileDraft(p=>({...p,[key]:e.target.value}))} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-bold bg-white" /></label>)}
-                    </div>
-                    <label className="block text-sm font-black text-slate-700">住所<input value={profileDraft.address||''} onChange={(e)=>setProfileDraft(p=>({...p,address:e.target.value}))} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-bold" /></label>
-                    <label className="block text-sm font-black text-slate-700">緊急連絡先<input value={profileDraft.emergency_contact||''} onChange={(e)=>setProfileDraft(p=>({...p,emergency_contact:e.target.value}))} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-bold" /></label>
-                    <label className="block text-sm font-black text-slate-700">管理メモ<textarea value={profileDraft.notes||''} onChange={(e)=>setProfileDraft(p=>({...p,notes:e.target.value}))} className="mt-1.5 w-full min-h-24 rounded-xl border border-slate-300 p-3 font-bold" /></label>
-                    <div className="flex justify-end"><button onClick={saveProfile} disabled={saving} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-black disabled:opacity-50">💾 台帳を保存</button></div>
-                  </div>}
-
-                  {!loading && tab==='qualification' && <div className="space-y-5">
-                    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 md:p-5">
+<details open={!!rosterImportPreview || rosterImportLoading} className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">作業員名簿Excelから一括取込（全員対象）</summary><div className="p-3 border-t space-y-3">                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                         <div>
-                          <div className="font-black text-blue-950 text-lg">📥 Excelから資格を一括登録</div>
+                          <div className="font-semibold text-slate-900 text-base">📥 作業員名簿Excelから自動入力</div>
+                          <p className="mt-1 text-sm text-slate-700 font-medium">現在の「作業員名簿」Excel（.xls / .xlsx）から、氏名・入社日・生年月日・血液型・住所・緊急連絡先・健康診断・資格/講習を読み取ります。</p>
+                          <p className="mt-1 text-xs text-slate-600">※「退職者」「原本」シートは除外します。既に入力済みの台帳内容は上書きせず、空欄だけ補完します。まず確認画面を出し、登録ボタンを押すまでSupabaseへ保存しません。</p>
+                        </div>
+                        <label className={`shrink-0 rounded-lg px-3 py-2 font-semibold text-center cursor-pointer ${rosterImportLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                          {rosterImportLoading ? '名簿確認中…' : '📄 作業員名簿を選択'}
+                          <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={rosterImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewRosterExcel(f); e.currentTarget.value='';}} />
+                        </label>
+                      </div>
+
+                      {rosterImportPreview && (
+                        <div className="mt-4 space-y-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 text-xs font-semibold">
+                            <div className="rounded-lg bg-white border border-slate-200 p-3">対象<br/><span className="text-lg text-slate-700">{rosterImportPreview.summary.workers}</span>名</div>
+                            <div className="rounded-lg bg-white border border-slate-200 p-3">一致<br/><span className="text-lg text-slate-700">{rosterImportPreview.summary.matched}</span>名</div>
+                            <div className="rounded-lg bg-white border border-slate-200 p-3">台帳新規<br/><span className="text-lg text-blue-700">{rosterImportPreview.summary.newProfiles}</span>名</div>
+                            <div className="rounded-lg bg-white border border-cyan-100 p-3">空欄補完<br/><span className="text-lg text-cyan-700">{rosterImportPreview.summary.fillProfiles}</span>名</div>
+                            <div className="rounded-lg bg-white border border-slate-200 p-3">健診追加<br/><span className="text-lg text-slate-700">{rosterImportPreview.summary.newHealth}</span>件</div>
+                            <div className="rounded-lg bg-white border border-amber-100 p-3">資格追加<br/><span className="text-lg text-amber-700">{rosterImportPreview.summary.newQualifications}</span>件</div>
+                            <div className="rounded-lg bg-white border border-rose-100 p-3">未一致<br/><span className="text-lg text-rose-700">{rosterImportPreview.summary.unmatched}</span>名</div>
+                          </div>
+                          <div className="max-h-80 overflow-auto rounded-lg border border-slate-200 bg-white">
+                            <table className="w-full min-w-[780px] text-xs">
+                              <thead className="sticky top-0 bg-slate-100 z-10"><tr><th className="p-2 text-left">状態</th><th className="p-2 text-left">作業員</th><th className="p-2 text-left">氏名</th><th className="p-2 text-left">入社日</th><th className="p-2 text-left">生年月日</th><th className="p-2 text-left">血液型</th><th className="p-2 text-left">健診</th><th className="p-2 text-left">資格</th><th className="p-2 text-left">職種/経験</th></tr></thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {rosterImportPreview.rows.map((row, idx) => (
+                                  <tr key={`${row.source_sheet}-${row.source_row}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':''}>
+                                    <td className="p-2 font-semibold">{row.status==='unmatched'?<span className="text-rose-700">未一致</span>:row.profileAction==='new'?<span className="text-blue-700">新規</span>:row.profileAction==='fill'?<span className="text-cyan-700">空欄補完</span>:<span className="text-slate-500">登録済み</span>}</td>
+                                    <td className="p-2 font-semibold">{row.worker_name || '－'}</td>
+                                    <td className="p-2">{row.source_full_name || '－'}</td>
+                                    <td className="p-2">{row.hire_date || '－'}</td>
+                                    <td className="p-2">{row.birth_date || '－'}</td>
+                                    <td className="p-2">{row.blood_type || '－'}</td>
+                                    <td className="p-2">{row.newHealth ? `追加 ${row.health_exam_date}` : (row.health_exam_date || '－')}</td>
+                                    <td className="p-2">{row.newQualifications ? `新規 ${row.newQualifications}件` : `${row.qualifications.length}件`}</td>
+                                    <td className="p-2">{[row.job_type, row.experience_years ? `${row.experience_years}年` : ''].filter(Boolean).join(' / ') || '－'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {rosterImportPreview.summary.unmatched > 0 && <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs font-bold text-rose-800">⚠️ 「未一致」は作業員マスタの名前と自動一致できなかったため登録しません。作業員マスタ名を確認してください。</div>}
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button type="button" onClick={()=>setRosterImportPreview(null)} disabled={rosterImportLoading} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-semibold text-slate-700 disabled:opacity-50">キャンセル</button>
+                            <button type="button" onClick={commitRosterExcel} disabled={rosterImportLoading || rosterImportPreview.summary.matched===0} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 font-semibold disabled:opacity-50">{rosterImportLoading?'登録中…':'✓ 確認した内容を登録'}</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+</div></details>{editor==='profile'&&<LedgerDialog title={'基本情報を編集：'+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setProfileDraft(selectedSavedProfile?{...selectedSavedProfile}:emptyProfile(selectedWorker));setEditor('');}}}>                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {[['full_name','氏名（フルネーム）','text'],['employee_no','社員番号','text'],['employment_type','雇用区分','text'],['hire_date','入社日','date'],['birth_date','生年月日','date'],['blood_type','血液型','text']].map(([key,label,type])=><label key={key} className="text-sm font-semibold text-slate-700">{label}<input type={type} value={(profileDraft as any)[key]||''} onChange={(e)=>setProfileDraft(p=>({...p,[key]:e.target.value}))} className="mt-1.5 w-full rounded-lg border border-slate-300 p-2 font-normal bg-white" /></label>)}
+                    </div>
+                    <label className="block text-sm font-semibold text-slate-700">住所<input value={profileDraft.address||''} onChange={(e)=>setProfileDraft(p=>({...p,address:e.target.value}))} className="mt-1.5 w-full rounded-lg border border-slate-300 p-2 font-normal" /></label>
+                    <label className="block text-sm font-semibold text-slate-700">緊急連絡先<input value={profileDraft.emergency_contact||''} onChange={(e)=>setProfileDraft(p=>({...p,emergency_contact:e.target.value}))} className="mt-1.5 w-full rounded-lg border border-slate-300 p-2 font-normal" /></label>
+                    <label className="block text-sm font-semibold text-slate-700">管理メモ<textarea value={profileDraft.notes||''} onChange={(e)=>setProfileDraft(p=>({...p,notes:e.target.value}))} className="mt-1.5 w-full min-h-24 rounded-lg border border-slate-300 p-2 font-normal" /></label>
+                    <div className="flex justify-end"><button onClick={saveProfile} disabled={saving} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-semibold disabled:opacity-50">💾 台帳を保存</button></div>
+</LedgerDialog>}
+                  </div>}
+
+                  {!loading && tab==='qualification' && <div className="space-y-4">
+<div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">保有資格（{selectedQualifications.length}件）</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>{setQualificationDraft(emptyQualification(selectedWorker));setEditor('qualification');}} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">＋ 資格追加</button></div></div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[680px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">区分</th><th className="p-3 text-left">資格・講習</th><th className="p-3 text-left">修了証番号</th><th className="p-3 text-left">取得日</th><th className="p-3 text-left">有効期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedQualifications.map((q)=><tr key={q.id||`${q.qualification_name}-${q.acquired_date}`} className={isExpired(q.expiry_date)?'bg-rose-50':isWithinDays(q.expiry_date,60)?'bg-amber-50':''}><td className="p-3 font-bold">{q.category||'-'}</td><td className="p-3 font-semibold">{q.qualification_name}</td><td className="p-3">{q.certificate_no||'-'}</td><td className="p-3">{fmtDate(q.acquired_date)}</td><td className="p-3">{q.expiry_date?(isExpired(q.expiry_date)?`⚠️ 期限切れ ${fmtDate(q.expiry_date)}`:isWithinDays(q.expiry_date,60)?`⚠️ 60日以内 ${fmtDate(q.expiry_date)}`:fmtDate(q.expiry_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>{setQualificationDraft({...q});setEditor('qualification');}} className="text-blue-600 font-semibold mr-3">編集</button><button onClick={()=>deleteQualification(q.id)} className="text-rose-600 font-semibold">削除</button></td></tr>)}</tbody></table>{selectedQualifications.length===0&&<div className="p-8 text-center text-slate-400 font-bold">資格情報はまだありません。</div>}</div>
+<div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">資格証・修了証（{selectedQualificationDocuments.length}件）</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>{setDocTitle('');setEditor('qdoc');}} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">＋ 書類追加</button></div></div>
+<div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedQualificationDocuments.map((doc)=><div key={doc.id} className="rounded-lg bg-white border border-slate-200 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-semibold break-words">{doc.title||'資格証'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-white text-blue-700 px-2 py-1.5 text-xs font-semibold">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-semibold">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-2 py-1.5 text-xs font-semibold">削除</button></div></div>)}{selectedQualificationDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">資格証画像はまだありません。</div>}</div><details open={!!excelImportPreview || excelImportLoading} className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">資格情報のExcel一括登録（全員対象）</summary><div className="p-3 border-t space-y-3">                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                        <div>
+                          <div className="font-semibold text-blue-950 text-lg">📥 Excelから資格を一括登録</div>
                           <p className="mt-1 text-sm text-blue-800 font-bold">現在使用している資格管理Excel（作業員ごとのシート）を選ぶと、作業員名・区分・資格名・修了証番号・取得日を自動で読み取ります。</p>
                           <p className="mt-1 text-xs text-blue-700">※ すぐには登録せず、まず読み取り結果を確認します。既存データは上書き・削除しません。</p>
                         </div>
-                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                        <label className={`shrink-0 rounded-lg px-3 py-2 font-semibold text-center cursor-pointer ${excelImportLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
                           {excelImportLoading ? 'Excel確認中…' : '📄 Excelを選択'}
                           <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" disabled={excelImportLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewQualificationExcel(f); e.currentTarget.value='';}} />
                         </label>
                       </div>
                     </div>
 
-                    {excelImportPreview && <div className="rounded-2xl border border-slate-300 bg-white overflow-hidden shadow-sm">
-                      <div className="p-4 md:p-5 border-b border-slate-200">
+                    {excelImportPreview && <div className="rounded-lg border border-slate-300 bg-white overflow-hidden shadow-sm">
+                      <div className="p-3 border-b border-slate-200">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                           <div>
-                            <div className="font-black text-slate-900">読み取り結果：{excelImportPreview.fileName}</div>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
-                              <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規 {excelImportPreview.summary.newCount}件</span>
+                            <div className="font-semibold text-slate-900">読み取り結果：{excelImportPreview.fileName}</div>
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+                              <span className="rounded-full bg-emerald-100 text-slate-700 px-3 py-1.5">新規 {excelImportPreview.summary.newCount}件</span>
                               <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {excelImportPreview.summary.duplicateCount}件</span>
                               <span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">作業員未一致 {excelImportPreview.summary.unmatchedCount}件</span>
                               <span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">全 {excelImportPreview.summary.total}件 / {excelImportPreview.summary.sheets}シート</span>
                             </div>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button type="button" onClick={()=>setExcelImportPreview(null)} disabled={excelImportLoading} className="rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 font-black">取消</button>
-                            <button type="button" onClick={commitQualificationExcel} disabled={excelImportLoading || excelImportPreview.summary.newCount===0} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 font-black disabled:opacity-40">✓ 新規 {excelImportPreview.summary.newCount}件を登録</button>
+                            <button type="button" onClick={()=>setExcelImportPreview(null)} disabled={excelImportLoading} className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 font-semibold">取消</button>
+                            <button type="button" onClick={commitQualificationExcel} disabled={excelImportLoading || excelImportPreview.summary.newCount===0} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 font-semibold disabled:opacity-40">✓ 新規 {excelImportPreview.summary.newCount}件を登録</button>
                           </div>
                         </div>
-                        {excelImportPreview.summary.unmatchedCount>0 && <div className="mt-3 rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-800 font-bold">⚠️ 「作業員未一致」は登録されません。Excelのシート名・氏名が現在の作業員マスタと一致しているか確認してください。</div>}
+                        {excelImportPreview.summary.unmatchedCount>0 && <div className="mt-3 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-800 font-bold">⚠️ 「作業員未一致」は登録されません。Excelのシート名・氏名が現在の作業員マスタと一致しているか確認してください。</div>}
                       </div>
                       <div className="max-h-[420px] overflow-auto">
                         <table className="w-full min-w-[1050px] text-sm">
                           <thead className="sticky top-0 bg-slate-100 z-10"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">区分</th><th className="p-3 text-left">資格・講習</th><th className="p-3 text-left">修了証番号</th><th className="p-3 text-left">取得日</th><th className="p-3 text-left">元シート</th></tr></thead>
-                          <tbody className="divide-y divide-slate-100">{excelImportPreview.rows.map((row,idx)=><tr key={`${row.source_sheet}-${row.source_row}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.source_worker_name||'-'}</td><td className="p-3 font-bold">{row.category||'-'}</td><td className="p-3 font-black">{row.qualification_name}</td><td className="p-3">{row.certificate_no||'-'}</td><td className="p-3">{fmtDate(row.acquired_date)}</td><td className="p-3 text-xs text-slate-500">{row.source_sheet} / {row.source_row}行目</td></tr>)}</tbody>
+                          <tbody className="divide-y divide-slate-100">{excelImportPreview.rows.map((row,idx)=><tr key={`${row.source_sheet}-${row.source_row}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-semibold">{row.worker_name||row.source_worker_name||'-'}</td><td className="p-3 font-bold">{row.category||'-'}</td><td className="p-3 font-semibold">{row.qualification_name}</td><td className="p-3">{row.certificate_no||'-'}</td><td className="p-3">{fmtDate(row.acquired_date)}</td><td className="p-3 text-xs text-slate-500">{row.source_sheet} / {row.source_row}行目</td></tr>)}</tbody>
                         </table>
                       </div>
                     </div>}
-
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-black text-emerald-950">{qualificationDraft.id ? '資格・講習を編集' : '資格・講習を新規追加'}</div>{qualificationDraft.id && <button type="button" onClick={()=>setQualificationDraft(emptyQualification(selectedWorker))} className="rounded-lg bg-white border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">編集をキャンセル・新規追加へ</button>}</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
-                      <select value={qualificationDraft.category||''} onChange={(e)=>setQualificationDraft(q=>({...q,category:e.target.value}))} className="rounded-xl border p-3 font-bold"><option>技能講習</option><option>特別教育</option><option>資格</option><option>運転免許証</option><option>その他</option></select>
-                      <datalist id="ledger-qualification-names">{suggestedNames.map(n=><option key={n} value={n}/>)}</datalist><input list="ledger-qualification-names" value={qualificationDraft.qualification_name||''} onChange={(e)=>setQualificationDraft(q=>({...q,qualification_name:e.target.value}))} placeholder="資格・講習名" className="rounded-xl border p-3 font-bold" />
-                      <input value={qualificationDraft.certificate_no||''} onChange={(e)=>setQualificationDraft(q=>({...q,certificate_no:e.target.value}))} placeholder="修了証番号" className="rounded-xl border p-3 font-bold" />
-                      <input type="date" value={qualificationDraft.acquired_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,acquired_date:e.target.value}))} className="rounded-xl border p-3 font-bold" />
-                      <label className="text-xs font-black text-slate-600">有効期限<input type="date" value={qualificationDraft.expiry_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,expiry_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <input value={qualificationDraft.issuing_body||''} onChange={(e)=>setQualificationDraft(q=>({...q,issuing_body:e.target.value}))} placeholder="発行元（任意）" className="rounded-xl border p-3 font-bold" />
-                      <input value={qualificationDraft.notes||''} onChange={(e)=>setQualificationDraft(q=>({...q,notes:e.target.value}))} placeholder="メモ" className="rounded-xl border p-3 font-bold" />
-                      <button onClick={saveQualification} disabled={saving} className="rounded-xl bg-emerald-600 text-white p-3 font-black">{saving ? '保存中…' : qualificationDraft.id ? '変更を保存' : '＋ 新規追加'}</button>
-                    </div></div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[900px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">区分</th><th className="p-3 text-left">資格・講習</th><th className="p-3 text-left">修了証番号</th><th className="p-3 text-left">取得日</th><th className="p-3 text-left">有効期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedQualifications.map((q)=><tr key={q.id||`${q.qualification_name}-${q.acquired_date}`} className={isExpired(q.expiry_date)?'bg-rose-50':isWithinDays(q.expiry_date,60)?'bg-amber-50':''}><td className="p-3 font-bold">{q.category||'-'}</td><td className="p-3 font-black">{q.qualification_name}</td><td className="p-3">{q.certificate_no||'-'}</td><td className="p-3">{fmtDate(q.acquired_date)}</td><td className="p-3">{q.expiry_date?(isExpired(q.expiry_date)?`⚠️ 期限切れ ${fmtDate(q.expiry_date)}`:isWithinDays(q.expiry_date,60)?`⚠️ 60日以内 ${fmtDate(q.expiry_date)}`:fmtDate(q.expiry_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>setQualificationDraft({...q})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteQualification(q.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedQualifications.length===0&&<div className="p-8 text-center text-slate-400 font-bold">資格情報はまだありません。</div>}</div>
-                    <div className="rounded-2xl border-2 border-violet-200 bg-violet-50 p-4 md:p-5">
+</div></details><details open={!!qualificationPackPreview || qualificationPackLoading} className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">資格証の取込パック一括登録（全員対象）</summary><div className="p-3 border-t space-y-3">                    <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                         <div>
-                          <div className="font-black text-violet-950 text-lg">📥 資格証画像をExcel取込パックから一括登録</div>
-                          <p className="mt-1 text-sm text-violet-800 font-bold">添付の資格証Excelから変換した取込パックを選ぶと、現在の作業員マスタに一致する人の資格証画像だけを登録します。</p>
-                          <p className="mt-1 text-xs text-violet-700">画像はA4印刷を想定してJPEG品質86%・長辺最大2200pxで保存。元Excel内のEMF画像も印刷用JPEGへ変換済みです。</p>
+                          <div className="font-semibold text-slate-700 text-lg">📥 資格証画像をExcel取込パックから一括登録</div>
+                          <p className="mt-1 text-sm text-slate-700 font-bold">添付の資格証Excelから変換した取込パックを選ぶと、現在の作業員マスタに一致する人の資格証画像だけを登録します。</p>
+                          <p className="mt-1 text-xs text-slate-700">画像はA4印刷を想定してJPEG品質86%・長辺最大2200pxで保存。元Excel内のEMF画像も印刷用JPEGへ変換済みです。</p>
                         </div>
-                        <label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${qualificationPackLoading?'bg-slate-300 text-slate-500':'bg-violet-600 hover:bg-violet-700 text-white'}`}>
+                        <label className={`shrink-0 rounded-lg px-3 py-2 font-semibold text-center cursor-pointer ${qualificationPackLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>
                           {qualificationPackLoading ? (qualificationPackProgress || '確認中…') : '📦 資格証取込パックを選択'}
                           <input type="file" accept=".qpack,.zip,application/zip" disabled={qualificationPackLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) previewQualificationPackFile(f); e.currentTarget.value='';}} />
                         </label>
                       </div>
 
-                      {qualificationPackPreview && <div className="mt-4 rounded-2xl bg-white border border-violet-200 overflow-hidden">
-                        <div className="p-4 border-b border-violet-100">
-                          <div className="font-black text-slate-900">取込確認：{qualificationPackPreview.sourceFile || qualificationPackPreview.fileName}</div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
-                            <span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規画像 {qualificationPackPreview.summary.newCount}枚</span>
+                      {qualificationPackPreview && <div className="mt-4 rounded-lg bg-white border border-slate-200 overflow-hidden">
+                        <div className="p-4 border-b border-slate-200">
+                          <div className="font-semibold text-slate-900">取込確認：{qualificationPackPreview.sourceFile || qualificationPackPreview.fileName}</div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+                            <span className="rounded-full bg-emerald-100 text-slate-700 px-3 py-1.5">新規画像 {qualificationPackPreview.summary.newCount}枚</span>
                             <span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {qualificationPackPreview.summary.matchedWorkers}名</span>
                             <span className="rounded-full bg-amber-100 text-amber-800 px-3 py-1.5">名称更新 {qualificationPackPreview.summary.renameCount}枚</span>
                             <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {qualificationPackPreview.summary.duplicateCount}枚</span>
                             <span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {qualificationPackPreview.summary.unmatchedCount}枚</span>
                           </div>
                           <div className="mt-3 flex gap-2 justify-end">
-                            <button type="button" onClick={()=>{setQualificationPackPreview(null);setQualificationPackFile(null);}} disabled={qualificationPackLoading} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 font-black text-slate-700">取消</button>
-                            <button type="button" onClick={commitQualificationPack} disabled={qualificationPackLoading || (qualificationPackPreview.summary.newCount===0 && qualificationPackPreview.summary.renameCount===0)} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規{qualificationPackPreview.summary.newCount}枚・名称更新{qualificationPackPreview.summary.renameCount}枚を反映</button>
+                            <button type="button" onClick={()=>{setQualificationPackPreview(null);setQualificationPackFile(null);}} disabled={qualificationPackLoading} className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-semibold text-slate-700">取消</button>
+                            <button type="button" onClick={commitQualificationPack} disabled={qualificationPackLoading || (qualificationPackPreview.summary.newCount===0 && qualificationPackPreview.summary.renameCount===0)} className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 font-semibold disabled:opacity-50">✓ 新規{qualificationPackPreview.summary.newCount}枚・名称更新{qualificationPackPreview.summary.renameCount}枚を反映</button>
                           </div>
                         </div>
                         <div className="max-h-[320px] overflow-auto">
                           <table className="w-full min-w-[720px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">元シート</th><th className="p-3 text-left">画像</th></tr></thead><tbody className="divide-y divide-slate-100">
-                            {qualificationPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':row.status==='rename'?'bg-amber-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='rename'?'bg-amber-100 text-amber-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='rename'?'名称更新':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{row.title}</td><td className="p-3 text-xs text-slate-500">{row.sourceSheet} #{row.imageIndex}</td></tr>)}
+                            {qualificationPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':row.status==='rename'?'bg-amber-50':''}><td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='rename'?'bg-amber-100 text-amber-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='rename'?'名称更新':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-semibold">{row.worker_name||row.sourceWorker}</td><td className="p-3">{row.title}</td><td className="p-3 text-xs text-slate-500">{row.sourceSheet} #{row.imageIndex}</td></tr>)}
                           </tbody></table>
                         </div>
                         {qualificationPackPreview.summary.unmatchedCount>0 && <div className="p-3 bg-rose-50 border-t border-rose-100 text-xs font-bold text-rose-800">⚠️ 未一致の画像は登録しません。現在の作業員マスタにいる人だけが対象です。</div>}
                       </div>}
                     </div>
-
-
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><div className="font-black text-emerald-950">資格証・修了証の写真</div><p className="mt-1 text-xs text-emerald-700">新しく資格を取得・更新した時は、ここから1枚ずつ追加できます。</p></div></div><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="資格証名（例：玉掛け技能講習修了証）" className="rounded-xl border border-emerald-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-xl px-4 py-2.5 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-white border border-emerald-300 text-emerald-700'}`}>📎 資格証を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'qualification',docTitle);e.currentTarget.value='';}}/></label></div><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedQualificationDocuments.map((doc)=><div key={doc.id} className="rounded-xl bg-white border border-emerald-100 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-black break-words">{doc.title||'資格証'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-2 py-1.5 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-black">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-2 py-1.5 text-xs font-black">削除</button></div></div>)}{selectedQualificationDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">資格証画像はまだありません。</div>}</div></div>
-                  </div>}
-
-                  {!loading && tab==='health' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4"><div className="font-black text-orange-950">健康診断結果を登録</div><p className="mt-1 text-xs font-bold text-orange-800">「いつ・どこの病院で・どの種類の健診を受けたか」を作業員ごとに記録します。</p><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
-                      <label className="text-xs font-black">受診日<input type="date" value={healthDraft.exam_date||''} onChange={(e)=>setHealthDraft(h=>({...h,exam_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <datalist id="ledger-health-kinds">{healthKinds.filter(k=>k!=='種類未設定').map(k=><option key={k} value={k}/>)}</datalist><input list="ledger-health-kinds" value={healthMetaValue(healthDraft.notes,'健診種類')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'健診種類',e.target.value)}))} placeholder="健診種類（一般・じん肺・石綿など）" className="rounded-xl border p-3 font-bold" />
-                      <input value={healthMetaValue(healthDraft.notes,'医療機関')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'医療機関',e.target.value)}))} placeholder="病院・クリニック名" className="rounded-xl border p-3 font-bold" />
-                      <input value={healthDraft.judgement||''} onChange={(e)=>setHealthDraft(h=>({...h,judgement:e.target.value}))} placeholder="判定" className="rounded-xl border p-3 font-bold" />
-                      <input type="number" value={healthDraft.systolic??''} onChange={(e)=>setHealthDraft(h=>({...h,systolic:e.target.value}))} placeholder="最高血圧（任意）" className="rounded-xl border p-3 font-bold" />
-                      <input type="number" value={healthDraft.diastolic??''} onChange={(e)=>setHealthDraft(h=>({...h,diastolic:e.target.value}))} placeholder="最低血圧（任意）" className="rounded-xl border p-3 font-bold" />
-                      <label className="text-xs font-black">次回期限<input type="date" value={healthDraft.next_due_date||''} onChange={(e)=>setHealthDraft(h=>({...h,next_due_date:e.target.value}))} className="mt-1 w-full rounded-xl border p-3 font-bold bg-white" /></label>
-                      <button onClick={saveHealth} disabled={saving} className="rounded-xl bg-orange-600 text-white p-3 font-black">＋ 登録</button>
+</div></details>{editor==='qualification'&&<LedgerDialog title={(qualificationDraft.id?'資格を編集：':'資格を追加：')+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setQualificationDraft(emptyQualification(selectedWorker));setEditor('');}}}>                    <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold text-slate-700">{qualificationDraft.id ? '資格・講習を編集' : '資格・講習を新規追加'}</div>{qualificationDraft.id && <button type="button" onClick={()=>setQualificationDraft(emptyQualification(selectedWorker))} className="rounded-lg bg-white border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">新規追加に切替</button>}</div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                      <select value={qualificationDraft.category||''} onChange={(e)=>setQualificationDraft(q=>({...q,category:e.target.value}))} className="rounded-lg border p-2 font-normal"><option>技能講習</option><option>特別教育</option><option>資格</option><option>運転免許証</option><option>その他</option></select>
+                      <datalist id="ledger-qualification-names">{suggestedNames.map(n=><option key={n} value={n}/>)}</datalist><input list="ledger-qualification-names" value={qualificationDraft.qualification_name||''} onChange={(e)=>setQualificationDraft(q=>({...q,qualification_name:e.target.value}))} placeholder="資格・講習名" className="rounded-lg border p-2 font-normal" />
+                      <input value={qualificationDraft.certificate_no||''} onChange={(e)=>setQualificationDraft(q=>({...q,certificate_no:e.target.value}))} placeholder="修了証番号" className="rounded-lg border p-2 font-normal" />
+                      <label className="text-xs text-slate-600">取得日<input type="date" value={qualificationDraft.acquired_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,acquired_date:e.target.value}))} className="mt-1 w-full rounded-lg border p-2" /></label>
+                      <label className="text-xs font-semibold text-slate-600">有効期限<input type="date" value={qualificationDraft.expiry_date||''} onChange={(e)=>setQualificationDraft(q=>({...q,expiry_date:e.target.value}))} className="mt-1 w-full rounded-lg border p-2 font-normal bg-white" /></label>
+                      <input value={qualificationDraft.issuing_body||''} onChange={(e)=>setQualificationDraft(q=>({...q,issuing_body:e.target.value}))} placeholder="発行元（任意）" className="rounded-lg border p-2 font-normal" />
+                      <input value={qualificationDraft.notes||''} onChange={(e)=>setQualificationDraft(q=>({...q,notes:e.target.value}))} placeholder="メモ" className="rounded-lg border p-2 font-normal" />
+                      <button onClick={saveQualification} disabled={saving} className="rounded-lg bg-blue-600 text-white p-3 font-semibold">{saving ? '保存中…' : qualificationDraft.id ? '変更を保存' : '＋ 新規追加'}</button>
                     </div></div>
+</LedgerDialog>}{editor==='qdoc'&&<LedgerDialog title={'資格証を追加：'+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setDocTitle('');setEditor('');}}}><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="資格証名（例：玉掛け技能講習修了証）" className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-lg px-4 py-2.5 font-semibold text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-white border border-slate-200 text-emerald-700'}`}>📎 資格証を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'qualification',docTitle);e.currentTarget.value='';}}/></label></div></LedgerDialog>}
+                  </div>}
 
-                    <div className="rounded-2xl border-2 border-orange-200 bg-orange-50/50 p-4 md:p-5">
-                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4"><div><div className="font-black text-orange-950 text-lg">📥 健康診断書をまとめて一括登録</div><p className="mt-1 text-sm text-orange-800 font-bold">複数人分のPDFを軽量化した取込パックから、現在の作業員マスタにいる人だけ登録します。</p><p className="mt-1 text-xs text-orange-700">A4印刷を想定したJPEGで保存し、元の大きなPDFをそのまま保存しません。</p></div><label className={`shrink-0 rounded-xl px-5 py-3 font-black text-center cursor-pointer ${healthPackLoading?'bg-slate-300 text-slate-500':'bg-orange-600 hover:bg-orange-700 text-white'}`}>{healthPackLoading?(healthPackProgress||'確認中…'):'📦 健康診断書取込パックを選択'}<input type="file" accept=".hpack,.zip,application/zip" disabled={healthPackLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)previewHealthPackFile(f);e.currentTarget.value='';}} /></label></div>
-                      {healthPackPreview&&<div className="mt-4 rounded-2xl bg-white border border-orange-200 overflow-hidden"><div className="p-4 border-b border-orange-100"><div className="font-black">取込確認：{healthPackPreview.fileName}</div><div className="mt-2 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1.5">新規 {healthPackPreview.summary.newCount}件</span><span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {healthPackPreview.summary.matchedWorkers}名</span><span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {healthPackPreview.summary.duplicateCount}件</span><span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {healthPackPreview.summary.unmatchedCount}件</span></div><div className="mt-3 flex gap-2 justify-end"><button onClick={()=>{setHealthPackPreview(null);setHealthPackFile(null);}} className="rounded-xl border bg-white px-4 py-2.5 font-black">取消</button><button onClick={commitHealthPack} disabled={healthPackLoading||healthPackPreview.summary.newCount===0} className="rounded-xl bg-orange-600 text-white px-5 py-2.5 font-black disabled:opacity-50">✓ 新規{healthPackPreview.summary.newCount}件を登録</button></div></div><div className="max-h-[300px] overflow-auto"><table className="w-full min-w-[850px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">受診日</th><th className="p-3 text-left">種類</th><th className="p-3 text-left">医療機関</th></tr></thead><tbody className="divide-y">{healthPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-black ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-black">{row.worker_name||row.sourceWorker}</td><td className="p-3">{fmtDate(row.examDate)}</td><td className="p-3 font-bold">{row.examType}</td><td className="p-3">{row.hospital}</td></tr>)}</tbody></table></div>{healthPackPreview.summary.unmatchedCount>0&&<div className="p-3 bg-rose-50 text-xs font-bold text-rose-800">⚠️ マスタ未一致の人は登録しません。</div>}</div>}
+                  {!loading && tab==='health' && <div className="space-y-4">
+<div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">最新の健康診断</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>{setHealthDraft(emptyHealth(selectedWorker));setEditor('health');}} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">＋ 健診登録</button></div></div>
+<div className="overflow-x-auto border rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-slate-100"><tr><th className="p-2">健診種類</th><th className="p-2">最新受診日</th><th className="p-2">次回期限</th></tr></thead><tbody className="divide-y">{personalHealth.map(({kind,row})=><tr key={kind}><td className="p-2">{kind}</td><td className="p-2">{fmtDate(row?.exam_date)}</td><td className="p-2">{fmtDate(row?.next_due_date)} {row?.next_due_date&&badge(status(row.next_due_date))}</td></tr>)}</tbody></table>{!personalHealth.length&&<p className="p-4 text-center text-sm text-slate-500">受診記録はまだありません。</p>}</div><details  className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">受診履歴（{selectedHealth.length}件）・編集</summary><div className="p-3 border-t space-y-3">                    <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[780px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">受診日</th><th className="p-3 text-left">健診種類</th><th className="p-3 text-left">医療機関</th><th className="p-3 text-left">血圧</th><th className="p-3 text-left">判定</th><th className="p-3 text-left">次回期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedHealth.map((h)=><tr key={h.id||`${h.exam_date}-${h.notes}`}><td className="p-3 font-semibold">{fmtDate(h.exam_date)}</td><td className="p-3 font-bold">{healthMetaValue(h.notes,'健診種類')||'-'}</td><td className="p-3">{healthMetaValue(h.notes,'医療機関')||'-'}</td><td className="p-3">{h.systolic||'-'} / {h.diastolic||'-'}</td><td className="p-3">{h.judgement||'-'}</td><td className="p-3">{h.next_due_date?(isExpired(h.next_due_date)?`⚠️ 期限切れ ${fmtDate(h.next_due_date)}`:isWithinDays(h.next_due_date,60)?`⚠️ 60日以内 ${fmtDate(h.next_due_date)}`:fmtDate(h.next_due_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>{setHealthDraft({...h});setEditor('health');}} className="text-blue-600 font-semibold mr-3">編集</button><button onClick={()=>deleteHealth(h.id)} className="text-rose-600 font-semibold">削除</button></td></tr>)}</tbody></table>{selectedHealth.length===0&&<div className="p-8 text-center text-slate-400 font-bold">健康診断履歴はまだありません。</div>}</div>
+</div></details><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">健康診断書（{selectedHealthDocuments.length}件）</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>{setDocTitle('');setEditor('hdoc');}} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">＋ 書類追加</button></div></div>
+<div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedHealthDocuments.map((doc)=><div key={doc.id} className="rounded-lg border bg-white p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-semibold break-words">{doc.title||'健康診断書'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-white text-blue-700 px-2 py-1.5 text-xs font-semibold">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-semibold">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-2 py-1.5 text-xs font-semibold">削除</button></div></div>)}{selectedHealthDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">健康診断書はまだありません。</div>}</div><details open={!!healthPackPreview || healthPackLoading} className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">健康診断書の取込パック一括登録（全員対象）</summary><div className="p-3 border-t space-y-3">                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4"><div><div className="font-semibold text-slate-700 text-lg">📥 健康診断書をまとめて一括登録</div><p className="mt-1 text-sm text-slate-700 font-bold">複数人分のPDFを軽量化した取込パックから、現在の作業員マスタにいる人だけ登録します。</p><p className="mt-1 text-xs text-slate-700">A4印刷を想定したJPEGで保存し、元の大きなPDFをそのまま保存しません。</p></div><label className={`shrink-0 rounded-lg px-3 py-2 font-semibold text-center cursor-pointer ${healthPackLoading?'bg-slate-300 text-slate-500':'bg-blue-600 hover:bg-blue-700 text-white'}`}>{healthPackLoading?(healthPackProgress||'確認中…'):'📦 健康診断書取込パックを選択'}<input type="file" accept=".hpack,.zip,application/zip" disabled={healthPackLoading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)previewHealthPackFile(f);e.currentTarget.value='';}} /></label></div>
+                      {healthPackPreview&&<div className="mt-4 rounded-lg bg-white border border-slate-200 overflow-hidden"><div className="p-4 border-b border-slate-200"><div className="font-semibold">取込確認：{healthPackPreview.fileName}</div><div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-emerald-100 text-slate-700 px-3 py-1.5">新規 {healthPackPreview.summary.newCount}件</span><span className="rounded-full bg-blue-100 text-blue-800 px-3 py-1.5">対象作業員 {healthPackPreview.summary.matchedWorkers}名</span><span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1.5">登録済み {healthPackPreview.summary.duplicateCount}件</span><span className="rounded-full bg-rose-100 text-rose-800 px-3 py-1.5">未一致 {healthPackPreview.summary.unmatchedCount}件</span></div><div className="mt-3 flex gap-2 justify-end"><button onClick={()=>{setHealthPackPreview(null);setHealthPackFile(null);}} className="rounded-lg border bg-white px-4 py-2.5 font-semibold">取消</button><button onClick={commitHealthPack} disabled={healthPackLoading||healthPackPreview.summary.newCount===0} className="rounded-lg bg-blue-600 text-white px-5 py-2.5 font-semibold disabled:opacity-50">✓ 新規{healthPackPreview.summary.newCount}件を登録</button></div></div><div className="max-h-[300px] overflow-auto"><table className="w-full min-w-[850px] text-sm"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3 text-left">状態</th><th className="p-3 text-left">作業員</th><th className="p-3 text-left">受診日</th><th className="p-3 text-left">種類</th><th className="p-3 text-left">医療機関</th></tr></thead><tbody className="divide-y">{healthPackPreview.rows.map((row,idx)=><tr key={`${row.file}-${idx}`} className={row.status==='unmatched'?'bg-rose-50':row.status==='duplicate'?'bg-slate-50':''}><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.status==='new'?'bg-emerald-100 text-emerald-800':row.status==='duplicate'?'bg-slate-200 text-slate-700':'bg-rose-100 text-rose-800'}`}>{row.status==='new'?'新規':row.status==='duplicate'?'登録済み':'未一致'}</span></td><td className="p-3 font-semibold">{row.worker_name||row.sourceWorker}</td><td className="p-3">{fmtDate(row.examDate)}</td><td className="p-3 font-bold">{row.examType}</td><td className="p-3">{row.hospital}</td></tr>)}</tbody></table></div>{healthPackPreview.summary.unmatchedCount>0&&<div className="p-3 bg-rose-50 text-xs font-bold text-rose-800">⚠️ マスタ未一致の人は登録しません。</div>}</div>}
                     </div>
-
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200"><table className="w-full min-w-[1000px] text-sm"><thead className="bg-slate-100"><tr><th className="p-3 text-left">受診日</th><th className="p-3 text-left">健診種類</th><th className="p-3 text-left">医療機関</th><th className="p-3 text-left">血圧</th><th className="p-3 text-left">判定</th><th className="p-3 text-left">次回期限</th><th className="p-3"></th></tr></thead><tbody className="divide-y">{selectedHealth.map((h)=><tr key={h.id||`${h.exam_date}-${h.notes}`}><td className="p-3 font-black">{fmtDate(h.exam_date)}</td><td className="p-3 font-bold">{healthMetaValue(h.notes,'健診種類')||'-'}</td><td className="p-3">{healthMetaValue(h.notes,'医療機関')||'-'}</td><td className="p-3">{h.systolic||'-'} / {h.diastolic||'-'}</td><td className="p-3">{h.judgement||'-'}</td><td className="p-3">{h.next_due_date?(isExpired(h.next_due_date)?`⚠️ 期限切れ ${fmtDate(h.next_due_date)}`:isWithinDays(h.next_due_date,60)?`⚠️ 60日以内 ${fmtDate(h.next_due_date)}`:fmtDate(h.next_due_date)):'-'}</td><td className="p-3 text-right"><button onClick={()=>setHealthDraft({...h})} className="text-blue-600 font-black mr-3">編集</button><button onClick={()=>deleteHealth(h.id)} className="text-rose-600 font-black">削除</button></td></tr>)}</tbody></table>{selectedHealth.length===0&&<div className="p-8 text-center text-slate-400 font-bold">健康診断履歴はまだありません。</div>}</div>
-
-                    <div className="rounded-2xl border border-orange-200 bg-white p-4"><div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><div className="font-black text-orange-950">健康診断書</div><p className="text-xs text-orange-700 mt-1">診断書・個人票を保管します。</p></div></div><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="診断書名（例：2026/10/19 一般健康診断）" className="rounded-xl border border-orange-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-xl px-4 py-2.5 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-orange-50 border border-orange-300 text-orange-700'}`}>📎 健診書を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'health',docTitle);e.currentTarget.value='';}}/></label></div><div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{selectedHealthDocuments.map((doc)=><div key={doc.id} className="rounded-xl border bg-orange-50/40 p-3 flex justify-between gap-2"><div className="min-w-0"><div className="font-black break-words">{doc.title||'健康診断書'}</div><div className="text-xs text-slate-500 mt-1">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'}</div></div><div className="flex gap-1 shrink-0"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-2 py-1.5 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-2 py-1.5 text-xs font-black">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-2 py-1.5 text-xs font-black">削除</button></div></div>)}{selectedHealthDocuments.length===0&&<div className="md:col-span-2 text-center text-slate-500 text-sm font-bold py-4">健康診断書はまだありません。</div>}</div></div>
+</div></details>{editor==='health'&&<LedgerDialog title={(healthDraft.id?'健診を編集：':'健診を登録：')+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setHealthDraft(emptyHealth(selectedWorker));setEditor('');}}}>                    <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="font-semibold text-slate-700">健康診断結果を登録</div><p className="mt-1 text-xs font-bold text-slate-700">「いつ・どこの病院で・どの種類の健診を受けたか」を作業員ごとに記録します。</p><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                      <label className="text-xs font-semibold">受診日<input type="date" value={healthDraft.exam_date||''} onChange={(e)=>setHealthDraft(h=>({...h,exam_date:e.target.value}))} className="mt-1 w-full rounded-lg border p-2 font-normal bg-white" /></label>
+                      <datalist id="ledger-health-kinds">{healthKinds.filter(k=>k!=='種類未設定').map(k=><option key={k} value={k}/>)}</datalist><input list="ledger-health-kinds" value={healthMetaValue(healthDraft.notes,'健診種類')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'健診種類',e.target.value)}))} placeholder="健診種類（一般・じん肺・石綿など）" className="rounded-lg border p-2 font-normal" />
+                      <input value={healthMetaValue(healthDraft.notes,'医療機関')} onChange={(e)=>setHealthDraft(h=>({...h,notes:setHealthMetaValue(h.notes,'医療機関',e.target.value)}))} placeholder="病院・クリニック名" className="rounded-lg border p-2 font-normal" />
+                      <input value={healthDraft.judgement||''} onChange={(e)=>setHealthDraft(h=>({...h,judgement:e.target.value}))} placeholder="判定" className="rounded-lg border p-2 font-normal" />
+                      <input type="number" value={healthDraft.systolic??''} onChange={(e)=>setHealthDraft(h=>({...h,systolic:e.target.value}))} placeholder="最高血圧（任意）" className="rounded-lg border p-2 font-normal" />
+                      <input type="number" value={healthDraft.diastolic??''} onChange={(e)=>setHealthDraft(h=>({...h,diastolic:e.target.value}))} placeholder="最低血圧（任意）" className="rounded-lg border p-2 font-normal" />
+                      <label className="text-xs font-semibold">次回期限<input type="date" value={healthDraft.next_due_date||''} onChange={(e)=>setHealthDraft(h=>({...h,next_due_date:e.target.value}))} className="mt-1 w-full rounded-lg border p-2 font-normal bg-white" /></label>
+                      <button onClick={saveHealth} disabled={saving} className="rounded-lg bg-blue-600 text-white p-3 font-semibold">{saving?'保存中…':healthDraft.id?'変更を保存':'登録'}</button>
+                    </div></div>
+</LedgerDialog>}{editor==='hdoc'&&<LedgerDialog title={'健康診断書を追加：'+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setDocTitle('');setEditor('');}}}><div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="診断書名（例：2026/10/19 一般健康診断）" className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-bold"/><label className={`rounded-lg px-4 py-2.5 font-semibold text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-white border border-slate-200 text-orange-700'}`}>📎 健診書を1枚追加<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)uploadDocument(f,'health',docTitle);e.currentTarget.value='';}}/></label></div></LedgerDialog>}
                   </div>}
 
-                  {!loading && tab==='documents' && <div className="space-y-5">
-                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4"><div className="font-black text-violet-950">その他の書類を保存</div><p className="mt-1 text-xs text-violet-700">画像はアップロード前に長辺2200px・JPEG品質88%へ自動圧縮します。PDFは原本のまま10MBまで保存します。</p><div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 mt-3"><select value={docType} onChange={(e)=>setDocType(e.target.value)} className="rounded-xl border p-3 font-bold bg-white"><option value="safety">安全書類</option><option value="other">その他</option></select><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="書類名（例：安全書類）" className="rounded-xl border p-3 font-bold bg-white" /><label className={`rounded-xl px-5 py-3 font-black text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-violet-600 text-white hover:bg-violet-700'}`}>{uploading?'アップロード中…':'📎 ファイル追加'}<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) uploadDocument(f); e.currentTarget.value='';}} /></label></div></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{selectedDocuments.filter(doc=>doc.document_type!=='qualification'&&doc.document_type!=='health').map((doc)=><div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-black text-slate-400">{doc.document_type==='qualification'?'資格証':doc.document_type==='health'?'健康診断書':doc.document_type==='safety'?'安全書類':'その他'}</div><div className="mt-1 font-black text-slate-900 break-words">{doc.title||'書類'}</div><div className="mt-1 text-xs text-slate-500">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'} ・ {doc.uploaded_at?new Date(doc.uploaded_at).toLocaleString('ja-JP'):'-'}</div></div><div className="shrink-0 flex gap-2 flex-wrap justify-end"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-blue-50 text-blue-700 px-3 py-2 text-xs font-black">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-3 py-2 text-xs font-black">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-3 py-2 text-xs font-black">削除</button></div></div>)}{selectedDocuments.filter(doc=>doc.document_type!=='qualification'&&doc.document_type!=='health').length===0&&<div className="md:col-span-2 p-8 text-center text-slate-400 font-bold rounded-2xl border border-dashed border-slate-300">保存済み書類はありません。</div>}</div>
+                  {!loading && tab==='documents' && <div className="space-y-4">
+<div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-base text-slate-900">その他書類</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={()=>{setDocTitle('');setEditor('other');}} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">＋ 書類追加</button></div></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{selectedDocuments.filter(doc=>doc.document_type!=='qualification'&&doc.document_type!=='health').map((doc)=><div key={doc.id} className="rounded-lg border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-semibold text-slate-400">{doc.document_type==='qualification'?'資格証':doc.document_type==='health'?'健康診断書':doc.document_type==='safety'?'安全書類':'その他'}</div><div className="mt-1 font-semibold text-slate-900 break-words">{doc.title||'書類'}</div><div className="mt-1 text-xs text-slate-500">{doc.file_size?`${(doc.file_size/1024/1024).toFixed(2)} MB`:'-'} ・ {doc.uploaded_at?new Date(doc.uploaded_at).toLocaleString('ja-JP'):'-'}</div></div><div className="shrink-0 flex gap-2 flex-wrap justify-end"><button onClick={()=>openDocument(doc)} className="rounded-lg bg-white text-blue-700 px-3 py-2 text-xs font-semibold">開く</button><button onClick={()=>renameDocument(doc)} className="rounded-lg bg-amber-50 text-amber-700 px-3 py-2 text-xs font-semibold">名前変更</button><button onClick={()=>deleteDocument(doc)} className="rounded-lg bg-rose-50 text-rose-700 px-3 py-2 text-xs font-semibold">削除</button></div></div>)}{selectedDocuments.filter(doc=>doc.document_type!=='qualification'&&doc.document_type!=='health').length===0&&<div className="md:col-span-2 p-8 text-center text-slate-400 font-bold rounded-lg border border-dashed border-slate-300">保存済み書類はありません。</div>}</div>
+{editor==='other'&&<LedgerDialog title={'その他書類を追加：'+selectedWorker} busy={busy} close={()=>{if(window.confirm('入力を破棄して閉じますか？')){setDocTitle('');setEditor('');}}}>                    <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="font-semibold text-slate-700">その他の書類を保存</div><p className="mt-1 text-xs text-slate-700">画像はアップロード前に長辺2200px・JPEG品質88%へ自動圧縮します。PDFは原本のまま10MBまで保存します。</p><div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 mt-3"><select value={docType} onChange={(e)=>setDocType(e.target.value)} className="rounded-lg border p-2 font-normal bg-white"><option value="safety">安全書類</option><option value="other">その他</option></select><input value={docTitle} onChange={(e)=>setDocTitle(e.target.value)} placeholder="書類名（例：安全書類）" className="rounded-lg border p-2 font-normal bg-white" /><label className={`rounded-lg px-3 py-2 font-semibold text-center cursor-pointer ${uploading?'bg-slate-300 text-slate-500':'bg-blue-600 text-white hover:bg-blue-700'}`}>{uploading?'アップロード中…':'📎 ファイル追加'}<input type="file" accept="image/*,.pdf,application/pdf" disabled={uploading} className="hidden" onChange={(e)=>{const f=e.target.files?.[0]; if(f) uploadDocument(f); e.currentTarget.value='';}} /></label></div></div>
+</LedgerDialog>}
                   </div>}
+
+
                 </div>
               </div>
             )}
