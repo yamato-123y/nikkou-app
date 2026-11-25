@@ -11289,7 +11289,7 @@ export default function AdminPage() {
 
       {/* マスタ登録・単価設定エリア（管理者のみ） */}
       {authRole === 'admin' && (
-        <div id="admin-master" className={`${adminViewClass('master')} scroll-mt-6 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden`}>
+        <div id="admin-master" className={`${adminViewClass('master')} scroll-mt-6 bg-white rounded-2xl shadow-sm border border-slate-200`}>
           <div
             role="button"
             tabIndex={0}
@@ -11321,14 +11321,25 @@ export default function AdminPage() {
           </div>
 
           {showAdminSection && (
-            <div className="p-5 lg:p-6 animate-fadeIn">
+            <div className="p-3 lg:p-4">
               <div className="max-w-[1360px] mx-auto">
-              <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div><h3 className="text-lg md:text-xl font-extrabold text-slate-900">🔎 何を登録しますか？</h3>
-                  <p className="text-sm text-slate-600 mt-1">登録・確認したい項目を選択してください。</p></div>
+              <div id="master-navigation-start" className="scroll-mt-2" />
+              <div className="sticky top-0 z-30 mb-4 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+                  <h3 className="text-sm font-bold text-slate-900">マスタ選択</h3>
+                  {selectedMasterPanel && (() => {
+                    const key = selectedMasterPanel === 'leaseVendors' ? 'leaseMasterUnified' : selectedMasterPanel;
+                    return <div className="flex flex-wrap items-center justify-end gap-2">
+                      {renderMasterSaveStatus(key)}
+                      <button type="button" disabled={!!masterSavingKey} onClick={() => {
+                        if (key === 'leaseMasterUnified') void saveUnifiedLeaseMaster();
+                        else if (key === 'ishikawa-group') void saveUnifiedIshikawaLeaseMaster();
+                        else void saveMaster(key);
+                      }} className="rounded-md bg-blue-700 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50">{masterSavingKey === key ? '保存中…' : '保存'}</button>
+                    </div>;
+                  })()}
                 </div>
-                <div className="space-y-5">
+                <div className="flex flex-wrap items-start gap-x-4 gap-y-2 max-h-[26vh] overflow-y-auto">
                   {[
                     { title: '👷 人・基本情報', tone: 'blue', items: [
                       ['作業員', 'workers'], ['職長', 'managers'], ['職種', 'jobTypes'], ['現場', 'locations']
@@ -11346,9 +11357,9 @@ export default function AdminPage() {
                       ['処分場', 'disposalLocations'], ['スクラップ', 'scrapLocations']
                     ] },
                   ].map((group:any) => (
-                    <div key={group.title} className="rounded-xl border border-slate-200 bg-white px-4 py-4 md:px-5">
-                      <div className="font-bold text-sm md:text-base text-slate-800 mb-3">{group.title}</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div key={group.title} className="min-w-0">
+                      <div className="text-[11px] font-semibold text-slate-500 mb-1">{group.title}</div>
+                      <div className="flex flex-wrap gap-1">
                         {group.items.map(([label, key]: string[]) => (
                           <button
                             key={key}
@@ -11360,11 +11371,11 @@ export default function AdminPage() {
                                 setSelectedMasterPanel(key);
                               }
                               window.setTimeout(() => {
-                                const panelId = key === 'leaseVendors' ? 'master-leaseMasterUnified' : key === 'ishikawa-group' ? 'master-ishikawa-group' : `master-${key}`;
-                                document.getElementById(panelId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                document.getElementById('master-navigation-start')?.scrollIntoView({ behavior: 'instant', block: 'start' });
                               }, 80);
                             }}
-                            className={`w-full min-h-[88px] px-4 py-4 rounded-xl text-sm md:text-base font-bold transition-colors border flex items-center justify-center text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 ${selectedMasterPanel === key ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-400'}`}
+                            aria-pressed={selectedMasterPanel === key}
+                            className={`min-h-[34px] px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors border whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${selectedMasterPanel === key ? 'bg-blue-700 border-blue-700 text-white' : 'bg-white hover:bg-blue-50 text-slate-700 border-slate-200 hover:border-blue-300'}`}
                           >
                             <span>{label}</span>
                           </button>
@@ -11373,9 +11384,7 @@ export default function AdminPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 text-xs md:text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5">
-                  登録：新規登録を開く → ＋追加 → 保存　／　編集：一覧から編集 → 保存
-                </div>
+
               </div>
 
               {!selectedMasterPanel && (
@@ -11392,24 +11401,17 @@ export default function AdminPage() {
                     <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">リース業者 → カテゴリー → 名称 → 日額単価の順で、通常リースをまとめて登録します。</p>
                     <p className="text-xs text-slate-500 mt-1.5">※既存の重機・アタッチメント・その他機器データはそのまま使用します。業者未設定の既存データは南大阪建機として扱います。</p>
                   </div>
-                  {renderMasterSaveStatus('leaseMasterUnified')}
-                  <button
-                    type="button"
-                    onClick={saveUnifiedLeaseMaster}
-                    disabled={!!masterSavingKey}
-                    className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
-                  >
-                    {masterSavingKey === 'leaseMasterUnified' ? '保存中…' : '💾 保存'}
-                  </button>
+                  
                 </div>
 
-                <div id="master-leaseVendors" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-3.5">
+                <details key={`lease-vendors-${selectedMasterPanel}`} id="master-leaseVendors" open={selectedMasterPanel === 'leaseVendors'} className="rounded-lg border border-slate-200 bg-white">
+                  <summary className="cursor-pointer bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 rounded-lg">リース業者の登録・編集（{(settings.leaseVendors || []).length + 1} 社・常設を含む）</summary><div className="p-3">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <div className="font-extrabold text-sm text-slate-800">🏢 リース業者登録</div>
                       <div className="text-xs text-slate-500 mt-0.5">ここで業者を登録すると、下のリースマスタですぐ選択できます。</div>
                     </div>
-                    <div className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">登録済み {(settings.leaseVendors || []).length} 社</div>
+                    <div className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">追加業者 {(settings.leaseVendors || []).length} 社</div>
                   </div>
                   <details className="mb-3 rounded-lg border border-slate-200"><summary className="cursor-pointer px-3 py-2 text-sm font-bold text-blue-700">＋ 業者を追加</summary><div className="p-2"><div className="grid grid-cols-[1fr_110px] gap-2 mb-3">
                     <input
@@ -11449,7 +11451,7 @@ export default function AdminPage() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </div></details>
 
                 <details className="rounded-lg border border-slate-200 bg-white"><summary className="cursor-pointer list-none px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50 [&::-webkit-details-marker]:hidden">＋ リース品を新規追加 <span className="text-xs font-normal text-slate-500">（開く／閉じる）</span></summary><div className="p-3 border-t border-slate-200">
                   <div className="grid grid-cols-[1.15fr_1fr_1.35fr_0.75fr_110px] gap-2.5 items-end">
@@ -11494,22 +11496,23 @@ export default function AdminPage() {
 <div className="space-y-2">
                   <div className="flex items-center justify-between px-1">
                     <div className="text-sm font-bold text-slate-700">✏️ 登録済みリース（直接編集できます）</div>
-                    <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                    <div className="text-xs text-slate-400">変更後は上部の「保存」</div>
                   </div>
                   <input type="search" placeholder="🔎 通常リースを検索（業者・名称・カテゴリー）" aria-label="通常リースを検索" value={masterListSearch['leaseLease'] || ''} onChange={(e) => setMasterListSearch(prev => ({ ...prev, leaseLease: e.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm mb-2" />
-                        <div className="max-h-[560px] overflow-y-auto bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+                        <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+<div className="grid grid-cols-[minmax(0,1fr)_88px_64px] md:grid-cols-[120px_minmax(0,1.3fr)_minmax(0,1fr)_108px_72px] items-center gap-2 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"><span className="hidden md:block">区分</span><span>名称</span><span className="hidden md:block">業者</span><span className="text-right">日額単価</span><span className="text-center">操作</span></div>
                     {[
                       ...(settings.leaseHeavy || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseHeavy', categoryLabel: '重機' })),
                       ...(settings.leaseAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseAttach', categoryLabel: 'アタッチメント' })),
                       ...(settings.leaseOther || []).map((item:any, idx:number) => ({ item, idx, key: 'leaseOther', categoryLabel: 'その他の機械・機器' }))
                     ].filter((row:any) => !String(masterListSearch['leaseLease'] || '').trim() || [row.item.vendor, row.item.name, row.categoryLabel].some(v => String(v || '').toLocaleLowerCase().includes(String(masterListSearch['leaseLease']).trim().toLocaleLowerCase()))).map((row:any) => (
                       <details key={`${row.key}_${row.idx}`} className="group bg-white even:bg-slate-50/60 open:bg-white">
-                      <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2.5 flex items-center gap-3 hover:bg-blue-50/60">
-                        <span className="text-xs text-slate-500 w-24 shrink-0">{row.categoryLabel}</span>
-                        <span className="flex-1 min-w-0 break-words font-medium text-sm">{row.item.name || '名称未入力'}</span>
-                        <span className="hidden md:block text-xs text-slate-500 truncate max-w-44">{row.item.vendor || '南大阪建機'}</span>
-                        <span className="text-xs text-slate-500">¥{Number(row.item.price || 0).toLocaleString('ja-JP')}</span>
-                        <span className="text-xs font-bold text-blue-700 border border-blue-200 px-2 py-1 rounded-lg">編集 ▼</span>
+                      <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2 grid grid-cols-[minmax(0,1fr)_88px_64px] md:grid-cols-[120px_minmax(0,1.3fr)_minmax(0,1fr)_108px_72px] items-center gap-2 hover:bg-blue-50/60">
+                        <span className="hidden md:block text-xs text-slate-600 break-words">{row.categoryLabel}</span>
+                        <span className="min-w-0 break-words font-semibold text-sm">{row.item.name || '名称未入力'}<span className="block md:hidden text-xs font-normal text-slate-500">{row.categoryLabel} / {row.item.vendor || '業者未設定'}</span></span>
+                        <span className="hidden md:block text-sm text-slate-700 break-words">{row.item.vendor || '南大阪建機'}</span>
+                        <span className="text-sm text-right font-medium tabular-nums text-slate-800">¥{Number(row.item.price || 0).toLocaleString('ja-JP')}</span>
+                        <span className="text-xs text-center font-semibold text-blue-700 border border-blue-200 px-1.5 py-1 rounded-md">編集 ▼</span>
                       </summary>
                       <div className="grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50">
                         <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
@@ -11552,7 +11555,7 @@ export default function AdminPage() {
                       { title: "♻️ スクラップマスタ", description: "スクラップ場ごとの品目・単位を登録します。", category: "処分・売却", key: "scrapLocations", isScrap: true },
                     ];
                 const renderMasterSection = (sec: any, idx: number) => (
-                          <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 w-full min-w-0 overflow-hidden p-4 rounded-2xl border space-y-3 flex flex-col shadow-sm ${selectedMasterPanel === sec.key ? '' : 'hidden'} bg-white border-slate-200`}>
+                          <div id={`master-${sec.key}`} key={idx} className={`scroll-mt-6 w-full min-w-0 p-3 rounded-xl border space-y-3 flex flex-col ${selectedMasterPanel === sec.key ? '' : 'hidden'} bg-white border-slate-200`}>
                             <div className="space-y-3">
                               <div className="flex justify-between items-start gap-3 pb-2.5 border-b border-slate-200/80">
                                 <div className="min-w-0">
@@ -11563,16 +11566,7 @@ export default function AdminPage() {
                                   <p className="text-xs md:text-sm text-slate-600 mt-1 leading-relaxed">{sec.description}</p>
                                   <p className="text-xs text-slate-400 mt-1.5">登録済み {(settings[sec.key] || []).length} 件</p>
                                 </div>
-                                <div className="flex flex-wrap items-center justify-end gap-3 shrink-0">
-                                  {renderMasterSaveStatus(sec.key)}
-                                <button
-                                  type="button"
-                                  onClick={() => saveMaster(sec.key)}
-                                  disabled={!!masterSavingKey}
-                                  className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
-                                >
-                                  {masterSavingKey === sec.key ? '保存中…' : '💾 保存'}
-                                </button></div>
+                                
                               </div>
 
                               <details className="group rounded-lg border border-slate-200 bg-white">
@@ -11905,7 +11899,7 @@ export default function AdminPage() {
                                   <div className="text-sm font-black text-slate-800">✏️ 登録済みデータ</div>
                                   <div className="text-[11px] text-slate-500 mt-0.5">一覧から探して「編集」を押すと入力欄が開きます。</div>
                                 </div>
-                                <div className="text-xs text-slate-500">変更後は右上の「💾 保存」</div>
+                                <div className="text-xs text-slate-500">変更後は上部の「保存」</div>
                               </div>
                               {sec.key === 'workers' && (() => {
                                 const today = new Date().toLocaleDateString('sv-SE');
@@ -11917,8 +11911,8 @@ export default function AdminPage() {
                                 </div>;
                               })()}
                               <input type="search" aria-label={`${sec.title}の登録済みマスタを検索`} placeholder="🔎 登録済みマスタを検索（名前・品目など）" value={masterListSearch[sec.key] || ''} onChange={(e) => setMasterListSearch(prev => ({ ...prev, [sec.key]: e.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                              <div className="max-h-[560px] overflow-y-auto bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
-                              <div className="sticky top-0 z-10 flex items-center gap-3 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"><span className="w-10 shrink-0">No.</span><span className="flex-1">名称・内容</span>{!sec.isNoPrice && <span className="hidden sm:block">単価</span>}<span className="w-16 text-center">操作</span></div>
+                              <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+                              <div className="flex items-center gap-3 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"><span className="w-10 shrink-0">No.</span><span className="flex-1">名称・内容</span>{!sec.isNoPrice && <span className="hidden sm:block w-28 text-right">単価</span>}<span className="w-20 shrink-0 text-center">操作</span></div>
                               {(settings[sec.key] || []).length === 0 ? (
                                 <p className="text-sm text-slate-400 text-center py-4">登録データがありません</p>
                               ) : (
@@ -11936,8 +11930,8 @@ export default function AdminPage() {
                                     <summary className="list-none cursor-pointer px-3 py-2 flex items-center gap-3 hover:bg-blue-50/60 select-none [&::-webkit-details-marker]:hidden">
                                       <span className="shrink-0 text-[11px] text-slate-400 w-10">{idx + 1}.</span>
                                       <span className="flex-1 min-w-0 break-words text-sm font-medium text-slate-800">{sec.isSub ? `${item.company || '未入力'} / ${item.task || ''}` : (sec.isDisp || sec.isScrap) ? `${item.location || '未入力'} / ${item.item || ''}` : (typeof item === 'string' ? item : (item?.name || '名称未入力'))}</span>
-                                      {item?.price !== undefined && !sec.isNoPrice && <span className="hidden sm:block shrink-0 text-xs text-slate-500">¥{Number(item.price || 0).toLocaleString('ja-JP')}</span>}
-                                      <span className="shrink-0 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 text-xs font-bold group-open:bg-blue-600 group-open:text-white">編集 <span className="group-open:hidden">▼</span><span className="hidden group-open:inline">▲</span></span>
+                                      {!sec.isNoPrice && <span className="hidden sm:block w-28 shrink-0 text-right text-sm tabular-nums text-slate-700">{item?.price === undefined ? '—' : `¥${Number(item.price || 0).toLocaleString('ja-JP')}`}</span>}
+                                      <span className="w-20 text-center shrink-0 rounded-md bg-white text-blue-700 border border-blue-200 px-2 py-1 text-xs font-semibold group-open:bg-blue-600 group-open:text-white">編集 <span className="group-open:hidden">▼</span><span className="hidden group-open:inline">▲</span></span>
                                     </summary>
                                     <div className="flex flex-col gap-3 p-3.5 border-t border-slate-200">
                                     <div className="flex justify-between items-start gap-3 border-b border-slate-100 pb-2.5">
@@ -12330,15 +12324,7 @@ export default function AdminPage() {
                           <p className="text-xs md:text-sm text-indigo-700 mt-1">リース業者 → カテゴリー → 名称 → 日額単価の順で、徳本の石川県出張用リースをまとめて登録します。</p>
                           <p className="text-xs text-slate-500 mt-1.5">※保存先は従来どおり「石川県用 重機・アタッチメント・その他機械」のままです。既存データもそのまま使用します。</p>
                         </div>
-                        {renderMasterSaveStatus('ishikawa-group')}
-                  <button
-                          type="button"
-                          onClick={saveUnifiedIshikawaLeaseMaster}
-                          disabled={!!masterSavingKey}
-                          className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-3.5 py-2 rounded-lg font-bold shadow-sm transition shrink-0"
-                        >
-                          {masterSavingKey === 'ishikawa-group' ? '保存中…' : '💾 保存'}
-                        </button>
+                        
                       </div>
 
                       <div id="master-ishikawaLeaseVendors" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-3.5">
@@ -12429,22 +12415,23 @@ export default function AdminPage() {
 <div className="space-y-2">
                         <div className="flex items-center justify-between px-1">
                           <div className="text-sm font-bold text-slate-700">✏️ 登録済み石川県用リース（直接編集できます）</div>
-                          <div className="text-xs text-slate-400">変更後は右上の「💾 保存」</div>
+                          <div className="text-xs text-slate-400">変更後は上部の「保存」</div>
                         </div>
                         <input type="search" placeholder="🔎 石川県用リースを検索（業者・名称・カテゴリー）" aria-label="石川県用リースを検索" value={masterListSearch['ishikawaLease'] || ''} onChange={(e) => setMasterListSearch(prev => ({ ...prev, ishikawaLease: e.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm mb-2" />
-                        <div className="max-h-[560px] overflow-y-auto bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+                        <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+<div className="grid grid-cols-[minmax(0,1fr)_88px_64px] md:grid-cols-[120px_minmax(0,1.3fr)_minmax(0,1fr)_108px_72px] items-center gap-2 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"><span className="hidden md:block">区分</span><span>名称</span><span className="hidden md:block">業者</span><span className="text-right">日額単価</span><span className="text-center">操作</span></div>
                           {[
                             ...(settings.ishikawaHeavy || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaHeavy', categoryLabel: '重機' })),
                             ...(settings.ishikawaAttach || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaAttach', categoryLabel: 'アタッチメント' })),
                             ...(settings.ishikawaOther || []).map((item:any, idx:number) => ({ item, idx, key: 'ishikawaOther', categoryLabel: 'その他の機械・機器' }))
                           ].filter((row:any) => !String(masterListSearch['ishikawaLease'] || '').trim() || [row.item.vendor, row.item.name, row.categoryLabel].some(v => String(v || '').toLocaleLowerCase().includes(String(masterListSearch['ishikawaLease']).trim().toLocaleLowerCase()))).map((row:any) => (
                             <details key={`${row.key}_${row.idx}`} className="group bg-white even:bg-slate-50/60 open:bg-white">
-                      <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2.5 flex items-center gap-3 hover:bg-blue-50/60">
-                        <span className="text-xs text-slate-500 w-24 shrink-0">{row.categoryLabel}</span>
-                        <span className="flex-1 min-w-0 break-words font-medium text-sm">{row.item.name || '名称未入力'}</span>
-                        <span className="hidden md:block text-xs text-slate-500 truncate max-w-44">{row.item.vendor || '業者未設定'}</span>
-                        <span className="text-xs text-slate-500">¥{Number(row.item.price || 0).toLocaleString('ja-JP')}</span>
-                        <span className="text-xs font-bold text-blue-700 border border-blue-200 px-2 py-1 rounded-lg">編集 ▼</span>
+                      <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer px-3 py-2 grid grid-cols-[minmax(0,1fr)_88px_64px] md:grid-cols-[120px_minmax(0,1.3fr)_minmax(0,1fr)_108px_72px] items-center gap-2 hover:bg-blue-50/60">
+                        <span className="hidden md:block text-xs text-slate-600 break-words">{row.categoryLabel}</span>
+                        <span className="min-w-0 break-words font-semibold text-sm">{row.item.name || '名称未入力'}<span className="block md:hidden text-xs font-normal text-slate-500">{row.categoryLabel} / {row.item.vendor || '業者未設定'}</span></span>
+                        <span className="hidden md:block text-sm text-slate-700 break-words">{row.item.vendor || '業者未設定'}</span>
+                        <span className="text-sm text-right font-medium tabular-nums text-slate-800">¥{Number(row.item.price || 0).toLocaleString('ja-JP')}</span>
+                        <span className="text-xs text-center font-semibold text-blue-700 border border-blue-200 px-1.5 py-1 rounded-md">編集 ▼</span>
                       </summary>
                       <div id={`master-${row.key}`} className="scroll-mt-6 grid grid-cols-[120px_1.1fr_1.35fr_0.75fr_78px] gap-2 items-center p-2.5 rounded-xl border border-slate-200 bg-slate-50/30">
                               <span className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-indigo-100 text-slate-800 text-center whitespace-nowrap">{row.categoryLabel}</span>
